@@ -331,29 +331,6 @@ textarea:focus-visible,
     opacity 160ms ease;
 }
 
-.composer-dock::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: var(--iphone-panel-radius);
-  background:
-    radial-gradient(
-        circle at 100% 100%,
-        transparent calc(var(--iphone-panel-radius) - 1px),
-        var(--black) var(--iphone-panel-radius)
-      )
-      left top / var(--iphone-panel-radius) var(--iphone-panel-radius) no-repeat,
-    radial-gradient(
-        circle at 0 100%,
-        transparent calc(var(--iphone-panel-radius) - 1px),
-        var(--black) var(--iphone-panel-radius)
-      )
-      right top / var(--iphone-panel-radius) var(--iphone-panel-radius) no-repeat;
-  content: "";
-  pointer-events: none;
-}
-
 .composer-dock button:focus-visible,
 .block-controls button:focus-visible {
   outline-color: #000000;
