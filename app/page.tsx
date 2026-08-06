@@ -673,13 +673,6 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
 
   useEffect(() => {
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
-      "content",
-      "#FFFFFF",
-    );
-  }, [topSafeAreaColor]);
-
-  useEffect(() => {
     let scrollFrame: number | null = null;
     const updateTopSafeAreaVisibility = () => {
       if (scrollFrame !== null) return;
