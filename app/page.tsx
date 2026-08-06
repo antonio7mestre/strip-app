@@ -61,7 +61,7 @@ type TextTool = "font" | "background" | "color";
 const STORAGE_KEY = "strip-draft-v1";
 const DEFAULT_BACKGROUND = "#000000";
 const DEFAULT_TEXT = "#FFFFFF";
-const DEFAULT_FONT_SIZE = 24;
+const DEFAULT_FONT_SIZE = 18;
 const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
@@ -811,9 +811,9 @@ export default function Home() {
       return next;
     });
     setSelectedBlockId(id);
-    setEditingTextBlockId(id);
+    setEditingTextBlockId(null);
     setActiveTextTool(null);
-    revealAddedBlock(id, true);
+    revealAddedBlock(id);
   };
 
   const addImage = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1005,7 +1005,7 @@ export default function Home() {
                     target.style.height = `${target.scrollHeight}px`;
                     window.requestAnimationFrame(() => keepFocusedTextBlockVisible("auto"));
                   }}
-                  placeholder="Write something…"
+                  placeholder="tap me to write"
                   aria-label={`Text block ${index + 1}`}
                   rows={1}
                 />
@@ -1014,7 +1014,7 @@ export default function Home() {
                   className={isEditing && !block.content ? "is-placeholder" : undefined}
                   style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
                 >
-                  {block.content || (isEditing ? "Write something…" : "")}
+                  {block.content || (isEditing ? "tap me to write" : "")}
                 </p>
               )}
             </section>
