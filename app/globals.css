@@ -32,7 +32,7 @@ html {
 body {
   min-height: 100lvh;
   overflow-x: clip;
-  background: transparent;
+  background: var(--top-safe-area-color, #000000);
   color: var(--white);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
     sans-serif;
