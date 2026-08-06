@@ -334,6 +334,17 @@ textarea:focus-visible,
     opacity 160ms ease;
 }
 
+.composer-dock::after {
+  position: absolute;
+  top: calc(100% - 1px);
+  right: 0;
+  left: 0;
+  height: max(180px, calc(100lvh - 100dvh + env(safe-area-inset-bottom)));
+  background: #ffffff;
+  content: "";
+  pointer-events: none;
+}
+
 .composer-dock button:focus-visible,
 .block-controls button:focus-visible {
   outline-color: #000000;
