@@ -329,9 +329,7 @@ textarea:focus-visible,
   background: #ffffff;
   -webkit-backdrop-filter: blur(32px) saturate(165%);
   backdrop-filter: blur(32px) saturate(165%);
-  box-shadow:
-    0 48px 0 32px #ffffff,
-    0 -16px 44px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 -16px 44px rgba(0, 0, 0, 0.2);
   transition:
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 160ms ease;
