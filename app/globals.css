@@ -97,7 +97,6 @@ textarea:focus-visible,
   bottom: 0;
   height: max(env(safe-area-inset-bottom), 44px);
   background: #ffffff !important;
-  box-shadow: 0 96px 0 96px #ffffff;
 }
 
 .editor-canvas {

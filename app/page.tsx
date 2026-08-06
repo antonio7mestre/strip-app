@@ -681,11 +681,7 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
 
   useEffect(() => {
-    document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
-      "content",
-      topSafeAreaColor,
-    );
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
+    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
   }, [topSafeAreaColor]);
 
   useEffect(() => {
@@ -1142,11 +1138,7 @@ export default function Home() {
     const showsImageCovers = imageCoverBlocks.length > 0;
     return (
       <main className="app-shell publish-setup-mode">
-        <div
-          className="top-safe-area-anchor"
-          style={{ backgroundColor: topSafeAreaColor }}
-          aria-hidden="true"
-        />
+        <div className="top-safe-area-anchor" aria-hidden="true" />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
 
         <section className="publish-setup-shell" aria-labelledby="publish-setup-title">
@@ -1286,11 +1278,7 @@ export default function Home() {
     const isPublished = view === "published";
     return (
       <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
-        <div
-          className="top-safe-area-anchor"
-          style={{ backgroundColor: topSafeAreaColor }}
-          aria-hidden="true"
-        />
+        <div className="top-safe-area-anchor" aria-hidden="true" />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
         {isPublished ? (
           <header className="topbar reader-topbar">
@@ -1357,11 +1345,7 @@ export default function Home() {
         editingTextBlockId ? "is-typing" : ""
       }`}
     >
-      <div
-        className="top-safe-area-anchor"
-        style={{ backgroundColor: topSafeAreaColor }}
-        aria-hidden="true"
-      />
+      <div className="top-safe-area-anchor" aria-hidden="true" />
       <div className="bottom-safe-area-anchor" aria-hidden="true" />
       <div className="editor-canvas">{renderStrip(true)}</div>
 
