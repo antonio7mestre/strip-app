@@ -677,6 +677,9 @@ export default function Home() {
       "content",
       topSafeAreaHidden ? "transparent" : topSafeAreaColor,
     );
+    document.documentElement.style.backgroundColor = topSafeAreaHidden
+      ? "#ffffff"
+      : topSafeAreaColor;
   }, [topSafeAreaColor, topSafeAreaHidden]);
 
   useEffect(() => {
