@@ -673,7 +673,7 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
 
   useEffect(() => {
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
+    document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
       "content",
       topSafeAreaHidden ? "transparent" : topSafeAreaColor,
     );
