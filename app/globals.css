@@ -94,8 +94,10 @@ textarea:focus-visible,
 .bottom-safe-area-anchor {
   position: fixed;
   z-index: 29;
-  bottom: 0;
-  height: max(env(safe-area-inset-bottom), 44px);
+  bottom: min(0px, calc(100dvh - 100lvh));
+  height: calc(
+    max(env(safe-area-inset-bottom), 44px) + max(0px, calc(100lvh - 100dvh))
+  );
   background: #ffffff !important;
 }
 
