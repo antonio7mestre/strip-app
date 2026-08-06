@@ -11,6 +11,7 @@ const initialThemeColorScript = `
         firstBlock?.type === "text" && typeof firstBlock.backgroundColor === "string"
           ? firstBlock.backgroundColor
           : "#000000";
+      document.getElementById("strip-theme-color")?.setAttribute("content", color);
       document.documentElement.style.backgroundColor = color;
     } catch {}
   })();
@@ -36,7 +37,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <head>
-        <meta id="strip-theme-color" name="theme-color" content="#ffffff" />
+        <meta id="strip-theme-color" name="theme-color" content="#000000" />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>
       <body>{children}</body>

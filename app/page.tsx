@@ -681,6 +681,10 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
 
   useEffect(() => {
+    document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
+      "content",
+      topSafeAreaColor,
+    );
     document.documentElement.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
 
