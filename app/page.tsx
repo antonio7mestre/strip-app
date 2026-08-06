@@ -198,7 +198,7 @@ function swatchStyle(color: string): SwatchStyle {
   };
 }
 
-function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "smooth") {
+function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "auto") {
   const viewport = window.visualViewport;
   const textarea =
     document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
@@ -683,6 +683,18 @@ export default function Home() {
     const viewport = window.visualViewport;
     const root = document.documentElement;
     let layoutHeight = window.innerHeight;
+    let visibilityFrame: number | null = null;
+
+    const queueFocusedTextBlockVisibility = () => {
+      if (visibilityFrame !== null) {
+        window.cancelAnimationFrame(visibilityFrame);
+      }
+      visibilityFrame = window.requestAnimationFrame(() => {
+        visibilityFrame = null;
+        keepFocusedTextBlockVisible("auto");
+      });
+    };
+
     const updateKeyboardInset = () => {
       const textIsFocused = document.activeElement instanceof HTMLTextAreaElement;
       if (!textIsFocused) layoutHeight = window.innerHeight;
@@ -699,7 +711,7 @@ export default function Home() {
       root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
       root.classList.toggle("keyboard-open", keyboardInset > 0);
       if (keyboardInset > 0) {
-        window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
+        queueFocusedTextBlockVisibility();
       }
     };
     const handleFocusChange = () => window.requestAnimationFrame(updateKeyboardInset);
@@ -715,6 +727,9 @@ export default function Home() {
       viewport?.removeEventListener("scroll", updateKeyboardInset);
       window.removeEventListener("focusin", handleFocusChange);
       window.removeEventListener("focusout", handleFocusChange);
+      if (visibilityFrame !== null) {
+        window.cancelAnimationFrame(visibilityFrame);
+      }
       root.style.removeProperty("--keyboard-inset");
       root.classList.remove("keyboard-open");
     };
@@ -990,7 +1005,7 @@ export default function Home() {
                   onChange={(event) => updateText(block.id, event.target.value)}
                   onFocus={() => {
                     setSelectedBlockId(block.id);
-                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
+                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("auto"));
                   }}
                   onBlur={() => {
                     window.setTimeout(() => {
