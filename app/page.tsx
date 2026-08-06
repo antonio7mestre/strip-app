@@ -10,10 +10,12 @@ import type {
 } from "react";
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   Baseline,
   CaseUpper,
   Check,
+  ChevronsUpDown,
   Clapperboard,
   Eye,
   ImagePlus,
@@ -54,7 +56,7 @@ type VideoBlock = {
 };
 
 type StripBlock = TextBlock | ImageBlock | VideoBlock;
-type View = "edit" | "preview" | "published";
+type View = "edit" | "preview" | "publish-setup" | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
 
@@ -657,8 +659,15 @@ export default function Home() {
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
   const [lastTextTool, setLastTextTool] = useState<TextTool>("font");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [stripTitle, setStripTitle] = useState("");
+  const [selectedCover, setSelectedCover] = useState("");
+  const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
+  const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
+    "edit",
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -696,7 +705,10 @@ export default function Home() {
     };
 
     const updateKeyboardInset = () => {
-      const textIsFocused = document.activeElement instanceof HTMLTextAreaElement;
+      const textIsFocused =
+        document.activeElement instanceof HTMLTextAreaElement ||
+        (document.activeElement instanceof HTMLInputElement &&
+          document.activeElement.type === "text");
       if (!textIsFocused) layoutHeight = window.innerHeight;
       if (!viewport) {
         root.style.setProperty("--keyboard-inset", "0px");
@@ -930,6 +942,57 @@ export default function Home() {
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
+  const imageCoverBlocks = blocks.filter(
+    (block): block is ImageBlock => block.type === "image",
+  );
+  const coverColors = Array.from(
+    new Set([
+      ...blocks
+        .filter((block): block is TextBlock => block.type === "text")
+        .map((block) => block.backgroundColor ?? DEFAULT_BACKGROUND),
+      ...BACKGROUND_COLORS.map((color) => color.value),
+    ]),
+  );
+
+  const continueToPublish = () => {
+    if (!hasContent) {
+      setNotice("Add something before you continue.");
+      return;
+    }
+
+    const availableCovers = customCoverSrc
+      ? [
+          "custom",
+          ...(imageCoverBlocks.length > 0
+            ? imageCoverBlocks.map((block) => `image:${block.id}`)
+            : coverColors.map((color) => `color:${color}`)),
+        ]
+      : imageCoverBlocks.length > 0
+        ? imageCoverBlocks.map((block) => `image:${block.id}`)
+        : coverColors.map((color) => `color:${color}`);
+    setSelectedCover((current) =>
+      current && availableCovers.includes(current) ? current : availableCovers[0],
+    );
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+    setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
+    setView("publish-setup");
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  const addCustomCover = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      setCustomCoverSrc(reader.result);
+      setSelectedCover("custom");
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
 
   const publish = () => {
     if (!hasContent) {
@@ -1075,6 +1138,150 @@ export default function Home() {
     </div>
   );
 
+  if (view === "publish-setup") {
+    const showsImageCovers = imageCoverBlocks.length > 0;
+    return (
+      <main className="app-shell publish-setup-mode">
+        <div
+          className="top-safe-area-anchor"
+          style={{ backgroundColor: topSafeAreaColor }}
+          aria-hidden="true"
+        />
+        <div className="bottom-safe-area-anchor" aria-hidden="true" />
+
+        <section className="publish-setup-shell" aria-labelledby="publish-setup-title">
+          <header className="publish-setup-header">
+            <span>Almost ready</span>
+            <h1 id="publish-setup-title">Finish your Strip.</h1>
+            <label className="strip-title-field">
+              <span>
+                Title <em>optional</em>
+              </span>
+              <input
+                type="text"
+                value={stripTitle}
+                onChange={(event) => setStripTitle(event.target.value)}
+                placeholder="Give it a title"
+                maxLength={80}
+              />
+            </label>
+          </header>
+
+          <section className="cover-picker" aria-labelledby="cover-picker-title">
+            <div className="cover-picker-heading">
+              <h2 id="cover-picker-title">Cover</h2>
+              <span>
+                <ChevronsUpDown aria-hidden="true" /> Swipe up or down
+              </span>
+            </div>
+            <div className="cover-selector-frame">
+              <div className="cover-selector-scroll">
+                {customCoverSrc ? (
+                  <button
+                    className={`cover-option cover-image-option ${
+                      selectedCover === "custom" ? "is-selected" : ""
+                    }`}
+                    type="button"
+                    onClick={() => setSelectedCover("custom")}
+                    aria-label="Use uploaded image as cover"
+                    aria-pressed={selectedCover === "custom"}
+                  >
+                    <img src={customCoverSrc} alt="Uploaded cover" />
+                    <span className="cover-selection-label">Cover</span>
+                  </button>
+                ) : null}
+
+                {showsImageCovers
+                  ? imageCoverBlocks.map((block, index) => {
+                      const coverKey = `image:${block.id}`;
+                      const isSelected = selectedCover === coverKey;
+                      return (
+                        <button
+                          className={`cover-option cover-image-option ${
+                            isSelected ? "is-selected" : ""
+                          }`}
+                          type="button"
+                          key={coverKey}
+                          onClick={() => setSelectedCover(coverKey)}
+                          aria-label={`Use image ${index + 1} as cover`}
+                          aria-pressed={isSelected}
+                        >
+                          <img src={block.src} alt={block.alt || `Cover option ${index + 1}`} />
+                          <span className="cover-selection-label">Cover</span>
+                        </button>
+                      );
+                    })
+                  : coverColors.map((color, index) => {
+                      const coverKey = `color:${color}`;
+                      const isSelected = selectedCover === coverKey;
+                      return (
+                        <button
+                          className={`cover-option cover-color-option ${
+                            isSelected ? "is-selected" : ""
+                          }`}
+                          type="button"
+                          key={coverKey}
+                          onClick={() => setSelectedCover(coverKey)}
+                          style={{ backgroundColor: color }}
+                          aria-label={`Use color ${index + 1} as cover`}
+                          aria-pressed={isSelected}
+                        >
+                          <span className="cover-selection-label">Cover</span>
+                        </button>
+                      );
+                    })}
+
+                <button
+                  className="cover-option cover-add-option"
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                >
+                  <ImagePlus aria-hidden="true" />
+                  <span>Add a cover image</span>
+                </button>
+              </div>
+              <div className="cover-swipe-cue" aria-hidden="true">
+                <ArrowUp />
+                <span />
+                <ArrowDown />
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <input
+          ref={coverInputRef}
+          className="visually-hidden"
+          type="file"
+          accept="image/*"
+          onChange={addCustomCover}
+          aria-label="Choose a cover image"
+        />
+
+        <footer className="composer-dock publish-setup-dock">
+          <button
+            className="dock-icon-button"
+            type="button"
+            onClick={() => setView(publishSetupReturnView)}
+            aria-label="Back"
+          >
+            <ArrowLeft className="dock-glyph" aria-hidden="true" />
+          </button>
+          <span className="dock-divider" aria-hidden="true" />
+          <button
+            className="dock-icon-button publish-icon-button publish-strip-button"
+            type="button"
+            onClick={publish}
+            aria-label="Publish Strip"
+          >
+            Publish
+          </button>
+        </footer>
+        {notice ? <div className="notice">{notice}</div> : null}
+      </main>
+    );
+  }
+
   if (view === "preview" || view === "published") {
     const isPublished = view === "published";
     return (
@@ -1132,10 +1339,10 @@ export default function Home() {
             <button
               className="dock-icon-button publish-icon-button publish-strip-button"
               type="button"
-              onClick={publish}
-              aria-label="Publish Strip"
+              onClick={continueToPublish}
+              aria-label="Continue to title and cover"
             >
-              Publish
+              Continue
             </button>
           </footer>
         ) : null}
@@ -1244,11 +1451,11 @@ export default function Home() {
         <button
           className="dock-icon-button publish-icon-button publish-strip-button"
           type="button"
-          onClick={publish}
+          onClick={continueToPublish}
           disabled={!hasContent}
-          aria-label="Publish Strip"
+          aria-label="Continue to title and cover"
         >
-          Publish
+          Continue
         </button>
       </footer>
       {pendingDeleteBlock ? (
