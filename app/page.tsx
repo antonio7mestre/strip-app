@@ -672,7 +672,6 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
 
   useEffect(() => {
-    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
       "content",
       "#FFFFFF",
@@ -1079,7 +1078,11 @@ export default function Home() {
     const isPublished = view === "published";
     return (
       <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
-        <div className="top-safe-area-anchor" aria-hidden="true" />
+        <div
+          className="top-safe-area-anchor"
+          style={{ backgroundColor: topSafeAreaColor }}
+          aria-hidden="true"
+        />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
         {isPublished ? (
           <header className="topbar reader-topbar">
@@ -1146,7 +1149,11 @@ export default function Home() {
         editingTextBlockId ? "is-typing" : ""
       }`}
     >
-      <div className="top-safe-area-anchor" aria-hidden="true" />
+      <div
+        className="top-safe-area-anchor"
+        style={{ backgroundColor: topSafeAreaColor }}
+        aria-hidden="true"
+      />
       <div className="bottom-safe-area-anchor" aria-hidden="true" />
       <div className="editor-canvas">{renderStrip(true)}</div>
 

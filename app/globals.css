@@ -85,7 +85,7 @@ textarea:focus-visible,
 .top-safe-area-anchor {
   z-index: 10;
   top: calc(-1 * env(safe-area-inset-top));
-  height: max(env(safe-area-inset-top), 44px);
+  height: env(safe-area-inset-top);
   background: var(--top-safe-area-color, var(--black));
 }
 
