@@ -1,0 +1,28 @@
+diff --git a/node_modules/vinext/dist/shims/metadata.d.ts b/node_modules/vinext/dist/shims/metadata.d.ts
+index cffc961..4e21cac 100644
+--- a/node_modules/vinext/dist/shims/metadata.d.ts
++++ b/node_modules/vinext/dist/shims/metadata.d.ts
+@@ -8,7 +8,9 @@ type Viewport = {
+   initialScale?: number; /** Minimum scale */
+   minimumScale?: number; /** Maximum scale */
+   maximumScale?: number; /** Whether user can scale */
+-  userScalable?: boolean; /** Theme color — single color or array of { media, color } */
++  userScalable?: boolean; /** How the viewport should fit the display cutout */
++  viewportFit?: "auto" | "cover" | "contain"; /** How the viewport responds to the virtual keyboard */
++  interactiveWidget?: "resizes-visual" | "resizes-content" | "overlays-content"; /** Theme color — single color or array of { media, color } */
+   themeColor?: string | Array<{
+     media?: string;
+     color: string;
+diff --git a/node_modules/vinext/dist/shims/metadata.js b/node_modules/vinext/dist/shims/metadata.js
+index 26aec56..7713027 100644
+--- a/node_modules/vinext/dist/shims/metadata.js
++++ b/node_modules/vinext/dist/shims/metadata.js
+@@ -51,6 +51,8 @@ function ViewportHead({ viewport }) {
+ 	if (viewport.minimumScale !== void 0) parts.push(`minimum-scale=${viewport.minimumScale}`);
+ 	if (viewport.maximumScale !== void 0) parts.push(`maximum-scale=${viewport.maximumScale}`);
+ 	if (viewport.userScalable !== void 0) parts.push(`user-scalable=${viewport.userScalable ? "yes" : "no"}`);
++	if (viewport.viewportFit !== void 0) parts.push(`viewport-fit=${viewport.viewportFit}`);
++	if (viewport.interactiveWidget !== void 0) parts.push(`interactive-widget=${viewport.interactiveWidget}`);
+ 	if (parts.length > 0) elements.push(/* @__PURE__ */ jsx("meta", {
+ 		name: "viewport",
+ 		content: parts.join(", ")
