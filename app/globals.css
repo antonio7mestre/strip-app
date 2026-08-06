@@ -70,7 +70,6 @@ textarea:focus-visible,
   position: relative;
   min-height: 100lvh;
   background: #ffffff;
-  isolation: isolate;
 }
 
 .top-safe-area-anchor,
