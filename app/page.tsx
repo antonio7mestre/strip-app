@@ -652,6 +652,7 @@ export default function Home() {
   const [view, setView] = useState<View>("edit");
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [topSafeAreaHidden, setTopSafeAreaHidden] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
@@ -677,6 +678,24 @@ export default function Home() {
       "#FFFFFF",
     );
   }, [topSafeAreaColor]);
+
+  useEffect(() => {
+    let scrollFrame: number | null = null;
+    const updateTopSafeAreaVisibility = () => {
+      if (scrollFrame !== null) return;
+      scrollFrame = window.requestAnimationFrame(() => {
+        scrollFrame = null;
+        setTopSafeAreaHidden(window.scrollY > 1);
+      });
+    };
+
+    updateTopSafeAreaVisibility();
+    window.addEventListener("scroll", updateTopSafeAreaVisibility, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", updateTopSafeAreaVisibility);
+      if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
+    };
+  }, []);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -1079,7 +1098,7 @@ export default function Home() {
     return (
       <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
         <div
-          className="top-safe-area-anchor"
+          className={`top-safe-area-anchor ${topSafeAreaHidden ? "is-hidden" : ""}`}
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
@@ -1150,7 +1169,7 @@ export default function Home() {
       }`}
     >
       <div
-        className="top-safe-area-anchor"
+        className={`top-safe-area-anchor ${topSafeAreaHidden ? "is-hidden" : ""}`}
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
