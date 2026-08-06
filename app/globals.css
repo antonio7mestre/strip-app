@@ -84,9 +84,14 @@ textarea:focus-visible,
 
 .top-safe-area-anchor {
   position: fixed;
+  z-index: 10;
   top: 0;
   height: 44px;
   background: var(--top-safe-area-color, var(--black));
+}
+
+.top-safe-area-anchor.is-transparent {
+  background: transparent;
 }
 
 .bottom-safe-area-anchor {
