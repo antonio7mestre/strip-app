@@ -310,17 +310,17 @@ textarea:focus-visible,
   position: fixed;
   z-index: 30;
   right: 0;
-  bottom: 0;
+  bottom: -180px;
   left: 0;
   display: flex;
   width: 100%;
   max-width: none;
-  min-height: calc(64px + env(safe-area-inset-bottom));
+  min-height: calc(244px + env(safe-area-inset-bottom));
   align-items: center;
   justify-content: center;
   gap: 4px;
   padding: 12px max(12px, env(safe-area-inset-right))
-    calc(2px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    calc(182px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   transform: none;
   border: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
@@ -332,17 +332,6 @@ textarea:focus-visible,
   transition:
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 160ms ease;
-}
-
-.composer-dock::after {
-  position: absolute;
-  top: calc(100% - 1px);
-  right: 0;
-  left: 0;
-  height: max(180px, calc(100lvh - 100dvh + env(safe-area-inset-bottom)));
-  background: #ffffff;
-  content: "";
-  pointer-events: none;
 }
 
 .composer-dock button:focus-visible,
