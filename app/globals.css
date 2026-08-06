@@ -93,9 +93,11 @@ textarea:focus-visible,
 
 .bottom-safe-area-anchor {
   position: fixed;
+  z-index: 29;
   bottom: 0;
   height: max(env(safe-area-inset-bottom), 44px);
-  background: #ffffff;
+  background: #ffffff !important;
+  box-shadow: 0 96px 0 96px #ffffff;
 }
 
 .editor-canvas {
