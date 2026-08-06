@@ -26,21 +26,13 @@ html {
   color-scheme: light;
   overflow-x: clip;
   overscroll-behavior-y: none;
-  background-color: #ffffff;
-  background-image: linear-gradient(
-    var(--top-safe-area-color),
-    var(--top-safe-area-color)
-  );
-  background-position: top;
-  background-size: 100% 50%;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  background: #ffffff;
 }
 
 body {
   min-height: 100lvh;
   overflow-x: clip;
-  background: transparent;
+  background: #ffffff;
   color: var(--white);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
     sans-serif;
