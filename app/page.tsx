@@ -685,7 +685,7 @@ export default function Home() {
       "content",
       topSafeAreaColor,
     );
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
+    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
   }, [topSafeAreaColor]);
 
   useEffect(() => {

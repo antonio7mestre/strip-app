@@ -26,7 +26,15 @@ html {
   color-scheme: light;
   overflow-x: clip;
   overscroll-behavior-y: none;
-  background: #ffffff;
+  background-color: #ffffff;
+  background-image: linear-gradient(
+    var(--top-safe-area-color),
+    var(--top-safe-area-color)
+  );
+  background-position: top;
+  background-size: 100% 50%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 body {

@@ -12,7 +12,7 @@ const initialThemeColorScript = `
           ? firstBlock.backgroundColor
           : "#000000";
       document.getElementById("strip-theme-color")?.setAttribute("content", color);
-      document.documentElement.style.backgroundColor = color;
+      document.documentElement.style.setProperty("--top-safe-area-color", color);
     } catch {}
   })();
 `;
