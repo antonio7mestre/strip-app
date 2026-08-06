@@ -114,6 +114,7 @@ textarea:focus-visible,
 .editor-mode .strip-canvas,
 .preview-mode .strip-canvas {
   padding-bottom: calc(148px + env(safe-area-inset-bottom));
+  background: #ffffff;
 }
 
 .strip-block {
