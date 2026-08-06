@@ -652,7 +652,6 @@ export default function Home() {
   const [view, setView] = useState<View>("edit");
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
-  const [topSafeAreaTransparent, setTopSafeAreaTransparent] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
@@ -679,24 +678,6 @@ export default function Home() {
       "#FFFFFF",
     );
   }, [topSafeAreaColor]);
-
-  useEffect(() => {
-    let scrollFrame: number | null = null;
-    const updateTopSafeArea = () => {
-      if (scrollFrame !== null) return;
-      scrollFrame = window.requestAnimationFrame(() => {
-        scrollFrame = null;
-        setTopSafeAreaTransparent(window.scrollY > 1);
-      });
-    };
-
-    updateTopSafeArea();
-    window.addEventListener("scroll", updateTopSafeArea, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", updateTopSafeArea);
-      if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
-    };
-  }, []);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -1098,10 +1079,7 @@ export default function Home() {
     const isPublished = view === "published";
     return (
       <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
-        <div
-          className={`top-safe-area-anchor ${topSafeAreaTransparent ? "is-transparent" : ""}`}
-          aria-hidden="true"
-        />
+        <div className="top-safe-area-anchor" aria-hidden="true" />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
         {isPublished ? (
           <header className="topbar reader-topbar">
@@ -1168,10 +1146,7 @@ export default function Home() {
         editingTextBlockId ? "is-typing" : ""
       }`}
     >
-      <div
-        className={`top-safe-area-anchor ${topSafeAreaTransparent ? "is-transparent" : ""}`}
-        aria-hidden="true"
-      />
+      <div className="top-safe-area-anchor" aria-hidden="true" />
       <div className="bottom-safe-area-anchor" aria-hidden="true" />
       <div className="editor-canvas">{renderStrip(true)}</div>
 
