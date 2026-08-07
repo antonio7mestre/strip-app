@@ -574,7 +574,9 @@ textarea:focus-visible,
 
 .cover-add-option {
   display: grid;
-  min-height: min(36dvh, 320px);
+  width: min(calc(100% - 88px), 400px);
+  min-height: 0;
+  aspect-ratio: 1;
   place-items: center;
   border: 0;
   background: #777777;
