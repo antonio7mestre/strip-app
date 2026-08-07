@@ -182,6 +182,7 @@ function hexToHsl(hex: string) {
 }
 
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
+type CoverCardStyle = CSSProperties & { "--cover-dim": number };
 
 function swatchStyle(color: string): SwatchStyle {
   const channels = color
@@ -1246,7 +1247,7 @@ export default function Home() {
       { top: 82, scale: 0.28, opacity: 0.62 },
       { top: 118, scale: 0.14, opacity: 0 },
     ];
-    const coverCardStyle = (index: number): CSSProperties => {
+    const coverCardStyle = (index: number): CoverCardStyle => {
       let relativePosition = index - selectedCoverIndex;
       if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
       const position = Math.max(-2, Math.min(2, relativePosition - coverDragProgress));
@@ -1262,6 +1263,7 @@ export default function Home() {
         opacity: mix(lower.opacity, upper.opacity),
         transform: `translate(-50%, -50%) scale(${scale})`,
         zIndex: Math.max(0, Math.round(3 - Math.abs(position))),
+        "--cover-dim": Math.min(0.24, Math.abs(position) * 0.24),
       };
     };
     return (

@@ -565,6 +565,20 @@ textarea:focus-visible,
   width: min(calc(100% - 88px), 420px);
 }
 
+.cover-image-option::after {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  content: "";
+  opacity: var(--cover-dim, 0);
+  pointer-events: none;
+  transition: opacity 360ms cubic-bezier(0.22, 0.78, 0.18, 1);
+}
+
+.cover-card-stage.is-dragging .cover-image-option::after {
+  transition: none;
+}
+
 .cover-color-option {
   width: min(calc(100% - 88px), 400px);
   min-height: 0;
