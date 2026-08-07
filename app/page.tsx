@@ -663,6 +663,7 @@ export default function Home() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [stripTitle, setStripTitle] = useState("");
   const [selectedCover, setSelectedCover] = useState("");
+  const [coverStackStarted, setCoverStackStarted] = useState(false);
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
@@ -670,9 +671,8 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
-  const coverScrollRef = useRef<HTMLDivElement>(null);
-  const coverOptionRefs = useRef(new Map<string, HTMLButtonElement>());
-  const coverScrollFrameRef = useRef<number | null>(null);
+  const coverSwipeStartYRef = useRef<number | null>(null);
+  const coverSwipeSuppressClickRef = useRef(false);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -986,6 +986,7 @@ export default function Home() {
     setSelectedCover((current) =>
       current && availableCovers.includes(current) ? current : availableCovers[0],
     );
+    setCoverStackStarted(false);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
@@ -1002,60 +1003,46 @@ export default function Home() {
       if (typeof reader.result !== "string") return;
       setCustomCoverSrc(reader.result);
       setSelectedCover("custom");
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => scrollCoverTo("custom"));
-      });
+      setCoverStackStarted(false);
     };
     reader.readAsDataURL(file);
     event.target.value = "";
   };
 
-  const scrollCoverTo = (coverKey: string, behavior: ScrollBehavior = "smooth") => {
-    const scroller = coverScrollRef.current;
-    const option = coverOptionRefs.current.get(coverKey);
-    if (!scroller || !option) return;
-    setSelectedCover(coverKey);
-    scroller.scrollTo({
-      top: option.offsetTop - (scroller.clientHeight - option.offsetHeight) / 2,
-      behavior,
-    });
+  const selectCoverAt = (index: number) => {
+    const choice = coverChoices[index];
+    if (!choice) return;
+    setCoverStackStarted(true);
+    setSelectedCover(choice.key);
   };
 
-  const selectCenteredCover = () => {
-    if (coverScrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(coverScrollFrameRef.current);
-    }
-    coverScrollFrameRef.current = window.requestAnimationFrame(() => {
-      coverScrollFrameRef.current = null;
-      const scroller = coverScrollRef.current;
-      if (!scroller) return;
-      const frame = scroller.getBoundingClientRect();
-      const center = frame.top + frame.height / 2;
-      let closestKey = "";
-      let closestDistance = Number.POSITIVE_INFINITY;
-
-      coverChoices.forEach((choice) => {
-        const option = coverOptionRefs.current.get(choice.key);
-        if (!option) return;
-        const bounds = option.getBoundingClientRect();
-        const distance = Math.abs(bounds.top + bounds.height / 2 - center);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestKey = choice.key;
-        }
-      });
-
-      if (closestKey) setSelectedCover(closestKey);
-    });
+  const moveCover = (direction: -1 | 1) => {
+    const currentIndex = Math.max(
+      0,
+      coverChoices.findIndex((choice) => choice.key === selectedCover),
+    );
+    selectCoverAt(currentIndex + direction);
   };
 
-  useEffect(() => {
-    if (view !== "publish-setup" || !selectedCover) return;
-    const frame = window.requestAnimationFrame(() => scrollCoverTo(selectedCover, "auto"));
-    return () => window.cancelAnimationFrame(frame);
-    // The initial centering should run only when this screen opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  const beginCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!event.isPrimary) return;
+    coverSwipeStartYRef.current = event.clientY;
+    coverSwipeSuppressClickRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const finishCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const startY = coverSwipeStartYRef.current;
+    coverSwipeStartYRef.current = null;
+    if (startY === null) return;
+    const distance = startY - event.clientY;
+    if (Math.abs(distance) < 34) return;
+    coverSwipeSuppressClickRef.current = true;
+    moveCover(distance > 0 ? 1 : -1);
+    window.setTimeout(() => {
+      coverSwipeSuppressClickRef.current = false;
+    }, 0);
+  };
 
   const publish = () => {
     if (!hasContent) {
@@ -1234,35 +1221,55 @@ export default function Home() {
           <section className="cover-picker" aria-label="Choose a cover">
             <div className="cover-selector-frame">
               <div
-                className="cover-selector-scroll"
-                ref={coverScrollRef}
-                onScroll={selectCenteredCover}
+                className="cover-card-stage"
+                role="listbox"
+                aria-label="Cover options"
+                tabIndex={0}
+                onPointerDown={beginCoverSwipe}
+                onPointerUp={finishCoverSwipe}
+                onPointerCancel={() => {
+                  coverSwipeStartYRef.current = null;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    moveCover(-1);
+                  }
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    moveCover(1);
+                  }
+                }}
               >
                 {coverChoices.map((choice, index) => {
                   const isSelected = selectedCover === choice.key;
-                  const positionClass =
-                    index < selectedCoverIndex
-                      ? "is-before"
-                      : index > selectedCoverIndex
-                        ? "is-after"
-                        : "";
+                  let positionClass = "is-hidden-below";
+                  if (isSelected) positionClass = "is-selected";
+                  else if (index === selectedCoverIndex - 1 && coverStackStarted) {
+                    positionClass = "is-previous";
+                  } else if (index === selectedCoverIndex + 1) {
+                    positionClass = "is-next";
+                  } else if (index < selectedCoverIndex) {
+                    positionClass = "is-hidden-above";
+                  }
+                  const isVisibleNeighbor =
+                    positionClass === "is-previous" || positionClass === "is-next";
                   return (
                     <button
-                      className={`cover-option cover-${choice.kind}-option ${
-                        isSelected ? "is-selected" : ""
-                      } ${positionClass}`}
+                      className={`cover-option cover-${choice.kind}-option ${positionClass}`}
                       type="button"
                       key={choice.key}
-                      ref={(element) => {
-                        if (element) coverOptionRefs.current.set(choice.key, element);
-                        else coverOptionRefs.current.delete(choice.key);
+                      onClick={() => {
+                        if (coverSwipeSuppressClickRef.current) return;
+                        if (isVisibleNeighbor) selectCoverAt(index);
                       }}
-                      onClick={() => scrollCoverTo(choice.key)}
                       style={
                         choice.kind === "color" ? { backgroundColor: choice.color } : undefined
                       }
                       aria-label={`Use cover option ${index + 1}`}
                       aria-pressed={isSelected}
+                      aria-hidden={!isSelected && !isVisibleNeighbor}
+                      tabIndex={isSelected || isVisibleNeighbor ? 0 : -1}
                     >
                       {choice.kind === "image" ? (
                         <img src={choice.src} alt={choice.alt} />
@@ -1286,7 +1293,7 @@ export default function Home() {
                     className={selectedCover === choice.key ? "is-current" : ""}
                     type="button"
                     key={choice.key}
-                    onClick={() => scrollCoverTo(choice.key)}
+                    onClick={() => selectCoverAt(index)}
                     aria-label={`Show cover ${index + 1} of ${coverChoices.length}`}
                     aria-current={selectedCover === choice.key ? "true" : undefined}
                   />

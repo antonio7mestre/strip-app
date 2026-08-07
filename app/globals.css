@@ -429,25 +429,28 @@ textarea:focus-visible,
   display: flex;
   height: 100dvh;
   flex-direction: column;
-  padding: calc(env(safe-area-inset-top) + 8px) 0
+  padding: calc(env(safe-area-inset-top) + 22px) 0
     calc(76px + env(safe-area-inset-bottom));
   background: var(--black);
 }
 
 .publish-setup-header {
+  display: grid;
   flex: 0 0 auto;
-  padding: 0 max(20px, env(safe-area-inset-right)) 4px
-    max(18px, env(safe-area-inset-left));
+  place-items: center;
+  padding: 0 max(20px, env(safe-area-inset-right)) 8px
+    max(20px, env(safe-area-inset-left));
 }
 
 .strip-title-field {
   display: block;
+  width: min(54vw, 220px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .strip-title-field input {
   width: 100%;
-  height: 52px;
+  height: 46px;
   padding: 0;
   border: 0;
   outline: 0;
@@ -456,6 +459,7 @@ textarea:focus-visible,
   font-size: 18px;
   font-weight: 450;
   letter-spacing: -0.025em;
+  text-align: center;
 }
 
 .strip-title-field input::placeholder {
@@ -480,65 +484,79 @@ textarea:focus-visible,
   overflow: hidden;
 }
 
-.cover-selector-scroll {
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: clamp(120px, 24dvh, 220px) max(42px, env(safe-area-inset-right))
-    calc(132px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
-  scroll-padding-block: clamp(120px, 24dvh, 220px)
-    calc(132px + env(safe-area-inset-bottom));
-  scroll-snap-type: y mandatory;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-}
-
-.cover-selector-scroll::-webkit-scrollbar {
-  display: none;
+.cover-card-stage {
+  position: absolute;
+  inset: 0 max(42px, env(safe-area-inset-right)) 48px
+    max(14px, env(safe-area-inset-left));
+  overflow: hidden;
+  outline: 0;
+  touch-action: none;
 }
 
 .cover-option {
-  position: relative;
+  position: absolute;
+  z-index: 0;
+  top: 120%;
+  left: 50%;
   display: block;
   width: min(100%, 560px);
   overflow: hidden;
-  margin: 0 auto 14px;
+  margin: 0;
   padding: 0;
-  scroll-snap-align: center;
-  scroll-snap-stop: always;
   border: 0;
   border-radius: 16px;
   color: #ffffff;
   cursor: pointer;
   text-align: left;
-  transform: scale(0.88);
-  transform-origin: top center;
-  opacity: 0.42;
+  transform: translate(-50%, -50%) scale(0.16);
+  transform-origin: center;
+  opacity: 0;
+  pointer-events: none;
   transition:
-    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 180ms ease;
+    top 420ms cubic-bezier(0.22, 0.78, 0.18, 1),
+    transform 420ms cubic-bezier(0.22, 0.78, 0.18, 1),
+    opacity 240ms ease;
 }
 
 .cover-option.is-selected {
-  transform: scale(1);
+  z-index: 3;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(1);
   opacity: 1;
+  pointer-events: auto;
 }
 
-.cover-option.is-before {
-  transform: translateY(-10px) scale(0.82);
-  opacity: 0;
+.cover-option.is-previous,
+.cover-option.is-next {
+  z-index: 2;
+  transform: translate(-50%, -50%) scale(0.24);
+  opacity: 0.62;
+  pointer-events: auto;
 }
 
-.cover-option.is-after {
-  transform: scale(0.88);
-  opacity: 0.42;
+.cover-option.is-previous {
+  top: 8%;
+}
+
+.cover-option.is-next {
+  top: 92%;
+}
+
+.cover-option.is-hidden-above {
+  top: -24%;
+}
+
+.cover-option.is-hidden-below {
+  top: 124%;
 }
 
 .cover-image-option img {
   display: block;
   width: 100%;
   height: auto;
+  max-height: min(48dvh, 460px);
+  object-fit: contain;
+  object-position: center;
 }
 
 .cover-color-option {
