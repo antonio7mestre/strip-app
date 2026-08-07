@@ -55,7 +55,7 @@ type VideoBlock = {
 };
 
 type StripBlock = TextBlock | ImageBlock | VideoBlock;
-type View = "edit" | "preview" | "publish-setup" | "published";
+type View = "edit" | "preview" | "publish-setup" | "title-setup" | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
 type CoverChoice =
@@ -1137,12 +1137,21 @@ export default function Home() {
     setCoverDragProgress(0);
   };
 
+  const continueToTitle = () => {
+    if (!publishSetupHasCover) {
+      setNotice("Pick a cover before continuing.");
+      return;
+    }
+    setView("title-setup");
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
   const publish = () => {
     if (!hasContent) {
       setNotice("Add something before you strip.");
       return;
     }
-    if (view === "publish-setup" && !publishSetupHasCover) {
+    if ((view === "publish-setup" || view === "title-setup") && !publishSetupHasCover) {
       setNotice("Pick a cover before publishing.");
       return;
     }
@@ -1285,6 +1294,64 @@ export default function Home() {
     </div>
   );
 
+  if (view === "title-setup") {
+    return (
+      <main className="app-shell title-setup-mode">
+        <div
+          className="top-safe-area-anchor"
+          style={{ backgroundColor: topSafeAreaColor }}
+          aria-hidden="true"
+        />
+        <div className="bottom-safe-area-anchor" aria-hidden="true" />
+
+        <section className="title-setup-shell" aria-labelledby="title-question-heading">
+          <div className="title-question">
+            <p className="title-question-kicker">One last thing</p>
+            <label className="title-question-field">
+              <span id="title-question-heading">Add a title</span>
+              <input
+                type="text"
+                value={stripTitle}
+                onChange={(event) => setStripTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }}
+                placeholder="Type your title..."
+                maxLength={80}
+                autoComplete="off"
+                aria-label="Strip title"
+              />
+            </label>
+            <p className="title-question-note">Optional</p>
+          </div>
+        </section>
+
+        <footer className="composer-dock title-setup-dock">
+          <button
+            className="dock-icon-button"
+            type="button"
+            onClick={() => setView("publish-setup")}
+            aria-label="Back to cover selection"
+          >
+            <ArrowLeft className="dock-glyph" aria-hidden="true" />
+          </button>
+          <span className="dock-divider" aria-hidden="true" />
+          <button
+            className="dock-icon-button publish-icon-button publish-strip-button"
+            type="button"
+            onClick={publish}
+            aria-label="Publish Strip"
+          >
+            Publish
+          </button>
+        </footer>
+        {notice ? <div className="notice">{notice}</div> : null}
+      </main>
+    );
+  }
+
   if (view === "publish-setup") {
     const selectedCoverIndex = Math.max(
       0,
@@ -1345,22 +1412,7 @@ export default function Home() {
         />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
 
-        <section className="publish-setup-shell" aria-labelledby="publish-setup-title">
-          <header className="publish-setup-header">
-            <label className="strip-title-field">
-              <span className="visually-hidden" id="publish-setup-title">
-                Add an optional title
-              </span>
-              <input
-                type="text"
-                value={stripTitle}
-                onChange={(event) => setStripTitle(event.target.value)}
-                placeholder="Add a title..."
-                maxLength={80}
-              />
-            </label>
-          </header>
-
+        <section className="publish-setup-shell" aria-label="Pick a cover">
           <section className="cover-picker" aria-label="Choose a cover">
             <div className="cover-selector-frame">
               <div
@@ -1479,11 +1531,11 @@ export default function Home() {
           <button
             className="dock-icon-button publish-icon-button publish-strip-button"
             type="button"
-            onClick={publish}
-            aria-label="Publish Strip"
+            onClick={continueToTitle}
+            aria-label="Continue to title"
             disabled={!publishSetupHasCover}
           >
-            Publish
+            Continue
           </button>
         </footer>
         {notice ? <div className="notice">{notice}</div> : null}
@@ -1549,7 +1601,7 @@ export default function Home() {
               className="dock-icon-button publish-icon-button publish-strip-button"
               type="button"
               onClick={continueToPublish}
-              aria-label="Continue to title and cover"
+              aria-label="Continue to cover"
             >
               Continue
             </button>
@@ -1662,7 +1714,7 @@ export default function Home() {
           type="button"
           onClick={continueToPublish}
           disabled={!hasContent}
-          aria-label="Continue to title and cover"
+          aria-label="Continue to cover"
         >
           Continue
         </button>
