@@ -562,8 +562,14 @@ textarea:focus-visible,
   object-position: center;
 }
 
+.cover-image-option {
+  width: min(calc(100% - 88px), 420px);
+}
+
 .cover-color-option {
-  min-height: min(46dvh, 430px);
+  width: min(calc(100% - 88px), 400px);
+  min-height: 0;
+  aspect-ratio: 5 / 6;
 }
 
 .cover-add-option {
