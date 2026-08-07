@@ -974,12 +974,12 @@ export default function Home() {
       src: block.src,
       alt: block.alt || `Cover option ${index + 1}`,
     })),
-    { key: "add-image", kind: "add" as const },
     ...coverColors.map((color) => ({
       key: `color:${color}`,
       kind: "color" as const,
       color,
     })),
+    { key: "add-image", kind: "add" as const },
   ];
   const publishSetupHasCover = coverChoices.some(
     (choice) => choice.key === activeCoverKey && choice.kind !== "add",
