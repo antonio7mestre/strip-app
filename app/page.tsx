@@ -666,6 +666,8 @@ export default function Home() {
   const [selectedCover, setSelectedCover] = useState("");
   const [activeCoverKey, setActiveCoverKey] = useState("");
   const [coverStackStarted, setCoverStackStarted] = useState(false);
+  const [coverDragProgress, setCoverDragProgress] = useState(0);
+  const [coverIsDragging, setCoverIsDragging] = useState(false);
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
@@ -674,6 +676,7 @@ export default function Home() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverSwipeStartYRef = useRef<number | null>(null);
+  const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
@@ -1037,21 +1040,47 @@ export default function Home() {
   const beginCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary) return;
     coverSwipeStartYRef.current = event.clientY;
+    coverDragProgressRef.current = 0;
+    setCoverDragProgress(0);
+    setCoverIsDragging(true);
     coverSwipeSuppressClickRef.current = false;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const finishCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const updateCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     const startY = coverSwipeStartYRef.current;
-    coverSwipeStartYRef.current = null;
     if (startY === null) return;
-    const distance = startY - event.clientY;
-    if (Math.abs(distance) < 34) return;
-    coverSwipeSuppressClickRef.current = true;
-    moveCover(distance > 0 ? 1 : -1);
+    const activeIndex = Math.max(
+      0,
+      coverChoices.findIndex((choice) => choice.key === activeCoverKey),
+    );
+    let progress = (startY - event.clientY) / 150;
+    if ((activeIndex === 0 && progress < 0) || (activeIndex === coverChoices.length - 1 && progress > 0)) {
+      progress *= 0.2;
+    }
+    progress = Math.max(-0.95, Math.min(0.95, progress));
+    coverDragProgressRef.current = progress;
+    coverSwipeSuppressClickRef.current = Math.abs(progress) > 0.04;
+    setCoverDragProgress(progress);
+  };
+
+  const finishCoverSwipe = () => {
+    const progress = coverDragProgressRef.current;
+    coverSwipeStartYRef.current = null;
+    if (Math.abs(progress) >= 0.24) moveCover(progress > 0 ? 1 : -1);
+    setCoverIsDragging(false);
+    setCoverDragProgress(0);
+    coverDragProgressRef.current = 0;
     window.setTimeout(() => {
       coverSwipeSuppressClickRef.current = false;
     }, 0);
+  };
+
+  const cancelCoverSwipe = () => {
+    coverSwipeStartYRef.current = null;
+    coverDragProgressRef.current = 0;
+    setCoverIsDragging(false);
+    setCoverDragProgress(0);
   };
 
   const publish = () => {
@@ -1203,6 +1232,31 @@ export default function Home() {
       0,
       coverChoices.findIndex((choice) => choice.key === activeCoverKey),
     );
+    const cardKeyframes = [
+      { top: -18, scale: 0.14, opacity: 0 },
+      { top: 23, scale: 0.24, opacity: 0.58 },
+      { top: 50, scale: 1, opacity: 1 },
+      { top: 77, scale: 0.24, opacity: 0.58 },
+      { top: 118, scale: 0.14, opacity: 0 },
+    ];
+    const coverCardStyle = (index: number): CSSProperties => {
+      let relativePosition = index - selectedCoverIndex;
+      if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
+      const position = Math.max(-2, Math.min(2, relativePosition - coverDragProgress));
+      const lowerPosition = Math.floor(position);
+      const upperPosition = Math.ceil(position);
+      const progress = position - lowerPosition;
+      const lower = cardKeyframes[lowerPosition + 2];
+      const upper = cardKeyframes[upperPosition + 2];
+      const mix = (start: number, end: number) => start + (end - start) * progress;
+      const scale = mix(lower.scale, upper.scale);
+      return {
+        top: `${mix(lower.top, upper.top)}%`,
+        opacity: mix(lower.opacity, upper.opacity),
+        transform: `translate(-50%, -50%) scale(${scale})`,
+        zIndex: Math.max(0, Math.round(3 - Math.abs(position))),
+      };
+    };
     return (
       <main className="app-shell publish-setup-mode">
         <div
@@ -1231,15 +1285,14 @@ export default function Home() {
           <section className="cover-picker" aria-label="Choose a cover">
             <div className="cover-selector-frame">
               <div
-                className="cover-card-stage"
+                className={`cover-card-stage ${coverIsDragging ? "is-dragging" : ""}`}
                 role="listbox"
                 aria-label="Cover options"
                 tabIndex={0}
                 onPointerDown={beginCoverSwipe}
+                onPointerMove={updateCoverSwipe}
                 onPointerUp={finishCoverSwipe}
-                onPointerCancel={() => {
-                  coverSwipeStartYRef.current = null;
-                }}
+                onPointerCancel={cancelCoverSwipe}
                 onKeyDown={(event) => {
                   if (event.key === "ArrowUp") {
                     event.preventDefault();
@@ -1278,7 +1331,9 @@ export default function Home() {
                         if (isVisibleNeighbor) selectCoverAt(index);
                       }}
                       style={
-                        choice.kind === "color" ? { backgroundColor: choice.color } : undefined
+                        choice.kind === "color"
+                          ? { ...coverCardStyle(index), backgroundColor: choice.color }
+                          : coverCardStyle(index)
                       }
                       aria-label={
                         choice.kind === "add"
