@@ -563,28 +563,30 @@ textarea:focus-visible,
   min-height: min(46dvh, 430px);
 }
 
-.cover-add-action {
-  position: absolute;
-  z-index: 4;
-  bottom: 10px;
-  left: max(18px, env(safe-area-inset-left));
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 0;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.56);
-  text-align: left;
+.cover-add-option {
+  display: grid;
+  min-height: min(36dvh, 320px);
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #090909;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
 }
 
-.cover-add-action svg {
-  width: 17px;
-  height: 17px;
+.cover-add-content {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  pointer-events: none;
 }
 
-.cover-add-action span {
-  font-size: 12px;
+.cover-add-content svg {
+  width: 24px;
+  height: 24px;
+}
+
+.cover-add-content span {
+  font-size: 13px;
   font-weight: 550;
 }
 

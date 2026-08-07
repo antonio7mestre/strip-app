@@ -60,7 +60,8 @@ type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display"
 type TextTool = "font" | "background" | "color";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
-  | { key: string; kind: "color"; color: string };
+  | { key: string; kind: "color"; color: string }
+  | { key: string; kind: "add" };
 
 const STORAGE_KEY = "strip-draft-v1";
 const DEFAULT_BACKGROUND = "#000000";
@@ -663,6 +664,7 @@ export default function Home() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [stripTitle, setStripTitle] = useState("");
   const [selectedCover, setSelectedCover] = useState("");
+  const [activeCoverKey, setActiveCoverKey] = useState("");
   const [coverStackStarted, setCoverStackStarted] = useState(false);
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
@@ -969,6 +971,7 @@ export default function Home() {
       src: block.src,
       alt: block.alt || `Cover option ${index + 1}`,
     })),
+    { key: "add-image", kind: "add" as const },
     ...coverColors.map((color) => ({
       key: `color:${color}`,
       kind: "color" as const,
@@ -982,10 +985,15 @@ export default function Home() {
       return;
     }
 
-    const availableCovers = coverChoices.map((choice) => choice.key);
-    setSelectedCover((current) =>
-      current && availableCovers.includes(current) ? current : availableCovers[0],
-    );
+    const availableCovers = coverChoices
+      .filter((choice) => choice.kind !== "add")
+      .map((choice) => choice.key);
+    const initialCover =
+      selectedCover && availableCovers.includes(selectedCover)
+        ? selectedCover
+        : availableCovers[0];
+    setSelectedCover(initialCover);
+    setActiveCoverKey(initialCover);
     setCoverStackStarted(false);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
@@ -1003,6 +1011,7 @@ export default function Home() {
       if (typeof reader.result !== "string") return;
       setCustomCoverSrc(reader.result);
       setSelectedCover("custom");
+      setActiveCoverKey("custom");
       setCoverStackStarted(false);
     };
     reader.readAsDataURL(file);
@@ -1013,13 +1022,14 @@ export default function Home() {
     const choice = coverChoices[index];
     if (!choice) return;
     setCoverStackStarted(true);
-    setSelectedCover(choice.key);
+    setActiveCoverKey(choice.key);
+    if (choice.kind !== "add") setSelectedCover(choice.key);
   };
 
   const moveCover = (direction: -1 | 1) => {
     const currentIndex = Math.max(
       0,
-      coverChoices.findIndex((choice) => choice.key === selectedCover),
+      coverChoices.findIndex((choice) => choice.key === activeCoverKey),
     );
     selectCoverAt(currentIndex + direction);
   };
@@ -1191,7 +1201,7 @@ export default function Home() {
   if (view === "publish-setup") {
     const selectedCoverIndex = Math.max(
       0,
-      coverChoices.findIndex((choice) => choice.key === selectedCover),
+      coverChoices.findIndex((choice) => choice.key === activeCoverKey),
     );
     return (
       <main className="app-shell publish-setup-mode">
@@ -1242,7 +1252,7 @@ export default function Home() {
                 }}
               >
                 {coverChoices.map((choice, index) => {
-                  const isSelected = selectedCover === choice.key;
+                  const isSelected = activeCoverKey === choice.key;
                   let positionClass = "is-hidden-below";
                   if (isSelected) positionClass = "is-selected";
                   else if (index === selectedCoverIndex - 1 && coverStackStarted) {
@@ -1261,41 +1271,47 @@ export default function Home() {
                       key={choice.key}
                       onClick={() => {
                         if (coverSwipeSuppressClickRef.current) return;
+                        if (isSelected && choice.kind === "add") {
+                          coverInputRef.current?.click();
+                          return;
+                        }
                         if (isVisibleNeighbor) selectCoverAt(index);
                       }}
                       style={
                         choice.kind === "color" ? { backgroundColor: choice.color } : undefined
                       }
-                      aria-label={`Use cover option ${index + 1}`}
-                      aria-pressed={isSelected}
+                      aria-label={
+                        choice.kind === "add"
+                          ? "Add a cover image"
+                          : `Use cover option ${index + 1}`
+                      }
+                      aria-pressed={choice.kind === "add" ? undefined : selectedCover === choice.key}
                       aria-hidden={!isSelected && !isVisibleNeighbor}
                       tabIndex={isSelected || isVisibleNeighbor ? 0 : -1}
                     >
                       {choice.kind === "image" ? (
                         <img src={choice.src} alt={choice.alt} />
                       ) : null}
+                      {choice.kind === "add" ? (
+                        <span className="cover-add-content">
+                          <ImagePlus aria-hidden="true" />
+                          <span>Add image</span>
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
 
               </div>
-              <button
-                className="cover-add-action"
-                type="button"
-                onClick={() => coverInputRef.current?.click()}
-              >
-                <ImagePlus aria-hidden="true" />
-                <span>Add image</span>
-              </button>
               <nav className="cover-pagination" aria-label="Cover options">
                 {coverChoices.map((choice, index) => (
                   <button
-                    className={selectedCover === choice.key ? "is-current" : ""}
+                    className={activeCoverKey === choice.key ? "is-current" : ""}
                     type="button"
                     key={choice.key}
                     onClick={() => selectCoverAt(index)}
                     aria-label={`Show cover ${index + 1} of ${coverChoices.length}`}
-                    aria-current={selectedCover === choice.key ? "true" : undefined}
+                    aria-current={activeCoverKey === choice.key ? "true" : undefined}
                   />
                 ))}
               </nav>
