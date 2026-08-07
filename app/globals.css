@@ -68,6 +68,24 @@ html.strip-page-transitioning {
   overflow: hidden;
 }
 
+.legacy-page-transition-overlay {
+  position: fixed;
+  z-index: 2147483646;
+  inset: 0;
+  overflow: hidden;
+  background: var(--black);
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.legacy-page-transition-page {
+  position: absolute !important;
+  right: 0;
+  left: 0;
+  width: 100%;
+  max-width: none;
+}
+
 html[data-strip-page-transition="forward"]::view-transition-old(root) {
   animation: strip-page-out-up 560ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
 }

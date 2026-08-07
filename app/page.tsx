@@ -1046,10 +1046,69 @@ export default function Home() {
           ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
           : 0;
       window.scrollTo({ top, behavior: "auto" });
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
     };
 
-    if (!startViewTransition || reducedMotion) {
+    if (reducedMotion) {
       updateView();
+      return;
+    }
+
+    if (!startViewTransition) {
+      const currentShell = document.querySelector<HTMLElement>(".app-shell");
+      if (!currentShell || typeof currentShell.animate !== "function") {
+        updateView();
+        return;
+      }
+
+      const currentScrollTop = window.scrollY;
+      const overlay = document.createElement("div");
+      const outgoingPage = currentShell.cloneNode(true) as HTMLElement;
+      overlay.className = "legacy-page-transition-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+      outgoingPage.classList.add("legacy-page-transition-page");
+      outgoingPage.style.top = `${-currentScrollTop}px`;
+      outgoingPage.style.minHeight = `${currentShell.scrollHeight}px`;
+      overlay.appendChild(outgoingPage);
+      document.body.appendChild(overlay);
+
+      root.classList.add("strip-page-transitioning");
+      updateView();
+      const incomingPage = document.querySelector<HTMLElement>(".app-shell");
+      if (!incomingPage || typeof incomingPage.animate !== "function") {
+        overlay.remove();
+        root.classList.remove("strip-page-transitioning");
+        return;
+      }
+
+      const duration = direction === "forward" ? 560 : 520;
+      const easing = "cubic-bezier(0.22, 0.78, 0.18, 1)";
+      const outgoingOffset = direction === "forward" ? "-100dvh" : "100dvh";
+      const incomingOffset = direction === "forward" ? "100dvh" : "-100dvh";
+      const outgoingAnimation = overlay.animate(
+        [{ transform: "translateY(0)" }, { transform: `translateY(${outgoingOffset})` }],
+        { duration, easing, fill: "both" },
+      );
+      const incomingAnimation = incomingPage.animate(
+        [{ transform: `translateY(${incomingOffset})` }, { transform: "translateY(0)" }],
+        { duration, easing, fill: "both" },
+      );
+
+      try {
+        await Promise.race([
+          Promise.all([
+            outgoingAnimation.finished.catch(() => undefined),
+            incomingAnimation.finished.catch(() => undefined),
+          ]),
+          new Promise<void>((resolve) => window.setTimeout(resolve, duration + 120)),
+        ]);
+      } finally {
+        outgoingAnimation.cancel();
+        incomingAnimation.cancel();
+        overlay.remove();
+        root.classList.remove("strip-page-transitioning");
+      }
       return;
     }
 
