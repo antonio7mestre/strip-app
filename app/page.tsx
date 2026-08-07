@@ -1306,9 +1306,16 @@ export default function Home() {
 
         <section className="title-setup-shell" aria-labelledby="title-question-heading">
           <div className="title-question">
-            <p className="title-question-kicker">One last thing</p>
+            <div className="title-question-step" aria-hidden="true">
+              <span>02</span>
+              <span>→</span>
+            </div>
+            <h1 id="title-question-heading">Give your Strip a title</h1>
+            <p className="title-question-description">
+              Optional — help people know what they&apos;re opening.
+            </p>
             <label className="title-question-field">
-              <span id="title-question-heading">Add a title</span>
+              <span className="visually-hidden">Strip title</span>
               <input
                 type="text"
                 value={stripTitle}
@@ -1318,13 +1325,13 @@ export default function Home() {
                   event.preventDefault();
                   event.currentTarget.blur();
                 }}
-                placeholder="Type your title..."
+                placeholder="Type your title here..."
                 maxLength={80}
                 autoComplete="off"
                 aria-label="Strip title"
               />
             </label>
-            <p className="title-question-note">Optional</p>
+            <p className="title-question-hint">Press return when you&apos;re done</p>
           </div>
         </section>
 
