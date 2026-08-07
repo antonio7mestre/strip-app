@@ -1383,7 +1383,7 @@ export default function Home() {
           </section>
         </section>
 
-        <p className="cover-instruction">Swipe to pick cover</p>
+        <p className="cover-instruction">Swipe to pick a cover</p>
 
         <input
           ref={coverInputRef}
