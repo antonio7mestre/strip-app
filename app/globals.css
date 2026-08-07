@@ -524,6 +524,8 @@ textarea:focus-visible,
   z-index: 3;
   top: 50%;
   transform: translate(-50%, -50%) scale(1);
+  outline: 1px solid #ffffff;
+  outline-offset: -1px;
   opacity: 1;
   pointer-events: auto;
 }
@@ -531,7 +533,7 @@ textarea:focus-visible,
 .cover-option.is-previous,
 .cover-option.is-next {
   z-index: 2;
-  transform: translate(-50%, -50%) scale(0.35);
+  transform: translate(-50%, -50%) scale(0.45);
   opacity: 0.62;
   pointer-events: auto;
 }

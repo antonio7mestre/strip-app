@@ -1307,7 +1307,7 @@ export default function Home() {
       const cardKey = coverChoices[index].key;
       const cardHeight = coverCardHeights[cardKey] ?? effectiveSelectedHeight;
       const cardWidth = coverCardWidths[cardKey] ?? 420;
-      const neighborScale = Math.min(0.42, 144 / cardWidth);
+      const neighborScale = Math.min(0.52, 184 / cardWidth);
       const renderedNeighborHeight = cardHeight * neighborScale;
       const neighborOffset = Math.max(
         24,
