@@ -671,6 +671,7 @@ export default function Home() {
   const [coverIsDragging, setCoverIsDragging] = useState(false);
   const [coverStageHeight, setCoverStageHeight] = useState(0);
   const [coverCardHeights, setCoverCardHeights] = useState<Record<string, number>>({});
+  const [coverCardWidths, setCoverCardWidths] = useState<Record<string, number>>({});
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
@@ -1001,12 +1002,22 @@ export default function Home() {
       const nextHeights = Object.fromEntries(
         cards.map((card) => [card.dataset.coverKey ?? "", card.offsetHeight]),
       );
+      const nextWidths = Object.fromEntries(
+        cards.map((card) => [card.dataset.coverKey ?? "", card.offsetWidth]),
+      );
       setCoverCardHeights((current) => {
         const keys = Object.keys(nextHeights);
         const unchanged =
           keys.length === Object.keys(current).length &&
           keys.every((key) => current[key] === nextHeights[key]);
         return unchanged ? current : nextHeights;
+      });
+      setCoverCardWidths((current) => {
+        const keys = Object.keys(nextWidths);
+        const unchanged =
+          keys.length === Object.keys(current).length &&
+          keys.every((key) => current[key] === nextWidths[key]);
+        return unchanged ? current : nextWidths;
       });
     };
 
@@ -1293,18 +1304,21 @@ export default function Home() {
       let relativePosition = index - selectedCoverIndex;
       if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
       const position = Math.max(-2, Math.min(2, relativePosition - coverDragProgress));
-      const cardHeight = coverCardHeights[coverChoices[index]?.key] ?? effectiveSelectedHeight;
-      const renderedNeighborHeight = cardHeight * 0.28;
+      const cardKey = coverChoices[index].key;
+      const cardHeight = coverCardHeights[cardKey] ?? effectiveSelectedHeight;
+      const cardWidth = coverCardWidths[cardKey] ?? 420;
+      const neighborScale = Math.min(0.42, 144 / cardWidth);
+      const renderedNeighborHeight = cardHeight * neighborScale;
       const neighborOffset = Math.max(
         24,
-        effectiveSelectedHeight / 2 + 52 - renderedNeighborHeight / 2,
+        effectiveSelectedHeight / 2 + 44 - renderedNeighborHeight / 2,
       );
       const neighborOffsetPercent = (neighborOffset / measuredStageHeight) * 100;
       const cardKeyframes = [
         { top: -18, scale: 0.14, opacity: 0 },
-        { top: 50 - neighborOffsetPercent, scale: 0.28, opacity: 0.62 },
+        { top: 50 - neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
         { top: 50, scale: 1, opacity: 1 },
-        { top: 50 + neighborOffsetPercent, scale: 0.28, opacity: 0.62 },
+        { top: 50 + neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
         { top: 118, scale: 0.14, opacity: 0 },
       ];
       const lowerPosition = Math.floor(position);
