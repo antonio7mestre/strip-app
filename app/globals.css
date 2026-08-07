@@ -556,7 +556,7 @@ textarea:focus-visible,
   display: block;
   width: 100%;
   height: auto;
-  max-height: min(48dvh, 460px);
+  max-height: min(54dvh, 520px);
   object-fit: contain;
   object-position: center;
 }
