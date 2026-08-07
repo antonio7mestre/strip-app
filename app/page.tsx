@@ -1307,7 +1307,7 @@ export default function Home() {
       const cardKey = coverChoices[index].key;
       const cardHeight = coverCardHeights[cardKey] ?? effectiveSelectedHeight;
       const cardWidth = coverCardWidths[cardKey] ?? 420;
-      const neighborScale = Math.min(0.52, 184 / cardWidth);
+      const neighborScale = Math.min(0.62, 220 / cardWidth);
       const renderedNeighborHeight = cardHeight * neighborScale;
       const neighborOffset = Math.max(
         24,
@@ -1333,7 +1333,7 @@ export default function Home() {
         opacity: mix(lower.opacity, upper.opacity),
         transform: `translate(-50%, -50%) scale(${scale})`,
         zIndex: Math.max(0, Math.round(3 - Math.abs(position))),
-        "--cover-dim": Math.min(0.24, Math.abs(position) * 0.24),
+        "--cover-dim": Math.min(0.38, Math.abs(position) * 0.38),
       };
     };
     return (
