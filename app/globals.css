@@ -445,7 +445,6 @@ textarea:focus-visible,
 .strip-title-field {
   display: block;
   width: min(54vw, 220px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .strip-title-field input {
@@ -456,7 +455,7 @@ textarea:focus-visible,
   outline: 0;
   background: transparent;
   color: #ffffff;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 450;
   letter-spacing: -0.025em;
   text-align: center;
