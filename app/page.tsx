@@ -1381,7 +1381,7 @@ export default function Home() {
           </section>
         </section>
 
-        <p className="cover-instruction">Pick your cover image or color</p>
+        <p className="cover-instruction">Swipe to pick cover</p>
 
         <input
           ref={coverInputRef}
