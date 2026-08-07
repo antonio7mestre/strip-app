@@ -429,7 +429,7 @@ textarea:focus-visible,
   display: flex;
   height: 100dvh;
   flex-direction: column;
-  padding: calc(env(safe-area-inset-top) + 22px) 0
+  padding: calc(env(safe-area-inset-top) + 40px) 0
     calc(76px + env(safe-area-inset-bottom));
   background: var(--black);
 }
@@ -463,7 +463,7 @@ textarea:focus-visible,
 }
 
 .strip-title-field input::placeholder {
-  color: rgba(255, 255, 255, 0.52);
+  color: rgba(255, 255, 255, 0.94);
 }
 
 .strip-title-field input:focus-visible {
@@ -532,17 +532,17 @@ textarea:focus-visible,
 .cover-option.is-previous,
 .cover-option.is-next {
   z-index: 2;
-  transform: translate(-50%, -50%) scale(0.24);
+  transform: translate(-50%, -50%) scale(0.28);
   opacity: 0.62;
   pointer-events: auto;
 }
 
 .cover-option.is-previous {
-  top: 23%;
+  top: 18%;
 }
 
 .cover-option.is-next {
-  top: 77%;
+  top: 82%;
 }
 
 .cover-option.is-hidden-above {
@@ -570,9 +570,9 @@ textarea:focus-visible,
   display: grid;
   min-height: min(36dvh, 320px);
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: #090909;
-  color: rgba(255, 255, 255, 0.7);
+  border: 0;
+  background: #777777;
+  color: #ffffff;
   text-align: center;
 }
 
@@ -626,6 +626,21 @@ textarea:focus-visible,
 .cover-pagination button.is-current {
   height: 15px;
   background: #ffffff;
+}
+
+.cover-instruction {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  left: 0;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  font-weight: 520;
+  letter-spacing: -0.01em;
+  text-align: center;
+  pointer-events: none;
 }
 
 .publish-setup-dock {

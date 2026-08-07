@@ -981,6 +981,9 @@ export default function Home() {
       color,
     })),
   ];
+  const publishSetupHasCover = coverChoices.some(
+    (choice) => choice.key === activeCoverKey && choice.kind !== "add",
+  );
 
   const continueToPublish = () => {
     if (!hasContent) {
@@ -1086,6 +1089,10 @@ export default function Home() {
   const publish = () => {
     if (!hasContent) {
       setNotice("Add something before you strip.");
+      return;
+    }
+    if (view === "publish-setup" && !publishSetupHasCover) {
+      setNotice("Pick a cover before publishing.");
       return;
     }
     setView("published");
@@ -1234,9 +1241,9 @@ export default function Home() {
     );
     const cardKeyframes = [
       { top: -18, scale: 0.14, opacity: 0 },
-      { top: 23, scale: 0.24, opacity: 0.58 },
+      { top: 18, scale: 0.28, opacity: 0.62 },
       { top: 50, scale: 1, opacity: 1 },
-      { top: 77, scale: 0.24, opacity: 0.58 },
+      { top: 82, scale: 0.28, opacity: 0.62 },
       { top: 118, scale: 0.14, opacity: 0 },
     ];
     const coverCardStyle = (index: number): CSSProperties => {
@@ -1276,7 +1283,7 @@ export default function Home() {
                 type="text"
                 value={stripTitle}
                 onChange={(event) => setStripTitle(event.target.value)}
-                placeholder="Add title"
+                placeholder="Add a title..."
                 maxLength={80}
               />
             </label>
@@ -1374,6 +1381,8 @@ export default function Home() {
           </section>
         </section>
 
+        <p className="cover-instruction">Pick your cover</p>
+
         <input
           ref={coverInputRef}
           className="visually-hidden"
@@ -1398,6 +1407,7 @@ export default function Home() {
             type="button"
             onClick={publish}
             aria-label="Publish Strip"
+            disabled={!publishSetupHasCover}
           >
             Publish
           </button>
