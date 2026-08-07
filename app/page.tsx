@@ -15,7 +15,6 @@ import {
   Baseline,
   CaseUpper,
   Check,
-  ChevronsUpDown,
   Clapperboard,
   Eye,
   ImagePlus,
@@ -59,6 +58,9 @@ type StripBlock = TextBlock | ImageBlock | VideoBlock;
 type View = "edit" | "preview" | "publish-setup" | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
+type CoverChoice =
+  | { key: string; kind: "image"; src: string; alt: string }
+  | { key: string; kind: "color"; color: string };
 
 const STORAGE_KEY = "strip-draft-v1";
 const DEFAULT_BACKGROUND = "#000000";
@@ -668,6 +670,9 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const coverScrollRef = useRef<HTMLDivElement>(null);
+  const coverOptionRefs = useRef(new Map<string, HTMLButtonElement>());
+  const coverScrollFrameRef = useRef<number | null>(null);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -946,14 +951,30 @@ export default function Home() {
   const imageCoverBlocks = blocks.filter(
     (block): block is ImageBlock => block.type === "image",
   );
-  const coverColors = Array.from(
-    new Set([
-      ...blocks
+  const usedCoverColors = Array.from(
+    new Set(
+      blocks
         .filter((block): block is TextBlock => block.type === "text")
-        .map((block) => block.backgroundColor ?? DEFAULT_BACKGROUND),
-      ...BACKGROUND_COLORS.map((color) => color.value),
-    ]),
+        .map((block) => (block.backgroundColor ?? DEFAULT_BACKGROUND).toUpperCase()),
+    ),
   );
+  const coverColors = usedCoverColors.length > 0 ? usedCoverColors : [DEFAULT_BACKGROUND];
+  const coverChoices: CoverChoice[] = [
+    ...(customCoverSrc
+      ? [{ key: "custom", kind: "image" as const, src: customCoverSrc, alt: "Uploaded cover" }]
+      : []),
+    ...imageCoverBlocks.map((block, index) => ({
+      key: `image:${block.id}`,
+      kind: "image" as const,
+      src: block.src,
+      alt: block.alt || `Cover option ${index + 1}`,
+    })),
+    ...coverColors.map((color) => ({
+      key: `color:${color}`,
+      kind: "color" as const,
+      color,
+    })),
+  ];
 
   const continueToPublish = () => {
     if (!hasContent) {
@@ -961,16 +982,7 @@ export default function Home() {
       return;
     }
 
-    const availableCovers = customCoverSrc
-      ? [
-          "custom",
-          ...(imageCoverBlocks.length > 0
-            ? imageCoverBlocks.map((block) => `image:${block.id}`)
-            : coverColors.map((color) => `color:${color}`)),
-        ]
-      : imageCoverBlocks.length > 0
-        ? imageCoverBlocks.map((block) => `image:${block.id}`)
-        : coverColors.map((color) => `color:${color}`);
+    const availableCovers = coverChoices.map((choice) => choice.key);
     setSelectedCover((current) =>
       current && availableCovers.includes(current) ? current : availableCovers[0],
     );
@@ -990,10 +1002,60 @@ export default function Home() {
       if (typeof reader.result !== "string") return;
       setCustomCoverSrc(reader.result);
       setSelectedCover("custom");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => scrollCoverTo("custom"));
+      });
     };
     reader.readAsDataURL(file);
     event.target.value = "";
   };
+
+  const scrollCoverTo = (coverKey: string, behavior: ScrollBehavior = "smooth") => {
+    const scroller = coverScrollRef.current;
+    const option = coverOptionRefs.current.get(coverKey);
+    if (!scroller || !option) return;
+    setSelectedCover(coverKey);
+    scroller.scrollTo({
+      top: option.offsetTop - (scroller.clientHeight - option.offsetHeight) / 2,
+      behavior,
+    });
+  };
+
+  const selectCenteredCover = () => {
+    if (coverScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(coverScrollFrameRef.current);
+    }
+    coverScrollFrameRef.current = window.requestAnimationFrame(() => {
+      coverScrollFrameRef.current = null;
+      const scroller = coverScrollRef.current;
+      if (!scroller) return;
+      const frame = scroller.getBoundingClientRect();
+      const center = frame.top + frame.height / 2;
+      let closestKey = "";
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      coverChoices.forEach((choice) => {
+        const option = coverOptionRefs.current.get(choice.key);
+        if (!option) return;
+        const bounds = option.getBoundingClientRect();
+        const distance = Math.abs(bounds.top + bounds.height / 2 - center);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestKey = choice.key;
+        }
+      });
+
+      if (closestKey) setSelectedCover(closestKey);
+    });
+  };
+
+  useEffect(() => {
+    if (view !== "publish-setup" || !selectedCover) return;
+    const frame = window.requestAnimationFrame(() => scrollCoverTo(selectedCover, "auto"));
+    return () => window.cancelAnimationFrame(frame);
+    // The initial centering should run only when this screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const publish = () => {
     if (!hasContent) {
@@ -1140,7 +1202,10 @@ export default function Home() {
   );
 
   if (view === "publish-setup") {
-    const showsImageCovers = imageCoverBlocks.length > 0;
+    const selectedCoverIndex = Math.max(
+      0,
+      coverChoices.findIndex((choice) => choice.key === selectedCover),
+    );
     return (
       <main className="app-shell publish-setup-mode">
         <div
@@ -1152,100 +1217,81 @@ export default function Home() {
 
         <section className="publish-setup-shell" aria-labelledby="publish-setup-title">
           <header className="publish-setup-header">
-            <span>Almost ready</span>
-            <h1 id="publish-setup-title">Finish your Strip.</h1>
             <label className="strip-title-field">
-              <span>
-                Title <em>optional</em>
+              <span className="visually-hidden" id="publish-setup-title">
+                Add an optional title
               </span>
               <input
                 type="text"
                 value={stripTitle}
                 onChange={(event) => setStripTitle(event.target.value)}
-                placeholder="Give it a title"
+                placeholder="Add title"
                 maxLength={80}
               />
             </label>
           </header>
 
-          <section className="cover-picker" aria-labelledby="cover-picker-title">
-            <div className="cover-picker-heading">
-              <h2 id="cover-picker-title">Cover</h2>
-              <span>
-                <ChevronsUpDown aria-hidden="true" /> Swipe up or down
-              </span>
-            </div>
+          <section className="cover-picker" aria-label="Choose a cover">
             <div className="cover-selector-frame">
-              <div className="cover-selector-scroll">
-                {customCoverSrc ? (
+              <div
+                className="cover-selector-scroll"
+                ref={coverScrollRef}
+                onScroll={selectCenteredCover}
+              >
+                {coverChoices.map((choice, index) => {
+                  const isSelected = selectedCover === choice.key;
+                  const positionClass =
+                    index < selectedCoverIndex
+                      ? "is-before"
+                      : index > selectedCoverIndex
+                        ? "is-after"
+                        : "";
+                  return (
+                    <button
+                      className={`cover-option cover-${choice.kind}-option ${
+                        isSelected ? "is-selected" : ""
+                      } ${positionClass}`}
+                      type="button"
+                      key={choice.key}
+                      ref={(element) => {
+                        if (element) coverOptionRefs.current.set(choice.key, element);
+                        else coverOptionRefs.current.delete(choice.key);
+                      }}
+                      onClick={() => scrollCoverTo(choice.key)}
+                      style={
+                        choice.kind === "color" ? { backgroundColor: choice.color } : undefined
+                      }
+                      aria-label={`Use cover option ${index + 1}`}
+                      aria-pressed={isSelected}
+                    >
+                      {choice.kind === "image" ? (
+                        <img src={choice.src} alt={choice.alt} />
+                      ) : null}
+                    </button>
+                  );
+                })}
+
+              </div>
+              <button
+                className="cover-add-action"
+                type="button"
+                onClick={() => coverInputRef.current?.click()}
+              >
+                <ImagePlus aria-hidden="true" />
+                <span>Add image</span>
+              </button>
+              <nav className="cover-pagination" aria-label="Cover options">
+                {coverChoices.map((choice, index) => (
                   <button
-                    className={`cover-option cover-image-option ${
-                      selectedCover === "custom" ? "is-selected" : ""
-                    }`}
+                    className={selectedCover === choice.key ? "is-current" : ""}
                     type="button"
-                    onClick={() => setSelectedCover("custom")}
-                    aria-label="Use uploaded image as cover"
-                    aria-pressed={selectedCover === "custom"}
-                  >
-                    <img src={customCoverSrc} alt="Uploaded cover" />
-                    <span className="cover-selection-label">Cover</span>
-                  </button>
-                ) : null}
-
-                {showsImageCovers
-                  ? imageCoverBlocks.map((block, index) => {
-                      const coverKey = `image:${block.id}`;
-                      const isSelected = selectedCover === coverKey;
-                      return (
-                        <button
-                          className={`cover-option cover-image-option ${
-                            isSelected ? "is-selected" : ""
-                          }`}
-                          type="button"
-                          key={coverKey}
-                          onClick={() => setSelectedCover(coverKey)}
-                          aria-label={`Use image ${index + 1} as cover`}
-                          aria-pressed={isSelected}
-                        >
-                          <img src={block.src} alt={block.alt || `Cover option ${index + 1}`} />
-                          <span className="cover-selection-label">Cover</span>
-                        </button>
-                      );
-                    })
-                  : coverColors.map((color, index) => {
-                      const coverKey = `color:${color}`;
-                      const isSelected = selectedCover === coverKey;
-                      return (
-                        <button
-                          className={`cover-option cover-color-option ${
-                            isSelected ? "is-selected" : ""
-                          }`}
-                          type="button"
-                          key={coverKey}
-                          onClick={() => setSelectedCover(coverKey)}
-                          style={{ backgroundColor: color }}
-                          aria-label={`Use color ${index + 1} as cover`}
-                          aria-pressed={isSelected}
-                        >
-                          <span className="cover-selection-label">Cover</span>
-                        </button>
-                      );
-                    })}
-
-                <button
-                  className="cover-option cover-add-option"
-                  type="button"
-                  onClick={() => coverInputRef.current?.click()}
-                >
-                  <ImagePlus aria-hidden="true" />
-                  <span>Add a cover image</span>
-                </button>
-              </div>
-              <div className="cover-swipe-cue" aria-hidden="true">
-                <ArrowUp />
-                <span />
-                <ArrowDown />
-              </div>
+                    key={choice.key}
+                    onClick={() => scrollCoverTo(choice.key)}
+                    aria-label={`Show cover ${index + 1} of ${coverChoices.length}`}
+                    aria-current={selectedCover === choice.key ? "true" : undefined}
+                  />
+                ))}
+              </nav>
             </div>
           </section>
         </section>
