@@ -1071,7 +1071,7 @@ export default function Home() {
       outgoingPage.style.top = `${-currentScrollTop}px`;
       outgoingPage.style.minHeight = `${currentShell.scrollHeight}px`;
       overlay.appendChild(outgoingPage);
-      document.body.appendChild(overlay);
+      document.documentElement.appendChild(overlay);
 
       root.classList.add("strip-page-transitioning");
       updateView();
