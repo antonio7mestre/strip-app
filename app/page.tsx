@@ -1381,7 +1381,7 @@ export default function Home() {
           </section>
         </section>
 
-        <p className="cover-instruction">Pick your cover</p>
+        <p className="cover-instruction">Pick your cover image or color</p>
 
         <input
           ref={coverInputRef}

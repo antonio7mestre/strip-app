@@ -569,7 +569,7 @@ textarea:focus-visible,
 .cover-color-option {
   width: min(calc(100% - 88px), 400px);
   min-height: 0;
-  aspect-ratio: 5 / 6;
+  aspect-ratio: 1;
 }
 
 .cover-add-option {
