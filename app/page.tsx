@@ -1057,7 +1057,8 @@ export default function Home() {
 
     if (!startViewTransition) {
       const currentShell = document.querySelector<HTMLElement>(".app-shell");
-      if (!currentShell || typeof currentShell.animate !== "function") {
+      const transitionHost = document.getElementById("legacy-page-transition-host");
+      if (!currentShell || !transitionHost || typeof currentShell.animate !== "function") {
         updateView();
         return;
       }
@@ -1071,7 +1072,7 @@ export default function Home() {
       outgoingPage.style.top = `${-currentScrollTop}px`;
       outgoingPage.style.minHeight = `${currentShell.scrollHeight}px`;
       overlay.appendChild(outgoingPage);
-      document.documentElement.appendChild(overlay);
+      transitionHost.appendChild(overlay);
 
       root.classList.add("strip-page-transitioning");
       updateView();
@@ -1439,7 +1440,9 @@ export default function Home() {
 
   if (view === "title-setup") {
     return (
-      <main className="app-shell title-setup-mode">
+      <>
+        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
+        <main className="app-shell title-setup-mode">
         <div
           className="top-safe-area-anchor"
           style={{ backgroundColor: topSafeAreaColor }}
@@ -1491,7 +1494,8 @@ export default function Home() {
           </button>
         </footer>
         {notice ? <div className="notice">{notice}</div> : null}
-      </main>
+        </main>
+      </>
     );
   }
 
@@ -1547,7 +1551,9 @@ export default function Home() {
       };
     };
     return (
-      <main className="app-shell publish-setup-mode">
+      <>
+        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
+        <main className="app-shell publish-setup-mode">
         <div
           className="top-safe-area-anchor"
           style={{ backgroundColor: topSafeAreaColor }}
@@ -1684,14 +1690,17 @@ export default function Home() {
           </button>
         </footer>
         {notice ? <div className="notice">{notice}</div> : null}
-      </main>
+        </main>
+      </>
     );
   }
 
   if (view === "preview" || view === "published") {
     const isPublished = view === "published";
     return (
-      <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
+      <>
+        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
+        <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
         <div
           className="top-safe-area-anchor"
           style={{ backgroundColor: topSafeAreaColor }}
@@ -1753,16 +1762,19 @@ export default function Home() {
           </footer>
         ) : null}
         {notice ? <div className="notice">{notice}</div> : null}
-      </main>
+        </main>
+      </>
     );
   }
 
   return (
-    <main
-      className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
-        editingTextBlockId ? "is-typing" : ""
-      }`}
-    >
+    <>
+      <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
+      <main
+        className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
+          editingTextBlockId ? "is-typing" : ""
+        }`}
+      >
       <div
         className="top-safe-area-anchor"
         style={{ backgroundColor: topSafeAreaColor }}
@@ -1906,6 +1918,7 @@ export default function Home() {
         </div>
       ) : null}
       {notice ? <div className="notice">{notice}</div> : null}
-    </main>
+      </main>
+    </>
   );
 }
