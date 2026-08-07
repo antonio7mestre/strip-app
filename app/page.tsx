@@ -64,6 +64,13 @@ type CoverChoice =
   | { key: string; kind: "add" };
 type PageTransitionDirection = "forward" | "backward";
 type ViewTransitionHandle = { finished: Promise<void> };
+type LegacyPageTransitionSnapshot = {
+  id: string;
+  markup: string;
+  scrollTop: number;
+  minHeight: number;
+  direction: PageTransitionDirection;
+};
 
 const STORAGE_KEY = "strip-draft-v1";
 const DEFAULT_BACKGROUND = "#000000";
@@ -658,6 +665,8 @@ function StripVideoBlock({
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
   const [view, setView] = useState<View>("edit");
+  const [legacyPageTransition, setLegacyPageTransition] =
+    useState<LegacyPageTransitionSnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -1057,57 +1066,35 @@ export default function Home() {
 
     if (!startViewTransition) {
       const currentShell = document.querySelector<HTMLElement>(".app-shell");
-      const transitionHost = document.getElementById("legacy-page-transition-host");
-      if (!currentShell || !transitionHost || typeof currentShell.animate !== "function") {
+      if (!currentShell) {
         updateView();
         return;
       }
 
-      const currentScrollTop = window.scrollY;
-      const overlay = document.createElement("div");
-      const outgoingPage = currentShell.cloneNode(true) as HTMLElement;
-      overlay.className = "legacy-page-transition-overlay";
-      overlay.setAttribute("aria-hidden", "true");
-      outgoingPage.classList.add("legacy-page-transition-page");
-      outgoingPage.style.top = `${-currentScrollTop}px`;
-      outgoingPage.style.minHeight = `${currentShell.scrollHeight}px`;
-      overlay.appendChild(outgoingPage);
-      transitionHost.appendChild(overlay);
-
-      root.classList.add("strip-page-transitioning");
-      updateView();
-      const incomingPage = document.querySelector<HTMLElement>(".app-shell");
-      if (!incomingPage || typeof incomingPage.animate !== "function") {
-        overlay.remove();
-        root.classList.remove("strip-page-transitioning");
-        return;
-      }
-
       const duration = direction === "forward" ? 560 : 520;
-      const easing = "cubic-bezier(0.22, 0.78, 0.18, 1)";
-      const outgoingOffset = direction === "forward" ? "-100dvh" : "100dvh";
-      const incomingOffset = direction === "forward" ? "100dvh" : "-100dvh";
-      const outgoingAnimation = overlay.animate(
-        [{ transform: "translateY(0)" }, { transform: `translateY(${outgoingOffset})` }],
-        { duration, easing, fill: "both" },
-      );
-      const incomingAnimation = incomingPage.animate(
-        [{ transform: `translateY(${incomingOffset})` }, { transform: "translateY(0)" }],
-        { duration, easing, fill: "both" },
-      );
-
+      const snapshot: LegacyPageTransitionSnapshot = {
+        id: makeId(),
+        markup: currentShell.outerHTML,
+        scrollTop: window.scrollY,
+        minHeight: currentShell.scrollHeight,
+        direction,
+      };
+      root.classList.add("strip-page-transitioning");
+      flushSync(() => {
+        setLegacyPageTransition(snapshot);
+        setView(nextView);
+      });
+      const top =
+        nextScroll === "end"
+          ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+          : 0;
+      window.scrollTo({ top, behavior: "auto" });
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
       try {
-        await Promise.race([
-          Promise.all([
-            outgoingAnimation.finished.catch(() => undefined),
-            incomingAnimation.finished.catch(() => undefined),
-          ]),
-          new Promise<void>((resolve) => window.setTimeout(resolve, duration + 120)),
-        ]);
+        await new Promise<void>((resolve) => window.setTimeout(resolve, duration + 40));
       } finally {
-        outgoingAnimation.cancel();
-        incomingAnimation.cancel();
-        overlay.remove();
+        flushSync(() => setLegacyPageTransition(null));
         root.classList.remove("strip-page-transitioning");
       }
       return;
@@ -1438,10 +1425,31 @@ export default function Home() {
     </div>
   );
 
+  const legacyTransitionLayer = legacyPageTransition ? (
+    <div
+      className={`legacy-page-transition-overlay is-${legacyPageTransition.direction}`}
+      key={legacyPageTransition.id}
+      aria-hidden="true"
+    >
+      <div
+        className="legacy-page-transition-page"
+        style={{
+          top: `${-legacyPageTransition.scrollTop}px`,
+          minHeight: `${legacyPageTransition.minHeight}px`,
+        }}
+        dangerouslySetInnerHTML={{ __html: legacyPageTransition.markup }}
+      />
+    </div>
+  ) : null;
+  const legacyPageEnterClass = legacyPageTransition
+    ? `legacy-page-enter is-${legacyPageTransition.direction}`
+    : "";
+
   if (view === "title-setup") {
     return (
       <>
-        <main className="app-shell title-setup-mode">
+        {legacyTransitionLayer}
+        <main className={`app-shell title-setup-mode ${legacyPageEnterClass}`}>
         <div
           className="top-safe-area-anchor"
           style={{ backgroundColor: topSafeAreaColor }}
@@ -1551,7 +1559,8 @@ export default function Home() {
     };
     return (
       <>
-        <main className="app-shell publish-setup-mode">
+        {legacyTransitionLayer}
+        <main className={`app-shell publish-setup-mode ${legacyPageEnterClass}`}>
         <div
           className="top-safe-area-anchor"
           style={{ backgroundColor: topSafeAreaColor }}
@@ -1697,7 +1706,12 @@ export default function Home() {
     const isPublished = view === "published";
     return (
       <>
-        <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
+        {legacyTransitionLayer}
+        <main
+          className={`app-shell reader-mode ${
+            isPublished ? "published-mode" : "preview-mode"
+          } ${legacyPageEnterClass}`}
+        >
         <div
           className="top-safe-area-anchor"
           style={{ backgroundColor: topSafeAreaColor }}
@@ -1766,10 +1780,11 @@ export default function Home() {
 
   return (
     <>
+      {legacyTransitionLayer}
       <main
         className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
           editingTextBlockId ? "is-typing" : ""
-        }`}
+        } ${legacyPageEnterClass}`}
       >
       <div
         className="top-safe-area-anchor"
