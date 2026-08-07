@@ -669,6 +669,8 @@ export default function Home() {
   const [coverStackStarted, setCoverStackStarted] = useState(false);
   const [coverDragProgress, setCoverDragProgress] = useState(0);
   const [coverIsDragging, setCoverIsDragging] = useState(false);
+  const [coverStageHeight, setCoverStageHeight] = useState(0);
+  const [coverCardHeights, setCoverCardHeights] = useState<Record<string, number>>({});
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
@@ -676,6 +678,7 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const coverStageRef = useRef<HTMLDivElement>(null);
   const coverSwipeStartYRef = useRef<number | null>(null);
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
@@ -986,6 +989,42 @@ export default function Home() {
     (choice) => choice.key === activeCoverKey && choice.kind !== "add",
   );
 
+  useEffect(() => {
+    if (view !== "publish-setup") return;
+    const stage = coverStageRef.current;
+    if (!stage) return;
+
+    const cards = Array.from(stage.querySelectorAll<HTMLElement>("[data-cover-key]"));
+    const images = cards.flatMap((card) => Array.from(card.querySelectorAll("img")));
+    const updateMeasurements = () => {
+      setCoverStageHeight(stage.clientHeight);
+      const nextHeights = Object.fromEntries(
+        cards.map((card) => [card.dataset.coverKey ?? "", card.offsetHeight]),
+      );
+      setCoverCardHeights((current) => {
+        const keys = Object.keys(nextHeights);
+        const unchanged =
+          keys.length === Object.keys(current).length &&
+          keys.every((key) => current[key] === nextHeights[key]);
+        return unchanged ? current : nextHeights;
+      });
+    };
+
+    const frame = window.requestAnimationFrame(updateMeasurements);
+    const observer = new ResizeObserver(updateMeasurements);
+    observer.observe(stage);
+    cards.forEach((card) => observer.observe(card));
+    images.forEach((image) => image.addEventListener("load", updateMeasurements));
+    window.addEventListener("resize", updateMeasurements);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      images.forEach((image) => image.removeEventListener("load", updateMeasurements));
+      window.removeEventListener("resize", updateMeasurements);
+    };
+  }, [view, coverChoices.length, customCoverSrc]);
+
   const continueToPublish = () => {
     if (!hasContent) {
       setNotice("Add something before you continue.");
@@ -1240,17 +1279,34 @@ export default function Home() {
       0,
       coverChoices.findIndex((choice) => choice.key === activeCoverKey),
     );
-    const cardKeyframes = [
-      { top: -18, scale: 0.14, opacity: 0 },
-      { top: 18, scale: 0.28, opacity: 0.62 },
-      { top: 50, scale: 1, opacity: 1 },
-      { top: 82, scale: 0.28, opacity: 0.62 },
-      { top: 118, scale: 0.14, opacity: 0 },
-    ];
+    const measuredStageHeight = coverStageHeight || 600;
+    const selectedMeasuredHeight = coverCardHeights[activeCoverKey] || 360;
+    const dragDirection = coverDragProgress === 0 ? 0 : coverDragProgress > 0 ? 1 : -1;
+    const dragTarget = coverChoices[selectedCoverIndex + dragDirection];
+    const dragTargetHeight = dragTarget
+      ? (coverCardHeights[dragTarget.key] ?? selectedMeasuredHeight)
+      : selectedMeasuredHeight;
+    const effectiveSelectedHeight =
+      selectedMeasuredHeight +
+      (dragTargetHeight - selectedMeasuredHeight) * Math.abs(coverDragProgress);
     const coverCardStyle = (index: number): CoverCardStyle => {
       let relativePosition = index - selectedCoverIndex;
       if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
       const position = Math.max(-2, Math.min(2, relativePosition - coverDragProgress));
+      const cardHeight = coverCardHeights[coverChoices[index]?.key] ?? effectiveSelectedHeight;
+      const renderedNeighborHeight = cardHeight * 0.28;
+      const neighborOffset = Math.max(
+        24,
+        effectiveSelectedHeight / 2 + 52 - renderedNeighborHeight / 2,
+      );
+      const neighborOffsetPercent = (neighborOffset / measuredStageHeight) * 100;
+      const cardKeyframes = [
+        { top: -18, scale: 0.14, opacity: 0 },
+        { top: 50 - neighborOffsetPercent, scale: 0.28, opacity: 0.62 },
+        { top: 50, scale: 1, opacity: 1 },
+        { top: 50 + neighborOffsetPercent, scale: 0.28, opacity: 0.62 },
+        { top: 118, scale: 0.14, opacity: 0 },
+      ];
       const lowerPosition = Math.floor(position);
       const upperPosition = Math.ceil(position);
       const progress = position - lowerPosition;
@@ -1294,6 +1350,7 @@ export default function Home() {
           <section className="cover-picker" aria-label="Choose a cover">
             <div className="cover-selector-frame">
               <div
+                ref={coverStageRef}
                 className={`cover-card-stage ${coverIsDragging ? "is-dragging" : ""}`}
                 role="listbox"
                 aria-label="Cover options"
@@ -1329,6 +1386,7 @@ export default function Home() {
                   return (
                     <button
                       className={`cover-option cover-${choice.kind}-option ${positionClass}`}
+                      data-cover-key={choice.key}
                       type="button"
                       key={choice.key}
                       onClick={() => {
