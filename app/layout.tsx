@@ -41,7 +41,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta id="strip-theme-color" name="theme-color" content="#000000" />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
+        {children}
+      </body>
     </html>
   );
 }

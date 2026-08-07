@@ -1441,7 +1441,6 @@ export default function Home() {
   if (view === "title-setup") {
     return (
       <>
-        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
         <main className="app-shell title-setup-mode">
         <div
           className="top-safe-area-anchor"
@@ -1552,7 +1551,6 @@ export default function Home() {
     };
     return (
       <>
-        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
         <main className="app-shell publish-setup-mode">
         <div
           className="top-safe-area-anchor"
@@ -1699,7 +1697,6 @@ export default function Home() {
     const isPublished = view === "published";
     return (
       <>
-        <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
         <main className={`app-shell reader-mode ${isPublished ? "published-mode" : "preview-mode"}`}>
         <div
           className="top-safe-area-anchor"
@@ -1769,7 +1766,6 @@ export default function Home() {
 
   return (
     <>
-      <div id="legacy-page-transition-host" className="legacy-page-transition-host" />
       <main
         className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
           editingTextBlockId ? "is-typing" : ""
