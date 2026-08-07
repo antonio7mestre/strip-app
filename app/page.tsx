@@ -62,6 +62,8 @@ type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
   | { key: string; kind: "add" };
+type PageTransitionDirection = "forward" | "backward";
+type ViewTransitionHandle = { finished: Promise<void> };
 
 const STORAGE_KEY = "strip-draft-v1";
 const DEFAULT_BACKGROUND = "#000000";
@@ -683,6 +685,7 @@ export default function Home() {
   const coverSwipeStartYRef = useRef<number | null>(null);
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
+  const pageTransitionInFlightRef = useRef(false);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -990,6 +993,77 @@ export default function Home() {
     (choice) => choice.key === activeCoverKey && choice.kind !== "add",
   );
 
+  const scrollToStripEnd = () =>
+    new Promise<void>((resolve) => {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const getScrollEnd = () =>
+        Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const target = getScrollEnd();
+
+      if (Math.abs(window.scrollY - target) < 2) {
+        resolve();
+        return;
+      }
+
+      if (reducedMotion) {
+        window.scrollTo({ top: target, behavior: "auto" });
+        window.requestAnimationFrame(() => resolve());
+        return;
+      }
+
+      const startedAt = performance.now();
+      let settledFrames = 0;
+      const watchScroll = () => {
+        const isAtEnd = Math.abs(window.scrollY - getScrollEnd()) < 2;
+        settledFrames = isAtEnd ? settledFrames + 1 : 0;
+        if (settledFrames >= 3 || performance.now() - startedAt > 1800) {
+          resolve();
+          return;
+        }
+        window.requestAnimationFrame(watchScroll);
+      };
+
+      window.scrollTo({ top: target, behavior: "smooth" });
+      window.requestAnimationFrame(watchScroll);
+    });
+
+  const transitionToView = async (
+    nextView: View,
+    direction: PageTransitionDirection,
+    nextScroll: "top" | "end" = "top",
+  ) => {
+    const root = document.documentElement;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const startViewTransition = (
+      document as Document & {
+        startViewTransition?: (update: () => void) => ViewTransitionHandle;
+      }
+    ).startViewTransition;
+    const updateView = () => {
+      flushSync(() => setView(nextView));
+      const top =
+        nextScroll === "end"
+          ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+          : 0;
+      window.scrollTo({ top, behavior: "auto" });
+    };
+
+    if (!startViewTransition || reducedMotion) {
+      updateView();
+      return;
+    }
+
+    root.dataset.stripPageTransition = direction;
+    root.classList.add("strip-page-transitioning");
+    try {
+      const transition = startViewTransition.call(document, updateView);
+      await transition.finished;
+    } finally {
+      delete root.dataset.stripPageTransition;
+      root.classList.remove("strip-page-transitioning");
+    }
+  };
+
   useEffect(() => {
     if (view !== "publish-setup") return;
     const stage = coverStageRef.current;
@@ -1036,11 +1110,13 @@ export default function Home() {
     };
   }, [view, coverChoices.length, customCoverSrc]);
 
-  const continueToPublish = () => {
+  const continueToPublish = async () => {
     if (!hasContent) {
       setNotice("Add something before you continue.");
       return;
     }
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
 
     const availableCovers = coverChoices
       .filter((choice) => choice.kind !== "add")
@@ -1055,8 +1131,12 @@ export default function Home() {
     setEditingTextBlockId(null);
     setActiveTextTool(null);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
-    setView("publish-setup");
-    window.scrollTo({ top: 0, behavior: "auto" });
+    try {
+      await scrollToStripEnd();
+      await transitionToView("publish-setup", "forward");
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
   };
 
   const addCustomCover = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1137,13 +1217,18 @@ export default function Home() {
     setCoverDragProgress(0);
   };
 
-  const continueToTitle = () => {
+  const continueToTitle = async () => {
     if (!publishSetupHasCover) {
       setNotice("Pick a cover before continuing.");
       return;
     }
-    setView("title-setup");
-    window.scrollTo({ top: 0, behavior: "auto" });
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
+    try {
+      await transitionToView("title-setup", "forward");
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
   };
 
   const publish = () => {
@@ -1155,10 +1240,9 @@ export default function Home() {
       setNotice("Pick a cover before publishing.");
       return;
     }
-    setView("published");
     setEditingTextBlockId(null);
     setActiveTextTool(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    void transitionToView("published", "forward");
   };
 
   const copyLink = async () => {
@@ -1332,7 +1416,7 @@ export default function Home() {
           <button
             className="dock-icon-button"
             type="button"
-            onClick={() => setView("publish-setup")}
+            onClick={() => void transitionToView("publish-setup", "backward")}
             aria-label="Back to cover selection"
           >
             <ArrowLeft className="dock-glyph" aria-hidden="true" />
@@ -1522,7 +1606,9 @@ export default function Home() {
           <button
             className="dock-icon-button"
             type="button"
-            onClick={() => setView(publishSetupReturnView)}
+            onClick={() =>
+              void transitionToView(publishSetupReturnView, "backward", "end")
+            }
             aria-label="Back"
           >
             <ArrowLeft className="dock-glyph" aria-hidden="true" />
