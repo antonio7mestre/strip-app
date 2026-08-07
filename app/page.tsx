@@ -1324,7 +1324,7 @@ export default function Home() {
                 aria-label="Strip title"
               />
             </label>
-            <p className="title-question-hint">Optional — only if you want!</p>
+            <p className="title-question-hint">Optional, only if you want!</p>
           </div>
         </section>
 
