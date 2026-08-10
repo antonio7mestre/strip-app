@@ -1051,13 +1051,28 @@ export default function Home() {
     scheduleDockTransitionEnd();
   };
 
-  const setViewInstantly = (nextView: View, requestedScrollTop = 0) => {
-    const dockSnapshot = captureDockTransition();
-    flushSync(() => {
-      setDockTransition(dockSnapshot);
-      setView(nextView);
-    });
-    scheduleDockTransitionEnd();
+  const setViewInstantly = (
+    nextView: View,
+    requestedScrollTop = 0,
+    animateDock = true,
+  ) => {
+    if (animateDock) {
+      const dockSnapshot = captureDockTransition();
+      flushSync(() => {
+        setDockTransition(dockSnapshot);
+        setView(nextView);
+      });
+      scheduleDockTransitionEnd();
+    } else {
+      if (dockTransitionTimerRef.current !== null) {
+        window.clearTimeout(dockTransitionTimerRef.current);
+        dockTransitionTimerRef.current = null;
+      }
+      flushSync(() => {
+        setDockTransition(null);
+        setView(nextView);
+      });
+    }
     const scrollEnd = Math.max(
       0,
       document.documentElement.scrollHeight - window.innerHeight,
@@ -1215,6 +1230,7 @@ export default function Home() {
       setViewInstantly(
         publishSetupReturnView,
         publishFlowStartScrollRef.current,
+        false,
       );
     } finally {
       pageTransitionInFlightRef.current = false;
@@ -1313,11 +1329,11 @@ export default function Home() {
     }
   };
 
-  const returnToCoverSetup = async () => {
+  const returnToCoverSetup = () => {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
-      await transitionToView("publish-setup", "backward");
+      setViewInstantly("publish-setup", 0, false);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
