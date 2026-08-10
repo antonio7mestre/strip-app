@@ -79,19 +79,19 @@ html.strip-page-transitioning {
 }
 
 .legacy-page-transition-overlay.is-forward {
-  animation: strip-page-out-up 560ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
+  animation: strip-page-out-up var(--page-transition-duration, 560ms) linear both;
 }
 
 .legacy-page-transition-overlay.is-backward {
-  animation: strip-page-out-down 520ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
+  animation: strip-page-out-down var(--page-transition-duration, 520ms) linear both;
 }
 
 .legacy-page-enter.is-forward {
-  animation: strip-page-in-up 560ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
+  animation: strip-page-in-up var(--page-transition-duration, 560ms) linear both;
 }
 
 .legacy-page-enter.is-backward {
-  animation: strip-page-in-down 520ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
+  animation: strip-page-in-down var(--page-transition-duration, 520ms) linear both;
 }
 
 @keyframes dock-controls-in {

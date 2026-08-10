@@ -1003,31 +1003,43 @@ export default function Home() {
     (choice) => choice.key === activeCoverKey && choice.kind !== "add",
   );
 
+  const getPageTransitionDistance = () => {
+    const dockTop = document
+      .querySelector<HTMLElement>(".composer-dock")
+      ?.getBoundingClientRect().top;
+    return Math.max(1, dockTop ?? window.innerHeight);
+  };
+
   const scrollToStripEnd = () =>
-    new Promise<void>((resolve) => {
+    new Promise<number>((resolve) => {
       const getScrollEnd = () =>
         Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const start = window.scrollY;
       const target = getScrollEnd();
       const distance = target - start;
+      const transitionDistance = getPageTransitionDistance();
+      const defaultSpeed = transitionDistance / 560;
+      const pixelsPerMs = Math.max(
+        defaultSpeed,
+        (Math.abs(distance) + transitionDistance) / 2400,
+      );
 
       if (Math.abs(distance) < 2) {
-        resolve();
+        resolve(pixelsPerMs);
         return;
       }
 
-      const duration = Math.min(1200, Math.max(520, Math.abs(distance) * 0.72));
+      const duration = Math.abs(distance) / pixelsPerMs;
       let startedAt: number | null = null;
       const animateScroll = (timestamp: number) => {
         if (startedAt === null) startedAt = timestamp;
         const progress = Math.min(1, (timestamp - startedAt) / duration);
-        const eased = 1 - Math.pow(1 - progress, 3);
         const currentTarget = getScrollEnd();
-        window.scrollTo(0, start + (currentTarget - start) * eased);
+        window.scrollTo(0, start + (currentTarget - start) * progress);
 
         if (progress >= 1) {
           window.scrollTo(0, currentTarget);
-          resolve();
+          resolve(pixelsPerMs);
           return;
         }
         window.requestAnimationFrame(animateScroll);
@@ -1040,6 +1052,7 @@ export default function Home() {
     nextView: View,
     direction: PageTransitionDirection,
     nextScroll: "top" | "end" = "top",
+    pixelsPerMs?: number,
   ) => {
     const root = document.documentElement;
     const updateView = () => {
@@ -1063,7 +1076,10 @@ export default function Home() {
     outgoingShell
       .querySelectorAll(".composer-dock, .bottom-safe-area-anchor")
       .forEach((element) => element.remove());
-    const duration = direction === "forward" ? 560 : 520;
+    const defaultDuration = direction === "forward" ? 560 : 520;
+    const duration = pixelsPerMs
+      ? getPageTransitionDistance() / pixelsPerMs
+      : defaultDuration;
     const snapshot: LegacyPageTransitionSnapshot = {
       id: makeId(),
       markup: outgoingShell.outerHTML,
@@ -1071,6 +1087,7 @@ export default function Home() {
       minHeight: currentShell.scrollHeight,
       direction,
     };
+    root.style.setProperty("--page-transition-duration", `${duration}ms`);
     root.classList.add("strip-page-transitioning");
     flushSync(() => {
       setLegacyPageTransition(snapshot);
@@ -1088,6 +1105,7 @@ export default function Home() {
     } finally {
       flushSync(() => setLegacyPageTransition(null));
       root.classList.remove("strip-page-transitioning");
+      root.style.removeProperty("--page-transition-duration");
     }
   };
 
@@ -1159,8 +1177,8 @@ export default function Home() {
     setActiveTextTool(null);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
     try {
-      await scrollToStripEnd();
-      await transitionToView("publish-setup", "forward");
+      const pixelsPerMs = await scrollToStripEnd();
+      await transitionToView("publish-setup", "forward", "top", pixelsPerMs);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
