@@ -1765,7 +1765,7 @@ export default function Home() {
                       {choice.kind === "add" ? (
                         <span className="cover-add-content">
                           <ImagePlus aria-hidden="true" />
-                          <span>Add image</span>
+                          <span>Add photo</span>
                         </span>
                       ) : null}
                     </button>
