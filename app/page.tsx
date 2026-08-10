@@ -688,6 +688,7 @@ export default function Home() {
   const [coverDragProgress, setCoverDragProgress] = useState(0);
   const [coverIsDragging, setCoverIsDragging] = useState(false);
   const [coverStageHeight, setCoverStageHeight] = useState(0);
+  const [coverCenterPercent, setCoverCenterPercent] = useState(42);
   const [coverCardHeights, setCoverCardHeights] = useState<Record<string, number>>({});
   const [coverCardWidths, setCoverCardWidths] = useState<Record<string, number>>({});
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
@@ -698,6 +699,7 @@ export default function Home() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverStageRef = useRef<HTMLDivElement>(null);
+  const coverInstructionRef = useRef<HTMLParagraphElement>(null);
   const coverSwipeStartYRef = useRef<number | null>(null);
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
@@ -1170,10 +1172,24 @@ export default function Home() {
     const stage = coverStageRef.current;
     if (!stage) return;
 
+    const instruction = coverInstructionRef.current;
     const cards = Array.from(stage.querySelectorAll<HTMLElement>("[data-cover-key]"));
     const images = cards.flatMap((card) => Array.from(card.querySelectorAll("img")));
     const updateMeasurements = () => {
-      setCoverStageHeight(stage.clientHeight);
+      const stageHeight = stage.clientHeight;
+      setCoverStageHeight(stageHeight);
+      if (instruction && stageHeight > 0) {
+        const stageTop = stage.getBoundingClientRect().top;
+        const instructionTop = instruction.getBoundingClientRect().top;
+        const midpoint = Math.max(0, instructionTop - stageTop) / 2;
+        const nextCenterPercent = Math.max(
+          0,
+          Math.min(100, (midpoint / stageHeight) * 100),
+        );
+        setCoverCenterPercent((current) =>
+          Math.abs(current - nextCenterPercent) < 0.05 ? current : nextCenterPercent,
+        );
+      }
       const nextHeights = Object.fromEntries(
         cards.map((card) => [card.dataset.coverKey ?? "", card.offsetHeight]),
       );
@@ -1199,6 +1215,7 @@ export default function Home() {
     const frame = window.requestAnimationFrame(updateMeasurements);
     const observer = new ResizeObserver(updateMeasurements);
     observer.observe(stage);
+    if (instruction) observer.observe(instruction);
     cards.forEach((card) => observer.observe(card));
     images.forEach((image) => image.addEventListener("load", updateMeasurements));
     window.addEventListener("resize", updateMeasurements);
@@ -1634,11 +1651,19 @@ export default function Home() {
       );
       const neighborOffsetPercent = (neighborOffset / measuredStageHeight) * 100;
       const cardKeyframes = [
-        { top: -22, scale: 0.14, opacity: 0 },
-        { top: 46 - neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
-        { top: 46, scale: 1, opacity: 1 },
-        { top: 46 + neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
-        { top: 114, scale: 0.14, opacity: 0 },
+        { top: coverCenterPercent - 68, scale: 0.14, opacity: 0 },
+        {
+          top: coverCenterPercent - neighborOffsetPercent,
+          scale: neighborScale,
+          opacity: 0.62,
+        },
+        { top: coverCenterPercent, scale: 1, opacity: 1 },
+        {
+          top: coverCenterPercent + neighborOffsetPercent,
+          scale: neighborScale,
+          opacity: 0.62,
+        },
+        { top: coverCenterPercent + 68, scale: 0.14, opacity: 0 },
       ];
       const lowerPosition = Math.floor(position);
       const upperPosition = Math.ceil(position);
@@ -1748,7 +1773,11 @@ export default function Home() {
                 })}
 
               </div>
-              <nav className="cover-pagination" aria-label="Cover options">
+              <nav
+                className="cover-pagination"
+                style={{ top: `${coverCenterPercent}%` }}
+                aria-label="Cover options"
+              >
                 {coverChoices.map((choice, index) => (
                   <button
                     className={activeCoverKey === choice.key ? "is-current" : ""}
@@ -1764,7 +1793,10 @@ export default function Home() {
           </section>
         </section>
 
-        <p className={`cover-instruction ${legacyPageEnterClass}`}>
+        <p
+          ref={coverInstructionRef}
+          className={`cover-instruction ${legacyPageEnterClass}`}
+        >
           Swipe up to pick a cover
         </p>
 
