@@ -1732,7 +1732,7 @@ export default function Home() {
         </section>
 
         <p className={`cover-instruction ${legacyPageEnterClass}`}>
-          Swipe to pick a cover
+          Swipe up to pick a cover
         </p>
 
         <input
