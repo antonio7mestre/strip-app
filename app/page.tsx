@@ -1051,28 +1051,13 @@ export default function Home() {
     scheduleDockTransitionEnd();
   };
 
-  const setViewInstantly = (
-    nextView: View,
-    requestedScrollTop = 0,
-    animateDock = true,
-  ) => {
-    if (animateDock) {
-      const dockSnapshot = captureDockTransition();
-      flushSync(() => {
-        setDockTransition(dockSnapshot);
-        setView(nextView);
-      });
-      scheduleDockTransitionEnd();
-    } else {
-      if (dockTransitionTimerRef.current !== null) {
-        window.clearTimeout(dockTransitionTimerRef.current);
-        dockTransitionTimerRef.current = null;
-      }
-      flushSync(() => {
-        setDockTransition(null);
-        setView(nextView);
-      });
-    }
+  const setViewInstantly = (nextView: View, requestedScrollTop = 0) => {
+    const dockSnapshot = captureDockTransition();
+    flushSync(() => {
+      setDockTransition(dockSnapshot);
+      setView(nextView);
+    });
+    scheduleDockTransitionEnd();
     const scrollEnd = Math.max(
       0,
       document.documentElement.scrollHeight - window.innerHeight,
@@ -1230,7 +1215,6 @@ export default function Home() {
       setViewInstantly(
         publishSetupReturnView,
         publishFlowStartScrollRef.current,
-        false,
       );
     } finally {
       pageTransitionInFlightRef.current = false;
@@ -1333,7 +1317,7 @@ export default function Home() {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
-      setViewInstantly("publish-setup", 0, false);
+      setViewInstantly("publish-setup");
     } finally {
       pageTransitionInFlightRef.current = false;
     }
