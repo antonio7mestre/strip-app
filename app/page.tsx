@@ -70,6 +70,10 @@ type LegacyPageTransitionSnapshot = {
   minHeight: number;
   direction: PageTransitionDirection;
 };
+type DockTransitionSnapshot = {
+  id: string;
+  markup: string;
+};
 
 const STORAGE_KEY = "strip-draft-v1";
 const DEFAULT_BACKGROUND = "#000000";
@@ -79,6 +83,7 @@ const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
+const DOCK_TRANSITION_DURATION_MS = 300;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -667,6 +672,8 @@ export default function Home() {
   const [view, setView] = useState<View>("edit");
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
+  const [dockTransition, setDockTransition] =
+    useState<DockTransitionSnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -695,6 +702,7 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const dockTransitionTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
@@ -709,6 +717,15 @@ export default function Home() {
       : view !== "published" && firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
+
+  useEffect(
+    () => () => {
+      if (dockTransitionTimerRef.current !== null) {
+        window.clearTimeout(dockTransitionTimerRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
@@ -1005,8 +1022,42 @@ export default function Home() {
     (choice) => choice.key === activeCoverKey && choice.kind !== "add",
   );
 
+  const captureDockTransition = () => {
+    const currentControls = document.querySelector<HTMLElement>(
+      ".composer-dock .dock-controls-current",
+    );
+    return {
+      id: makeId(),
+      markup: currentControls?.innerHTML ?? "",
+    };
+  };
+
+  const scheduleDockTransitionEnd = () => {
+    if (dockTransitionTimerRef.current !== null) {
+      window.clearTimeout(dockTransitionTimerRef.current);
+    }
+    dockTransitionTimerRef.current = window.setTimeout(() => {
+      setDockTransition(null);
+      dockTransitionTimerRef.current = null;
+    }, DOCK_TRANSITION_DURATION_MS);
+  };
+
+  const changeViewWithDockTransition = (nextView: View) => {
+    const dockSnapshot = captureDockTransition();
+    flushSync(() => {
+      setDockTransition(dockSnapshot);
+      setView(nextView);
+    });
+    scheduleDockTransitionEnd();
+  };
+
   const setViewInstantly = (nextView: View, requestedScrollTop = 0) => {
-    flushSync(() => setView(nextView));
+    const dockSnapshot = captureDockTransition();
+    flushSync(() => {
+      setDockTransition(dockSnapshot);
+      setView(nextView);
+    });
+    scheduleDockTransitionEnd();
     const scrollEnd = Math.max(
       0,
       document.documentElement.scrollHeight - window.innerHeight,
@@ -1024,7 +1075,12 @@ export default function Home() {
   ) => {
     const root = document.documentElement;
     const updateView = () => {
-      flushSync(() => setView(nextView));
+      const dockSnapshot = captureDockTransition();
+      flushSync(() => {
+        setDockTransition(dockSnapshot);
+        setView(nextView);
+      });
+      scheduleDockTransitionEnd();
       const top =
         nextScroll === "end"
           ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
@@ -1054,10 +1110,13 @@ export default function Home() {
     };
     root.style.setProperty("--page-transition-duration", `${duration}ms`);
     root.classList.add("strip-page-transitioning");
+    const dockSnapshot = captureDockTransition();
     flushSync(() => {
       setLegacyPageTransition(snapshot);
+      setDockTransition(dockSnapshot);
       setView(nextView);
     });
+    scheduleDockTransitionEnd();
     const top =
       nextScroll === "end"
         ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
@@ -1430,9 +1489,17 @@ export default function Home() {
   const legacyPageEnterClass = legacyPageTransition
     ? `legacy-page-enter is-${legacyPageTransition.direction}`
     : "";
-  const dockControlsTransitionClass = legacyPageTransition
-    ? "dock-controls-transition"
-    : "";
+  const dockTransitionLayer = dockTransition?.markup ? (
+    <div
+      className="dock-controls dock-controls-outgoing"
+      key={dockTransition.id}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: dockTransition.markup }}
+    />
+  ) : null;
+  const currentDockControlsClass = `dock-controls dock-controls-current ${
+    dockTransition ? "is-entering" : ""
+  }`;
 
   if (view === "title-setup") {
     return (
@@ -1475,25 +1542,28 @@ export default function Home() {
 
         <footer
           key="persistent-composer-dock"
-          className={`composer-dock title-setup-dock ${dockControlsTransitionClass}`}
+          className="composer-dock title-setup-dock"
         >
-          <button
-            className="dock-icon-button"
-            type="button"
-            onClick={() => void returnToCoverSetup()}
-            aria-label="Back to cover selection"
-          >
-            <ArrowLeft className="dock-glyph" aria-hidden="true" />
-          </button>
-          <span className="dock-divider" aria-hidden="true" />
-          <button
-            className="dock-icon-button publish-icon-button publish-strip-button"
-            type="button"
-            onClick={publish}
-            aria-label="Publish Strip"
-          >
-            Publish
-          </button>
+          {dockTransitionLayer}
+          <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+            <button
+              className="dock-icon-button"
+              type="button"
+              onClick={() => void returnToCoverSetup()}
+              aria-label="Back to cover selection"
+            >
+              <ArrowLeft className="dock-glyph" aria-hidden="true" />
+            </button>
+            <span className="dock-divider" aria-hidden="true" />
+            <button
+              className="dock-icon-button publish-icon-button publish-strip-button"
+              type="button"
+              onClick={publish}
+              aria-label="Publish Strip"
+            >
+              Publish
+            </button>
+          </div>
         </footer>
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
@@ -1676,26 +1746,29 @@ export default function Home() {
 
         <footer
           key="persistent-composer-dock"
-          className={`composer-dock publish-setup-dock ${dockControlsTransitionClass}`}
+          className="composer-dock publish-setup-dock"
         >
-          <button
-            className="dock-icon-button"
-            type="button"
-            onClick={() => void returnFromPublishSetup()}
-            aria-label="Back"
-          >
-            <ArrowLeft className="dock-glyph" aria-hidden="true" />
-          </button>
-          <span className="dock-divider" aria-hidden="true" />
-          <button
-            className="dock-icon-button publish-icon-button publish-strip-button"
-            type="button"
-            onClick={continueToTitle}
-            aria-label="Continue to title"
-            disabled={!publishSetupHasCover}
-          >
-            Continue
-          </button>
+          {dockTransitionLayer}
+          <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+            <button
+              className="dock-icon-button"
+              type="button"
+              onClick={() => void returnFromPublishSetup()}
+              aria-label="Back"
+            >
+              <ArrowLeft className="dock-glyph" aria-hidden="true" />
+            </button>
+            <span className="dock-divider" aria-hidden="true" />
+            <button
+              className="dock-icon-button publish-icon-button publish-strip-button"
+              type="button"
+              onClick={continueToTitle}
+              aria-label="Continue to title"
+              disabled={!publishSetupHasCover}
+            >
+              Continue
+            </button>
+          </div>
         </footer>
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
@@ -1721,7 +1794,11 @@ export default function Home() {
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
         {isPublished ? (
           <header className="topbar reader-topbar">
-            <button className="text-action" type="button" onClick={() => setView("edit")}>
+            <button
+              className="text-action"
+              type="button"
+              onClick={() => changeViewWithDockTransition("edit")}
+            >
               Edit
             </button>
             <span className="wordmark">STRIP</span>
@@ -1752,28 +1829,33 @@ export default function Home() {
             </footer>
           ) : null}
         </article>
-        {!isPublished ? (
+        {!isPublished || dockTransition ? (
           <footer
             key="persistent-composer-dock"
-            className={`composer-dock preview-dock ${dockControlsTransitionClass}`}
+            className="composer-dock preview-dock"
           >
-            <button
-              className="dock-icon-button"
-              type="button"
-              onClick={() => setView("edit")}
-              aria-label="Return to editing"
-            >
-              <Pencil className="dock-glyph" aria-hidden="true" />
-            </button>
-            <span className="dock-divider" aria-hidden="true" />
-            <button
-              className="dock-icon-button publish-icon-button publish-strip-button"
-              type="button"
-              onClick={continueToPublish}
-              aria-label="Continue to cover"
-            >
-              Continue
-            </button>
+            {dockTransitionLayer}
+            {!isPublished ? (
+              <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+                <button
+                  className="dock-icon-button"
+                  type="button"
+                  onClick={() => changeViewWithDockTransition("edit")}
+                  aria-label="Return to editing"
+                >
+                  <Pencil className="dock-glyph" aria-hidden="true" />
+                </button>
+                <span className="dock-divider" aria-hidden="true" />
+                <button
+                  className="dock-icon-button publish-icon-button publish-strip-button"
+                  type="button"
+                  onClick={continueToPublish}
+                  aria-label="Continue to cover"
+                >
+                  Continue
+                </button>
+              </div>
+            ) : null}
           </footer>
         ) : null}
         {notice ? <div className="notice">{notice}</div> : null}
@@ -1831,70 +1913,73 @@ export default function Home() {
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
           activeTextTool ? "is-shifted" : ""
-        } ${dockControlsTransitionClass}`}
+        }`}
       >
-        <button className="dock-icon-button" type="button" onClick={addText} aria-label="Add text">
-          <Type className="dock-glyph" aria-hidden="true" />
-        </button>
-        <button
-          className="dock-icon-button"
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Add photo"
-        >
-          <ImagePlus className="dock-glyph" aria-hidden="true" />
-        </button>
-        <input
-          ref={fileInputRef}
-          className="visually-hidden"
-          type="file"
-          accept="image/*"
-          onChange={addImage}
-          aria-label="Choose a photo"
-        />
-        <button
-          className="dock-icon-button"
-          type="button"
-          onClick={() => videoInputRef.current?.click()}
-          aria-label="Add video"
-        >
-          <Clapperboard className="dock-glyph" aria-hidden="true" />
-        </button>
-        <input
-          ref={videoInputRef}
-          className="visually-hidden"
-          type="file"
-          accept="video/*"
-          onChange={addVideo}
-          aria-label="Choose a video"
-        />
-        <span className="dock-divider" aria-hidden="true" />
-        <button
-          className="dock-icon-button"
-          type="button"
-          aria-label="Preview Strip"
-          onClick={() => {
-            if (!hasContent) {
-              setNotice("Add something to preview.");
-              return;
-            }
-            setActiveTextTool(null);
-            setEditingTextBlockId(null);
-            setView("preview");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        >
-          <Eye className="dock-glyph" aria-hidden="true" />
-        </button>
-        <button
-          className="dock-icon-button publish-icon-button publish-strip-button"
-          type="button"
-          onClick={continueToPublish}
-          disabled={!hasContent}
-          aria-label="Continue to cover"
-        >
-          Continue
-        </button>
+        {dockTransitionLayer}
+        <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+          <button className="dock-icon-button" type="button" onClick={addText} aria-label="Add text">
+            <Type className="dock-glyph" aria-hidden="true" />
+          </button>
+          <button
+            className="dock-icon-button"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Add photo"
+          >
+            <ImagePlus className="dock-glyph" aria-hidden="true" />
+          </button>
+          <input
+            ref={fileInputRef}
+            className="visually-hidden"
+            type="file"
+            accept="image/*"
+            onChange={addImage}
+            aria-label="Choose a photo"
+          />
+          <button
+            className="dock-icon-button"
+            type="button"
+            onClick={() => videoInputRef.current?.click()}
+            aria-label="Add video"
+          >
+            <Clapperboard className="dock-glyph" aria-hidden="true" />
+          </button>
+          <input
+            ref={videoInputRef}
+            className="visually-hidden"
+            type="file"
+            accept="video/*"
+            onChange={addVideo}
+            aria-label="Choose a video"
+          />
+          <span className="dock-divider" aria-hidden="true" />
+          <button
+            className="dock-icon-button"
+            type="button"
+            aria-label="Preview Strip"
+            onClick={() => {
+              if (!hasContent) {
+                setNotice("Add something to preview.");
+                return;
+              }
+              setActiveTextTool(null);
+              setEditingTextBlockId(null);
+              changeViewWithDockTransition("preview");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            <Eye className="dock-glyph" aria-hidden="true" />
+          </button>
+          <button
+            className="dock-icon-button publish-icon-button publish-strip-button"
+            type="button"
+            onClick={continueToPublish}
+            disabled={!hasContent}
+            aria-label="Continue to cover"
+          >
+            Continue
+          </button>
+        </div>
       </footer>
       {pendingDeleteBlock ? (
         <div className="modal-backdrop" onClick={() => setPendingDeleteId(null)}>
