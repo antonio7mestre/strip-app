@@ -833,6 +833,7 @@ textarea:focus-visible,
 .publish-flow-dock .dock-controls-current {
   width: 100%;
   gap: 8px;
+  padding-inline: 12px;
 }
 
 .publish-flow-dock .publish-flow-button {
