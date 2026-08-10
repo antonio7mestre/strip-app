@@ -94,36 +94,13 @@ html.strip-page-transitioning {
   animation: strip-page-in-down var(--page-transition-duration, 380ms) linear both;
 }
 
-@keyframes dock-controls-out-left {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-
-  to {
-    transform: translateX(-110vw);
-    opacity: 0;
-  }
-}
-
-@keyframes dock-controls-in-right {
-  from {
-    transform: translateX(110vw);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
 .dock-controls {
   display: flex;
   max-width: 100%;
   align-items: center;
   justify-content: center;
   gap: 4px;
+  backface-visibility: hidden;
   will-change: transform, opacity;
 }
 
@@ -133,7 +110,16 @@ html.strip-page-transitioning {
 }
 
 .dock-controls-current.is-entering {
-  animation: dock-controls-in-right 300ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
+  transform: translate3d(110vw, 0, 0);
+  opacity: 0;
+  transition:
+    transform 300ms cubic-bezier(0.22, 0.72, 0.18, 1),
+    opacity 300ms cubic-bezier(0.22, 0.72, 0.18, 1);
+}
+
+.dock-controls-current.is-entering.is-transitioning {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
 }
 
 .dock-controls-outgoing {
@@ -142,8 +128,17 @@ html.strip-page-transitioning {
   top: 12px;
   right: 0;
   left: 0;
-  animation: dock-controls-out-left 300ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  transition:
+    transform 300ms cubic-bezier(0.22, 0.72, 0.18, 1),
+    opacity 300ms cubic-bezier(0.22, 0.72, 0.18, 1);
   pointer-events: none;
+}
+
+.dock-controls-outgoing.is-transitioning {
+  transform: translate3d(-110vw, 0, 0);
+  opacity: 0;
 }
 
 html.strip-page-transitioning .composer-dock {
@@ -1375,8 +1370,4 @@ textarea:focus-visible,
     transition: none;
   }
 
-  .dock-controls-current.is-entering,
-  .dock-controls-outgoing {
-    animation: none;
-  }
 }

@@ -673,6 +673,7 @@ export default function Home() {
     useState<LegacyPageTransitionSnapshot | null>(null);
   const [dockTransition, setDockTransition] =
     useState<DockTransitionSnapshot | null>(null);
+  const [dockTransitionStarted, setDockTransitionStarted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -702,6 +703,7 @@ export default function Home() {
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
   const dockTransitionTimerRef = useRef<number | null>(null);
+  const dockTransitionFrameRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
@@ -721,6 +723,9 @@ export default function Home() {
     () => () => {
       if (dockTransitionTimerRef.current !== null) {
         window.clearTimeout(dockTransitionTimerRef.current);
+      }
+      if (dockTransitionFrameRef.current !== null) {
+        window.cancelAnimationFrame(dockTransitionFrameRef.current);
       }
     },
     [],
@@ -1031,20 +1036,37 @@ export default function Home() {
     };
   };
 
-  const scheduleDockTransitionEnd = () => {
+  const cancelDockTransitionSchedule = () => {
     if (dockTransitionTimerRef.current !== null) {
       window.clearTimeout(dockTransitionTimerRef.current);
-    }
-    dockTransitionTimerRef.current = window.setTimeout(() => {
-      setDockTransition(null);
       dockTransitionTimerRef.current = null;
-    }, DOCK_TRANSITION_DURATION_MS);
+    }
+    if (dockTransitionFrameRef.current !== null) {
+      window.cancelAnimationFrame(dockTransitionFrameRef.current);
+      dockTransitionFrameRef.current = null;
+    }
+  };
+
+  const scheduleDockTransitionEnd = () => {
+    cancelDockTransitionSchedule();
+    dockTransitionFrameRef.current = window.requestAnimationFrame(() => {
+      dockTransitionFrameRef.current = window.requestAnimationFrame(() => {
+        dockTransitionFrameRef.current = null;
+        setDockTransitionStarted(true);
+        dockTransitionTimerRef.current = window.setTimeout(() => {
+          setDockTransition(null);
+          setDockTransitionStarted(false);
+          dockTransitionTimerRef.current = null;
+        }, DOCK_TRANSITION_DURATION_MS);
+      });
+    });
   };
 
   const changeViewWithDockTransition = (nextView: View) => {
     const dockSnapshot = captureDockTransition();
     flushSync(() => {
       setDockTransition(dockSnapshot);
+      setDockTransitionStarted(false);
       setView(nextView);
     });
     scheduleDockTransitionEnd();
@@ -1056,12 +1078,10 @@ export default function Home() {
     animateDock = true,
   ) => {
     const dockSnapshot = animateDock ? captureDockTransition() : null;
-    if (!animateDock && dockTransitionTimerRef.current !== null) {
-      window.clearTimeout(dockTransitionTimerRef.current);
-      dockTransitionTimerRef.current = null;
-    }
+    if (!animateDock) cancelDockTransitionSchedule();
     flushSync(() => {
       setDockTransition(dockSnapshot);
+      setDockTransitionStarted(false);
       setView(nextView);
     });
     if (animateDock) scheduleDockTransitionEnd();
@@ -1084,12 +1104,10 @@ export default function Home() {
     const root = document.documentElement;
     const updateView = () => {
       const dockSnapshot = animateDock ? captureDockTransition() : null;
-      if (!animateDock && dockTransitionTimerRef.current !== null) {
-        window.clearTimeout(dockTransitionTimerRef.current);
-        dockTransitionTimerRef.current = null;
-      }
+      if (!animateDock) cancelDockTransitionSchedule();
       flushSync(() => {
         setDockTransition(dockSnapshot);
+        setDockTransitionStarted(false);
         setView(nextView);
       });
       if (animateDock) scheduleDockTransitionEnd();
@@ -1123,13 +1141,11 @@ export default function Home() {
     root.style.setProperty("--page-transition-duration", `${duration}ms`);
     root.classList.add("strip-page-transitioning");
     const dockSnapshot = animateDock ? captureDockTransition() : null;
-    if (!animateDock && dockTransitionTimerRef.current !== null) {
-      window.clearTimeout(dockTransitionTimerRef.current);
-      dockTransitionTimerRef.current = null;
-    }
+    if (!animateDock) cancelDockTransitionSchedule();
     flushSync(() => {
       setLegacyPageTransition(snapshot);
       setDockTransition(dockSnapshot);
+      setDockTransitionStarted(false);
       setView(nextView);
     });
     if (animateDock) scheduleDockTransitionEnd();
@@ -1507,7 +1523,9 @@ export default function Home() {
     : "";
   const dockTransitionLayer = dockTransition?.markup ? (
     <div
-      className="dock-controls dock-controls-outgoing"
+      className={`dock-controls dock-controls-outgoing ${
+        dockTransitionStarted ? "is-transitioning" : ""
+      }`}
       key={dockTransition.id}
       aria-hidden="true"
       dangerouslySetInnerHTML={{ __html: dockTransition.markup }}
@@ -1515,7 +1533,7 @@ export default function Home() {
   ) : null;
   const currentDockControlsClass = `dock-controls dock-controls-current ${
     dockTransition ? "is-entering" : ""
-  }`;
+  } ${dockTransitionStarted ? "is-transitioning" : ""}`;
 
   if (view === "title-setup") {
     return (
