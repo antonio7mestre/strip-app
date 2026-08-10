@@ -702,7 +702,9 @@ export default function Home() {
           (block) => block.type !== "text" || block.content.trim().length > 0,
         );
   const topSafeAreaColor =
-    view !== "published" && firstVisibleBlock?.type === "text"
+    view === "publish-setup" || view === "title-setup"
+      ? DEFAULT_BACKGROUND
+      : view !== "published" && firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
 
