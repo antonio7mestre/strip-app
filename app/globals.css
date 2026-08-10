@@ -642,7 +642,7 @@ textarea:focus-visible,
 
 .cover-option.is-selected {
   z-index: 3;
-  top: 50%;
+  top: 46%;
   transform: translate(-50%, -50%) scale(1);
   opacity: 1;
   pointer-events: auto;
@@ -657,19 +657,19 @@ textarea:focus-visible,
 }
 
 .cover-option.is-previous {
-  top: 18%;
+  top: 14%;
 }
 
 .cover-option.is-next {
-  top: 82%;
+  top: 78%;
 }
 
 .cover-option.is-hidden-above {
-  top: -18%;
+  top: -22%;
 }
 
 .cover-option.is-hidden-below {
-  top: 118%;
+  top: 114%;
 }
 
 .cover-image-option img {
@@ -737,7 +737,7 @@ textarea:focus-visible,
 .cover-pagination {
   position: absolute;
   z-index: 4;
-  top: 50%;
+  top: 46%;
   right: max(8px, env(safe-area-inset-right));
   display: grid;
   max-height: 44dvh;

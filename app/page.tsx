@@ -1531,11 +1531,11 @@ export default function Home() {
       );
       const neighborOffsetPercent = (neighborOffset / measuredStageHeight) * 100;
       const cardKeyframes = [
-        { top: -18, scale: 0.14, opacity: 0 },
-        { top: 50 - neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
-        { top: 50, scale: 1, opacity: 1 },
-        { top: 50 + neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
-        { top: 118, scale: 0.14, opacity: 0 },
+        { top: -22, scale: 0.14, opacity: 0 },
+        { top: 46 - neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
+        { top: 46, scale: 1, opacity: 1 },
+        { top: 46 + neighborOffsetPercent, scale: neighborScale, opacity: 0.62 },
+        { top: 114, scale: 0.14, opacity: 0 },
       ];
       const lowerPosition = Math.floor(position);
       const upperPosition = Math.ceil(position);
