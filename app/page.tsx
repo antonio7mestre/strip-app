@@ -1064,10 +1064,14 @@ export default function Home() {
       return;
     }
 
+    const outgoingShell = currentShell.cloneNode(true) as HTMLElement;
+    outgoingShell
+      .querySelectorAll(".composer-dock, .bottom-safe-area-anchor")
+      .forEach((element) => element.remove());
     const duration = direction === "forward" ? 560 : 520;
     const snapshot: LegacyPageTransitionSnapshot = {
       id: makeId(),
-      markup: currentShell.outerHTML,
+      markup: outgoingShell.outerHTML,
       scrollTop: window.scrollY,
       minHeight: currentShell.scrollHeight,
       direction,
@@ -1425,20 +1429,26 @@ export default function Home() {
   const legacyPageEnterClass = legacyPageTransition
     ? `legacy-page-enter is-${legacyPageTransition.direction}`
     : "";
+  const dockControlsTransitionClass = legacyPageTransition
+    ? "dock-controls-transition"
+    : "";
 
   if (view === "title-setup") {
     return (
       <>
         {legacyTransitionLayer}
-        <main className={`app-shell title-setup-mode ${legacyPageEnterClass}`}>
+        <main className="app-shell title-setup-mode">
         <div
-          className="top-safe-area-anchor"
+          className={`top-safe-area-anchor ${legacyPageEnterClass}`}
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
 
-        <section className="title-setup-shell" aria-labelledby="title-question-heading">
+        <section
+          className={`title-setup-shell ${legacyPageEnterClass}`}
+          aria-labelledby="title-question-heading"
+        >
           <div className="title-question">
             <h1 id="title-question-heading">Give your Strip a title</h1>
             <label className="title-question-field">
@@ -1462,7 +1472,9 @@ export default function Home() {
           </div>
         </section>
 
-        <footer className="composer-dock title-setup-dock">
+        <footer
+          className={`composer-dock title-setup-dock ${dockControlsTransitionClass}`}
+        >
           <button
             className="dock-icon-button"
             type="button"
@@ -1541,15 +1553,18 @@ export default function Home() {
     return (
       <>
         {legacyTransitionLayer}
-        <main className={`app-shell publish-setup-mode ${legacyPageEnterClass}`}>
+        <main className="app-shell publish-setup-mode">
         <div
-          className="top-safe-area-anchor"
+          className={`top-safe-area-anchor ${legacyPageEnterClass}`}
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
         <div className="bottom-safe-area-anchor" aria-hidden="true" />
 
-        <section className="publish-setup-shell" aria-label="Pick a cover">
+        <section
+          className={`publish-setup-shell ${legacyPageEnterClass}`}
+          aria-label="Pick a cover"
+        >
           <section className="cover-picker" aria-label="Choose a cover">
             <div className="cover-selector-frame">
               <div
@@ -1644,7 +1659,9 @@ export default function Home() {
           </section>
         </section>
 
-        <p className="cover-instruction">Swipe to pick a cover</p>
+        <p className={`cover-instruction ${legacyPageEnterClass}`}>
+          Swipe to pick a cover
+        </p>
 
         <input
           ref={coverInputRef}
@@ -1655,7 +1672,9 @@ export default function Home() {
           aria-label="Choose a cover image"
         />
 
-        <footer className="composer-dock publish-setup-dock">
+        <footer
+          className={`composer-dock publish-setup-dock ${dockControlsTransitionClass}`}
+        >
           <button
             className="dock-icon-button"
             type="button"
@@ -1691,10 +1710,10 @@ export default function Home() {
         <main
           className={`app-shell reader-mode ${
             isPublished ? "published-mode" : "preview-mode"
-          } ${legacyPageEnterClass}`}
+          }`}
         >
         <div
-          className="top-safe-area-anchor"
+          className={`top-safe-area-anchor ${legacyPageEnterClass}`}
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
@@ -1711,7 +1730,7 @@ export default function Home() {
           </header>
         ) : null}
 
-        <article className="published-strip">
+        <article className={`published-strip ${legacyPageEnterClass}`}>
           {isPublished ? (
             <header className="strip-byline">
               <div className="avatar" aria-hidden="true">
@@ -1733,7 +1752,9 @@ export default function Home() {
           ) : null}
         </article>
         {!isPublished ? (
-          <footer className="composer-dock preview-dock">
+          <footer
+            className={`composer-dock preview-dock ${dockControlsTransitionClass}`}
+          >
             <button
               className="dock-icon-button"
               type="button"
@@ -1765,15 +1786,15 @@ export default function Home() {
       <main
         className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
           editingTextBlockId ? "is-typing" : ""
-        } ${legacyPageEnterClass}`}
+        }`}
       >
       <div
-        className="top-safe-area-anchor"
+        className={`top-safe-area-anchor ${legacyPageEnterClass}`}
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
       <div className="bottom-safe-area-anchor" aria-hidden="true" />
-      <div className="editor-canvas">{renderStrip(true)}</div>
+      <div className={`editor-canvas ${legacyPageEnterClass}`}>{renderStrip(true)}</div>
 
       {selectedBlockIndex >= 0 ? (
         <BlockControls
@@ -1804,7 +1825,11 @@ export default function Home() {
         />
       ) : null}
 
-      <footer className={`composer-dock main-composer-dock ${activeTextTool ? "is-shifted" : ""}`}>
+      <footer
+        className={`composer-dock main-composer-dock ${
+          activeTextTool ? "is-shifted" : ""
+        } ${dockControlsTransitionClass}`}
+      >
         <button className="dock-icon-button" type="button" onClick={addText} aria-label="Add text">
           <Type className="dock-glyph" aria-hidden="true" />
         </button>

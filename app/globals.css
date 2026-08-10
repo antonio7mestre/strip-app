@@ -71,7 +71,7 @@ html.strip-page-transitioning {
 .legacy-page-transition-overlay {
   position: fixed;
   z-index: 2147483646;
-  inset: 0;
+  inset: 0 0 calc(64px + env(safe-area-inset-bottom));
   overflow: hidden;
   background: var(--black);
   pointer-events: none;
@@ -92,6 +92,18 @@ html.strip-page-transitioning {
 
 .legacy-page-enter.is-backward {
   animation: strip-page-in-down 520ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
+}
+
+@keyframes dock-controls-in {
+  from {
+    transform: translateY(5px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+.composer-dock.dock-controls-transition > .dock-icon-button,
+.composer-dock.dock-controls-transition > .dock-divider {
+  animation: dock-controls-in 260ms 120ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
 }
 
 .legacy-page-transition-page {
