@@ -79,7 +79,6 @@ const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
-const MAX_PUBLISH_FLOW_DURATION_MS = 1650;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -696,7 +695,6 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
-  const publishFlowSpeedRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
@@ -1007,62 +1005,22 @@ export default function Home() {
     (choice) => choice.key === activeCoverKey && choice.kind !== "add",
   );
 
-  const getPageTransitionDistance = () => {
-    const dockTop = document
-      .querySelector<HTMLElement>(".composer-dock")
-      ?.getBoundingClientRect().top;
-    return Math.max(1, dockTop ?? window.innerHeight);
+  const setViewInstantly = (nextView: View, requestedScrollTop = 0) => {
+    flushSync(() => setView(nextView));
+    const scrollEnd = Math.max(
+      0,
+      document.documentElement.scrollHeight - window.innerHeight,
+    );
+    const top = Math.max(0, Math.min(requestedScrollTop, scrollEnd));
+    window.scrollTo({ top, behavior: "auto" });
+    document.documentElement.scrollTop = top;
+    document.body.scrollTop = top;
   };
-
-  const scrollStripTo = (requestedTarget: number, requestedPixelsPerMs?: number) =>
-    new Promise<number>((resolve) => {
-      const getScrollEnd = () =>
-        Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      const start = window.scrollY;
-      const getTarget = () => Math.min(requestedTarget, getScrollEnd());
-      const target = getTarget();
-      const distance = target - start;
-      const transitionDistance = getPageTransitionDistance();
-      const defaultSpeed = transitionDistance / PAGE_TRANSITION_DURATION_MS;
-      const pixelsPerMs =
-        requestedPixelsPerMs ??
-        Math.max(
-          defaultSpeed,
-          (Math.abs(distance) + transitionDistance) /
-            MAX_PUBLISH_FLOW_DURATION_MS,
-        );
-
-      if (Math.abs(distance) < 2) {
-        resolve(pixelsPerMs);
-        return;
-      }
-
-      const duration = Math.abs(distance) / pixelsPerMs;
-      let startedAt: number | null = null;
-      const animateScroll = (timestamp: number) => {
-        if (startedAt === null) startedAt = timestamp;
-        const progress = Math.min(1, (timestamp - startedAt) / duration);
-        const currentTarget = getTarget();
-        window.scrollTo(0, start + (currentTarget - start) * progress);
-
-        if (progress >= 1) {
-          window.scrollTo(0, currentTarget);
-          resolve(pixelsPerMs);
-          return;
-        }
-        window.requestAnimationFrame(animateScroll);
-      };
-
-      window.requestAnimationFrame(animateScroll);
-    });
-
-  const scrollToStripEnd = () => scrollStripTo(Number.POSITIVE_INFINITY);
 
   const transitionToView = async (
     nextView: View,
     direction: PageTransitionDirection,
     nextScroll: "top" | "end" = "top",
-    pixelsPerMs?: number,
   ) => {
     const root = document.documentElement;
     const updateView = () => {
@@ -1086,10 +1044,7 @@ export default function Home() {
     outgoingShell
       .querySelectorAll(".composer-dock, .bottom-safe-area-anchor")
       .forEach((element) => element.remove());
-    const defaultDuration = PAGE_TRANSITION_DURATION_MS;
-    const duration = pixelsPerMs
-      ? getPageTransitionDistance() / pixelsPerMs
-      : defaultDuration;
+    const duration = PAGE_TRANSITION_DURATION_MS;
     const snapshot: LegacyPageTransitionSnapshot = {
       id: makeId(),
       markup: outgoingShell.outerHTML,
@@ -1165,7 +1120,7 @@ export default function Home() {
     };
   }, [view, coverChoices.length, customCoverSrc]);
 
-  const continueToPublish = async () => {
+  const continueToPublish = () => {
     if (!hasContent) {
       setNotice("Add something before you continue.");
       return;
@@ -1188,28 +1143,20 @@ export default function Home() {
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
     publishFlowStartScrollRef.current = window.scrollY;
     try {
-      const pixelsPerMs = await scrollToStripEnd();
-      publishFlowSpeedRef.current = pixelsPerMs;
-      await transitionToView("publish-setup", "forward", "top", pixelsPerMs);
+      setViewInstantly("publish-setup");
     } finally {
       pageTransitionInFlightRef.current = false;
     }
   };
 
-  const returnFromPublishSetup = async () => {
+  const returnFromPublishSetup = () => {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
-    const pixelsPerMs =
-      publishFlowSpeedRef.current ??
-      getPageTransitionDistance() / PAGE_TRANSITION_DURATION_MS;
     try {
-      await transitionToView(
+      setViewInstantly(
         publishSetupReturnView,
-        "backward",
-        "end",
-        pixelsPerMs,
+        publishFlowStartScrollRef.current,
       );
-      await scrollStripTo(publishFlowStartScrollRef.current, pixelsPerMs);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
