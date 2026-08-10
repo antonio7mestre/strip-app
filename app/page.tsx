@@ -10,7 +10,6 @@ import type {
 } from "react";
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Baseline,
   CaseUpper,
@@ -1051,13 +1050,21 @@ export default function Home() {
     scheduleDockTransitionEnd();
   };
 
-  const setViewInstantly = (nextView: View, requestedScrollTop = 0) => {
-    const dockSnapshot = captureDockTransition();
+  const setViewInstantly = (
+    nextView: View,
+    requestedScrollTop = 0,
+    animateDock = true,
+  ) => {
+    const dockSnapshot = animateDock ? captureDockTransition() : null;
+    if (!animateDock && dockTransitionTimerRef.current !== null) {
+      window.clearTimeout(dockTransitionTimerRef.current);
+      dockTransitionTimerRef.current = null;
+    }
     flushSync(() => {
       setDockTransition(dockSnapshot);
       setView(nextView);
     });
-    scheduleDockTransitionEnd();
+    if (animateDock) scheduleDockTransitionEnd();
     const scrollEnd = Math.max(
       0,
       document.documentElement.scrollHeight - window.innerHeight,
@@ -1072,15 +1079,20 @@ export default function Home() {
     nextView: View,
     direction: PageTransitionDirection,
     nextScroll: "top" | "end" = "top",
+    animateDock = true,
   ) => {
     const root = document.documentElement;
     const updateView = () => {
-      const dockSnapshot = captureDockTransition();
+      const dockSnapshot = animateDock ? captureDockTransition() : null;
+      if (!animateDock && dockTransitionTimerRef.current !== null) {
+        window.clearTimeout(dockTransitionTimerRef.current);
+        dockTransitionTimerRef.current = null;
+      }
       flushSync(() => {
         setDockTransition(dockSnapshot);
         setView(nextView);
       });
-      scheduleDockTransitionEnd();
+      if (animateDock) scheduleDockTransitionEnd();
       const top =
         nextScroll === "end"
           ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
@@ -1110,13 +1122,17 @@ export default function Home() {
     };
     root.style.setProperty("--page-transition-duration", `${duration}ms`);
     root.classList.add("strip-page-transitioning");
-    const dockSnapshot = captureDockTransition();
+    const dockSnapshot = animateDock ? captureDockTransition() : null;
+    if (!animateDock && dockTransitionTimerRef.current !== null) {
+      window.clearTimeout(dockTransitionTimerRef.current);
+      dockTransitionTimerRef.current = null;
+    }
     flushSync(() => {
       setLegacyPageTransition(snapshot);
       setDockTransition(dockSnapshot);
       setView(nextView);
     });
-    scheduleDockTransitionEnd();
+    if (animateDock) scheduleDockTransitionEnd();
     const top =
       nextScroll === "end"
         ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
@@ -1307,7 +1323,7 @@ export default function Home() {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
-      await transitionToView("title-setup", "forward");
+      await transitionToView("title-setup", "forward", "top", false);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -1317,7 +1333,7 @@ export default function Home() {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
-      setViewInstantly("publish-setup");
+      setViewInstantly("publish-setup", 0, false);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -1542,21 +1558,20 @@ export default function Home() {
 
         <footer
           key="persistent-composer-dock"
-          className="composer-dock title-setup-dock"
+          className="composer-dock title-setup-dock publish-flow-dock"
         >
           {dockTransitionLayer}
           <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
             <button
-              className="dock-icon-button"
+              className="dock-icon-button publish-flow-button publish-flow-back-button"
               type="button"
               onClick={() => void returnToCoverSetup()}
               aria-label="Back to cover selection"
             >
-              <ArrowLeft className="dock-glyph" aria-hidden="true" />
+              Back
             </button>
-            <span className="dock-divider" aria-hidden="true" />
             <button
-              className="dock-icon-button publish-icon-button publish-strip-button"
+              className="dock-icon-button publish-icon-button publish-strip-button publish-flow-button"
               type="button"
               onClick={publish}
               aria-label="Publish Strip"
@@ -1746,21 +1761,20 @@ export default function Home() {
 
         <footer
           key="persistent-composer-dock"
-          className="composer-dock publish-setup-dock"
+          className="composer-dock publish-setup-dock publish-flow-dock"
         >
           {dockTransitionLayer}
           <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
             <button
-              className="dock-icon-button"
+              className="dock-icon-button publish-flow-button publish-flow-back-button"
               type="button"
               onClick={() => void returnFromPublishSetup()}
               aria-label="Back"
             >
-              <ArrowLeft className="dock-glyph" aria-hidden="true" />
+              Back
             </button>
-            <span className="dock-divider" aria-hidden="true" />
             <button
-              className="dock-icon-button publish-icon-button publish-strip-button"
+              className="dock-icon-button publish-icon-button publish-strip-button publish-flow-button"
               type="button"
               onClick={continueToTitle}
               aria-label="Continue to title"

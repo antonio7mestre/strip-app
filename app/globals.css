@@ -830,6 +830,24 @@ textarea:focus-visible,
   justify-content: center;
 }
 
+.publish-flow-dock .dock-controls-current {
+  width: 100%;
+  gap: 8px;
+}
+
+.publish-flow-dock .publish-flow-button {
+  width: 0;
+  min-width: 0;
+  flex: 1 1 0;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.publish-flow-back-button {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .main-composer-dock.is-shifted {
   transform: translateY(125%);
   opacity: 0;
