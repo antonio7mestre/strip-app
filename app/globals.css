@@ -102,34 +102,6 @@ html.strip-page-transitioning {
   max-width: none;
 }
 
-html[data-strip-page-transition="forward"]::view-transition-old(root) {
-  animation: strip-page-out-up 560ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
-}
-
-html[data-strip-page-transition="forward"]::view-transition-new(root) {
-  animation: strip-page-in-up 560ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
-}
-
-html[data-strip-page-transition="backward"]::view-transition-old(root) {
-  animation: strip-page-out-down 520ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
-}
-
-html[data-strip-page-transition="backward"]::view-transition-new(root) {
-  animation: strip-page-in-down 520ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
-}
-
-::view-transition-old(root),
-::view-transition-new(root) {
-  mix-blend-mode: normal;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation-duration: 1ms !important;
-  }
-}
-
 button,
 textarea,
 input {

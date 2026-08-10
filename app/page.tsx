@@ -63,7 +63,6 @@ type CoverChoice =
   | { key: string; kind: "color"; color: string }
   | { key: string; kind: "add" };
 type PageTransitionDirection = "forward" | "backward";
-type ViewTransitionHandle = { finished: Promise<void> };
 type LegacyPageTransitionSnapshot = {
   id: string;
   markup: string;
@@ -1043,11 +1042,6 @@ export default function Home() {
   ) => {
     const root = document.documentElement;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const startViewTransition = (
-      document as Document & {
-        startViewTransition?: (update: () => void) => ViewTransitionHandle;
-      }
-    ).startViewTransition;
     const updateView = () => {
       flushSync(() => setView(nextView));
       const top =
@@ -1064,49 +1058,36 @@ export default function Home() {
       return;
     }
 
-    if (!startViewTransition) {
-      const currentShell = document.querySelector<HTMLElement>(".app-shell");
-      if (!currentShell) {
-        updateView();
-        return;
-      }
-
-      const duration = direction === "forward" ? 560 : 520;
-      const snapshot: LegacyPageTransitionSnapshot = {
-        id: makeId(),
-        markup: currentShell.outerHTML,
-        scrollTop: window.scrollY,
-        minHeight: currentShell.scrollHeight,
-        direction,
-      };
-      root.classList.add("strip-page-transitioning");
-      flushSync(() => {
-        setLegacyPageTransition(snapshot);
-        setView(nextView);
-      });
-      const top =
-        nextScroll === "end"
-          ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-          : 0;
-      window.scrollTo({ top, behavior: "auto" });
-      document.documentElement.scrollTop = top;
-      document.body.scrollTop = top;
-      try {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, duration + 40));
-      } finally {
-        flushSync(() => setLegacyPageTransition(null));
-        root.classList.remove("strip-page-transitioning");
-      }
+    const currentShell = document.querySelector<HTMLElement>(".app-shell");
+    if (!currentShell) {
+      updateView();
       return;
     }
 
-    root.dataset.stripPageTransition = direction;
+    const duration = direction === "forward" ? 560 : 520;
+    const snapshot: LegacyPageTransitionSnapshot = {
+      id: makeId(),
+      markup: currentShell.outerHTML,
+      scrollTop: window.scrollY,
+      minHeight: currentShell.scrollHeight,
+      direction,
+    };
     root.classList.add("strip-page-transitioning");
+    flushSync(() => {
+      setLegacyPageTransition(snapshot);
+      setView(nextView);
+    });
+    const top =
+      nextScroll === "end"
+        ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+        : 0;
+    window.scrollTo({ top, behavior: "auto" });
+    document.documentElement.scrollTop = top;
+    document.body.scrollTop = top;
     try {
-      const transition = startViewTransition.call(document, updateView);
-      await transition.finished;
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration + 40));
     } finally {
-      delete root.dataset.stripPageTransition;
+      flushSync(() => setLegacyPageTransition(null));
       root.classList.remove("strip-page-transitioning");
     }
   };
