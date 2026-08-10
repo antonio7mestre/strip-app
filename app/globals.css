@@ -597,15 +597,15 @@ textarea:focus-visible,
 }
 
 .cover-selector-frame {
-  position: relative;
+  position: fixed;
+  inset: 0;
   min-height: 0;
-  flex: 1 1 auto;
   overflow: hidden;
 }
 
 .cover-card-stage {
   position: absolute;
-  inset: 0 0 48px;
+  inset: 0;
   overflow: hidden;
   outline: 0;
   touch-action: none;
