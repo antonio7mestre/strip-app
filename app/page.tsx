@@ -1720,6 +1720,9 @@ export default function Home() {
               >
                 {coverChoices.map((choice, index) => {
                   const isSelected = activeCoverKey === choice.key;
+                  const isBlackColor =
+                    choice.kind === "color" &&
+                    ["#000", "#000000"].includes(choice.color.trim().toLowerCase());
                   let positionClass = "is-hidden-below";
                   if (isSelected) positionClass = "is-selected";
                   else if (index === selectedCoverIndex - 1 && coverStackStarted) {
@@ -1733,7 +1736,9 @@ export default function Home() {
                     positionClass === "is-previous" || positionClass === "is-next";
                   return (
                     <button
-                      className={`cover-option cover-${choice.kind}-option ${positionClass}`}
+                      className={`cover-option cover-${choice.kind}-option ${positionClass} ${
+                        isBlackColor ? "is-black-cover" : ""
+                      }`}
                       data-cover-key={choice.key}
                       type="button"
                       key={choice.key}
