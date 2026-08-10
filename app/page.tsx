@@ -1003,36 +1003,35 @@ export default function Home() {
 
   const scrollToStripEnd = () =>
     new Promise<void>((resolve) => {
-      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const getScrollEnd = () =>
         Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const start = window.scrollY;
       const target = getScrollEnd();
+      const distance = target - start;
 
-      if (Math.abs(window.scrollY - target) < 2) {
+      if (Math.abs(distance) < 2) {
         resolve();
         return;
       }
 
-      if (reducedMotion) {
-        window.scrollTo({ top: target, behavior: "auto" });
-        window.requestAnimationFrame(() => resolve());
-        return;
-      }
+      const duration = Math.min(1200, Math.max(520, Math.abs(distance) * 0.72));
+      let startedAt: number | null = null;
+      const animateScroll = (timestamp: number) => {
+        if (startedAt === null) startedAt = timestamp;
+        const progress = Math.min(1, (timestamp - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const currentTarget = getScrollEnd();
+        window.scrollTo(0, start + (currentTarget - start) * eased);
 
-      const startedAt = performance.now();
-      let settledFrames = 0;
-      const watchScroll = () => {
-        const isAtEnd = Math.abs(window.scrollY - getScrollEnd()) < 2;
-        settledFrames = isAtEnd ? settledFrames + 1 : 0;
-        if (settledFrames >= 3 || performance.now() - startedAt > 1800) {
+        if (progress >= 1) {
+          window.scrollTo(0, currentTarget);
           resolve();
           return;
         }
-        window.requestAnimationFrame(watchScroll);
+        window.requestAnimationFrame(animateScroll);
       };
 
-      window.scrollTo({ top: target, behavior: "smooth" });
-      window.requestAnimationFrame(watchScroll);
+      window.requestAnimationFrame(animateScroll);
     });
 
   const transitionToView = async (
@@ -1041,7 +1040,6 @@ export default function Home() {
     nextScroll: "top" | "end" = "top",
   ) => {
     const root = document.documentElement;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const updateView = () => {
       flushSync(() => setView(nextView));
       const top =
@@ -1052,11 +1050,6 @@ export default function Home() {
       document.documentElement.scrollTop = top;
       document.body.scrollTop = top;
     };
-
-    if (reducedMotion) {
-      updateView();
-      return;
-    }
 
     const currentShell = document.querySelector<HTMLElement>(".app-shell");
     if (!currentShell) {
