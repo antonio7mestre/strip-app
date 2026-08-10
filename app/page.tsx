@@ -78,6 +78,8 @@ const DEFAULT_FONT_SIZE = 18;
 const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
+const PAGE_TRANSITION_DURATION_MS = 380;
+const MAX_PUBLISH_FLOW_DURATION_MS = 1650;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -1021,12 +1023,13 @@ export default function Home() {
       const target = getTarget();
       const distance = target - start;
       const transitionDistance = getPageTransitionDistance();
-      const defaultSpeed = transitionDistance / 560;
+      const defaultSpeed = transitionDistance / PAGE_TRANSITION_DURATION_MS;
       const pixelsPerMs =
         requestedPixelsPerMs ??
         Math.max(
           defaultSpeed,
-          (Math.abs(distance) + transitionDistance) / 2400,
+          (Math.abs(distance) + transitionDistance) /
+            MAX_PUBLISH_FLOW_DURATION_MS,
         );
 
       if (Math.abs(distance) < 2) {
@@ -1083,7 +1086,7 @@ export default function Home() {
     outgoingShell
       .querySelectorAll(".composer-dock, .bottom-safe-area-anchor")
       .forEach((element) => element.remove());
-    const defaultDuration = 560;
+    const defaultDuration = PAGE_TRANSITION_DURATION_MS;
     const duration = pixelsPerMs
       ? getPageTransitionDistance() / pixelsPerMs
       : defaultDuration;
@@ -1197,7 +1200,8 @@ export default function Home() {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     const pixelsPerMs =
-      publishFlowSpeedRef.current ?? getPageTransitionDistance() / 560;
+      publishFlowSpeedRef.current ??
+      getPageTransitionDistance() / PAGE_TRANSITION_DURATION_MS;
     try {
       await transitionToView(
         publishSetupReturnView,
