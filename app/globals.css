@@ -83,7 +83,7 @@ html.strip-page-transitioning {
 }
 
 .legacy-page-transition-overlay.is-backward {
-  animation: strip-page-out-down var(--page-transition-duration, 520ms) linear both;
+  animation: strip-page-out-down var(--page-transition-duration, 560ms) linear both;
 }
 
 .legacy-page-enter.is-forward {
@@ -91,19 +91,25 @@ html.strip-page-transitioning {
 }
 
 .legacy-page-enter.is-backward {
-  animation: strip-page-in-down var(--page-transition-duration, 520ms) linear both;
+  animation: strip-page-in-down var(--page-transition-duration, 560ms) linear both;
 }
 
 @keyframes dock-controls-in {
   from {
-    transform: translateY(5px) scale(0.98);
-    opacity: 0;
+    transform: translateY(3px) scale(0.99);
+    opacity: 0.72;
   }
 }
 
 .composer-dock.dock-controls-transition > .dock-icon-button,
 .composer-dock.dock-controls-transition > .dock-divider {
-  animation: dock-controls-in 260ms 120ms cubic-bezier(0.22, 0.78, 0.18, 1) both;
+  animation: dock-controls-in 220ms ease-out both;
+}
+
+html.strip-page-transitioning .composer-dock {
+  transform: none !important;
+  opacity: 1 !important;
+  transition: none !important;
 }
 
 .legacy-page-transition-page {

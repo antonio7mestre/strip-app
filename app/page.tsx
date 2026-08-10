@@ -694,6 +694,8 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const publishFlowSpeedRef = useRef<number | null>(null);
+  const publishFlowStartScrollRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -1010,19 +1012,22 @@ export default function Home() {
     return Math.max(1, dockTop ?? window.innerHeight);
   };
 
-  const scrollToStripEnd = () =>
+  const scrollStripTo = (requestedTarget: number, requestedPixelsPerMs?: number) =>
     new Promise<number>((resolve) => {
       const getScrollEnd = () =>
         Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const start = window.scrollY;
-      const target = getScrollEnd();
+      const getTarget = () => Math.min(requestedTarget, getScrollEnd());
+      const target = getTarget();
       const distance = target - start;
       const transitionDistance = getPageTransitionDistance();
       const defaultSpeed = transitionDistance / 560;
-      const pixelsPerMs = Math.max(
-        defaultSpeed,
-        (Math.abs(distance) + transitionDistance) / 2400,
-      );
+      const pixelsPerMs =
+        requestedPixelsPerMs ??
+        Math.max(
+          defaultSpeed,
+          (Math.abs(distance) + transitionDistance) / 2400,
+        );
 
       if (Math.abs(distance) < 2) {
         resolve(pixelsPerMs);
@@ -1034,7 +1039,7 @@ export default function Home() {
       const animateScroll = (timestamp: number) => {
         if (startedAt === null) startedAt = timestamp;
         const progress = Math.min(1, (timestamp - startedAt) / duration);
-        const currentTarget = getScrollEnd();
+        const currentTarget = getTarget();
         window.scrollTo(0, start + (currentTarget - start) * progress);
 
         if (progress >= 1) {
@@ -1047,6 +1052,8 @@ export default function Home() {
 
       window.requestAnimationFrame(animateScroll);
     });
+
+  const scrollToStripEnd = () => scrollStripTo(Number.POSITIVE_INFINITY);
 
   const transitionToView = async (
     nextView: View,
@@ -1076,7 +1083,7 @@ export default function Home() {
     outgoingShell
       .querySelectorAll(".composer-dock, .bottom-safe-area-anchor")
       .forEach((element) => element.remove());
-    const defaultDuration = direction === "forward" ? 560 : 520;
+    const defaultDuration = 560;
     const duration = pixelsPerMs
       ? getPageTransitionDistance() / pixelsPerMs
       : defaultDuration;
@@ -1101,7 +1108,7 @@ export default function Home() {
     document.documentElement.scrollTop = top;
     document.body.scrollTop = top;
     try {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, duration + 40));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration));
     } finally {
       flushSync(() => setLegacyPageTransition(null));
       root.classList.remove("strip-page-transitioning");
@@ -1176,9 +1183,29 @@ export default function Home() {
     setEditingTextBlockId(null);
     setActiveTextTool(null);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
+    publishFlowStartScrollRef.current = window.scrollY;
     try {
       const pixelsPerMs = await scrollToStripEnd();
+      publishFlowSpeedRef.current = pixelsPerMs;
       await transitionToView("publish-setup", "forward", "top", pixelsPerMs);
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
+  };
+
+  const returnFromPublishSetup = async () => {
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
+    const pixelsPerMs =
+      publishFlowSpeedRef.current ?? getPageTransitionDistance() / 560;
+    try {
+      await transitionToView(
+        publishSetupReturnView,
+        "backward",
+        "end",
+        pixelsPerMs,
+      );
+      await scrollStripTo(publishFlowStartScrollRef.current, pixelsPerMs);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -1271,6 +1298,16 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     try {
       await transitionToView("title-setup", "forward");
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
+  };
+
+  const returnToCoverSetup = async () => {
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
+    try {
+      await transitionToView("publish-setup", "backward");
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -1486,12 +1523,13 @@ export default function Home() {
         </section>
 
         <footer
+          key="persistent-composer-dock"
           className={`composer-dock title-setup-dock ${dockControlsTransitionClass}`}
         >
           <button
             className="dock-icon-button"
             type="button"
-            onClick={() => void transitionToView("publish-setup", "backward")}
+            onClick={() => void returnToCoverSetup()}
             aria-label="Back to cover selection"
           >
             <ArrowLeft className="dock-glyph" aria-hidden="true" />
@@ -1686,14 +1724,13 @@ export default function Home() {
         />
 
         <footer
+          key="persistent-composer-dock"
           className={`composer-dock publish-setup-dock ${dockControlsTransitionClass}`}
         >
           <button
             className="dock-icon-button"
             type="button"
-            onClick={() =>
-              void transitionToView(publishSetupReturnView, "backward", "end")
-            }
+            onClick={() => void returnFromPublishSetup()}
             aria-label="Back"
           >
             <ArrowLeft className="dock-glyph" aria-hidden="true" />
@@ -1766,6 +1803,7 @@ export default function Home() {
         </article>
         {!isPublished ? (
           <footer
+            key="persistent-composer-dock"
             className={`composer-dock preview-dock ${dockControlsTransitionClass}`}
           >
             <button
@@ -1839,6 +1877,7 @@ export default function Home() {
       ) : null}
 
       <footer
+        key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
           activeTextTool ? "is-shifted" : ""
         } ${dockControlsTransitionClass}`}
