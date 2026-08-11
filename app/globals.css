@@ -1395,7 +1395,7 @@ textarea:focus-visible,
   overflow: hidden;
   margin: 0;
   padding: 0;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
+  border-radius: var(--iphone-panel-radius) 0 0 0;
 }
 
 .selector-dock.is-gradient-picker .selector-leading {
@@ -1431,7 +1431,7 @@ textarea:focus-visible,
   height: 100%;
   flex: 1 1 auto;
   overflow: hidden;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
+  border-radius: var(--iphone-panel-radius) 0 0 0;
   background:
     linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent 54%, rgba(255, 255, 255, 0.92)),
     linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
