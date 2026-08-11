@@ -378,6 +378,7 @@ function TextStyleSelector({
   onBack,
   backgroundOptions = BACKGROUND_COLORS,
   doneDisabled = false,
+  startInGradientMode = false,
 }: {
   block: TextBlock;
   tool: TextTool;
@@ -386,6 +387,7 @@ function TextStyleSelector({
   onBack: () => void;
   backgroundOptions?: typeof BACKGROUND_COLORS;
   doneDisabled?: boolean;
+  startInGradientMode?: boolean;
 }) {
   const background = block.backgroundColor ?? DEFAULT_BACKGROUND;
   const textColor = block.textColor ?? DEFAULT_TEXT;
@@ -402,8 +404,8 @@ function TextStyleSelector({
   const gradientPosition = hexToHsl(activeColor);
 
   useEffect(() => {
-    setGradientMode(null);
-  }, [tool, visible]);
+    setGradientMode(startInGradientMode && tool !== "font" ? tool : null);
+  }, [startInGradientMode, tool, visible]);
 
   const applyGradientPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -1980,6 +1982,7 @@ export default function Home() {
             (option) => !isBlackCoverColor(option.value),
           )}
           doneDisabled={isBlackCoverColor(pendingCoverColor)}
+          startInGradientMode
         />
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
