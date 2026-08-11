@@ -742,6 +742,21 @@ textarea:focus-visible,
   aspect-ratio: 1;
 }
 
+.cover-color-option.cover-color-portrait {
+  width: min(calc(100% - 124px), 340px);
+  aspect-ratio: 4 / 5;
+}
+
+.cover-color-option.cover-color-square {
+  width: min(calc(100% - 88px), 400px);
+  aspect-ratio: 1;
+}
+
+.cover-color-option.cover-color-landscape {
+  width: min(calc(100% - 88px), 460px);
+  aspect-ratio: 5 / 4;
+}
+
 .cover-add-option {
   display: grid;
   width: min(calc(100% - 88px), 400px);
@@ -844,6 +859,59 @@ textarea:focus-visible,
 .cover-pagination button.is-current {
   height: 15px;
   background: #ffffff;
+}
+
+.cover-shape-selector {
+  position: absolute;
+  z-index: 4;
+  top: 42%;
+  left: max(8px, env(safe-area-inset-left));
+  display: grid;
+  gap: 4px;
+  padding: 8px 4px;
+  transform: translateY(-50%);
+}
+
+.cover-shape-selector button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.34);
+  cursor: pointer;
+  transition: color 220ms ease;
+}
+
+.cover-shape-selector button.is-current {
+  color: #ffffff;
+}
+
+.cover-shape-selector button:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
+}
+
+.cover-shape-glyph {
+  display: block;
+  border: 1px solid currentColor;
+}
+
+.cover-shape-glyph.is-portrait {
+  width: 10px;
+  height: 15px;
+}
+
+.cover-shape-glyph.is-square {
+  width: 13px;
+  height: 13px;
+}
+
+.cover-shape-glyph.is-landscape {
+  width: 16px;
+  height: 10px;
 }
 
 .cover-instruction {

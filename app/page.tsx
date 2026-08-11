@@ -58,6 +58,7 @@ type StripBlock = TextBlock | ImageBlock | VideoBlock;
 type View = "edit" | "preview" | "publish-setup" | "title-setup" | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
+type CoverColorShape = "portrait" | "square" | "landscape";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -757,6 +758,7 @@ export default function Home() {
   const [coverCardWidths, setCoverCardWidths] = useState<Record<string, number>>({});
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [customCoverColors, setCustomCoverColors] = useState<string[]>([]);
+  const [coverColorShape, setCoverColorShape] = useState<CoverColorShape>("square");
   const [coverColorPickerOpen, setCoverColorPickerOpen] = useState(false);
   const [pendingCoverColor, setPendingCoverColor] = useState("#2147D9");
   const [blackCoverWarningVisible, setBlackCoverWarningVisible] = useState(false);
@@ -1768,6 +1770,7 @@ export default function Home() {
       0,
       coverChoices.findIndex((choice) => choice.key === activeCoverKey),
     );
+    const activeCoverChoice = coverChoices[selectedCoverIndex];
     const measuredStageHeight = coverStageHeight || 600;
     const selectedMeasuredHeight = coverCardHeights[activeCoverKey] || 360;
     const dragDirection = coverDragProgress === 0 ? 0 : coverDragProgress > 0 ? 1 : -1;
@@ -1888,7 +1891,9 @@ export default function Home() {
                     positionClass === "is-previous" || positionClass === "is-next";
                   return (
                     <button
-                      className={`cover-option cover-${choice.kind}-option ${positionClass}`}
+                      className={`cover-option cover-${choice.kind}-option ${
+                        choice.kind === "color" ? `cover-color-${coverColorShape}` : ""
+                      } ${positionClass}`}
                       data-cover-key={choice.key}
                       type="button"
                       key={choice.key}
@@ -1954,6 +1959,28 @@ export default function Home() {
                 })}
 
               </div>
+              {activeCoverChoice?.kind === "color" ? (
+                <nav
+                  className="cover-shape-selector"
+                  style={{ top: `${coverCenterPercent}%` }}
+                  aria-label="Color cover shape"
+                >
+                  {(["portrait", "square", "landscape"] as CoverColorShape[]).map(
+                    (shape) => (
+                      <button
+                        className={coverColorShape === shape ? "is-current" : ""}
+                        type="button"
+                        key={shape}
+                        onClick={() => setCoverColorShape(shape)}
+                        aria-label={`Use ${shape} color cover`}
+                        aria-pressed={coverColorShape === shape}
+                      >
+                        <span className={`cover-shape-glyph is-${shape}`} aria-hidden="true" />
+                      </button>
+                    ),
+                  )}
+                </nav>
+              ) : null}
               <nav
                 className="cover-pagination"
                 style={{ top: `${coverCenterPercent}%` }}
