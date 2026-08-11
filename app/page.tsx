@@ -60,7 +60,8 @@ type TextTool = "font" | "background" | "color";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
-  | { key: string; kind: "add" };
+  | { key: string; kind: "add" }
+  | { key: string; kind: "pick-color" };
 type PageTransitionDirection = "forward" | "backward";
 type LegacyPageTransitionSnapshot = {
   id: string;
@@ -126,9 +127,13 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function isBlackCoverColor(color: string) {
+  return ["#000", DEFAULT_BACKGROUND].includes(color.trim().toUpperCase());
+}
+
 function randomFallbackCoverColors(seed: string) {
   const colors = BACKGROUND_COLORS.filter(
-    (option) => option.value.toUpperCase() !== DEFAULT_BACKGROUND,
+    (option) => !isBlackCoverColor(option.value),
   ).map((option) => option.value.toUpperCase());
   let state = Array.from(seed).reduce(
     (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619),
@@ -371,19 +376,23 @@ function TextStyleSelector({
   visible,
   onChange,
   onBack,
+  backgroundOptions = BACKGROUND_COLORS,
+  doneDisabled = false,
 }: {
   block: TextBlock;
   tool: TextTool;
   visible: boolean;
   onChange: (change: Partial<TextBlock>) => void;
   onBack: () => void;
+  backgroundOptions?: typeof BACKGROUND_COLORS;
+  doneDisabled?: boolean;
 }) {
   const background = block.backgroundColor ?? DEFAULT_BACKGROUND;
   const textColor = block.textColor ?? DEFAULT_TEXT;
   const fontStyle = block.fontStyle ?? "sans";
   const fontSize = block.fontSize ?? DEFAULT_FONT_SIZE;
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
-  const backgroundIsCustom = !BACKGROUND_COLORS.some(
+  const backgroundIsCustom = !backgroundOptions.some(
     (option) => option.value.toUpperCase() === background.toUpperCase(),
   );
   const textIsCustom = !TEXT_COLORS.some(
@@ -520,7 +529,7 @@ function TextStyleSelector({
           : null}
 
         {gradientMode !== tool && tool === "background"
-          ? BACKGROUND_COLORS.map((option) => {
+          ? backgroundOptions.map((option) => {
               const selected = background.toUpperCase() === option.value.toUpperCase();
               return (
                 <button
@@ -597,6 +606,7 @@ function TextStyleSelector({
           className="dock-icon-button selector-back-button"
           type="button"
           onClick={onBack}
+          disabled={doneDisabled}
           tabIndex={visible ? 0 : -1}
           aria-label="Done choosing styles"
         >
@@ -719,6 +729,9 @@ export default function Home() {
   const [coverCardHeights, setCoverCardHeights] = useState<Record<string, number>>({});
   const [coverCardWidths, setCoverCardWidths] = useState<Record<string, number>>({});
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
+  const [customCoverColors, setCustomCoverColors] = useState<string[]>([]);
+  const [coverColorPickerOpen, setCoverColorPickerOpen] = useState(false);
+  const [pendingCoverColor, setPendingCoverColor] = useState("#2147D9");
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
   );
@@ -1034,15 +1047,22 @@ export default function Home() {
     ),
   );
   const nonBlackCoverColors = usedCoverColors.filter(
-    (color) => !["#000", DEFAULT_BACKGROUND].includes(color),
+    (color) => !isBlackCoverColor(color),
   );
   const hasCoverImages = imageCoverBlocks.length > 0 || Boolean(customCoverSrc);
-  const coverColors =
+  const automaticCoverColors =
     nonBlackCoverColors.length > 0
       ? nonBlackCoverColors
       : hasCoverImages
         ? []
         : randomFallbackCoverColors(blocks.map((block) => block.id).join("|"));
+  const coverColors = Array.from(
+    new Set(
+      [...automaticCoverColors, ...customCoverColors]
+        .map((color) => color.toUpperCase())
+        .filter((color) => !isBlackCoverColor(color)),
+    ),
+  );
   const coverChoices: CoverChoice[] = [
     ...(customCoverSrc
       ? [{ key: "custom", kind: "image" as const, src: customCoverSrc, alt: "Uploaded cover" }]
@@ -1059,9 +1079,12 @@ export default function Home() {
       color,
     })),
     { key: "add-image", kind: "add" as const },
+    { key: "pick-color", kind: "pick-color" as const },
   ];
   const publishSetupHasCover = coverChoices.some(
-    (choice) => choice.key === activeCoverKey && choice.kind !== "add",
+    (choice) =>
+      choice.key === activeCoverKey &&
+      (choice.kind === "image" || choice.kind === "color"),
   );
 
   const captureDockTransition = () => {
@@ -1273,7 +1296,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
 
     const availableCovers = coverChoices
-      .filter((choice) => choice.kind !== "add")
+      .filter((choice) => choice.kind === "image" || choice.kind === "color")
       .map((choice) => choice.key);
     const initialCover =
       selectedCover && availableCovers.includes(selectedCover)
@@ -1282,6 +1305,7 @@ export default function Home() {
     setSelectedCover(initialCover);
     setActiveCoverKey(initialCover);
     setCoverStackStarted(false);
+    setCoverColorPickerOpen(false);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
@@ -1297,6 +1321,7 @@ export default function Home() {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
+      setCoverColorPickerOpen(false);
       setViewInstantly(
         publishSetupReturnView,
         publishFlowStartScrollRef.current,
@@ -1322,12 +1347,45 @@ export default function Home() {
     event.target.value = "";
   };
 
+  const openCoverColorPicker = () => {
+    const selectedColor = coverChoices.find(
+      (choice) => choice.key === selectedCover && choice.kind === "color",
+    );
+    const latestCustomColor = customCoverColors[customCoverColors.length - 1];
+    setPendingCoverColor(
+      selectedColor?.kind === "color"
+        ? selectedColor.color
+        : latestCustomColor ?? nonBlackCoverColors[0] ?? "#2147D9",
+    );
+    setCoverColorPickerOpen(true);
+  };
+
+  const confirmCoverColor = () => {
+    const color = pendingCoverColor.toUpperCase();
+    if (isBlackCoverColor(color)) {
+      setNotice("Choose a color other than black.");
+      return;
+    }
+    setCustomCoverColors((current) =>
+      current.some((option) => option.toUpperCase() === color)
+        ? current
+        : [...current, color],
+    );
+    const key = `color:${color}`;
+    setSelectedCover(key);
+    setActiveCoverKey(key);
+    setCoverStackStarted(false);
+    setCoverColorPickerOpen(false);
+  };
+
   const selectCoverAt = (index: number) => {
     const choice = coverChoices[index];
     if (!choice) return;
     setCoverStackStarted(true);
     setActiveCoverKey(choice.key);
-    if (choice.kind !== "add") setSelectedCover(choice.key);
+    if (choice.kind === "image" || choice.kind === "color") {
+      setSelectedCover(choice.key);
+    }
   };
 
   const moveCover = (direction: -1 | 1) => {
@@ -1779,6 +1837,10 @@ export default function Home() {
                           coverInputRef.current?.click();
                           return;
                         }
+                        if (isSelected && choice.kind === "pick-color") {
+                          openCoverColorPicker();
+                          return;
+                        }
                         if (isVisibleNeighbor) selectCoverAt(index);
                       }}
                       style={
@@ -1792,9 +1854,15 @@ export default function Home() {
                       aria-label={
                         choice.kind === "add"
                           ? "Add a cover image"
+                          : choice.kind === "pick-color"
+                            ? "Pick a cover color"
                           : `Use cover option ${index + 1}`
                       }
-                      aria-pressed={choice.kind === "add" ? undefined : selectedCover === choice.key}
+                      aria-pressed={
+                        choice.kind === "image" || choice.kind === "color"
+                          ? selectedCover === choice.key
+                          : undefined
+                      }
                       aria-hidden={!isSelected && !isVisibleNeighbor}
                       tabIndex={isSelected || isVisibleNeighbor ? 0 : -1}
                     >
@@ -1805,6 +1873,12 @@ export default function Home() {
                         <span className="cover-add-content">
                           <ImagePlus aria-hidden="true" />
                           <span>Add photo</span>
+                        </span>
+                      ) : null}
+                      {choice.kind === "pick-color" ? (
+                        <span className="cover-pick-color-content">
+                          <Pipette aria-hidden="true" />
+                          <span>Pick a color</span>
                         </span>
                       ) : null}
                     </button>
@@ -1850,7 +1924,9 @@ export default function Home() {
 
         <footer
           key="persistent-composer-dock"
-          className="composer-dock publish-setup-dock publish-flow-dock"
+          className={`composer-dock publish-setup-dock publish-flow-dock ${
+            coverColorPickerOpen ? "is-shifted" : ""
+          }`}
         >
           {dockTransitionLayer}
           <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
@@ -1873,6 +1949,24 @@ export default function Home() {
             </button>
           </div>
         </footer>
+        <TextStyleSelector
+          block={{
+            id: "cover-color-picker",
+            type: "text",
+            content: "",
+            backgroundColor: pendingCoverColor,
+          }}
+          tool="background"
+          visible={coverColorPickerOpen}
+          onChange={(change) => {
+            if (change.backgroundColor) setPendingCoverColor(change.backgroundColor);
+          }}
+          onBack={confirmCoverColor}
+          backgroundOptions={BACKGROUND_COLORS.filter(
+            (option) => !isBlackCoverColor(option.value),
+          )}
+          doneDisabled={isBlackCoverColor(pendingCoverColor)}
+        />
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>

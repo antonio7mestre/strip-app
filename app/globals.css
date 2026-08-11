@@ -777,6 +777,42 @@ textarea:focus-visible,
   letter-spacing: -0.01em;
 }
 
+.cover-pick-color-option {
+  display: grid;
+  width: min(calc(100% - 88px), 400px);
+  min-height: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 0;
+  background: #e9e9e9;
+  color: #111111;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+
+.cover-pick-color-content {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.cover-pick-color-content svg {
+  width: 26px;
+  height: 26px;
+  padding: 7px;
+  border-radius: 50%;
+  background: conic-gradient(#2147d9, #9e2340, #f2f0ea, #174a36, #2147d9);
+  color: #111111;
+  stroke-width: 2;
+}
+
+.cover-pick-color-content span {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .cover-pagination {
   position: absolute;
   z-index: 4;
@@ -851,7 +887,8 @@ textarea:focus-visible,
   background: rgba(0, 0, 0, 0.06);
 }
 
-.main-composer-dock.is-shifted {
+.main-composer-dock.is-shifted,
+.publish-setup-dock.is-shifted {
   transform: translateY(125%);
   opacity: 0;
   pointer-events: none;
