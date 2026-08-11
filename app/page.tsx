@@ -1814,6 +1814,18 @@ export default function Home() {
     const selectedMeasuredHeight = getCoverHeight(activeCoverChoice, 360);
     const dragDirection = coverDragProgress === 0 ? 0 : coverDragProgress > 0 ? 1 : -1;
     const dragTarget = coverChoices[selectedCoverIndex + dragDirection];
+    const dragAmount = Math.abs(coverDragProgress);
+    const activeShapeControlWeight =
+      activeCoverChoice?.kind === "color" ? 1 - dragAmount : 0;
+    const incomingShapeControlWeight =
+      dragTarget?.kind === "color" ? dragAmount : 0;
+    const shapeSelectorOpacity = Math.max(
+      activeShapeControlWeight,
+      incomingShapeControlWeight,
+    );
+    const hasColorCoverChoice = coverChoices.some(
+      (choice) => choice.kind === "color",
+    );
     const dragTargetHeight = getCoverHeight(dragTarget, selectedMeasuredHeight);
     const effectiveSelectedHeight =
       selectedMeasuredHeight +
@@ -2013,11 +2025,21 @@ export default function Home() {
                 })}
 
               </div>
-              {activeCoverChoice?.kind === "color" ? (
+              {hasColorCoverChoice ? (
                 <nav
-                  className="cover-shape-selector"
-                  style={{ top: `${shapeSelectorTopPercent}%` }}
+                  className={`cover-shape-selector ${
+                    coverIsDragging ? "is-dragging" : ""
+                  }`}
+                  style={{
+                    top: `${shapeSelectorTopPercent}%`,
+                    opacity: shapeSelectorOpacity,
+                    pointerEvents:
+                      activeCoverChoice?.kind === "color" && !coverIsDragging
+                        ? "auto"
+                        : "none",
+                  }}
                   aria-label="Color cover shape"
+                  aria-hidden={shapeSelectorOpacity === 0}
                 >
                   {(["portrait", "square", "landscape"] as CoverColorShape[]).map(
                     (shape) => (
