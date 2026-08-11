@@ -1410,12 +1410,18 @@ textarea:focus-visible,
 }
 
 .selector-dock.is-gradient-picker .selector-back-button {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.9);
+  border-color: transparent;
+  background: transparent;
   color: #050505;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.selector-dock.is-gradient-picker .selector-back-button:hover,
+.selector-dock.is-gradient-picker .selector-back-button:focus-visible {
+  border-color: transparent;
+  background: transparent;
 }
 
 .full-gradient-picker {
