@@ -1875,6 +1875,7 @@ export default function Home() {
                             ? {
                                 ...coverCardStyle(index),
                                 ...swatchStyle(pendingCoverColor),
+                                background: pendingCoverColor,
                               }
                             : coverCardStyle(index)
                       }
