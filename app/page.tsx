@@ -128,7 +128,7 @@ function makeId() {
 }
 
 function isBlackCoverColor(color: string) {
-  return ["#000", DEFAULT_BACKGROUND].includes(color.trim().toUpperCase());
+  return ["#000", DEFAULT_BACKGROUND, "#050505"].includes(color.trim().toUpperCase());
 }
 
 function randomFallbackCoverColors(seed: string) {
@@ -1049,10 +1049,24 @@ export default function Home() {
   const nonBlackCoverColors = usedCoverColors.filter(
     (color) => !isBlackCoverColor(color),
   );
+  const onlyBackgroundColorIsBlack =
+    usedCoverColors.length > 0 && usedCoverColors.every(isBlackCoverColor);
+  const selectedFontCoverColors = Array.from(
+    new Set(
+      blocks
+        .filter(
+          (block): block is TextBlock => block.type === "text" && Boolean(block.textColor),
+        )
+        .map((block) => block.textColor!.toUpperCase())
+        .filter((color) => !isBlackCoverColor(color)),
+    ),
+  );
   const hasCoverImages = imageCoverBlocks.length > 0 || Boolean(customCoverSrc);
   const automaticCoverColors =
     nonBlackCoverColors.length > 0
       ? nonBlackCoverColors
+      : onlyBackgroundColorIsBlack && selectedFontCoverColors.length > 0
+        ? selectedFontCoverColors
       : hasCoverImages
         ? []
         : randomFallbackCoverColors(blocks.map((block) => block.id).join("|"));
