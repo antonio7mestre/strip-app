@@ -1921,13 +1921,13 @@ export default function Home() {
                         <img src={choice.src} alt={choice.alt} />
                       ) : null}
                       {choice.kind === "add" ? (
-                        <span className="cover-add-content">
+                        <span className="cover-action-content cover-add-content">
                           <ImagePlus aria-hidden="true" />
                           <span>Add photo</span>
                         </span>
                       ) : null}
                       {choice.kind === "pick-color" ? (
-                        <span className="cover-pick-color-content">
+                        <span className="cover-action-content cover-pick-color-content">
                           <PaintBucket aria-hidden="true" />
                           <span>Add color</span>
                         </span>

@@ -755,26 +755,43 @@ textarea:focus-visible,
   text-align: center;
 }
 
-.cover-add-content {
-  display: grid;
-  place-items: center;
+.cover-action-content {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
   gap: 10px;
+  line-height: 1;
   pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
-.cover-add-content svg {
+.cover-action-content svg {
+  display: block;
   width: 30px;
   height: 30px;
+  flex: 0 0 30px;
   padding: 0;
   border: 0;
   background: transparent;
   stroke-width: 1.8;
 }
 
-.cover-add-content span {
+.cover-action-content span {
+  display: block;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .cover-pick-color-option {
@@ -790,27 +807,8 @@ textarea:focus-visible,
   text-align: center;
 }
 
-.cover-pick-color-content {
-  display: grid;
-  place-items: center;
-  gap: 10px;
-  pointer-events: none;
-}
-
 .cover-pick-color-content svg {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  background: transparent;
   color: currentColor;
-  stroke-width: 1.8;
-}
-
-.cover-pick-color-content span {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
 .cover-pagination {
