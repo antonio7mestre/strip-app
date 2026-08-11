@@ -582,7 +582,7 @@ textarea:focus-visible,
   font-size: clamp(28px, 7.2vw, 48px);
   font-weight: 520;
   line-height: 0.98;
-  letter-spacing: -0.058em;
+  letter-spacing: -0.018em;
   white-space: nowrap;
 }
 
