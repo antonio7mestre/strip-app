@@ -137,6 +137,23 @@ function isBlackCoverColor(color: string) {
   return isPureBlackCoverColor(color) || color.trim().toUpperCase() === "#050505";
 }
 
+function coverColorDimensions(shape: CoverColorShape, viewportWidth: number) {
+  if (shape === "portrait") {
+    return {
+      width: Math.min(Math.max(0, viewportWidth - 124), 340),
+      height: Math.min(Math.max(0, (viewportWidth - 124) * 1.25), 425),
+    };
+  }
+  if (shape === "landscape") {
+    return {
+      width: Math.min(Math.max(0, viewportWidth - 88), 460),
+      height: Math.min(Math.max(0, (viewportWidth - 88) * (2 / 3)), 306.667),
+    };
+  }
+  const size = Math.min(Math.max(0, viewportWidth - 88), 400);
+  return { width: size, height: size };
+}
+
 function randomFallbackCoverColors(seed: string) {
   const colors = BACKGROUND_COLORS.filter(
     (option) => !isBlackCoverColor(option.value),
@@ -753,6 +770,7 @@ export default function Home() {
   const [coverDragProgress, setCoverDragProgress] = useState(0);
   const [coverIsDragging, setCoverIsDragging] = useState(false);
   const [coverStageHeight, setCoverStageHeight] = useState(0);
+  const [coverStageWidth, setCoverStageWidth] = useState(0);
   const [coverCenterPercent, setCoverCenterPercent] = useState(42);
   const [coverCardHeights, setCoverCardHeights] = useState<Record<string, number>>({});
   const [coverCardWidths, setCoverCardWidths] = useState<Record<string, number>>({});
@@ -1280,7 +1298,11 @@ export default function Home() {
     const images = cards.flatMap((card) => Array.from(card.querySelectorAll("img")));
     const updateMeasurements = () => {
       const stageHeight = stage.clientHeight;
+      const stageWidth = stage.clientWidth;
       setCoverStageHeight(stageHeight);
+      setCoverStageWidth((current) =>
+        Math.abs(current - stageWidth) < 0.5 ? current : stageWidth,
+      );
       if (instruction && stageHeight > 0) {
         const stageTop = stage.getBoundingClientRect().top;
         const instructionTop = instruction.getBoundingClientRect().top;
@@ -1772,22 +1794,33 @@ export default function Home() {
     );
     const activeCoverChoice = coverChoices[selectedCoverIndex];
     const measuredStageHeight = coverStageHeight || 600;
-    const selectedMeasuredHeight = coverCardHeights[activeCoverKey] || 360;
+    const measuredStageWidth = coverStageWidth || 390;
+    const targetColorDimensions = coverColorDimensions(
+      coverColorShape,
+      measuredStageWidth,
+    );
+    const getCoverHeight = (choice: CoverChoice | undefined, fallback: number) =>
+      choice?.kind === "color"
+        ? targetColorDimensions.height
+        : choice
+          ? (coverCardHeights[choice.key] ?? fallback)
+          : fallback;
+    const getCoverWidth = (choice: CoverChoice | undefined, fallback: number) =>
+      choice?.kind === "color"
+        ? targetColorDimensions.width
+        : choice
+          ? (coverCardWidths[choice.key] ?? fallback)
+          : fallback;
+    const selectedMeasuredHeight = getCoverHeight(activeCoverChoice, 360);
     const dragDirection = coverDragProgress === 0 ? 0 : coverDragProgress > 0 ? 1 : -1;
     const dragTarget = coverChoices[selectedCoverIndex + dragDirection];
-    const dragTargetHeight = dragTarget
-      ? (coverCardHeights[dragTarget.key] ?? selectedMeasuredHeight)
-      : selectedMeasuredHeight;
+    const dragTargetHeight = getCoverHeight(dragTarget, selectedMeasuredHeight);
     const effectiveSelectedHeight =
       selectedMeasuredHeight +
       (dragTargetHeight - selectedMeasuredHeight) * Math.abs(coverDragProgress);
     const lowerCoverChoice = coverChoices[selectedCoverIndex + 1];
-    const lowerCoverHeight = lowerCoverChoice
-      ? (coverCardHeights[lowerCoverChoice.key] ?? selectedMeasuredHeight)
-      : selectedMeasuredHeight;
-    const lowerCoverWidth = lowerCoverChoice
-      ? (coverCardWidths[lowerCoverChoice.key] ?? 420)
-      : 420;
+    const lowerCoverHeight = getCoverHeight(lowerCoverChoice, selectedMeasuredHeight);
+    const lowerCoverWidth = getCoverWidth(lowerCoverChoice, 420);
     const lowerCoverScale = Math.min(0.62, 220 / lowerCoverWidth);
     const lowerCoverRenderedHeight = lowerCoverHeight * lowerCoverScale;
     const lowerCoverOffset = Math.max(
@@ -1805,9 +1838,9 @@ export default function Home() {
       let relativePosition = index - selectedCoverIndex;
       if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
       const position = Math.max(-2, Math.min(2, relativePosition - coverDragProgress));
-      const cardKey = coverChoices[index].key;
-      const cardHeight = coverCardHeights[cardKey] ?? effectiveSelectedHeight;
-      const cardWidth = coverCardWidths[cardKey] ?? 420;
+      const cardChoice = coverChoices[index];
+      const cardHeight = getCoverHeight(cardChoice, effectiveSelectedHeight);
+      const cardWidth = getCoverWidth(cardChoice, 420);
       const neighborScale = Math.min(0.62, 220 / cardWidth);
       const renderedNeighborHeight = cardHeight * neighborScale;
       const neighborOffset = Math.max(
