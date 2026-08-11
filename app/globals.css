@@ -865,11 +865,11 @@ textarea:focus-visible,
   position: absolute;
   z-index: 4;
   top: 42%;
-  left: max(8px, env(safe-area-inset-left));
-  display: grid;
-  gap: 0;
+  left: 50%;
+  display: flex;
+  gap: 2px;
   padding: 8px 4px;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
 }
 
 .cover-shape-selector button {
@@ -896,7 +896,7 @@ textarea:focus-visible,
 
 .cover-shape-glyph {
   display: block;
-  border: 1.5px solid currentColor;
+  border: 2px solid currentColor;
   border-radius: 2.5px;
 }
 

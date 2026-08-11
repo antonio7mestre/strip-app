@@ -1781,6 +1781,26 @@ export default function Home() {
     const effectiveSelectedHeight =
       selectedMeasuredHeight +
       (dragTargetHeight - selectedMeasuredHeight) * Math.abs(coverDragProgress);
+    const lowerCoverChoice = coverChoices[selectedCoverIndex + 1];
+    const lowerCoverHeight = lowerCoverChoice
+      ? (coverCardHeights[lowerCoverChoice.key] ?? selectedMeasuredHeight)
+      : selectedMeasuredHeight;
+    const lowerCoverWidth = lowerCoverChoice
+      ? (coverCardWidths[lowerCoverChoice.key] ?? 420)
+      : 420;
+    const lowerCoverScale = Math.min(0.62, 220 / lowerCoverWidth);
+    const lowerCoverRenderedHeight = lowerCoverHeight * lowerCoverScale;
+    const lowerCoverOffset = Math.max(
+      24,
+      selectedMeasuredHeight / 2 + 44 - lowerCoverRenderedHeight / 2,
+    );
+    const shapeSelectorTopPercent = Math.min(
+      82,
+      coverCenterPercent +
+        ((lowerCoverOffset + lowerCoverRenderedHeight / 2 + 32) /
+          measuredStageHeight) *
+          100,
+    );
     const coverCardStyle = (index: number): CoverCardStyle => {
       let relativePosition = index - selectedCoverIndex;
       if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
@@ -1962,7 +1982,7 @@ export default function Home() {
               {activeCoverChoice?.kind === "color" ? (
                 <nav
                   className="cover-shape-selector"
-                  style={{ top: `${coverCenterPercent}%` }}
+                  style={{ top: `${shapeSelectorTopPercent}%` }}
                   aria-label="Color cover shape"
                 >
                   {(["portrait", "square", "landscape"] as CoverColorShape[]).map(
