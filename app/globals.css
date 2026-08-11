@@ -669,7 +669,8 @@ textarea:focus-visible,
   transition:
     top 360ms cubic-bezier(0.22, 0.78, 0.18, 1),
     transform 360ms cubic-bezier(0.22, 0.78, 0.18, 1),
-    opacity 260ms ease;
+    opacity 260ms ease,
+    box-shadow 360ms cubic-bezier(0.22, 0.78, 0.18, 1);
 }
 
 .cover-card-stage.is-dragging .cover-option {
@@ -745,6 +746,13 @@ textarea:focus-visible,
   box-shadow:
     0 0 38px 9px var(--cover-glow-strong),
     0 0 98px 30px var(--cover-glow-soft);
+}
+
+.cover-color-option.is-near-black.is-previous,
+.cover-color-option.is-near-black.is-next {
+  box-shadow:
+    0 0 62px 15px var(--cover-glow-strong),
+    0 0 158px 48px var(--cover-glow-soft);
 }
 
 .cover-add-option {

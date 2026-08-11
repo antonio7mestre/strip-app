@@ -1708,7 +1708,7 @@ export default function Home() {
         opacity: mix(lower.opacity, upper.opacity),
         transform: `translate(-50%, -50%) scale(${scale})`,
         zIndex: Math.max(0, Math.round(3 - Math.abs(position))),
-        "--cover-dim": Math.min(0.62, Math.abs(position) * 0.62),
+        "--cover-dim": Math.min(0.54, Math.abs(position) * 0.54),
       };
     };
     return (
