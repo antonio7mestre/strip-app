@@ -739,6 +739,7 @@ export default function Home() {
   const [customCoverColors, setCustomCoverColors] = useState<string[]>([]);
   const [coverColorPickerOpen, setCoverColorPickerOpen] = useState(false);
   const [pendingCoverColor, setPendingCoverColor] = useState("#2147D9");
+  const [blackCoverWarningVisible, setBlackCoverWarningVisible] = useState(false);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
   );
@@ -1378,15 +1379,17 @@ export default function Home() {
         ? selectedColor.color
         : latestCustomColor ?? nonBlackCoverColors[0] ?? "#2147D9",
     );
+    setBlackCoverWarningVisible(false);
     setCoverColorPickerOpen(true);
   };
 
   const confirmCoverColor = () => {
     const color = pendingCoverColor.toUpperCase();
     if (isBlackCoverColor(color)) {
-      setNotice("Choose a color other than black.");
+      setBlackCoverWarningVisible(true);
       return;
     }
+    setBlackCoverWarningVisible(false);
     setCustomCoverColors((current) =>
       current.some((option) => option.toUpperCase() === color)
         ? current
@@ -1987,16 +1990,19 @@ export default function Home() {
           tool="background"
           visible={coverColorPickerOpen}
           onChange={(change) => {
-            if (change.backgroundColor) setPendingCoverColor(change.backgroundColor);
+            if (!change.backgroundColor) return;
+            setPendingCoverColor(change.backgroundColor);
+            if (!isBlackCoverColor(change.backgroundColor)) {
+              setBlackCoverWarningVisible(false);
+            }
           }}
           onBack={confirmCoverColor}
           backgroundOptions={BACKGROUND_COLORS.filter(
             (option) => !isBlackCoverColor(option.value),
           )}
-          doneDisabled={isBlackCoverColor(pendingCoverColor)}
           startInGradientMode
         />
-        {coverColorPickerOpen && isPureBlackCoverColor(pendingCoverColor) ? (
+        {coverColorPickerOpen && blackCoverWarningVisible ? (
           <div className="cover-color-warning" role="alert">
             <TriangleAlert aria-hidden="true" />
             <span>Our system can&apos;t handle pure black covers</span>
