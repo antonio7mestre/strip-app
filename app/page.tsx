@@ -1812,9 +1812,20 @@ export default function Home() {
           ? (coverCardWidths[choice.key] ?? fallback)
           : fallback;
     const selectedMeasuredHeight = getCoverHeight(activeCoverChoice, 360);
+    const selectedMeasuredWidth = getCoverWidth(activeCoverChoice, 420);
     const dragDirection = coverDragProgress === 0 ? 0 : coverDragProgress > 0 ? 1 : -1;
     const dragTarget = coverChoices[selectedCoverIndex + dragDirection];
     const dragAmount = Math.abs(coverDragProgress);
+    const isCoverChoice = (choice: CoverChoice | undefined) =>
+      choice?.kind === "image" || choice?.kind === "color";
+    const activeSelectionWeight = isCoverChoice(activeCoverChoice)
+      ? 1 - dragAmount
+      : 0;
+    const incomingSelectionWeight = isCoverChoice(dragTarget) ? dragAmount : 0;
+    const selectionCornersOpacity = Math.max(
+      activeSelectionWeight,
+      incomingSelectionWeight,
+    );
     const activeShapeControlWeight =
       activeCoverChoice?.kind === "color" ? 1 - dragAmount : 0;
     const incomingShapeControlWeight =
@@ -1827,9 +1838,13 @@ export default function Home() {
       (choice) => choice.kind === "color",
     );
     const dragTargetHeight = getCoverHeight(dragTarget, selectedMeasuredHeight);
+    const dragTargetWidth = getCoverWidth(dragTarget, selectedMeasuredWidth);
     const effectiveSelectedHeight =
       selectedMeasuredHeight +
       (dragTargetHeight - selectedMeasuredHeight) * Math.abs(coverDragProgress);
+    const effectiveSelectedWidth =
+      selectedMeasuredWidth +
+      (dragTargetWidth - selectedMeasuredWidth) * Math.abs(coverDragProgress);
     const lowerCoverChoice = coverChoices[selectedCoverIndex + 1];
     const lowerCoverHeight = getCoverHeight(lowerCoverChoice, selectedMeasuredHeight);
     const lowerCoverWidth = getCoverWidth(lowerCoverChoice, 420);
@@ -2024,6 +2039,23 @@ export default function Home() {
                   );
                 })}
 
+              </div>
+              <div
+                className={`cover-selection-corners ${
+                  coverIsDragging ? "is-dragging" : ""
+                }`}
+                style={{
+                  top: `${coverCenterPercent}%`,
+                  width: effectiveSelectedWidth,
+                  height: effectiveSelectedHeight,
+                  opacity: selectionCornersOpacity,
+                }}
+                aria-hidden="true"
+              >
+                <span className="is-top-left" />
+                <span className="is-top-right" />
+                <span className="is-bottom-right" />
+                <span className="is-bottom-left" />
               </div>
               {hasColorCoverChoice ? (
                 <nav
