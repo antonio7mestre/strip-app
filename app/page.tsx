@@ -1788,8 +1788,17 @@ export default function Home() {
         effectiveSelectedHeight / 2 + 44 - renderedNeighborHeight / 2,
       );
       const neighborOffsetPercent = (neighborOffset / measuredStageHeight) * 100;
+      const hiddenTravelPercent = Math.min(
+        8,
+        Math.max(5.5, neighborOffsetPercent * 0.36),
+      );
+      const hiddenScale = Math.max(0.36, neighborScale * 0.82);
       const cardKeyframes = [
-        { top: coverCenterPercent - 68, scale: 0.14, opacity: 0 },
+        {
+          top: coverCenterPercent - neighborOffsetPercent - hiddenTravelPercent,
+          scale: hiddenScale,
+          opacity: 0,
+        },
         {
           top: coverCenterPercent - neighborOffsetPercent,
           scale: neighborScale,
@@ -1801,7 +1810,11 @@ export default function Home() {
           scale: neighborScale,
           opacity: 0.62,
         },
-        { top: coverCenterPercent + 68, scale: 0.14, opacity: 0 },
+        {
+          top: coverCenterPercent + neighborOffsetPercent + hiddenTravelPercent,
+          scale: hiddenScale,
+          opacity: 0,
+        },
       ];
       const lowerPosition = Math.floor(position);
       const upperPosition = Math.ceil(position);
