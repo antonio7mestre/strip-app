@@ -867,7 +867,7 @@ textarea:focus-visible,
   top: 42%;
   left: max(8px, env(safe-area-inset-left));
   display: grid;
-  gap: 4px;
+  gap: 0;
   padding: 8px 4px;
   transform: translateY(-50%);
 }
@@ -875,7 +875,7 @@ textarea:focus-visible,
 .cover-shape-selector button {
   display: grid;
   width: 30px;
-  height: 30px;
+  height: 27px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -896,7 +896,8 @@ textarea:focus-visible,
 
 .cover-shape-glyph {
   display: block;
-  border: 1px solid currentColor;
+  border: 1.5px solid currentColor;
+  border-radius: 2.5px;
 }
 
 .cover-shape-glyph.is-portrait {
