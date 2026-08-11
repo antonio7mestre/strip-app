@@ -1907,8 +1907,6 @@ export default function Home() {
                   } else if (index < selectedCoverIndex) {
                     positionClass = "is-hidden-above";
                   }
-                  const isVisibleNeighbor =
-                    positionClass === "is-previous" || positionClass === "is-next";
                   return (
                     <button
                       className={`cover-option cover-${choice.kind}-option ${
@@ -1928,7 +1926,6 @@ export default function Home() {
                           else openCoverColorPicker();
                           return;
                         }
-                        if (isVisibleNeighbor) selectCoverAt(index);
                       }}
                       style={
                         choice.kind === "color"
@@ -1956,8 +1953,8 @@ export default function Home() {
                           ? selectedCover === choice.key
                           : undefined
                       }
-                      aria-hidden={!isSelected && !isVisibleNeighbor}
-                      tabIndex={isSelected || isVisibleNeighbor ? 0 : -1}
+                      aria-hidden={!isSelected}
+                      tabIndex={isSelected ? 0 : -1}
                     >
                       {choice.kind === "image" ? (
                         <img src={choice.src} alt={choice.alt} />

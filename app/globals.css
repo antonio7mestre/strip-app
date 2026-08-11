@@ -690,7 +690,7 @@ textarea:focus-visible,
   z-index: 2;
   transform: translate(-50%, -50%) scale(0.54);
   opacity: 0.62;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .cover-option.is-previous {
