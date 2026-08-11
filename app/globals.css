@@ -741,8 +741,10 @@ textarea:focus-visible,
   aspect-ratio: 1;
 }
 
-.cover-color-option.is-black-cover {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52);
+.cover-color-option.is-near-black {
+  box-shadow:
+    0 0 30px 8px var(--cover-glow-strong),
+    0 0 82px 26px var(--cover-glow-soft);
 }
 
 .cover-add-option {
@@ -751,12 +753,10 @@ textarea:focus-visible,
   min-height: 0;
   aspect-ratio: 1;
   place-items: center;
-  border: 2px solid #111111;
-  background: #f2f2f2;
+  border: 0;
+  background: #e9e9e9;
   color: #111111;
-  box-shadow:
-    inset 0 0 0 3px #ffffff,
-    inset 0 -12px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
   text-align: center;
 }
 
@@ -768,17 +768,17 @@ textarea:focus-visible,
 }
 
 .cover-add-content svg {
-  width: 48px;
-  height: 48px;
-  padding: 10px;
-  border: 1px solid #111111;
-  background: #ffffff;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   stroke-width: 1.8;
 }
 
 .cover-add-content span {
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
