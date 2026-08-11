@@ -1033,17 +1033,16 @@ export default function Home() {
         .map((block) => (block.backgroundColor ?? DEFAULT_BACKGROUND).toUpperCase()),
     ),
   );
-  const effectiveCoverColors =
-    usedCoverColors.length > 0 ? usedCoverColors : [DEFAULT_BACKGROUND];
-  const onlyCoverColorIsBlack =
-    effectiveCoverColors.length === 1 &&
-    ["#000", DEFAULT_BACKGROUND].includes(effectiveCoverColors[0]);
+  const nonBlackCoverColors = usedCoverColors.filter(
+    (color) => !["#000", DEFAULT_BACKGROUND].includes(color),
+  );
   const hasCoverImages = imageCoverBlocks.length > 0 || Boolean(customCoverSrc);
-  const coverColors = onlyCoverColorIsBlack
-    ? hasCoverImages
-      ? []
-      : randomFallbackCoverColors(blocks.map((block) => block.id).join("|"))
-    : effectiveCoverColors;
+  const coverColors =
+    nonBlackCoverColors.length > 0
+      ? nonBlackCoverColors
+      : hasCoverImages
+        ? []
+        : randomFallbackCoverColors(blocks.map((block) => block.id).join("|"));
   const coverChoices: CoverChoice[] = [
     ...(customCoverSrc
       ? [{ key: "custom", kind: "image" as const, src: customCoverSrc, alt: "Uploaded cover" }]
