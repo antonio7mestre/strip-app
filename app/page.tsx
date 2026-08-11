@@ -1911,6 +1911,10 @@ export default function Home() {
                     <button
                       className={`cover-option cover-${choice.kind}-option ${
                         choice.kind === "color" ? `cover-color-${coverColorShape}` : ""
+                      } ${
+                        choice.kind === "pick-color" && coverColorPickerOpen
+                          ? "is-color-preview"
+                          : ""
                       } ${positionClass}`}
                       data-cover-key={choice.key}
                       type="button"
