@@ -197,36 +197,7 @@ function hexToHsl(hex: string) {
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
 type CoverCardStyle = CSSProperties & {
   "--cover-dim": number;
-  "--cover-glow-strong"?: string;
-  "--cover-glow-soft"?: string;
 };
-
-function nearBlackCoverGlow(color: string): Partial<CoverCardStyle> | null {
-  const value = color.trim().replace("#", "");
-  const expanded =
-    value.length === 3
-      ? value
-          .split("")
-          .map((channel) => `${channel}${channel}`)
-          .join("")
-      : value;
-  if (!/^[0-9a-f]{6}$/i.test(expanded)) return null;
-
-  const [red, green, blue] = expanded
-    .match(/.{2}/g)!
-    .map((channel) => Number.parseInt(channel, 16));
-  const perceivedBrightness = red * 0.2126 + green * 0.7152 + blue * 0.0722;
-  if (perceivedBrightness >= 72) return null;
-
-  const glowChannels = [red, green, blue].map((channel) =>
-    Math.round(channel + (255 - channel) * 0.62),
-  );
-  const glow = glowChannels.join(", ");
-  return {
-    "--cover-glow-strong": `rgba(${glow}, 0.16)`,
-    "--cover-glow-soft": `rgba(${glow}, 0.065)`,
-  };
-}
 
 function swatchStyle(color: string): SwatchStyle {
   const channels = color
@@ -1751,8 +1722,6 @@ export default function Home() {
               >
                 {coverChoices.map((choice, index) => {
                   const isSelected = activeCoverKey === choice.key;
-                  const coverGlow =
-                    choice.kind === "color" ? nearBlackCoverGlow(choice.color) : null;
                   let positionClass = "is-hidden-below";
                   if (isSelected) positionClass = "is-selected";
                   else if (index === selectedCoverIndex - 1 && coverStackStarted) {
@@ -1766,9 +1735,7 @@ export default function Home() {
                     positionClass === "is-previous" || positionClass === "is-next";
                   return (
                     <button
-                      className={`cover-option cover-${choice.kind}-option ${positionClass} ${
-                        coverGlow ? "is-near-black" : ""
-                      }`}
+                      className={`cover-option cover-${choice.kind}-option ${positionClass}`}
                       data-cover-key={choice.key}
                       type="button"
                       key={choice.key}
@@ -1784,7 +1751,6 @@ export default function Home() {
                         choice.kind === "color"
                           ? {
                               ...coverCardStyle(index),
-                              ...coverGlow,
                               backgroundColor: choice.color,
                             }
                           : coverCardStyle(index)

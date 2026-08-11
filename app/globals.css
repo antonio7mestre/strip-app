@@ -742,19 +742,6 @@ textarea:focus-visible,
   aspect-ratio: 1;
 }
 
-.cover-color-option.is-near-black {
-  box-shadow:
-    0 0 38px 9px var(--cover-glow-strong),
-    0 0 98px 30px var(--cover-glow-soft);
-}
-
-.cover-color-option.is-near-black.is-previous,
-.cover-color-option.is-near-black.is-next {
-  box-shadow:
-    0 0 62px 15px var(--cover-glow-strong),
-    0 0 158px 48px var(--cover-glow-soft);
-}
-
 .cover-add-option {
   display: grid;
   width: min(calc(100% - 88px), 400px);
