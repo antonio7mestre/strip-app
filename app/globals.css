@@ -777,11 +777,11 @@ textarea:focus-visible,
 .cover-pick-color-option::before {
   position: absolute;
   z-index: 0;
-  inset: -16px;
+  inset: -10px;
   content: "";
-  filter: blur(12px);
+  filter: blur(6px);
   pointer-events: none;
-  transform: scale(1.08);
+  transform: scale(1.04);
   transition: opacity 180ms ease;
 }
 
