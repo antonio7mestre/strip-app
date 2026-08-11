@@ -494,7 +494,9 @@ function TextStyleSelector({
 
   return (
     <footer
-      className={`composer-dock selector-dock ${visible ? "is-visible" : ""}`}
+      className={`composer-dock selector-dock ${
+        gradientMode === tool ? "is-gradient-picker" : ""
+      } ${visible ? "is-visible" : ""}`}
       aria-label={
         tool === "font"
           ? "Typeface selector"

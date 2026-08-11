@@ -1384,11 +1384,38 @@ textarea:focus-visible,
 }
 
 .selector-scroll.is-gradient-mode {
-  align-self: stretch;
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  height: calc(64px + env(safe-area-inset-bottom));
+  align-self: auto;
   overflow: hidden;
-  margin: -7px 0 calc(-7px - env(safe-area-inset-bottom))
-    calc(-1 * max(12px, env(safe-area-inset-left)));
+  margin: 0;
   padding: 0;
+  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
+}
+
+.selector-dock.is-gradient-picker .selector-leading {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: max(12px, env(safe-area-inset-right));
+}
+
+.selector-dock.is-gradient-picker .selector-leading .dock-divider {
+  display: none;
+}
+
+.selector-dock.is-gradient-picker .selector-back-button {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  color: #050505;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
 }
 
 .full-gradient-picker {
@@ -1398,7 +1425,7 @@ textarea:focus-visible,
   height: 100%;
   flex: 1 1 auto;
   overflow: hidden;
-  border-radius: var(--iphone-panel-radius) 0 0 0;
+  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
   background:
     linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent 54%, rgba(255, 255, 255, 0.92)),
     linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
