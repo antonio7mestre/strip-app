@@ -1425,6 +1425,10 @@ export default function Home() {
   const selectCoverAt = (index: number) => {
     const choice = coverChoices[index];
     if (!choice) return;
+    if (coverColorPickerOpen && choice.kind !== "pick-color") {
+      setCoverColorPickerOpen(false);
+      setBlackCoverWarningVisible(false);
+    }
     setCoverStackStarted(true);
     setActiveCoverKey(choice.key);
     if (choice.kind === "image" || choice.kind === "color") {
