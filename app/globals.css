@@ -1406,21 +1406,6 @@ textarea:focus-visible,
   display: none;
 }
 
-.selector-dock.is-gradient-picker .selector-back-button {
-  border-color: transparent;
-  background: transparent;
-  color: #050505;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.selector-dock.is-gradient-picker .selector-back-button:hover,
-.selector-dock.is-gradient-picker .selector-back-button:focus-visible {
-  border-color: transparent;
-  background: transparent;
-}
-
 .selector-dock.is-gradient-picker .selector-back-button .dock-glyph {
   stroke-width: 2.5;
 }
