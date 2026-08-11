@@ -754,7 +754,7 @@ textarea:focus-visible,
 
 .cover-color-option.cover-color-landscape {
   width: min(calc(100% - 88px), 460px);
-  aspect-ratio: 5 / 4;
+  aspect-ratio: 16 / 9;
 }
 
 .cover-add-option {
