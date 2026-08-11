@@ -1387,9 +1387,9 @@ textarea:focus-visible,
   position: absolute;
   z-index: 0;
   top: 0;
-  right: 0;
+  right: max(72px, calc(60px + env(safe-area-inset-right)));
   left: 0;
-  width: 100%;
+  width: auto;
   height: calc(64px + env(safe-area-inset-bottom));
   align-self: auto;
   overflow: hidden;
