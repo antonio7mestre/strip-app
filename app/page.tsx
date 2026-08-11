@@ -1845,20 +1845,10 @@ export default function Home() {
     const effectiveSelectedWidth =
       selectedMeasuredWidth +
       (dragTargetWidth - selectedMeasuredWidth) * Math.abs(coverDragProgress);
-    const lowerCoverChoice = coverChoices[selectedCoverIndex + 1];
-    const lowerCoverHeight = getCoverHeight(lowerCoverChoice, selectedMeasuredHeight);
-    const lowerCoverWidth = getCoverWidth(lowerCoverChoice, 420);
-    const lowerCoverScale = Math.min(0.62, 220 / lowerCoverWidth);
-    const lowerCoverRenderedHeight = lowerCoverHeight * lowerCoverScale;
-    const lowerCoverOffset = Math.max(
-      24,
-      selectedMeasuredHeight / 2 + 44 - lowerCoverRenderedHeight / 2,
-    );
     const shapeSelectorTopPercent = Math.min(
       82,
       coverCenterPercent +
-        ((lowerCoverOffset + lowerCoverRenderedHeight / 2 + 32) /
-          measuredStageHeight) *
+        ((targetColorDimensions.height / 2 + 76) / measuredStageHeight) *
           100,
     );
     const coverCardStyle = (index: number): CoverCardStyle => {
