@@ -154,6 +154,25 @@ function coverColorDimensions(shape: CoverColorShape, viewportWidth: number) {
   return { width: size, height: size };
 }
 
+function coverImageDimensions(
+  aspectRatio: number,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  const maxWidth = Math.min(Math.max(0, viewportWidth - 88), 420);
+  const maxHeight = Math.min(Math.max(0, viewportHeight * 0.54), 520);
+  if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+    return { width: maxWidth, height: maxHeight };
+  }
+  let width = maxWidth;
+  let height = width / aspectRatio;
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * aspectRatio;
+  }
+  return { width, height };
+}
+
 function randomFallbackCoverColors(seed: string) {
   const colors = BACKGROUND_COLORS.filter(
     (option) => !isBlackCoverColor(option.value),
@@ -774,6 +793,9 @@ export default function Home() {
   const [coverCenterPercent, setCoverCenterPercent] = useState(42);
   const [coverCardHeights, setCoverCardHeights] = useState<Record<string, number>>({});
   const [coverCardWidths, setCoverCardWidths] = useState<Record<string, number>>({});
+  const [coverImageAspectRatios, setCoverImageAspectRatios] = useState<
+    Record<string, number>
+  >({});
   const [customCoverSrc, setCustomCoverSrc] = useState<string | null>(null);
   const [customCoverColors, setCustomCoverColors] = useState<string[]>([]);
   const [coverColorShape, setCoverColorShape] = useState<CoverColorShape>("square");
@@ -1321,6 +1343,14 @@ export default function Home() {
       const nextWidths = Object.fromEntries(
         cards.map((card) => [card.dataset.coverKey ?? "", card.offsetWidth]),
       );
+      const nextImageAspectRatios = Object.fromEntries(
+        cards.flatMap((card) => {
+          const image = card.querySelector("img");
+          return image?.naturalWidth && image.naturalHeight
+            ? [[card.dataset.coverKey ?? "", image.naturalWidth / image.naturalHeight]]
+            : [];
+        }),
+      );
       setCoverCardHeights((current) => {
         const keys = Object.keys(nextHeights);
         const unchanged =
@@ -1334,6 +1364,13 @@ export default function Home() {
           keys.length === Object.keys(current).length &&
           keys.every((key) => current[key] === nextWidths[key]);
         return unchanged ? current : nextWidths;
+      });
+      setCoverImageAspectRatios((current) => {
+        const keys = Object.keys(nextImageAspectRatios);
+        const unchanged =
+          keys.length === Object.keys(current).length &&
+          keys.every((key) => current[key] === nextImageAspectRatios[key]);
+        return unchanged ? current : nextImageAspectRatios;
       });
     };
 
@@ -1799,18 +1836,24 @@ export default function Home() {
       coverColorShape,
       measuredStageWidth,
     );
+    const getImageDimensions = (choice: CoverChoice | undefined) =>
+      choice?.kind === "image" && coverImageAspectRatios[choice.key]
+        ? coverImageDimensions(
+            coverImageAspectRatios[choice.key],
+            measuredStageWidth,
+            measuredStageHeight,
+          )
+        : null;
     const getCoverHeight = (choice: CoverChoice | undefined, fallback: number) =>
       choice?.kind === "color"
         ? targetColorDimensions.height
-        : choice
-          ? (coverCardHeights[choice.key] ?? fallback)
-          : fallback;
+        : getImageDimensions(choice)?.height ??
+          (choice ? (coverCardHeights[choice.key] ?? fallback) : fallback);
     const getCoverWidth = (choice: CoverChoice | undefined, fallback: number) =>
       choice?.kind === "color"
         ? targetColorDimensions.width
-        : choice
-          ? (coverCardWidths[choice.key] ?? fallback)
-          : fallback;
+        : getImageDimensions(choice)?.width ??
+          (choice ? (coverCardWidths[choice.key] ?? fallback) : fallback);
     const selectedMeasuredHeight = getCoverHeight(activeCoverChoice, 360);
     const selectedMeasuredWidth = getCoverWidth(activeCoverChoice, 420);
     const dragDirection = coverDragProgress === 0 ? 0 : coverDragProgress > 0 ? 1 : -1;
@@ -1987,6 +2030,12 @@ export default function Home() {
                               ...coverCardStyle(index),
                               backgroundColor: choice.color,
                             }
+                          : choice.kind === "image"
+                            ? {
+                                ...coverCardStyle(index),
+                                width: getCoverWidth(choice, 420),
+                                height: getCoverHeight(choice, 360),
+                              }
                           : choice.kind === "pick-color" && coverColorPickerOpen
                             ? {
                                 ...coverCardStyle(index),

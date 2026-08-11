@@ -698,8 +698,8 @@ textarea:focus-visible,
 
 .cover-selection-corners > span {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 
 .cover-selection-corners > span::before,
@@ -711,13 +711,13 @@ textarea:focus-visible,
 }
 
 .cover-selection-corners > span::before {
-  width: 20px;
-  height: 2px;
+  width: 16px;
+  height: 2.5px;
 }
 
 .cover-selection-corners > span::after {
-  width: 2px;
-  height: 20px;
+  width: 2.5px;
+  height: 16px;
 }
 
 .cover-selection-corners .is-top-left {
@@ -778,8 +778,7 @@ textarea:focus-visible,
 .cover-image-option img {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: min(54dvh, 520px);
+  height: 100%;
   object-fit: contain;
   object-position: center;
 }
