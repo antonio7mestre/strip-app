@@ -226,7 +226,10 @@ function hexToHsl(hex: string) {
   }
 
   if (hue < 0) hue += 360;
-  return { hue, lightness: ((maximum + minimum) / 2) * 100 };
+  const lightness = (maximum + minimum) / 2;
+  const saturation =
+    delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+  return { hue, saturation: saturation * 100, lightness: lightness * 100 };
 }
 
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
@@ -406,17 +409,33 @@ function TextStyleSelector({
     (option) => option.value.toUpperCase() === textColor.toUpperCase(),
   );
   const activeColor = tool === "background" ? background : textColor;
-  const gradientPosition = hexToHsl(activeColor);
+  const decodedGradientPosition = hexToHsl(activeColor);
+  const [gradientHue, setGradientHue] = useState(decodedGradientPosition.hue);
+  const gradientPosition = {
+    ...decodedGradientPosition,
+    hue:
+      decodedGradientPosition.saturation > 0
+        ? decodedGradientPosition.hue
+        : gradientHue,
+  };
 
   useEffect(() => {
     setGradientMode(startInGradientMode && tool !== "font" ? tool : null);
   }, [startInGradientMode, tool, visible]);
 
+  useEffect(() => {
+    if (decodedGradientPosition.saturation > 0) {
+      setGradientHue(decodedGradientPosition.hue);
+    }
+  }, [activeColor, decodedGradientPosition.hue, decodedGradientPosition.saturation]);
+
   const applyGradientPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const horizontal = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
     const vertical = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
-    const nextColor = hslToHex(horizontal * 360, 100, (1 - vertical) * 100);
+    const nextHue = horizontal * 360;
+    setGradientHue(nextHue);
+    const nextColor = hslToHex(nextHue, 100, (1 - vertical) * 100);
     onChange(tool === "background" ? { backgroundColor: nextColor } : { textColor: nextColor });
   };
 
@@ -431,6 +450,7 @@ function TextStyleSelector({
     event.preventDefault();
     nextHue = (nextHue + 360) % 360;
     nextLightness = Math.min(100, Math.max(0, nextLightness));
+    setGradientHue(nextHue);
     const nextColor = hslToHex(nextHue, 100, nextLightness);
     onChange(tool === "background" ? { backgroundColor: nextColor } : { textColor: nextColor });
   };
@@ -1398,7 +1418,7 @@ export default function Home() {
     const key = `color:${color}`;
     setSelectedCover(key);
     setActiveCoverKey(key);
-    setCoverStackStarted(false);
+    setCoverStackStarted(true);
     setCoverColorPickerOpen(false);
   };
 
