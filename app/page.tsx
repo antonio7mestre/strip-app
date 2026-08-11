@@ -23,6 +23,7 @@ import {
   Pipette,
   Plus,
   Trash2,
+  TriangleAlert,
   Type,
   Volume2,
   VolumeX,
@@ -127,8 +128,12 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function isPureBlackCoverColor(color: string) {
+  return ["#000", DEFAULT_BACKGROUND].includes(color.trim().toUpperCase());
+}
+
 function isBlackCoverColor(color: string) {
-  return ["#000", DEFAULT_BACKGROUND, "#050505"].includes(color.trim().toUpperCase());
+  return isPureBlackCoverColor(color) || color.trim().toUpperCase() === "#050505";
 }
 
 function randomFallbackCoverColors(seed: string) {
@@ -1984,6 +1989,12 @@ export default function Home() {
           doneDisabled={isBlackCoverColor(pendingCoverColor)}
           startInGradientMode
         />
+        {coverColorPickerOpen && isPureBlackCoverColor(pendingCoverColor) ? (
+          <div className="cover-color-warning" role="alert">
+            <TriangleAlert aria-hidden="true" />
+            <span>Our system can&apos;t handle pure black covers</span>
+          </div>
+        ) : null}
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
