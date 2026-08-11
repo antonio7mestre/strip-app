@@ -1387,7 +1387,7 @@ textarea:focus-visible,
   position: absolute;
   z-index: 0;
   top: 0;
-  right: max(72px, calc(60px + env(safe-area-inset-right)));
+  right: max(80px, calc(68px + env(safe-area-inset-right)));
   left: 0;
   width: auto;
   height: calc(64px + env(safe-area-inset-bottom));
@@ -1402,7 +1402,7 @@ textarea:focus-visible,
   position: absolute;
   z-index: 2;
   top: 8px;
-  right: max(12px, env(safe-area-inset-right));
+  right: max(20px, calc(8px + env(safe-area-inset-right)));
 }
 
 .selector-dock.is-gradient-picker .selector-leading .dock-divider {
@@ -1422,6 +1422,10 @@ textarea:focus-visible,
 .selector-dock.is-gradient-picker .selector-back-button:focus-visible {
   border-color: transparent;
   background: transparent;
+}
+
+.selector-dock.is-gradient-picker .selector-back-button .dock-glyph {
+  stroke-width: 2.5;
 }
 
 .full-gradient-picker {
