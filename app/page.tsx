@@ -1433,7 +1433,7 @@ export default function Home() {
     }
     progress = Math.max(-0.95, Math.min(0.95, progress));
     coverDragProgressRef.current = progress;
-    coverSwipeSuppressClickRef.current = Math.abs(progress) > 0.04;
+    coverSwipeSuppressClickRef.current = Math.abs(progress) >= 0.24;
     setCoverDragProgress(progress);
   };
 
