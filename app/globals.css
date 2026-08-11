@@ -798,13 +798,13 @@ textarea:focus-visible,
 }
 
 .cover-pick-color-content svg {
-  width: 26px;
-  height: 26px;
-  padding: 7px;
-  border-radius: 50%;
-  background: conic-gradient(#2147d9, #9e2340, #f2f0ea, #174a36, #2147d9);
-  color: #111111;
-  stroke-width: 2;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  stroke-width: 1.8;
 }
 
 .cover-pick-color-content span {

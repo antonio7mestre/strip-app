@@ -1859,7 +1859,8 @@ export default function Home() {
                           return;
                         }
                         if (isSelected && choice.kind === "pick-color") {
-                          openCoverColorPicker();
+                          if (coverColorPickerOpen) confirmCoverColor();
+                          else openCoverColorPicker();
                           return;
                         }
                         if (isVisibleNeighbor) selectCoverAt(index);
@@ -1870,13 +1871,18 @@ export default function Home() {
                               ...coverCardStyle(index),
                               backgroundColor: choice.color,
                             }
-                          : coverCardStyle(index)
+                          : choice.kind === "pick-color" && coverColorPickerOpen
+                            ? {
+                                ...coverCardStyle(index),
+                                ...swatchStyle(pendingCoverColor),
+                              }
+                            : coverCardStyle(index)
                       }
                       aria-label={
                         choice.kind === "add"
                           ? "Add a cover image"
                           : choice.kind === "pick-color"
-                            ? "Pick a cover color"
+                            ? "Add a cover color"
                           : `Use cover option ${index + 1}`
                       }
                       aria-pressed={
@@ -1898,8 +1904,8 @@ export default function Home() {
                       ) : null}
                       {choice.kind === "pick-color" ? (
                         <span className="cover-pick-color-content">
-                          <Pipette aria-hidden="true" />
-                          <span>Pick a color</span>
+                          <PaintBucket aria-hidden="true" />
+                          <span>Add color</span>
                         </span>
                       ) : null}
                     </button>
