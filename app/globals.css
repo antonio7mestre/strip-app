@@ -343,15 +343,12 @@ textarea:focus-visible,
   z-index: 3;
   inset: 0;
   background:
-    linear-gradient(var(--green) 0 0) left top / 11px 1px no-repeat,
-    linear-gradient(var(--green) 0 0) left top / 1px 11px no-repeat,
-    linear-gradient(var(--green) 0 0) right top / 11px 1px no-repeat,
-    linear-gradient(var(--green) 0 0) right top / 1px 11px no-repeat,
-    linear-gradient(var(--green) 0 0) left bottom / 11px 1px no-repeat,
-    linear-gradient(var(--green) 0 0) left bottom / 1px 11px no-repeat,
-    linear-gradient(var(--green) 0 0) right bottom / 11px 1px no-repeat,
-    linear-gradient(var(--green) 0 0) right bottom / 1px 11px no-repeat;
+    radial-gradient(circle, #ffffff 0 2.5px, transparent 2.75px) left 8px top 8px / 6px 6px no-repeat,
+    radial-gradient(circle, #ffffff 0 2.5px, transparent 2.75px) right 8px top 8px / 6px 6px no-repeat,
+    radial-gradient(circle, #ffffff 0 2.5px, transparent 2.75px) right 8px bottom 8px / 6px 6px no-repeat,
+    radial-gradient(circle, #ffffff 0 2.5px, transparent 2.75px) left 8px bottom 8px / 6px 6px no-repeat;
   content: "";
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.58));
   pointer-events: none;
 }
 
