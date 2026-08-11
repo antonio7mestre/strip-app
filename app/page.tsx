@@ -126,6 +126,31 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function randomFallbackCoverColors(seed: string) {
+  const colors = BACKGROUND_COLORS.filter(
+    (option) => option.value.toUpperCase() !== DEFAULT_BACKGROUND,
+  ).map((option) => option.value.toUpperCase());
+  let state = Array.from(seed).reduce(
+    (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619),
+    2166136261,
+  ) >>> 0;
+
+  const nextRandom = () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+
+  for (let index = colors.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(nextRandom() * (index + 1));
+    [colors[index], colors[swapIndex]] = [colors[swapIndex], colors[index]];
+  }
+
+  return colors.slice(0, 3);
+}
+
 function nearestTextBlock(blocks: StripBlock[], insertionIndex: number) {
   let above: { block: TextBlock; distance: number } | undefined;
   let below: { block: TextBlock; distance: number } | undefined;
@@ -1008,7 +1033,17 @@ export default function Home() {
         .map((block) => (block.backgroundColor ?? DEFAULT_BACKGROUND).toUpperCase()),
     ),
   );
-  const coverColors = usedCoverColors.length > 0 ? usedCoverColors : [DEFAULT_BACKGROUND];
+  const effectiveCoverColors =
+    usedCoverColors.length > 0 ? usedCoverColors : [DEFAULT_BACKGROUND];
+  const onlyCoverColorIsBlack =
+    effectiveCoverColors.length === 1 &&
+    ["#000", DEFAULT_BACKGROUND].includes(effectiveCoverColors[0]);
+  const hasCoverImages = imageCoverBlocks.length > 0 || Boolean(customCoverSrc);
+  const coverColors = onlyCoverColorIsBlack
+    ? hasCoverImages
+      ? []
+      : randomFallbackCoverColors(blocks.map((block) => block.id).join("|"))
+    : effectiveCoverColors;
   const coverChoices: CoverChoice[] = [
     ...(customCoverSrc
       ? [{ key: "custom", kind: "image" as const, src: customCoverSrc, alt: "Uploaded cover" }]
