@@ -223,8 +223,8 @@ function nearBlackCoverGlow(color: string): Partial<CoverCardStyle> | null {
   );
   const glow = glowChannels.join(", ");
   return {
-    "--cover-glow-strong": `rgba(${glow}, 0.18)`,
-    "--cover-glow-soft": `rgba(${glow}, 0.075)`,
+    "--cover-glow-strong": `rgba(${glow}, 0.16)`,
+    "--cover-glow-soft": `rgba(${glow}, 0.065)`,
   };
 }
 
