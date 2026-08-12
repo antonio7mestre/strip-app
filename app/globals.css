@@ -1239,17 +1239,29 @@ textarea:focus-visible,
   display: none;
 }
 
+.selector-scroll:not(.is-gradient-mode) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000000 16px,
+    #000000 calc(100% - 16px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000000 16px,
+    #000000 calc(100% - 16px),
+    transparent 100%
+  );
+}
+
 .selector-leading {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   padding-left: 8px;
   padding-right: 12px;
-}
-
-.selector-leading .dock-divider {
-  margin-right: 4px;
-  margin-left: 0;
 }
 
 .selector-back-button {

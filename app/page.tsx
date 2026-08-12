@@ -718,7 +718,6 @@ function TextStyleSelector({
         ) : null}
       </div>
       <div className="selector-leading">
-        <span className="dock-divider" aria-hidden="true" />
         <button
           className="dock-icon-button selector-back-button"
           type="button"
