@@ -1232,7 +1232,7 @@ textarea:focus-visible,
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  padding-right: 0;
+  padding-right: 12px;
 }
 
 .selector-leading .dock-divider {
@@ -1384,7 +1384,7 @@ textarea:focus-visible,
   position: absolute;
   z-index: 0;
   top: 0;
-  right: max(80px, calc(68px + env(safe-area-inset-right)));
+  right: max(92px, calc(80px + env(safe-area-inset-right)));
   left: 0;
   width: auto;
   height: calc(64px + env(safe-area-inset-bottom));
@@ -1406,8 +1406,8 @@ textarea:focus-visible,
   display: none;
 }
 
-.selector-dock.is-gradient-picker .selector-back-button .dock-glyph {
-  stroke-width: 2.5;
+.selector-back-button .dock-glyph {
+  stroke-width: 2.6;
 }
 
 .full-gradient-picker {

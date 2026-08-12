@@ -438,6 +438,7 @@ function TextStyleSelector({
   const textColor = block.textColor ?? DEFAULT_TEXT;
   const fontStyle = block.fontStyle ?? "sans";
   const fontSize = block.fontSize ?? DEFAULT_FONT_SIZE;
+  const selectorScrollRef = useRef<HTMLDivElement>(null);
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
   const backgroundIsCustom = !backgroundOptions.some(
     (option) => option.value.toUpperCase() === background.toUpperCase(),
@@ -459,6 +460,14 @@ function TextStyleSelector({
   useEffect(() => {
     setGradientMode(startInGradientMode && tool !== "font" ? tool : null);
   }, [startInGradientMode, tool, visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (selectorScrollRef.current) selectorScrollRef.current.scrollLeft = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tool, visible]);
 
   useEffect(() => {
     if (decodedGradientPosition.saturation > 0) {
@@ -507,6 +516,7 @@ function TextStyleSelector({
       aria-hidden={!visible}
     >
       <div
+        ref={selectorScrollRef}
         className={`selector-scroll ${gradientMode === tool ? "is-gradient-mode" : ""}`}
         role="group"
         aria-label={
