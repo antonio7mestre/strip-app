@@ -1563,6 +1563,28 @@ export default function Home() {
 
   const beginCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary) return;
+    const desktopColorCard =
+      event.pointerType !== "touch" &&
+      event.pointerType !== "pen" &&
+      event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>(
+            ".cover-pick-color-option:not(.is-selected)",
+          )
+        : null;
+    if (desktopColorCard) {
+      const choiceIndex = coverChoices.findIndex(
+        (choice) => choice.key === desktopColorCard.dataset.coverKey,
+      );
+      if (choiceIndex >= 0) {
+        coverSwipeSuppressClickRef.current = true;
+        selectCoverAt(choiceIndex);
+        openCoverColorPicker();
+        window.setTimeout(() => {
+          coverSwipeSuppressClickRef.current = false;
+        }, 500);
+      }
+      return;
+    }
     coverSwipeStartYRef.current = event.clientY;
     coverDragProgressRef.current = 0;
     setCoverDragProgress(0);
@@ -2084,7 +2106,10 @@ export default function Home() {
                       type="button"
                       key={choice.key}
                       onClick={() => {
-                        if (coverSwipeSuppressClickRef.current) return;
+                        if (coverSwipeSuppressClickRef.current) {
+                          coverSwipeSuppressClickRef.current = false;
+                          return;
+                        }
                         if (!isSelected && choice.kind === "pick-color") {
                           const isDesktopPointer = window.matchMedia(
                             "(hover: hover) and (pointer: fine)",
