@@ -1240,18 +1240,16 @@ textarea:focus-visible,
 }
 
 .selector-scroll:not(.is-gradient-mode) {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    #000000 16px,
-    #000000 calc(100% - 16px),
+  -webkit-mask-image: radial-gradient(
+    ellipse 52% 130% at center,
+    #000000 0,
+    #000000 91%,
     transparent 100%
   );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    #000000 16px,
-    #000000 calc(100% - 16px),
+  mask-image: radial-gradient(
+    ellipse 52% 130% at center,
+    #000000 0,
+    #000000 91%,
     transparent 100%
   );
 }
