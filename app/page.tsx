@@ -55,10 +55,25 @@ type VideoBlock = {
 };
 
 type StripBlock = TextBlock | ImageBlock | VideoBlock;
-type View = "edit" | "preview" | "publish-setup" | "title-setup" | "published";
+type View =
+  | "library"
+  | "edit"
+  | "preview"
+  | "publish-setup"
+  | "title-setup"
+  | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
 type CoverColorShape = "portrait" | "square" | "landscape";
+type PublishedCover =
+  | { kind: "image"; src: string; alt: string }
+  | { kind: "color"; color: string; shape: CoverColorShape };
+type PublishedStripSummary = {
+  id: string;
+  title: string;
+  cover: PublishedCover;
+  publishedAt: number;
+};
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -78,6 +93,7 @@ type DockTransitionSnapshot = {
 };
 
 const STORAGE_KEY = "strip-draft-v1";
+const OWNER_STORAGE_KEY = "strip-owner-v1";
 const DEFAULT_BACKGROUND = "#000000";
 const DEFAULT_TEXT = "#FFFFFF";
 const DEFAULT_FONT_SIZE = 18;
@@ -821,7 +837,11 @@ function StripVideoBlock({
 
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
-  const [view, setView] = useState<View>("edit");
+  const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
+  const [libraryOwnerId, setLibraryOwnerId] = useState("");
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [view, setView] = useState<View>("library");
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
   const [dockTransition, setDockTransition] =
@@ -878,7 +898,7 @@ export default function Home() {
           (block) => block.type !== "text" || block.content.trim().length > 0,
         );
   const topSafeAreaColor =
-    view === "publish-setup" || view === "title-setup"
+    view === "library" || view === "publish-setup" || view === "title-setup"
       ? DEFAULT_BACKGROUND
       : view !== "published" && firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
@@ -968,8 +988,16 @@ export default function Home() {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
       if (saved) setBlocks(JSON.parse(saved) as StripBlock[]);
+      const savedOwnerId = window.localStorage.getItem(OWNER_STORAGE_KEY);
+      const ownerId =
+        savedOwnerId && /^[a-zA-Z0-9_-]{8,128}$/.test(savedOwnerId)
+          ? savedOwnerId
+          : makeId();
+      window.localStorage.setItem(OWNER_STORAGE_KEY, ownerId);
+      setLibraryOwnerId(ownerId);
     } catch {
-      // A broken or oversized local draft should never block the editor.
+      // Broken local data should never block the app.
+      setLibraryOwnerId(makeId());
     }
     setLoaded(true);
   }, []);
@@ -982,6 +1010,31 @@ export default function Home() {
       setNotice("This draft is too large to save on this device.");
     }
   }, [blocks, loaded]);
+
+  useEffect(() => {
+    if (!libraryOwnerId) return;
+    const controller = new AbortController();
+    setLibraryLoading(true);
+    void fetch(`/api/strips?ownerId=${encodeURIComponent(libraryOwnerId)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Library request failed");
+        const data = (await response.json()) as {
+          strips?: PublishedStripSummary[];
+        };
+        setPublishedStrips(Array.isArray(data.strips) ? data.strips : []);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setNotice("Couldn’t load your Strips. Try refreshing.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLibraryLoading(false);
+      });
+    return () => controller.abort();
+  }, [libraryOwnerId]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1650,7 +1703,23 @@ export default function Home() {
     }
   };
 
-  const publish = () => {
+  const beginNewStrip = () => {
+    if (!hasContent) {
+      setBlocks([]);
+      setStripTitle("");
+      setSelectedCover("");
+      setActiveCoverKey("");
+      setCustomCoverSrc(null);
+      setCustomCoverColors([]);
+      setCoverColorShape("square");
+    }
+    setSelectedBlockId(null);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+    void transitionToView("edit", "forward", "top", false);
+  };
+
+  const publish = async () => {
     if (!hasContent) {
       setNotice("Add something before you strip.");
       return;
@@ -1659,9 +1728,60 @@ export default function Home() {
       setNotice("Pick a cover before publishing.");
       return;
     }
-    setEditingTextBlockId(null);
-    setActiveTextTool(null);
-    void transitionToView("published", "forward");
+    const coverChoice = coverChoices.find(
+      (choice) => choice.key === selectedCover,
+    );
+    if (!coverChoice || (coverChoice.kind !== "image" && coverChoice.kind !== "color")) {
+      setNotice("Pick a cover before publishing.");
+      return;
+    }
+    if (!libraryOwnerId || publishing || pageTransitionInFlightRef.current) return;
+    const publishedCover: PublishedCover =
+      coverChoice.kind === "image"
+        ? { kind: "image", src: coverChoice.src, alt: coverChoice.alt }
+        : {
+            kind: "color",
+            color: coverChoice.color,
+            shape: coverColorShape,
+          };
+    const stripId = makeId();
+    const publishedAt = Date.now();
+    pageTransitionInFlightRef.current = true;
+    setPublishing(true);
+    try {
+      const response = await fetch("/api/strips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ownerId: libraryOwnerId,
+          id: stripId,
+          title: stripTitle.trim(),
+          publishedAt,
+          cover: publishedCover,
+        }),
+      });
+      if (!response.ok) throw new Error("Publish request failed");
+      const data = (await response.json()) as {
+        strip: PublishedStripSummary;
+      };
+      setPublishedStrips((current) => [data.strip, ...current]);
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
+      setSelectedBlockId(null);
+      setBlocks([]);
+      setStripTitle("");
+      setSelectedCover("");
+      setActiveCoverKey("");
+      setCustomCoverSrc(null);
+      setCustomCoverColors([]);
+      setCoverColorShape("square");
+      await transitionToView("library", "forward", "top", false);
+    } catch {
+      setNotice("Couldn’t publish this Strip. Try again.");
+    } finally {
+      setPublishing(false);
+      pageTransitionInFlightRef.current = false;
+    }
   };
 
   const copyLink = async () => {
@@ -1845,6 +1965,76 @@ export default function Home() {
     dockTransition ? "is-entering" : ""
   } ${dockTransitionStarted ? "is-transitioning" : ""}`;
 
+  if (view === "library") {
+    const libraryColumns = [
+      publishedStrips.filter((_, index) => index % 2 === 0),
+      publishedStrips.filter((_, index) => index % 2 === 1),
+    ];
+
+    const renderLibraryCard = (strip: PublishedStripSummary) => (
+      <article className="library-card" key={strip.id}>
+        <div
+          className={`library-cover library-cover-${strip.cover.kind} ${
+            strip.cover.kind === "color"
+              ? `library-cover-${strip.cover.shape}`
+              : ""
+          }`}
+          style={
+            strip.cover.kind === "color"
+              ? { backgroundColor: strip.cover.color }
+              : undefined
+          }
+        >
+          {strip.cover.kind === "image" ? (
+            <img src={strip.cover.src} alt={strip.cover.alt} />
+          ) : null}
+        </div>
+        <h2>{strip.title || "Untitled"}</h2>
+      </article>
+    );
+
+    return (
+      <>
+        {legacyTransitionLayer}
+        <main className="app-shell library-mode">
+          <div
+            className={`top-safe-area-anchor ${legacyPageEnterClass}`}
+            style={{ backgroundColor: DEFAULT_BACKGROUND }}
+            aria-hidden="true"
+          />
+          <div className="bottom-safe-area-anchor" aria-hidden="true" />
+
+          <section className={`strip-library ${legacyPageEnterClass}`}>
+            <header className="library-header">
+              <h1>STRIP</h1>
+            </header>
+            <div
+              className="library-grid"
+              aria-label="Your Strips"
+              aria-busy={libraryLoading}
+            >
+              {libraryColumns.map((column, columnIndex) => (
+                <div className="library-column" key={`library-column-${columnIndex}`}>
+                  {column.map(renderLibraryCard)}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <button
+            className="library-add-button"
+            type="button"
+            onClick={beginNewStrip}
+            aria-label="Create a new Strip"
+          >
+            <Plus aria-hidden="true" />
+          </button>
+          {notice ? <div className="notice">{notice}</div> : null}
+        </main>
+      </>
+    );
+  }
+
   if (view === "title-setup") {
     return (
       <>
@@ -1901,10 +2091,11 @@ export default function Home() {
             <button
               className="dock-icon-button publish-icon-button publish-strip-button publish-flow-button"
               type="button"
-              onClick={publish}
+              onClick={() => void publish()}
+              disabled={publishing}
               aria-label="Publish Strip"
             >
-              Publish
+              {publishing ? "Publishing…" : "Publish"}
             </button>
           </div>
         </footer>
