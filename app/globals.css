@@ -1229,7 +1229,7 @@ textarea:focus-visible,
   gap: 14px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 28px 2px 0;
+  padding: 2px 14px 2px 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
