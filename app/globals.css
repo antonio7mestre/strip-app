@@ -1229,7 +1229,7 @@ textarea:focus-visible,
   gap: 14px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 14px 2px 0;
+  padding: 0 14px 0 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
@@ -1240,16 +1240,9 @@ textarea:focus-visible,
 }
 
 .selector-scroll:not(.is-gradient-mode) {
-  -webkit-mask-image: radial-gradient(
-    ellipse 50% 130% at center,
-    #000000 0 100%,
-    transparent 100%
-  );
-  mask-image: radial-gradient(
-    ellipse 50% 130% at center,
-    #000000 0 100%,
-    transparent 100%
-  );
+  height: 44px;
+  border-radius: 22px;
+  clip-path: inset(0 round 22px);
 }
 
 .selector-leading {
