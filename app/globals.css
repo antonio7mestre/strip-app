@@ -1448,11 +1448,6 @@ textarea:focus-visible,
   pointer-events: none;
 }
 
-.gradient-picker-value svg {
-  width: 11px;
-  height: 11px;
-}
-
 .strip-byline {
   display: flex;
   align-items: center;

@@ -599,9 +599,7 @@ function TextStyleSelector({
                 backgroundColor: activeColor,
               }}
               aria-hidden="true"
-            >
-              <Pipette />
-            </span>
+            />
           </div>
         ) : null}
 
