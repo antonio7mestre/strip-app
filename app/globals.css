@@ -1212,6 +1212,10 @@ textarea:focus-visible,
   pointer-events: none;
 }
 
+.composer-dock.selector-dock {
+  padding-left: max(24px, calc(12px + env(safe-area-inset-left)));
+}
+
 .selector-dock.is-visible {
   transform: translateY(0);
   opacity: 1;
@@ -1226,7 +1230,7 @@ textarea:focus-visible,
   gap: 14px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 28px 2px 14px;
+  padding: 2px 28px 2px 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
