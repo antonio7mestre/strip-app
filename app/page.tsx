@@ -2026,6 +2026,15 @@ export default function Home() {
                       key={choice.key}
                       onClick={() => {
                         if (coverSwipeSuppressClickRef.current) return;
+                        if (!isSelected && choice.kind === "pick-color") {
+                          const isDesktopPointer = window.matchMedia(
+                            "(hover: hover) and (pointer: fine)",
+                          ).matches;
+                          if (!isDesktopPointer) return;
+                          selectCoverAt(index);
+                          openCoverColorPicker();
+                          return;
+                        }
                         if (isSelected && choice.kind === "add") {
                           coverInputRef.current?.click();
                           return;

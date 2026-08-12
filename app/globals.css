@@ -756,6 +756,14 @@ textarea:focus-visible,
   pointer-events: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .cover-pick-color-option.is-previous,
+  .cover-pick-color-option.is-next {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+}
+
 .cover-option.is-previous {
   top: 10%;
 }
