@@ -270,11 +270,12 @@ function hexToHsl(hex: string) {
 }
 
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
+type SelectionMarkerStyle = CSSProperties & { "--selection-marker-color": string };
 type CoverCardStyle = CSSProperties & {
   "--cover-dim": number;
 };
 
-function swatchStyle(color: string): SwatchStyle {
+function contrastColor(color: string) {
   const channels = color
     .replace("#", "")
     .match(/.{2}/g)
@@ -286,12 +287,54 @@ function swatchStyle(color: string): SwatchStyle {
         )
         .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
     : 0;
-  const foreground = luminance > 0.179 ? "#000000" : "#FFFFFF";
+  return luminance > 0.179 ? "#000000" : "#FFFFFF";
+}
+
+function swatchStyle(color: string): SwatchStyle {
+  const foreground = contrastColor(color);
   return {
     backgroundColor: color,
     color: foreground,
     "--swatch-foreground": foreground,
   };
+}
+
+function selectionMarkerStyle(color: string): SelectionMarkerStyle {
+  return { "--selection-marker-color": contrastColor(color) };
+}
+
+function imageSelectionMarkerColor(image: HTMLImageElement) {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return "#FFFFFF";
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let luminanceTotal = 0;
+    let sampledPixels = 0;
+
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] < 32) continue;
+      const channels = [pixels[index], pixels[index + 1], pixels[index + 2]].map(
+        (channel) => {
+          const value = channel / 255;
+          return value <= 0.04045
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4;
+        },
+      );
+      luminanceTotal +=
+        channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      sampledPixels += 1;
+    }
+
+    if (sampledPixels === 0) return "#FFFFFF";
+    return luminanceTotal / sampledPixels > 0.179 ? "#000000" : "#FFFFFF";
+  } catch {
+    return "#FFFFFF";
+  }
 }
 
 function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "auto") {
@@ -790,6 +833,7 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [imageMarkerColors, setImageMarkerColors] = useState<Record<string, string>>({});
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
   const [lastTextTool, setLastTextTool] = useState<TextTool>("font");
@@ -1649,6 +1693,7 @@ export default function Home() {
                 backgroundColor: block.backgroundColor ?? DEFAULT_BACKGROUND,
                 color: block.textColor ?? DEFAULT_TEXT,
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
+                ...selectionMarkerStyle(block.backgroundColor ?? DEFAULT_BACKGROUND),
               }}
             >
               {textIsBeingEdited ? (
@@ -1703,6 +1748,9 @@ export default function Home() {
               }`}
               data-block-id={block.id}
               key={block.id}
+              style={{
+                "--selection-marker-color": imageMarkerColors[block.id] ?? "#FFFFFF",
+              } as SelectionMarkerStyle}
               onClick={() => {
                 if (!isEditing) return;
                 setSelectedBlockId(block.id);
@@ -1711,7 +1759,18 @@ export default function Home() {
               }}
             >
               {/* A Strip image is intentionally edge-to-edge. */}
-              <img src={block.src} alt={block.alt} />
+              <img
+                src={block.src}
+                alt={block.alt}
+                onLoad={(event) => {
+                  const markerColor = imageSelectionMarkerColor(event.currentTarget);
+                  setImageMarkerColors((current) =>
+                    current[block.id] === markerColor
+                      ? current
+                      : { ...current, [block.id]: markerColor },
+                  );
+                }}
+              />
             </figure>
           );
         }
