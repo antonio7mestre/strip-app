@@ -1232,6 +1232,7 @@ textarea:focus-visible,
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+  padding-left: 8px;
   padding-right: 12px;
 }
 
@@ -1384,7 +1385,7 @@ textarea:focus-visible,
   position: absolute;
   z-index: 0;
   top: 0;
-  right: max(92px, calc(80px + env(safe-area-inset-right)));
+  right: max(100px, calc(88px + env(safe-area-inset-right)));
   left: 0;
   width: auto;
   height: calc(64px + env(safe-area-inset-bottom));
