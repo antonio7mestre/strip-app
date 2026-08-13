@@ -899,7 +899,6 @@ export default function Home() {
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
-  const simulatorPublishedOpenRef = useRef(false);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -1765,20 +1764,6 @@ export default function Home() {
       pageTransitionInFlightRef.current = false;
     }
   };
-
-  useEffect(() => {
-    if (
-      simulatorPublishedOpenRef.current ||
-      libraryLoading ||
-      view !== "library" ||
-      publishedStrips.length === 0 ||
-      new URLSearchParams(window.location.search).get("simulatorPublished") !== "1"
-    ) {
-      return;
-    }
-    simulatorPublishedOpenRef.current = true;
-    void openPublishedStrip(publishedStrips[0]);
-  }, [libraryLoading, publishedStrips, view]);
 
   const publish = async () => {
     if (!hasContent) {
