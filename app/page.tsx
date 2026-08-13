@@ -933,14 +933,9 @@ export default function Home() {
       "content",
       topSafeAreaColor,
     );
-    const root = document.documentElement;
-    const browserBackgroundColor =
-      view === "published" ? DEFAULT_BACKGROUND : topSafeAreaColor;
-    root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    root.style.backgroundColor = browserBackgroundColor;
-    root.classList.toggle("published-edge-colors", view === "published");
-    document.body.style.backgroundColor = browserBackgroundColor;
-  }, [topSafeAreaColor, view]);
+    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
+    document.documentElement.style.backgroundColor = topSafeAreaColor;
+  }, [topSafeAreaColor]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
