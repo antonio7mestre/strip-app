@@ -929,13 +929,16 @@ export default function Home() {
   );
 
   useEffect(() => {
+    const browserBackgroundColor =
+      view === "published" ? DEFAULT_BACKGROUND : topSafeAreaColor;
     document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
       "content",
-      topSafeAreaColor,
+      browserBackgroundColor,
     );
     document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
-  }, [topSafeAreaColor]);
+    document.documentElement.style.backgroundColor = browserBackgroundColor;
+    document.body.style.backgroundColor = browserBackgroundColor;
+  }, [topSafeAreaColor, view]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
