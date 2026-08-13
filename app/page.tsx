@@ -934,8 +934,9 @@ export default function Home() {
       topSafeAreaColor,
     );
     document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
-  }, [topSafeAreaColor]);
+    document.documentElement.style.backgroundColor =
+      view === "published" ? DEFAULT_BACKGROUND : topSafeAreaColor;
+  }, [topSafeAreaColor, view]);
 
   useEffect(() => {
     const viewport = window.visualViewport;

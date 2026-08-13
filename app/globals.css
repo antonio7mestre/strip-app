@@ -374,18 +374,6 @@ textarea:focus-visible,
   background: var(--black);
 }
 
-.published-mode::after {
-  position: fixed;
-  z-index: 9;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: env(safe-area-inset-bottom);
-  background: linear-gradient(to bottom, transparent, var(--black));
-  content: "";
-  pointer-events: none;
-}
-
 .strip-block {
   position: relative;
   margin: 0;
