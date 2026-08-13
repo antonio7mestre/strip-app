@@ -934,9 +934,12 @@ export default function Home() {
       topSafeAreaColor,
     );
     const root = document.documentElement;
+    const browserBackgroundColor =
+      view === "published" ? DEFAULT_BACKGROUND : topSafeAreaColor;
     root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    root.style.backgroundColor = topSafeAreaColor;
-    document.body.style.backgroundColor = topSafeAreaColor;
+    root.style.backgroundColor = browserBackgroundColor;
+    root.classList.toggle("published-edge-colors", view === "published");
+    document.body.style.backgroundColor = browserBackgroundColor;
   }, [topSafeAreaColor, view]);
 
   useEffect(() => {
@@ -2594,7 +2597,6 @@ export default function Home() {
             <article className={`published-strip ${legacyPageEnterClass}`}>
               {renderStrip(false, publishedBlocks)}
             </article>
-            <div className="published-bottom-edge" aria-hidden="true" />
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
         </>

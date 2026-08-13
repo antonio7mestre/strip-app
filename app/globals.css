@@ -29,6 +29,18 @@ html {
   background: #ffffff;
 }
 
+html.published-edge-colors {
+  /* Safari maps the root gradient's far end to the top edge and near end to bottom. */
+  background-color: var(--black);
+  background-image: linear-gradient(
+    to bottom,
+    var(--black),
+    var(--top-safe-area-color, var(--black))
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
 body {
   min-height: 100lvh;
   overflow-x: clip;
@@ -372,17 +384,6 @@ textarea:focus-visible,
 .published-mode .published-strip {
   min-height: 100lvh;
   background: var(--black);
-}
-
-.published-bottom-edge {
-  position: fixed;
-  z-index: 9;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: max(env(safe-area-inset-bottom), 44px);
-  background: linear-gradient(to bottom, transparent, var(--black) 72%);
-  pointer-events: none;
 }
 
 .strip-block {
@@ -1774,9 +1775,7 @@ textarea:focus-visible,
 
   .published-mode .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
-    padding-top: 0;
-    border-top: env(safe-area-inset-top) solid
-      var(--top-safe-area-color, var(--black));
+    padding-top: env(safe-area-inset-top);
   }
 
   .app-shell::after {
