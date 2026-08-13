@@ -25,12 +25,37 @@ type PublishRequest = {
         color: string;
         shape: "portrait" | "square" | "landscape";
       };
+  blocks?: PublishBlock[];
 };
+
+type PublishBlock =
+  | {
+      id: string;
+      type: "text";
+      content: string;
+      backgroundColor?: string;
+      textColor?: string;
+      fontStyle?: string;
+      fontSize?: number;
+      editedAt?: number;
+    }
+  | { id: string; type: "image" | "video"; src: string; alt: string };
+
+type StoredContentBlock =
+  | Exclude<PublishBlock, { type: "image" | "video" }>
+  | {
+      id: string;
+      type: "image" | "video";
+      objectKey: string;
+      alt: string;
+    };
 
 const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const COVER_SHAPES = new Set(["portrait", "square", "landscape"]);
 const MAX_COVER_BYTES = 20 * 1024 * 1024;
+const MAX_MEDIA_BYTES = 80 * 1024 * 1024;
+const MAX_BLOCKS = 100;
 
 function imageCoverPath(ownerId: string, stripId: string) {
   return `/api/strips/${encodeURIComponent(stripId)}/cover?ownerId=${encodeURIComponent(ownerId)}`;
@@ -58,11 +83,15 @@ function serializeRow(row: StoredStripRow, ownerId: string) {
   };
 }
 
-function decodeImageDataUrl(value: string) {
+function decodeMediaDataUrl(
+  value: string,
+  expectedType: "image" | "video",
+  maxBytes: number,
+) {
   const match = /^data:([^;,]+);base64,([a-zA-Z0-9+/=\s]+)$/.exec(value);
   if (!match) return null;
   const contentType = match[1].toLowerCase();
-  if (!contentType.startsWith("image/")) return null;
+  if (!contentType.startsWith(`${expectedType}/`)) return null;
 
   let binary: string;
   try {
@@ -70,12 +99,56 @@ function decodeImageDataUrl(value: string) {
   } catch {
     return null;
   }
-  if (binary.length > MAX_COVER_BYTES) return null;
+  if (binary.length > maxBytes) return null;
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
   return { bytes, contentType };
+}
+
+function prepareContentBlocks(
+  ownerId: string,
+  stripId: string,
+  inputBlocks: PublishBlock[],
+) {
+  if (inputBlocks.length > MAX_BLOCKS) return null;
+  const uploads: Array<{
+    objectKey: string;
+    bytes: Uint8Array;
+    contentType: string;
+  }> = [];
+  const storedBlocks: StoredContentBlock[] = [];
+
+  for (const block of inputBlocks) {
+    if (!ID_PATTERN.test(block.id)) return null;
+    if (block.type === "text") {
+      storedBlocks.push({
+        id: block.id,
+        type: "text",
+        content: String(block.content ?? "").slice(0, 100_000),
+        backgroundColor: block.backgroundColor,
+        textColor: block.textColor,
+        fontStyle: block.fontStyle,
+        fontSize: block.fontSize,
+        editedAt: block.editedAt,
+      });
+      continue;
+    }
+
+    const media = decodeMediaDataUrl(block.src, block.type, MAX_MEDIA_BYTES);
+    if (!media) return null;
+    const objectKey = `strips/${ownerId}/${stripId}/media/${block.id}`;
+    uploads.push({ objectKey, ...media });
+    storedBlocks.push({
+      id: block.id,
+      type: block.type,
+      objectKey,
+      alt: String(block.alt ?? "").slice(0, 160),
+    });
+  }
+
+  return { uploads, storedBlocks };
 }
 
 function imageExtension(contentType: string) {
@@ -124,22 +197,28 @@ export async function POST(request: Request) {
   if (!OWNER_PATTERN.test(ownerId) || !ID_PATTERN.test(id) || !input.cover) {
     return Response.json({ error: "Invalid Strip." }, { status: 400 });
   }
+  const preparedContent = prepareContentBlocks(
+    ownerId,
+    id,
+    Array.isArray(input.blocks) ? input.blocks : [],
+  );
+  if (!preparedContent) {
+    return Response.json({ error: "Invalid Strip content." }, { status: 400 });
+  }
 
   let coverColor: string | null = null;
   let coverShape: string | null = null;
   let coverObjectKey: string | null = null;
   let coverAlt: string | null = null;
+  const uploadedObjectKeys: string[] = [];
 
   if (input.cover.kind === "image") {
-    const image = decodeImageDataUrl(input.cover.src);
+    const image = decodeMediaDataUrl(input.cover.src, "image", MAX_COVER_BYTES);
     if (!image) {
       return Response.json({ error: "Invalid cover image." }, { status: 400 });
     }
     coverObjectKey = `covers/${ownerId}/${id}.${imageExtension(image.contentType)}`;
     coverAlt = (input.cover.alt ?? "Strip cover").slice(0, 160);
-    await env.STRIP_MEDIA.put(coverObjectKey, image.bytes, {
-      httpMetadata: { contentType: image.contentType },
-    });
   } else {
     const color = input.cover.color.trim().toUpperCase();
     if (!color || color === "#000" || color === "#000000") {
@@ -152,11 +231,24 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (coverObjectKey && input.cover.kind === "image") {
+      const image = decodeMediaDataUrl(input.cover.src, "image", MAX_COVER_BYTES)!;
+      await env.STRIP_MEDIA.put(coverObjectKey, image.bytes, {
+        httpMetadata: { contentType: image.contentType },
+      });
+      uploadedObjectKeys.push(coverObjectKey);
+    }
+    for (const upload of preparedContent.uploads) {
+      await env.STRIP_MEDIA.put(upload.objectKey, upload.bytes, {
+        httpMetadata: { contentType: upload.contentType },
+      });
+      uploadedObjectKeys.push(upload.objectKey);
+    }
     await env.DB.prepare(
       `INSERT INTO strips (
         id, owner_id, title, cover_kind, cover_color, cover_shape,
-        cover_object_key, cover_alt, published_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        cover_object_key, cover_alt, content_json, published_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         id,
@@ -167,11 +259,14 @@ export async function POST(request: Request) {
         coverShape,
         coverObjectKey,
         coverAlt,
+        JSON.stringify(preparedContent.storedBlocks),
         publishedAt,
       )
       .run();
   } catch (error) {
-    if (coverObjectKey) await env.STRIP_MEDIA.delete(coverObjectKey);
+    await Promise.all(
+      uploadedObjectKeys.map((objectKey) => env.STRIP_MEDIA.delete(objectKey)),
+    );
     throw error;
   }
 

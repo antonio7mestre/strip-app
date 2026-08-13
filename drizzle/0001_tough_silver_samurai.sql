@@ -1,0 +1,1 @@
+ALTER TABLE `strips` ADD `content_json` text DEFAULT '[]' NOT NULL;

@@ -11,6 +11,7 @@ export const strips = sqliteTable(
     coverShape: text("cover_shape"),
     coverObjectKey: text("cover_object_key"),
     coverAlt: text("cover_alt"),
+    contentJson: text("content_json").notNull().default("[]"),
     publishedAt: integer("published_at").notNull(),
   },
   (table) => [

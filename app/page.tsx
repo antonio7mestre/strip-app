@@ -74,6 +74,12 @@ type PublishedStripSummary = {
   cover: PublishedCover;
   publishedAt: number;
 };
+type PublishedStripDetail = {
+  id: string;
+  title: string;
+  publishedAt: number;
+  blocks: StripBlock[];
+};
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -840,6 +846,9 @@ export default function Home() {
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
   const [libraryLoading, setLibraryLoading] = useState(true);
+  const [openingStripId, setOpeningStripId] = useState<string | null>(null);
+  const [openedPublishedStrip, setOpenedPublishedStrip] =
+    useState<PublishedStripDetail | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [view, setView] = useState<View>("library");
   const [legacyPageTransition, setLegacyPageTransition] =
@@ -1719,6 +1728,38 @@ export default function Home() {
     void transitionToView("edit", "forward", "top", false);
   };
 
+  const openPublishedStrip = async (strip: PublishedStripSummary) => {
+    if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
+    setOpeningStripId(strip.id);
+    pageTransitionInFlightRef.current = true;
+    try {
+      const response = await fetch(
+        `/api/strips/${encodeURIComponent(strip.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error("Strip request failed");
+      const data = (await response.json()) as { strip: PublishedStripDetail };
+      setOpenedPublishedStrip(data.strip);
+      await transitionToView("published", "forward", "top", false);
+    } catch {
+      setNotice("Couldn’t open this Strip. Try again.");
+    } finally {
+      setOpeningStripId(null);
+      pageTransitionInFlightRef.current = false;
+    }
+  };
+
+  const returnToLibraryFromPublished = async () => {
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
+    try {
+      await transitionToView("library", "backward", "top", false);
+      setOpenedPublishedStrip(null);
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
+  };
+
   const publish = async () => {
     if (!hasContent) {
       setNotice("Add something before you strip.");
@@ -1758,6 +1799,7 @@ export default function Home() {
           title: stripTitle.trim(),
           publishedAt,
           cover: publishedCover,
+          blocks,
         }),
       });
       if (!response.ok) throw new Error("Publish request failed");
@@ -1793,16 +1835,19 @@ export default function Home() {
     }
   };
 
-  const renderStrip = (isEditing: boolean) => (
+  const renderStrip = (
+    isEditing: boolean,
+    sourceBlocks: StripBlock[] = blocks,
+  ) => (
     <div className="strip-canvas">
-      {blocks.length === 0 && isEditing ? (
+      {sourceBlocks.length === 0 && isEditing ? (
         <div className="empty-strip">
           <p>Your Strip starts here.</p>
           <span>Add one block at a time.</span>
         </div>
       ) : null}
 
-      {blocks.map((block, index) => {
+      {sourceBlocks.map((block, index) => {
         if (block.type === "text") {
           if (!isEditing && !block.content.trim()) return null;
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
@@ -1972,7 +2017,14 @@ export default function Home() {
     ];
 
     const renderLibraryCard = (strip: PublishedStripSummary) => (
-      <article className="library-card" key={strip.id}>
+      <button
+        className="library-card"
+        type="button"
+        key={strip.id}
+        onClick={() => void openPublishedStrip(strip)}
+        disabled={openingStripId === strip.id}
+        aria-label={`Open ${strip.title || "Untitled"}`}
+      >
         <div
           className={`library-cover library-cover-${strip.cover.kind} ${
             strip.cover.kind === "color"
@@ -1990,7 +2042,7 @@ export default function Home() {
           ) : null}
         </div>
         <h2>{strip.title || "Untitled"}</h2>
-      </article>
+      </button>
     );
 
     return (
@@ -2519,6 +2571,10 @@ export default function Home() {
 
   if (view === "preview" || view === "published") {
     const isPublished = view === "published";
+    const publishedBlocks =
+      isPublished && openedPublishedStrip
+        ? openedPublishedStrip.blocks
+        : blocks;
     return (
       <>
         {legacyTransitionLayer}
@@ -2538,9 +2594,15 @@ export default function Home() {
             <button
               className="text-action"
               type="button"
-              onClick={() => changeViewWithDockTransition("edit")}
+              onClick={() => {
+                if (openedPublishedStrip) {
+                  void returnToLibraryFromPublished();
+                  return;
+                }
+                changeViewWithDockTransition("edit");
+              }}
             >
-              Edit
+              {openedPublishedStrip ? "Back" : "Edit"}
             </button>
             <span className="wordmark">STRIP</span>
             <button className="text-action" type="button" onClick={copyLink}>
@@ -2561,7 +2623,7 @@ export default function Home() {
               </div>
             </header>
           ) : null}
-          {renderStrip(false)}
+          {renderStrip(false, publishedBlocks)}
           {isPublished ? (
             <footer className="reader-footer">
               <p>Get Antonio&apos;s next Strip.</p>
