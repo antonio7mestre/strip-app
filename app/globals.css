@@ -29,6 +29,18 @@ html {
   background: #ffffff;
 }
 
+html.published-edge-colors {
+  /* Safari maps the root gradient's far end to the top edge and near end to bottom. */
+  background-color: var(--black);
+  background-image: linear-gradient(
+    to bottom,
+    var(--black),
+    var(--top-safe-area-color, var(--black))
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
 body {
   min-height: 100lvh;
   overflow-x: clip;
