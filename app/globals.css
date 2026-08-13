@@ -362,6 +362,11 @@ textarea:focus-visible,
   background: var(--black);
 }
 
+.published-mode .strip-canvas {
+  padding-bottom: calc(148px + env(safe-area-inset-bottom));
+  background: var(--black);
+}
+
 .strip-block {
   position: relative;
   margin: 0;
@@ -1745,6 +1750,11 @@ textarea:focus-visible,
 @media (max-width: 719px) {
   .editor-mode .strip-canvas,
   .preview-mode .strip-canvas {
+    margin-top: calc(-1 * env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .published-mode .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
   }

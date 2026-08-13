@@ -903,13 +903,16 @@ export default function Home() {
   const firstVisibleBlock =
     view === "edit"
       ? blocks[0]
-      : blocks.find(
+      : (view === "published" && openedPublishedStrip
+          ? openedPublishedStrip.blocks
+          : blocks
+        ).find(
           (block) => block.type !== "text" || block.content.trim().length > 0,
         );
   const topSafeAreaColor =
     view === "library" || view === "publish-setup" || view === "title-setup"
       ? DEFAULT_BACKGROUND
-      : view !== "published" && firstVisibleBlock?.type === "text"
+      : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
 
@@ -2575,6 +2578,50 @@ export default function Home() {
       isPublished && openedPublishedStrip
         ? openedPublishedStrip.blocks
         : blocks;
+    if (isPublished) {
+      return (
+        <>
+          {legacyTransitionLayer}
+          <main className="app-shell reader-mode published-mode">
+            <div
+              className={`top-safe-area-anchor ${legacyPageEnterClass}`}
+              style={{ backgroundColor: topSafeAreaColor }}
+              aria-hidden="true"
+            />
+
+            <article className={`published-strip ${legacyPageEnterClass}`}>
+              {renderStrip(false, publishedBlocks)}
+            </article>
+            <footer
+              key="persistent-composer-dock"
+              className="composer-dock preview-dock"
+            >
+              {dockTransitionLayer}
+              <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+                <button
+                  className="dock-icon-button publish-strip-button"
+                  type="button"
+                  onClick={() => void returnToLibraryFromPublished()}
+                  aria-label="Back to library"
+                >
+                  Back
+                </button>
+                <span className="dock-divider" aria-hidden="true" />
+                <button
+                  className="dock-icon-button publish-icon-button publish-strip-button"
+                  type="button"
+                  onClick={copyLink}
+                  aria-label="Share Strip"
+                >
+                  Share
+                </button>
+              </div>
+            </footer>
+            {notice ? <div className="notice">{notice}</div> : null}
+          </main>
+        </>
+      );
+    }
     return (
       <>
         {legacyTransitionLayer}
