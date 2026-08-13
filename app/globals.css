@@ -256,7 +256,7 @@ textarea:focus-visible,
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 20px;
+  gap: 8px;
 }
 
 .library-card {
@@ -289,12 +289,14 @@ textarea:focus-visible,
 
 .library-card h2 {
   margin: 8px 1px 0;
+  overflow: hidden;
   color: rgba(255, 255, 255, 0.92);
   font-size: 13px;
   font-weight: 480;
   line-height: 1.25;
   letter-spacing: -0.015em;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .library-add-button {
