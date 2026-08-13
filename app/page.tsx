@@ -934,9 +934,8 @@ export default function Home() {
       topSafeAreaColor,
     );
     document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    document.documentElement.style.backgroundColor =
-      view === "published" ? DEFAULT_BACKGROUND : topSafeAreaColor;
-  }, [topSafeAreaColor, view]);
+    document.documentElement.style.backgroundColor = topSafeAreaColor;
+  }, [topSafeAreaColor]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -2589,6 +2588,7 @@ export default function Home() {
               style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
+            <div className="published-bottom-color-anchor" aria-hidden="true" />
 
             <article className={`published-strip ${legacyPageEnterClass}`}>
               {renderStrip(false, publishedBlocks)}
