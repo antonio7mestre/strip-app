@@ -935,11 +935,9 @@ export default function Home() {
       topSafeAreaColor,
     );
     const root = document.documentElement;
-    const browserBackgroundColor =
-      view === "published" ? DEFAULT_BACKGROUND : topSafeAreaColor;
     root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    root.style.backgroundColor = browserBackgroundColor;
-    document.body.style.backgroundColor = browserBackgroundColor;
+    root.style.backgroundColor = topSafeAreaColor;
+    document.body.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor, view]);
 
   useEffect(() => {
