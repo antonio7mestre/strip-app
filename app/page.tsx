@@ -2588,7 +2588,6 @@ export default function Home() {
               style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
-            <div className="published-bottom-color-anchor" aria-hidden="true" />
 
             <article className={`published-strip ${legacyPageEnterClass}`}>
               {renderStrip(false, publishedBlocks)}
