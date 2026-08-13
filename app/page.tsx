@@ -2002,7 +2002,6 @@ export default function Home() {
             style={{ backgroundColor: DEFAULT_BACKGROUND }}
             aria-hidden="true"
           />
-          <div className="bottom-safe-area-anchor" aria-hidden="true" />
 
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
