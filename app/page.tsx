@@ -2592,31 +2592,6 @@ export default function Home() {
             <article className={`published-strip ${legacyPageEnterClass}`}>
               {renderStrip(false, publishedBlocks)}
             </article>
-            <footer
-              key="persistent-composer-dock"
-              className="composer-dock preview-dock"
-            >
-              {dockTransitionLayer}
-              <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
-                <button
-                  className="dock-icon-button publish-strip-button"
-                  type="button"
-                  onClick={() => void returnToLibraryFromPublished()}
-                  aria-label="Back to library"
-                >
-                  Back
-                </button>
-                <span className="dock-divider" aria-hidden="true" />
-                <button
-                  className="dock-icon-button publish-icon-button publish-strip-button"
-                  type="button"
-                  onClick={copyLink}
-                  aria-label="Share Strip"
-                >
-                  Share
-                </button>
-              </div>
-            </footer>
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
         </>

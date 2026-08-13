@@ -363,7 +363,14 @@ textarea:focus-visible,
 }
 
 .published-mode .strip-canvas {
-  padding-bottom: calc(148px + env(safe-area-inset-bottom));
+  min-height: 100lvh;
+  padding-bottom: 0;
+  background: var(--black);
+}
+
+.published-mode,
+.published-mode .published-strip {
+  min-height: 100lvh;
   background: var(--black);
 }
 
