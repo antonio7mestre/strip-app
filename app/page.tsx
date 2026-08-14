@@ -918,7 +918,6 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
-  const hasLeadingText = firstVisibleBlock?.type === "text";
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -969,28 +968,20 @@ export default function Home() {
     const applyLeadingImageLock = () => {
       const previousOffset = leadingImageScrollLockRef.current;
       const safeAreaFallback = calculateSafeAreaFallback();
-      const textTopOffset =
-        hasLeadingText && safeAreaFallback > 0
-          ? Math.max(1, safeAreaFallback - 10)
-          : 0;
-      const offset = hasLeadingImage ? safeAreaFallback : textTopOffset;
-      const releaseToTextTop =
-        !hasLeadingImage && releaseLeadingImageScrollLockRef.current;
+      const offset = hasLeadingImage ? safeAreaFallback : 0;
+      const releaseToPhysicalTop =
+        offset === 0 && releaseLeadingImageScrollLockRef.current;
       leadingImageScrollLockRef.current = offset;
       root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
-      root.style.setProperty(
-        "--top-content-safe-area-fallback",
-        `${hasLeadingText ? safeAreaFallback : 0}px`,
-      );
       root.classList.toggle(
         "leading-image-scroll-locked",
-        offset > 0 || releaseToTextTop,
+        offset > 0 || releaseToPhysicalTop,
       );
 
-      if (releaseToTextTop) {
+      if (offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
-      } else if (offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset);
+      } else if (releaseToPhysicalTop) {
+        setScrollTop(0);
       } else if (offset === 0 && previousOffset > 0 && window.scrollY <= previousOffset) {
         setScrollTop(0);
       }
@@ -1046,7 +1037,7 @@ export default function Home() {
       window.removeEventListener("resize", applyLeadingImageLock);
       root.classList.remove("leading-image-scroll-locked");
     };
-  }, [hasLeadingImage, hasLeadingText, view]);
+  }, [hasLeadingImage, view]);
 
   useEffect(
     () => () => {
