@@ -10,6 +10,7 @@
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
   --leading-image-scroll-lock: 0px;
+  --top-content-safe-area-fallback: 0px;
 }
 
 * {
@@ -1774,12 +1775,16 @@ textarea:focus-visible,
   .editor-mode .strip-canvas,
   .preview-mode .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
+    padding-top: calc(
+      env(safe-area-inset-top) + var(--top-content-safe-area-fallback)
+    );
   }
 
   .published-mode .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
+    padding-top: calc(
+      env(safe-area-inset-top) + var(--top-content-safe-area-fallback)
+    );
   }
 
   .editor-mode.has-leading-image .strip-canvas,
