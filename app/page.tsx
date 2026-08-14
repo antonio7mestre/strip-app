@@ -923,6 +923,8 @@ export default function Home() {
     let frame = 0;
     let followupFrame = 0;
     let applyingLock = false;
+    let mutationObserver: MutationObserver | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     const setScrollTop = (top: number) => {
       applyingLock = true;
@@ -972,6 +974,7 @@ export default function Home() {
       const offset = calculateLeadingImageLock();
       leadingImageScrollLockRef.current = offset;
       root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
+      root.classList.toggle("leading-image-scroll-locked", offset > 0);
 
       if (offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
@@ -995,11 +998,26 @@ export default function Home() {
     window.addEventListener("scroll", keepLockedTop, { passive: true });
     window.addEventListener("resize", applyLeadingImageLock);
 
+    const stripCanvas = document.querySelector<HTMLElement>(".strip-canvas");
+    if (stripCanvas) {
+      mutationObserver = new MutationObserver(keepLockedTop);
+      mutationObserver.observe(stripCanvas, {
+        childList: true,
+        subtree: true,
+      });
+
+      resizeObserver = new ResizeObserver(keepLockedTop);
+      resizeObserver.observe(stripCanvas);
+    }
+
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(followupFrame);
+      mutationObserver?.disconnect();
+      resizeObserver?.disconnect();
       window.removeEventListener("scroll", keepLockedTop);
       window.removeEventListener("resize", applyLeadingImageLock);
+      root.classList.remove("leading-image-scroll-locked");
     };
   }, [hasLeadingImage, view]);
 
@@ -1166,7 +1184,12 @@ export default function Home() {
       if (focusText) {
         element.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
       }
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      const bounds = element.getBoundingClientRect();
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const centeredTop =
+        window.scrollY + bounds.top - Math.max(0, (viewportHeight - bounds.height) / 2);
+      const targetTop = Math.max(leadingImageScrollLockRef.current, centeredTop);
+      window.scrollTo({ top: targetTop, behavior: "smooth" });
     });
   };
 

@@ -69,6 +69,13 @@ html.strip-page-transitioning {
   overflow: hidden;
 }
 
+html.leading-image-scroll-locked,
+html.leading-image-scroll-locked body,
+html.leading-image-scroll-locked .app-shell,
+html.leading-image-scroll-locked .strip-canvas {
+  overflow-anchor: none;
+}
+
 .legacy-page-transition-overlay {
   position: fixed;
   z-index: 2147483646;
