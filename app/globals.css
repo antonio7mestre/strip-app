@@ -1773,10 +1773,10 @@ textarea:focus-visible,
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
-    margin-top: 0;
-    margin-bottom: calc(-1 * env(safe-area-inset-top));
+    margin-top: calc(-1 * env(safe-area-inset-top));
+    margin-bottom: 0;
     padding-top: 0;
-    transform: translateY(calc(-1 * env(safe-area-inset-top)));
+    transform: none;
   }
 
   .app-shell::after {
