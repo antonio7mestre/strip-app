@@ -915,6 +915,7 @@ export default function Home() {
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
+  const hasLeadingImage = firstVisibleBlock?.type === "image";
 
   useEffect(
     () => () => {
@@ -2582,7 +2583,11 @@ export default function Home() {
       return (
         <>
           {legacyTransitionLayer}
-          <main className="app-shell reader-mode published-mode">
+          <main
+            className={`app-shell reader-mode published-mode ${
+              hasLeadingImage ? "has-leading-image" : ""
+            }`}
+          >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
               style={{ backgroundColor: topSafeAreaColor }}
@@ -2603,7 +2608,7 @@ export default function Home() {
         <main
           className={`app-shell reader-mode ${
             isPublished ? "published-mode" : "preview-mode"
-          }`}
+          } ${hasLeadingImage ? "has-leading-image" : ""}`}
         >
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -2695,7 +2700,7 @@ export default function Home() {
       <main
         className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
           editingTextBlockId ? "is-typing" : ""
-        }`}
+        } ${hasLeadingImage ? "has-leading-image" : ""}`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}

@@ -205,6 +205,10 @@ textarea:focus-visible,
   opacity: 1;
 }
 
+.has-leading-image .top-safe-area-anchor {
+  background: transparent !important;
+}
+
 .bottom-safe-area-anchor {
   position: fixed;
   z-index: 29;
@@ -1764,6 +1768,12 @@ textarea:focus-visible,
   .published-mode .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
+  }
+
+  .editor-mode.has-leading-image .strip-canvas,
+  .preview-mode.has-leading-image .strip-canvas,
+  .published-mode.has-leading-image .strip-canvas {
+    padding-top: 0;
   }
 
   .app-shell::after {
