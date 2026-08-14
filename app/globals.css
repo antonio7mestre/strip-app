@@ -196,7 +196,10 @@ textarea:focus-visible,
   background: #ffffff;
 }
 
-.app-shell.has-leading-image {
+.app-shell.has-leading-image,
+.editor-mode,
+.preview-mode,
+.published-mode {
   min-height: calc(100lvh + var(--leading-image-scroll-lock));
 }
 
