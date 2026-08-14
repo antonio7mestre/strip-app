@@ -917,6 +917,44 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
 
+  useEffect(() => {
+    const root = document.documentElement;
+
+    const updateLeadingImageLock = () => {
+      let offset = 0;
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      if (hasLeadingImage && isIOS && window.screen.height / window.screen.width > 2) {
+        const probe = document.createElement("div");
+        probe.style.cssText =
+          "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
+        document.body.appendChild(probe);
+        const reportedSafeTop = Number.parseFloat(
+          window.getComputedStyle(probe).paddingTop,
+        );
+        probe.remove();
+
+        if (!Number.isFinite(reportedSafeTop) || reportedSafeTop < 1) {
+          offset = Math.round(
+            Math.min(62, Math.max(47, window.screen.width * 0.154)),
+          );
+        }
+      }
+
+      root.style.setProperty("--leading-image-lock-offset", `${offset}px`);
+    };
+
+    updateLeadingImageLock();
+    window.addEventListener("resize", updateLeadingImageLock);
+
+    return () => {
+      window.removeEventListener("resize", updateLeadingImageLock);
+      root.style.setProperty("--leading-image-lock-offset", "0px");
+    };
+  }, [hasLeadingImage]);
+
   useEffect(
     () => () => {
       if (dockTransitionTimerRef.current !== null) {

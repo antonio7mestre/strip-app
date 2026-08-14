@@ -9,6 +9,7 @@
   --line: rgba(255, 255, 255, 0.14);
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
+  --leading-image-lock-offset: 0px;
 }
 
 * {
@@ -1774,9 +1775,9 @@ textarea:focus-visible,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
-    margin-bottom: 0;
+    margin-bottom: calc(-1 * var(--leading-image-lock-offset));
     padding-top: 0;
-    transform: none;
+    transform: translate3d(0, calc(-1 * var(--leading-image-lock-offset)), 0);
   }
 
   .app-shell::after {
