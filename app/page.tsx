@@ -971,7 +971,7 @@ export default function Home() {
       const safeAreaFallback = calculateSafeAreaFallback();
       const textTopOffset =
         hasLeadingText && safeAreaFallback > 0
-          ? Math.max(1, safeAreaFallback - 47)
+          ? Math.max(1, safeAreaFallback - 10)
           : 0;
       const offset = hasLeadingImage ? safeAreaFallback : textTopOffset;
       const releaseToTextTop =
