@@ -222,6 +222,13 @@ textarea:focus-visible,
   display: none;
 }
 
+.has-leading-text .top-safe-area-anchor {
+  height: max(
+    env(safe-area-inset-top),
+    var(--top-content-safe-area-fallback)
+  );
+}
+
 .bottom-safe-area-anchor {
   position: fixed;
   z-index: 29;
@@ -1783,8 +1790,11 @@ textarea:focus-visible,
     padding-top: env(safe-area-inset-top);
   }
 
-  .app-shell.has-leading-text .strip-canvas > .text-block:first-of-type {
-    padding-top: calc(12px + var(--top-content-safe-area-fallback));
+  .app-shell.has-leading-text .strip-canvas {
+    padding-top: max(
+      env(safe-area-inset-top),
+      var(--top-content-safe-area-fallback)
+    );
   }
 
   .editor-mode.has-leading-image .strip-canvas,
