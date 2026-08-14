@@ -897,6 +897,7 @@ export default function Home() {
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
   const leadingImageScrollLockRef = useRef(0);
+  const releaseLeadingImageScrollLockRef = useRef(false);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
@@ -922,6 +923,7 @@ export default function Home() {
     const root = document.documentElement;
     let frame = 0;
     let followupFrame = 0;
+    let releaseFrame = 0;
     let applyingLock = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -972,12 +974,19 @@ export default function Home() {
     const applyLeadingImageLock = () => {
       const previousOffset = leadingImageScrollLockRef.current;
       const offset = calculateLeadingImageLock();
+      const releaseToPhysicalTop =
+        offset === 0 && releaseLeadingImageScrollLockRef.current;
       leadingImageScrollLockRef.current = offset;
       root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
-      root.classList.toggle("leading-image-scroll-locked", offset > 0);
+      root.classList.toggle(
+        "leading-image-scroll-locked",
+        offset > 0 || releaseToPhysicalTop,
+      );
 
       if (offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
+      } else if (releaseToPhysicalTop) {
+        setScrollTop(0);
       } else if (offset === 0 && previousOffset > 0 && window.scrollY <= previousOffset) {
         setScrollTop(0);
       }
@@ -993,7 +1002,18 @@ export default function Home() {
     applyLeadingImageLock();
     frame = window.requestAnimationFrame(() => {
       applyLeadingImageLock();
-      followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
+      followupFrame = window.requestAnimationFrame(() => {
+        applyLeadingImageLock();
+        if (
+          releaseLeadingImageScrollLockRef.current &&
+          leadingImageScrollLockRef.current === 0
+        ) {
+          releaseLeadingImageScrollLockRef.current = false;
+          releaseFrame = window.requestAnimationFrame(() => {
+            root.classList.remove("leading-image-scroll-locked");
+          });
+        }
+      });
     });
     window.addEventListener("scroll", keepLockedTop, { passive: true });
     window.addEventListener("resize", applyLeadingImageLock);
@@ -1013,6 +1033,7 @@ export default function Home() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(followupFrame);
+      window.cancelAnimationFrame(releaseFrame);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
       window.removeEventListener("scroll", keepLockedTop);
@@ -1319,11 +1340,26 @@ export default function Home() {
   };
 
   const moveBlock = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    const nextLeadingBlock =
+      target === 0 ? blocks[index] : index === 0 ? blocks[target] : blocks[0];
+    const lockedTop = leadingImageScrollLockRef.current;
+
+    if (
+      target >= 0 &&
+      target < blocks.length &&
+      nextLeadingBlock?.type === "text" &&
+      lockedTop > 0 &&
+      window.scrollY <= lockedTop + 2
+    ) {
+      releaseLeadingImageScrollLockRef.current = true;
+    }
+
     setBlocks((current) => {
       const next = [...current];
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return current;
-      [next[index], next[target]] = [next[target], next[index]];
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= next.length) return current;
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
   };
