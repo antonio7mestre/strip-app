@@ -918,6 +918,7 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
+  const hasLeadingText = firstVisibleBlock?.type === "text";
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -973,6 +974,10 @@ export default function Home() {
         offset === 0 && releaseLeadingImageScrollLockRef.current;
       leadingImageScrollLockRef.current = offset;
       root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
+      root.style.setProperty(
+        "--top-content-safe-area-fallback",
+        `${safeAreaFallback}px`,
+      );
       root.classList.toggle(
         "leading-image-scroll-locked",
         offset > 0 || releaseToPhysicalTop,
@@ -2728,7 +2733,7 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            }`}
+            } ${hasLeadingText ? "has-leading-text" : ""}`}
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -2750,7 +2755,9 @@ export default function Home() {
         <main
           className={`app-shell reader-mode ${
             isPublished ? "published-mode" : "preview-mode"
-          } ${hasLeadingImage ? "has-leading-image" : ""}`}
+          } ${hasLeadingImage ? "has-leading-image" : ""} ${
+            hasLeadingText ? "has-leading-text" : ""
+          }`}
         >
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -2842,7 +2849,9 @@ export default function Home() {
       <main
         className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
           editingTextBlockId ? "is-typing" : ""
-        } ${hasLeadingImage ? "has-leading-image" : ""}`}
+        } ${hasLeadingImage ? "has-leading-image" : ""} ${
+          hasLeadingText ? "has-leading-text" : ""
+        }`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
