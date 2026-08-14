@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type {
   ChangeEvent,
@@ -896,6 +896,7 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const leadingImageScrollLockRef = useRef(0);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
@@ -917,16 +918,36 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
+    let frame = 0;
+    let followupFrame = 0;
+    let applyingLock = false;
 
-    const updateLeadingImageLock = () => {
+    const setScrollTop = (top: number) => {
+      applyingLock = true;
+      window.scrollTo({ top, behavior: "auto" });
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
+      window.requestAnimationFrame(() => {
+        applyingLock = false;
+      });
+    };
+
+    const calculateLeadingImageLock = () => {
       let offset = 0;
       const isIOS =
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const stripIsVisible =
+        view === "edit" || view === "preview" || view === "published";
 
-      if (hasLeadingImage && isIOS && window.screen.height / window.screen.width > 2) {
+      if (
+        stripIsVisible &&
+        hasLeadingImage &&
+        isIOS &&
+        window.screen.height / window.screen.width > 2
+      ) {
         const probe = document.createElement("div");
         probe.style.cssText =
           "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
@@ -943,17 +964,44 @@ export default function Home() {
         }
       }
 
-      root.style.setProperty("--leading-image-lock-offset", `${offset}px`);
+      return offset;
     };
 
-    updateLeadingImageLock();
-    window.addEventListener("resize", updateLeadingImageLock);
+    const applyLeadingImageLock = () => {
+      const previousOffset = leadingImageScrollLockRef.current;
+      const offset = calculateLeadingImageLock();
+      leadingImageScrollLockRef.current = offset;
+      root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
+
+      if (offset > 0 && window.scrollY < offset) {
+        setScrollTop(offset);
+      } else if (offset === 0 && previousOffset > 0 && window.scrollY <= previousOffset) {
+        setScrollTop(0);
+      }
+    };
+
+    const keepLockedTop = () => {
+      const offset = leadingImageScrollLockRef.current;
+      if (!applyingLock && offset > 0 && window.scrollY < offset) {
+        setScrollTop(offset);
+      }
+    };
+
+    applyLeadingImageLock();
+    frame = window.requestAnimationFrame(() => {
+      applyLeadingImageLock();
+      followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
+    });
+    window.addEventListener("scroll", keepLockedTop, { passive: true });
+    window.addEventListener("resize", applyLeadingImageLock);
 
     return () => {
-      window.removeEventListener("resize", updateLeadingImageLock);
-      root.style.setProperty("--leading-image-lock-offset", "0px");
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(followupFrame);
+      window.removeEventListener("scroll", keepLockedTop);
+      window.removeEventListener("resize", applyLeadingImageLock);
     };
-  }, [hasLeadingImage]);
+  }, [hasLeadingImage, view]);
 
   useEffect(
     () => () => {

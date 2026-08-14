@@ -9,7 +9,7 @@
   --line: rgba(255, 255, 255, 0.14);
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
-  --leading-image-lock-offset: 0px;
+  --leading-image-scroll-lock: 0px;
 }
 
 * {
@@ -186,6 +186,10 @@ textarea:focus-visible,
   position: relative;
   min-height: 100lvh;
   background: #ffffff;
+}
+
+.app-shell.has-leading-image {
+  min-height: calc(100lvh + var(--leading-image-scroll-lock));
 }
 
 .top-safe-area-anchor,
@@ -1775,9 +1779,9 @@ textarea:focus-visible,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
-    margin-bottom: calc(-1 * var(--leading-image-lock-offset));
+    margin-bottom: 0;
     padding-top: 0;
-    transform: translate3d(0, calc(-1 * var(--leading-image-lock-offset)), 0);
+    transform: none;
   }
 
   .app-shell::after {
