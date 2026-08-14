@@ -884,8 +884,6 @@ export default function Home() {
   const [coverColorPickerOpen, setCoverColorPickerOpen] = useState(false);
   const [pendingCoverColor, setPendingCoverColor] = useState("#2147D9");
   const [blackCoverWarningVisible, setBlackCoverWarningVisible] = useState(false);
-  const [leadingImageEdgeColor, setLeadingImageEdgeColor] =
-    useState(DEFAULT_BACKGROUND);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
   );
@@ -916,81 +914,8 @@ export default function Home() {
       ? DEFAULT_BACKGROUND
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
-      : firstVisibleBlock?.type === "image"
-      ? leadingImageEdgeColor
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
-
-  useEffect(() => {
-    if (firstVisibleBlock?.type !== "image") {
-      setLeadingImageEdgeColor(DEFAULT_BACKGROUND);
-      return;
-    }
-
-    let cancelled = false;
-    const source = firstVisibleBlock.src;
-    const image = new Image();
-    image.decoding = "async";
-
-    image.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const sampleWidth = 96;
-        const sampleHeight = 12;
-        const sourceHeight = Math.max(1, Math.round(image.naturalHeight * 0.1));
-        canvas.width = sampleWidth;
-        canvas.height = sampleHeight;
-
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) return;
-
-        context.drawImage(
-          image,
-          0,
-          0,
-          image.naturalWidth,
-          sourceHeight,
-          0,
-          0,
-          sampleWidth,
-          sampleHeight,
-        );
-
-        const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
-        let red = 0;
-        let green = 0;
-        let blue = 0;
-        let weight = 0;
-
-        for (let index = 0; index < pixels.length; index += 4) {
-          const alpha = pixels[index + 3] / 255;
-          red += pixels[index] * alpha;
-          green += pixels[index + 1] * alpha;
-          blue += pixels[index + 2] * alpha;
-          weight += alpha;
-        }
-
-        if (!cancelled && weight > 0) {
-          setLeadingImageEdgeColor(
-            `rgb(${Math.round(red / weight)}, ${Math.round(
-              green / weight,
-            )}, ${Math.round(blue / weight)})`,
-          );
-        }
-      } catch {
-        if (!cancelled) setLeadingImageEdgeColor(DEFAULT_BACKGROUND);
-      }
-    };
-
-    image.onerror = () => {
-      if (!cancelled) setLeadingImageEdgeColor(DEFAULT_BACKGROUND);
-    };
-    image.src = source;
-
-    return () => {
-      cancelled = true;
-    };
-  }, [firstVisibleBlock]);
 
   useEffect(
     () => () => {
