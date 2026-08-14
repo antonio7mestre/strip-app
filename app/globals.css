@@ -206,7 +206,7 @@ textarea:focus-visible,
 }
 
 .has-leading-image .top-safe-area-anchor {
-  background: transparent !important;
+  display: none;
 }
 
 .bottom-safe-area-anchor {
