@@ -897,7 +897,6 @@ export default function Home() {
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
   const leadingImageScrollLockRef = useRef(0);
-  const releaseLeadingImageScrollLockRef = useRef(false);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
@@ -918,13 +917,11 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
-  const hasLeadingText = firstVisibleBlock?.type === "text";
 
   useLayoutEffect(() => {
     const root = document.documentElement;
     let frame = 0;
     let followupFrame = 0;
-    let releaseFrame = 0;
     let applyingLock = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -939,14 +936,20 @@ export default function Home() {
       });
     };
 
-    const calculateSafeAreaFallback = () => {
+    const calculateLeadingImageLock = () => {
+      let offset = 0;
       const isIOS =
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       const stripIsVisible =
         view === "edit" || view === "preview" || view === "published";
 
-      if (stripIsVisible && isIOS && window.screen.height / window.screen.width > 2) {
+      if (
+        stripIsVisible &&
+        hasLeadingImage &&
+        isIOS &&
+        window.screen.height / window.screen.width > 2
+      ) {
         const probe = document.createElement("div");
         probe.style.cssText =
           "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
@@ -957,36 +960,24 @@ export default function Home() {
         probe.remove();
 
         if (!Number.isFinite(reportedSafeTop) || reportedSafeTop < 1) {
-          return Math.round(
+          offset = Math.round(
             Math.min(62, Math.max(47, window.screen.width * 0.154)),
           );
         }
       }
 
-      return 0;
+      return offset;
     };
 
     const applyLeadingImageLock = () => {
       const previousOffset = leadingImageScrollLockRef.current;
-      const safeAreaFallback = calculateSafeAreaFallback();
-      const offset = hasLeadingImage ? safeAreaFallback : 0;
-      const releaseToPhysicalTop =
-        offset === 0 && releaseLeadingImageScrollLockRef.current;
+      const offset = calculateLeadingImageLock();
       leadingImageScrollLockRef.current = offset;
       root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
-      root.style.setProperty(
-        "--top-content-safe-area-fallback",
-        `${safeAreaFallback}px`,
-      );
-      root.classList.toggle(
-        "leading-image-scroll-locked",
-        offset > 0 || releaseToPhysicalTop,
-      );
+      root.classList.toggle("leading-image-scroll-locked", offset > 0);
 
       if (offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
-      } else if (releaseToPhysicalTop) {
-        setScrollTop(0);
       } else if (offset === 0 && previousOffset > 0 && window.scrollY <= previousOffset) {
         setScrollTop(0);
       }
@@ -1002,20 +993,7 @@ export default function Home() {
     applyLeadingImageLock();
     frame = window.requestAnimationFrame(() => {
       applyLeadingImageLock();
-      followupFrame = window.requestAnimationFrame(() => {
-        applyLeadingImageLock();
-        if (
-          releaseLeadingImageScrollLockRef.current &&
-          !hasLeadingImage
-        ) {
-          releaseLeadingImageScrollLockRef.current = false;
-          if (leadingImageScrollLockRef.current === 0) {
-            releaseFrame = window.requestAnimationFrame(() => {
-              root.classList.remove("leading-image-scroll-locked");
-            });
-          }
-        }
-      });
+      followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
     });
     window.addEventListener("scroll", keepLockedTop, { passive: true });
     window.addEventListener("resize", applyLeadingImageLock);
@@ -1035,7 +1013,6 @@ export default function Home() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(followupFrame);
-      window.cancelAnimationFrame(releaseFrame);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
       window.removeEventListener("scroll", keepLockedTop);
@@ -1342,26 +1319,11 @@ export default function Home() {
   };
 
   const moveBlock = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    const nextLeadingBlock =
-      target === 0 ? blocks[index] : index === 0 ? blocks[target] : blocks[0];
-    const lockedTop = leadingImageScrollLockRef.current;
-
-    if (
-      target >= 0 &&
-      target < blocks.length &&
-      nextLeadingBlock?.type === "text" &&
-      lockedTop > 0 &&
-      window.scrollY <= lockedTop + 2
-    ) {
-      releaseLeadingImageScrollLockRef.current = true;
-    }
-
     setBlocks((current) => {
       const next = [...current];
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= next.length) return current;
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
   };
@@ -2733,7 +2695,7 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            } ${hasLeadingText ? "has-leading-text" : ""}`}
+            }`}
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -2755,9 +2717,7 @@ export default function Home() {
         <main
           className={`app-shell reader-mode ${
             isPublished ? "published-mode" : "preview-mode"
-          } ${hasLeadingImage ? "has-leading-image" : ""} ${
-            hasLeadingText ? "has-leading-text" : ""
-          }`}
+          } ${hasLeadingImage ? "has-leading-image" : ""}`}
         >
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -2849,9 +2809,7 @@ export default function Home() {
       <main
         className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
           editingTextBlockId ? "is-typing" : ""
-        } ${hasLeadingImage ? "has-leading-image" : ""} ${
-          hasLeadingText ? "has-leading-text" : ""
-        }`}
+        } ${hasLeadingImage ? "has-leading-image" : ""}`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
