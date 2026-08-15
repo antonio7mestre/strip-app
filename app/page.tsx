@@ -1319,13 +1319,21 @@ export default function Home() {
   };
 
   const moveBlock = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    const movedTextToTop = target === 0 && blocks[index]?.type === "text";
+
     setBlocks((current) => {
       const next = [...current];
-      const target = index + direction;
       if (target < 0 || target >= next.length) return current;
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+
+    if (movedTextToTop) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      });
+    }
   };
 
   const hasContent = blocks.some(
