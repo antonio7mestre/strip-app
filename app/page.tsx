@@ -1320,7 +1320,10 @@ export default function Home() {
 
   const moveBlock = (index: number, direction: -1 | 1) => {
     const target = index + direction;
-    const movedTextToTop = target === 0 && blocks[index]?.type === "text";
+    const nextTopBlock =
+      target === 0 ? blocks[index] : index === 0 ? blocks[target] : blocks[0];
+    const textWillBecomeTop =
+      blocks[0]?.type !== "text" && nextTopBlock?.type === "text";
 
     setBlocks((current) => {
       const next = [...current];
@@ -1329,7 +1332,7 @@ export default function Home() {
       return next;
     });
 
-    if (movedTextToTop) {
+    if (textWillBecomeTop) {
       const root = document.documentElement;
       const releaseOffset = Math.max(
         leadingImageScrollLockRef.current,
