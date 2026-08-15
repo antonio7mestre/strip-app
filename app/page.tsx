@@ -1330,11 +1330,40 @@ export default function Home() {
     });
 
     if (movedTextToTop) {
+      const root = document.documentElement;
+      const releaseOffset = Math.max(
+        leadingImageScrollLockRef.current,
+        Math.ceil(window.scrollY),
+        Math.round(Math.min(62, Math.max(47, window.screen.width * 0.154))),
+      );
+
+      root.style.setProperty("--text-first-scroll-release", `${releaseOffset}px`);
+      root.classList.add("is-releasing-leading-image-scroll");
+
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
-          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-          document.documentElement.scrollTop = 0;
-          document.body.scrollTop = 0;
+          let attempts = 0;
+
+          const settleAtTop = () => {
+            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+            attempts += 1;
+
+            if (window.scrollY > 0.5 && attempts < 8) {
+              window.requestAnimationFrame(settleAtTop);
+              return;
+            }
+
+            window.requestAnimationFrame(() => {
+              root.classList.remove("is-releasing-leading-image-scroll");
+              root.style.removeProperty("--text-first-scroll-release");
+              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            });
+          };
+
+          settleAtTop();
         });
       });
     }

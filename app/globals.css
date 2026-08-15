@@ -199,6 +199,10 @@ textarea:focus-visible,
   min-height: calc(100lvh + var(--leading-image-scroll-lock));
 }
 
+html.is-releasing-leading-image-scroll .app-shell.editor-mode {
+  min-height: calc(100lvh + var(--text-first-scroll-release, 62px));
+}
+
 .top-safe-area-anchor,
 .bottom-safe-area-anchor {
   position: absolute;
