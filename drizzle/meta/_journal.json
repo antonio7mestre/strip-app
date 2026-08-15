@@ -15,6 +15,13 @@
       "when": 1786582353664,
       "tag": "0001_tough_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786757131628,
+      "tag": "0002_common_warhawk",
+      "breakpoints": true
     }
   ]
 }

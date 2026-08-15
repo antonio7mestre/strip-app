@@ -49,26 +49,45 @@ export async function GET(
 ) {
   const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
   const { id } = await context.params;
-  if (!OWNER_PATTERN.test(ownerId) || !ID_PATTERN.test(id)) {
+  if ((ownerId && !OWNER_PATTERN.test(ownerId)) || !ID_PATTERN.test(id)) {
     return new Response("Not found", { status: 404 });
   }
 
-  const row = await env.DB.prepare(
-    `SELECT id, title, cover_kind, cover_color, cover_alt,
-      content_json, published_at
-     FROM strips
-     WHERE id = ? AND owner_id = ?`,
-  )
-    .bind(id, ownerId)
-    .first<{
-      id: string;
-      title: string;
-      cover_kind: "image" | "color";
-      cover_color: string | null;
-      cover_alt: string | null;
-      content_json: string;
-      published_at: number;
-    }>();
+  const row = ownerId
+    ? await env.DB.prepare(
+        `SELECT id, owner_id, title, cover_kind, cover_color, cover_alt,
+          content_json, published_at
+         FROM strips
+         WHERE id = ? AND owner_id = ?`,
+      )
+        .bind(id, ownerId)
+        .first<{
+          id: string;
+          owner_id: string;
+          title: string;
+          cover_kind: "image" | "color";
+          cover_color: string | null;
+          cover_alt: string | null;
+          content_json: string;
+          published_at: number;
+        }>()
+    : await env.DB.prepare(
+        `SELECT id, owner_id, title, cover_kind, cover_color, cover_alt,
+          content_json, published_at
+         FROM strips
+         WHERE id = ?`,
+      )
+        .bind(id)
+        .first<{
+          id: string;
+          owner_id: string;
+          title: string;
+          cover_kind: "image" | "color";
+          cover_color: string | null;
+          cover_alt: string | null;
+          content_json: string;
+          published_at: number;
+        }>();
   if (!row) return new Response("Not found", { status: 404 });
 
   let storedBlocks: StoredBlock[] = [];
@@ -87,7 +106,7 @@ export async function GET(
       {
         id: block.id,
         type: block.type,
-        src: mediaPath(ownerId, id, block.id),
+        src: mediaPath(row.owner_id, id, block.id),
         alt: block.alt ?? "",
       },
     ];
@@ -99,7 +118,7 @@ export async function GET(
             {
               id: `cover-${row.id}`,
               type: "image" as const,
-              src: coverPath(ownerId, id),
+              src: coverPath(row.owner_id, id),
               alt: row.cover_alt ?? "Strip cover",
             },
           ]

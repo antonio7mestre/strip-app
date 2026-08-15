@@ -16,6 +16,8 @@ import {
   Check,
   Clapperboard,
   Eye,
+  Files,
+  House,
   ImagePlus,
   Minus,
   PaintBucket,
@@ -57,6 +59,7 @@ type VideoBlock = {
 type StripBlock = TextBlock | ImageBlock | VideoBlock;
 type View =
   | "library"
+  | "drafts"
   | "edit"
   | "preview"
   | "publish-setup"
@@ -80,6 +83,25 @@ type PublishedStripDetail = {
   publishedAt: number;
   blocks: StripBlock[];
 };
+type DraftStripSummary = {
+  id: string;
+  title: string;
+  cover: PublishedCover;
+  createdAt: number;
+  updatedAt: number;
+};
+type DraftStripDetail = {
+  id: string;
+  title: string;
+  blocks: StripBlock[];
+  createdAt: number;
+  updatedAt: number;
+};
+type AppRoute =
+  | { kind: "library" }
+  | { kind: "drafts" }
+  | { kind: "edit"; id: string }
+  | { kind: "published"; id: string };
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -149,6 +171,33 @@ const TEXT_COLORS = [
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function routeFromPathname(pathname: string): AppRoute {
+  const editMatch = /^\/edit\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
+  if (editMatch) return { kind: "edit", id: editMatch[1] };
+  const publishedMatch = /^\/strip\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
+  if (publishedMatch) return { kind: "published", id: publishedMatch[1] };
+  if (/^\/drafts\/?$/.test(pathname)) return { kind: "drafts" };
+  return { kind: "library" };
+}
+
+function draftFallbackTitle(timestamp: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function setBrowserPath(pathname: string, replace = false) {
+  if (window.location.pathname === pathname) return;
+  if (replace) {
+    window.history.replaceState({}, "", pathname);
+  } else {
+    window.history.pushState({}, "", pathname);
+  }
 }
 
 function isPureBlackCoverColor(color: string) {
@@ -844,11 +893,16 @@ function StripVideoBlock({
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
+  const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
   const [libraryLoading, setLibraryLoading] = useState(true);
+  const [draftsLoading, setDraftsLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
+  const [openingDraftId, setOpeningDraftId] = useState<string | null>(null);
   const [openedPublishedStrip, setOpenedPublishedStrip] =
     useState<PublishedStripDetail | null>(null);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [currentDraftCreatedAt, setCurrentDraftCreatedAt] = useState(0);
   const [publishing, setPublishing] = useState(false);
   const [view, setView] = useState<View>("library");
   const [legacyPageTransition, setLegacyPageTransition] =
@@ -900,6 +954,10 @@ export default function Home() {
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
+  const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
+  const initialRouteHandledRef = useRef(false);
+  const draftSaveTimerRef = useRef<number | null>(null);
+  const draftSaveSequenceRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "edit"
@@ -911,7 +969,10 @@ export default function Home() {
           (block) => block.type !== "text" || block.content.trim().length > 0,
         );
   const topSafeAreaColor =
-    view === "library" || view === "publish-setup" || view === "title-setup"
+    view === "library" ||
+    view === "drafts" ||
+    view === "publish-setup" ||
+    view === "title-setup"
       ? DEFAULT_BACKGROUND
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
@@ -1029,6 +1090,9 @@ export default function Home() {
       if (dockTransitionFrameRef.current !== null) {
         window.cancelAnimationFrame(dockTransitionFrameRef.current);
       }
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current);
+      }
     },
     [],
   );
@@ -1104,7 +1168,12 @@ export default function Home() {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) setBlocks(JSON.parse(saved) as StripBlock[]);
+      if (saved) {
+        const parsed = JSON.parse(saved) as unknown;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          legacyDraftBlocksRef.current = parsed as StripBlock[];
+        }
+      }
       const savedOwnerId = window.localStorage.getItem(OWNER_STORAGE_KEY);
       const ownerId =
         savedOwnerId && /^[a-zA-Z0-9_-]{8,128}$/.test(savedOwnerId)
@@ -1118,15 +1187,6 @@ export default function Home() {
     }
     setLoaded(true);
   }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks));
-    } catch {
-      setNotice("This draft is too large to save on this device.");
-    }
-  }, [blocks, loaded]);
 
   useEffect(() => {
     if (!libraryOwnerId) return;
@@ -1152,6 +1212,123 @@ export default function Home() {
       });
     return () => controller.abort();
   }, [libraryOwnerId]);
+
+  useEffect(() => {
+    if (!libraryOwnerId) return;
+    const controller = new AbortController();
+    setDraftsLoading(true);
+    void fetch(`/api/drafts?ownerId=${encodeURIComponent(libraryOwnerId)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Draft library request failed");
+        const data = (await response.json()) as { drafts?: DraftStripSummary[] };
+        setDraftStrips(Array.isArray(data.drafts) ? data.drafts : []);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setNotice("Couldn’t load your drafts. Try refreshing.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDraftsLoading(false);
+      });
+    return () => controller.abort();
+  }, [libraryOwnerId]);
+
+  useEffect(() => {
+    if (!loaded || !libraryOwnerId || !legacyDraftBlocksRef.current) return;
+    const legacyBlocks = legacyDraftBlocksRef.current;
+    legacyDraftBlocksRef.current = null;
+    const id = makeId();
+    const createdAt = Date.now();
+    void fetch("/api/drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ownerId: libraryOwnerId,
+        id,
+        title: "",
+        blocks: legacyBlocks,
+        createdAt,
+        updatedAt: createdAt,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Legacy draft migration failed");
+        const data = (await response.json()) as { draft: DraftStripSummary };
+        setDraftStrips((current) => [
+          data.draft,
+          ...current.filter((draft) => draft.id !== data.draft.id),
+        ]);
+        window.localStorage.removeItem(STORAGE_KEY);
+      })
+      .catch(() => {
+        legacyDraftBlocksRef.current = legacyBlocks;
+      });
+  }, [libraryOwnerId, loaded]);
+
+  useEffect(() => {
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+    if (
+      !loaded ||
+      !libraryOwnerId ||
+      !currentDraftId ||
+      blocks.length === 0
+    ) {
+      return;
+    }
+
+    const sequence = ++draftSaveSequenceRef.current;
+    const updatedAt = Date.now();
+    const createdAt = currentDraftCreatedAt || updatedAt;
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      draftSaveTimerRef.current = null;
+      void fetch("/api/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ownerId: libraryOwnerId,
+          id: currentDraftId,
+          title: stripTitle,
+          blocks,
+          createdAt,
+          updatedAt,
+        }),
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Draft save failed");
+          const data = (await response.json()) as { draft: DraftStripSummary };
+          setDraftStrips((current) => [
+            data.draft,
+            ...current.filter((draft) => draft.id !== data.draft.id),
+          ]);
+          window.localStorage.removeItem(STORAGE_KEY);
+        })
+        .catch(() => {
+          if (sequence === draftSaveSequenceRef.current) {
+            setNotice("Couldn’t save this draft yet.");
+          }
+        });
+    }, 450);
+
+    return () => {
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    blocks,
+    currentDraftCreatedAt,
+    currentDraftId,
+    libraryOwnerId,
+    loaded,
+    stripTitle,
+  ]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1870,19 +2047,77 @@ export default function Home() {
   };
 
   const beginNewStrip = () => {
-    if (!hasContent) {
-      setBlocks([]);
-      setStripTitle("");
+    const draftId = makeId();
+    setCurrentDraftId(draftId);
+    setCurrentDraftCreatedAt(Date.now());
+    setBlocks([]);
+    setStripTitle("");
+    setSelectedCover("");
+    setActiveCoverKey("");
+    setCustomCoverSrc(null);
+    setCustomCoverColors([]);
+    setCoverColorShape("square");
+    setSelectedBlockId(null);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+    setOpenedPublishedStrip(null);
+    setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
+    void transitionToView("edit", "forward", "top", false);
+  };
+
+  const openDraft = async (draft: DraftStripSummary) => {
+    if (!libraryOwnerId || openingDraftId || pageTransitionInFlightRef.current) return;
+    setOpeningDraftId(draft.id);
+    pageTransitionInFlightRef.current = true;
+    try {
+      const response = await fetch(
+        `/api/drafts/${encodeURIComponent(draft.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error("Draft request failed");
+      const data = (await response.json()) as { draft: DraftStripDetail };
+      setCurrentDraftId(data.draft.id);
+      setCurrentDraftCreatedAt(data.draft.createdAt);
+      setBlocks(data.draft.blocks);
+      setStripTitle(data.draft.title);
+      setSelectedBlockId(null);
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
       setSelectedCover("");
       setActiveCoverKey("");
       setCustomCoverSrc(null);
       setCustomCoverColors([]);
       setCoverColorShape("square");
+      setBrowserPath(`/edit/${encodeURIComponent(data.draft.id)}`);
+      await transitionToView("edit", "forward", "top", false);
+    } catch {
+      setNotice("Couldn’t open this draft. Try again.");
+    } finally {
+      setOpeningDraftId(null);
+      pageTransitionInFlightRef.current = false;
     }
-    setSelectedBlockId(null);
-    setEditingTextBlockId(null);
-    setActiveTextTool(null);
-    void transitionToView("edit", "forward", "top", false);
+  };
+
+  const openDraftLibrary = async () => {
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
+    try {
+      setBrowserPath("/drafts");
+      await transitionToView("drafts", "forward", "top", false);
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
+  };
+
+  const returnToLibrary = async () => {
+    if (pageTransitionInFlightRef.current) return;
+    pageTransitionInFlightRef.current = true;
+    try {
+      setBrowserPath("/");
+      await transitionToView("library", "backward", "top", false);
+    } finally {
+      pageTransitionInFlightRef.current = false;
+    }
   };
 
   const openPublishedStrip = async (strip: PublishedStripSummary) => {
@@ -1897,6 +2132,7 @@ export default function Home() {
       if (!response.ok) throw new Error("Strip request failed");
       const data = (await response.json()) as { strip: PublishedStripDetail };
       setOpenedPublishedStrip(data.strip);
+      setBrowserPath(`/strip/${encodeURIComponent(data.strip.id)}`);
       await transitionToView("published", "forward", "top", false);
     } catch {
       setNotice("Couldn’t open this Strip. Try again.");
@@ -1910,12 +2146,92 @@ export default function Home() {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
+      setBrowserPath("/");
       await transitionToView("library", "backward", "top", false);
       setOpenedPublishedStrip(null);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
   };
+
+  useEffect(() => {
+    if (!libraryOwnerId || initialRouteHandledRef.current) return;
+    initialRouteHandledRef.current = true;
+    let cancelled = false;
+
+    const applyRoute = async () => {
+      const route = routeFromPathname(window.location.pathname);
+      if (route.kind === "library") {
+        setView("library");
+        setOpenedPublishedStrip(null);
+        window.scrollTo({ top: 0, behavior: "auto" });
+        return;
+      }
+      if (route.kind === "drafts") {
+        setView("drafts");
+        setOpenedPublishedStrip(null);
+        window.scrollTo({ top: 0, behavior: "auto" });
+        return;
+      }
+      if (route.kind === "edit") {
+        try {
+          const response = await fetch(
+            `/api/drafts/${encodeURIComponent(route.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+            { cache: "no-store" },
+          );
+          if (cancelled) return;
+          if (response.status === 404) {
+            setCurrentDraftId(route.id);
+            setCurrentDraftCreatedAt(Date.now());
+            setBlocks([]);
+            setStripTitle("");
+          } else {
+            if (!response.ok) throw new Error("Draft route request failed");
+            const data = (await response.json()) as { draft: DraftStripDetail };
+            if (cancelled) return;
+            setCurrentDraftId(data.draft.id);
+            setCurrentDraftCreatedAt(data.draft.createdAt);
+            setBlocks(data.draft.blocks);
+            setStripTitle(data.draft.title);
+          }
+          setSelectedBlockId(null);
+          setEditingTextBlockId(null);
+          setActiveTextTool(null);
+          setOpenedPublishedStrip(null);
+          setView("edit");
+          window.scrollTo({ top: 0, behavior: "auto" });
+        } catch {
+          if (!cancelled) setNotice("Couldn’t open this draft. Try again.");
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/strips/${encodeURIComponent(route.id)}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Published route request failed");
+        const data = (await response.json()) as { strip: PublishedStripDetail };
+        if (cancelled) return;
+        setOpenedPublishedStrip(data.strip);
+        setView("published");
+        window.scrollTo({ top: 0, behavior: "auto" });
+      } catch {
+        if (cancelled) return;
+        setBrowserPath("/", true);
+        setView("library");
+        setNotice("Couldn’t open this Strip.");
+      }
+    };
+
+    const handlePopState = () => void applyRoute();
+    void applyRoute();
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [libraryOwnerId]);
 
   const publish = async () => {
     if (!hasContent) {
@@ -1964,6 +2280,27 @@ export default function Home() {
         strip: PublishedStripSummary;
       };
       setPublishedStrips((current) => [data.strip, ...current]);
+      setOpenedPublishedStrip({
+        id: stripId,
+        title: stripTitle.trim(),
+        publishedAt,
+        blocks,
+      });
+      if (currentDraftId) {
+        try {
+          await fetch(
+            `/api/drafts/${encodeURIComponent(currentDraftId)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+            { method: "DELETE" },
+          );
+        } catch {
+          // Publishing succeeds even if draft cleanup has to be retried later.
+        }
+        setDraftStrips((current) =>
+          current.filter((draft) => draft.id !== currentDraftId),
+        );
+      }
+      setCurrentDraftId(null);
+      setCurrentDraftCreatedAt(0);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
       setSelectedBlockId(null);
@@ -1974,7 +2311,8 @@ export default function Home() {
       setCustomCoverSrc(null);
       setCustomCoverColors([]);
       setCoverColorShape("square");
-      await transitionToView("library", "forward", "top", false);
+      setBrowserPath(`/strip/${encodeURIComponent(stripId)}`);
+      await transitionToView("published", "forward", "top", false);
     } catch {
       setNotice("Couldn’t publish this Strip. Try again.");
     } finally {
@@ -2167,45 +2505,69 @@ export default function Home() {
     dockTransition ? "is-entering" : ""
   } ${dockTransitionStarted ? "is-transitioning" : ""}`;
 
-  if (view === "library") {
+  if (view === "library" || view === "drafts") {
+    const isDraftLibrary = view === "drafts";
+    const libraryItems = isDraftLibrary ? draftStrips : publishedStrips;
     const libraryColumns = [
-      publishedStrips.filter((_, index) => index % 2 === 0),
-      publishedStrips.filter((_, index) => index % 2 === 1),
+      libraryItems.filter((_, index) => index % 2 === 0),
+      libraryItems.filter((_, index) => index % 2 === 1),
     ];
 
-    const renderLibraryCard = (strip: PublishedStripSummary) => (
-      <button
-        className="library-card"
-        type="button"
-        key={strip.id}
-        onClick={() => void openPublishedStrip(strip)}
-        disabled={openingStripId === strip.id}
-        aria-label={`Open ${strip.title || "Untitled"}`}
-      >
-        <div
-          className={`library-cover library-cover-${strip.cover.kind} ${
-            strip.cover.kind === "color"
-              ? `library-cover-${strip.cover.shape}`
-              : ""
-          }`}
-          style={
-            strip.cover.kind === "color"
-              ? { backgroundColor: strip.cover.color }
-              : undefined
+    const renderLibraryCard = (
+      strip: PublishedStripSummary | DraftStripSummary,
+    ) => {
+      const isDraft = "updatedAt" in strip;
+      const cardTitle =
+        strip.title ||
+        (isDraft ? draftFallbackTitle(strip.createdAt) : "Untitled");
+      return (
+        <button
+          className="library-card"
+          type="button"
+          key={strip.id}
+          onClick={() =>
+            isDraft
+              ? void openDraft(strip)
+              : void openPublishedStrip(strip)
           }
+          disabled={
+            isDraft ? openingDraftId === strip.id : openingStripId === strip.id
+          }
+          aria-label={`Open ${cardTitle}`}
         >
-          {strip.cover.kind === "image" ? (
-            <img src={strip.cover.src} alt={strip.cover.alt} />
-          ) : null}
-        </div>
-        <h2>{strip.title || "Untitled"}</h2>
-      </button>
-    );
+          <div
+            className={`library-cover library-cover-${strip.cover.kind} ${
+              strip.cover.kind === "color"
+                ? `library-cover-${strip.cover.shape} ${
+                    isDraft && isBlackCoverColor(strip.cover.color)
+                      ? "is-dark-draft-cover"
+                      : ""
+                  }`
+                : ""
+            }`}
+            style={
+              strip.cover.kind === "color"
+                ? { backgroundColor: strip.cover.color }
+                : undefined
+            }
+          >
+            {strip.cover.kind === "image" ? (
+              <img src={strip.cover.src} alt={strip.cover.alt} />
+            ) : null}
+          </div>
+          <h2>{cardTitle}</h2>
+        </button>
+      );
+    };
 
     return (
       <>
         {legacyTransitionLayer}
-        <main className="app-shell library-mode">
+        <main
+          className={`app-shell library-mode ${
+            isDraftLibrary ? "drafts-library-mode" : ""
+          }`}
+        >
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
             style={{ backgroundColor: DEFAULT_BACKGROUND }}
@@ -2214,15 +2576,34 @@ export default function Home() {
 
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
-              <h1>STRIP</h1>
+              <h1>{isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
+              <button
+                className="library-header-action"
+                type="button"
+                onClick={() =>
+                  isDraftLibrary
+                    ? void returnToLibrary()
+                    : void openDraftLibrary()
+                }
+                aria-label={isDraftLibrary ? "Return to Strips" : "Open drafts"}
+              >
+                {isDraftLibrary ? (
+                  <House aria-hidden="true" />
+                ) : (
+                  <Files aria-hidden="true" />
+                )}
+              </button>
             </header>
             <div
               className="library-grid"
-              aria-label="Your Strips"
-              aria-busy={libraryLoading}
+              aria-label={isDraftLibrary ? "Your drafts" : "Your Strips"}
+              aria-busy={isDraftLibrary ? draftsLoading : libraryLoading}
             >
               {libraryColumns.map((column, columnIndex) => (
-                <div className="library-column" key={`library-column-${columnIndex}`}>
+                <div
+                  className="library-column"
+                  key={`${view}-library-column-${columnIndex}`}
+                >
                   {column.map(renderLibraryCard)}
                 </div>
               ))}
