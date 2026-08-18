@@ -601,22 +601,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: 4;
   top: 50%;
   right: 0;
-  width: 9px;
+  width: 6px;
   height: min(34px, calc(100% - 12px));
   min-height: 16px;
-  border-radius: 0;
+  border-radius: 999px 0 0 999px;
   background: #ffffff;
-  clip-path: polygon(
-    100% 0,
-    34% 0,
-    8% 13%,
-    22% 28%,
-    0 50%,
-    22% 72%,
-    8% 87%,
-    34% 100%,
-    100% 100%
-  );
   box-shadow:
     -2px 0 9px rgba(0, 0, 0, 0.46),
     -4px 0 18px rgba(0, 0, 0, 0.24);
