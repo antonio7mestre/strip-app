@@ -28,12 +28,25 @@ html {
   overflow-x: clip;
   overscroll-behavior-y: auto;
   background: var(--black);
+  /*
+   * Safari exposes opposite ends of the root canvas during top and bottom
+   * rubber-banding. Keep those ends independent without changing the live
+   * top-safe-area color: the far end supplies the top color and the near end
+   * supplies black beneath the page.
+   */
+  background-image: linear-gradient(
+    to bottom,
+    var(--black) 0 50%,
+    var(--top-safe-area-color, var(--black)) 50% 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 body {
   min-height: 100lvh;
   overflow-x: clip;
-  background: var(--black);
+  background: var(--top-safe-area-color, #000000);
   color: var(--white);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
     sans-serif;
