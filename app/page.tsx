@@ -989,6 +989,42 @@ export default function Home() {
       }
     };
 
+    const editorBottomLock = () => {
+      if (view !== "edit") return null;
+      const stripCanvas = document.querySelector<HTMLElement>(
+        ".editor-mode .strip-canvas",
+      );
+      if (!stripCanvas) return null;
+      const scrollEnd = Math.max(
+        0,
+        (document.scrollingElement?.scrollHeight ?? root.scrollHeight) -
+          window.innerHeight,
+      );
+      const paintedBuffer = Math.min(
+        window.innerHeight,
+        Number.parseFloat(window.getComputedStyle(stripCanvas).paddingBottom) || 0,
+      );
+      return Math.max(
+        leadingImageScrollLockRef.current,
+        scrollEnd - paintedBuffer,
+      );
+    };
+
+    const settleLockedBottom = () => {
+      const offset = editorBottomLock();
+      if (!touchIsActive && offset !== null && window.scrollY > offset) {
+        setScrollTop(offset, "smooth");
+      }
+    };
+
+    const limitActiveBottomPull = () => {
+      const offset = editorBottomLock();
+      const maximumPull = 96;
+      if (offset !== null && window.scrollY > offset + maximumPull) {
+        setScrollTop(offset + maximumPull);
+      }
+    };
+
     const handleTouchStart = () => {
       touchIsActive = true;
       applyingLock = false;
@@ -1001,20 +1037,30 @@ export default function Home() {
       touchIsActive = false;
       lockFixedControlsDuringPull();
       window.cancelAnimationFrame(releaseFrame);
-      releaseFrame = window.requestAnimationFrame(settleLockedTop);
+      releaseFrame = window.requestAnimationFrame(() => {
+        settleLockedTop();
+        settleLockedBottom();
+      });
     };
 
     const preserveLockedTopAfterLayout = () => {
       const offset = leadingImageScrollLockRef.current;
       if (!touchIsActive && !applyingLock && offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
+      } else if (!touchIsActive && !applyingLock) {
+        settleLockedBottom();
       }
     };
 
     const handleLockedTopScroll = () => {
       lockFixedControlsDuringPull();
-      if (touchIsActive || applyingLock) return;
+      if (touchIsActive) {
+        limitActiveBottomPull();
+        return;
+      }
+      if (applyingLock) return;
       settleLockedTop();
+      settleLockedBottom();
     };
 
     const calculateLeadingImageLock = () => {
