@@ -154,11 +154,12 @@ const FONT_STACKS: Record<FontStyle, string> = {
 
 const BACKGROUND_COLORS = [
   { label: "Black", value: "#000000" },
-  { label: "Graphite", value: "#202020" },
-  { label: "Paper", value: "#F2F0EA" },
-  { label: "Cobalt", value: "#2147D9" },
-  { label: "Cherry", value: "#9E2340" },
-  { label: "Forest", value: "#174A36" },
+  { label: "Acid", value: "#8ACE00" },
+  { label: "Hot pink", value: "#FF4FA3" },
+  { label: "Chrome", value: "#D9D9D9" },
+  { label: "Electric blue", value: "#3155FF" },
+  { label: "Laser violet", value: "#7A2CFF" },
+  { label: "Safety orange", value: "#FF4D00" },
 ];
 
 const TEXT_COLORS = [
@@ -687,7 +688,14 @@ function TextStyleSelector({
                   type="button"
                   className={`selector-option color-selector-option ${selected ? "is-selected" : ""}`}
                   style={swatchStyle(option.value)}
-                  onClick={() => onChange({ backgroundColor: option.value })}
+                  onClick={() =>
+                    onChange({
+                      backgroundColor: option.value,
+                      ...(block.content.trim().length === 0
+                        ? { textColor: contrastColor(option.value) }
+                        : {}),
+                    })
+                  }
                   tabIndex={visible ? 0 : -1}
                   aria-label={`${option.label} background`}
                   aria-pressed={selected}
@@ -1411,13 +1419,14 @@ export default function Home() {
       const selectedIndex = current.findIndex((block) => block.id === selectedBlockId);
       const insertionIndex = selectedIndex >= 0 ? selectedIndex + 1 : current.length;
       const inheritedStyle = nearestTextBlock(current, insertionIndex);
+      const backgroundColor = inheritedStyle?.backgroundColor ?? DEFAULT_BACKGROUND;
       const next = [...current];
       next.splice(insertionIndex, 0, {
         id,
         type: "text",
         content: "",
-        backgroundColor: inheritedStyle?.backgroundColor ?? DEFAULT_BACKGROUND,
-        textColor: inheritedStyle?.textColor ?? DEFAULT_TEXT,
+        backgroundColor,
+        textColor: inheritedStyle?.textColor ?? contrastColor(backgroundColor),
         fontStyle: inheritedStyle?.fontStyle ?? "sans",
         fontSize: inheritedStyle?.fontSize ?? DEFAULT_FONT_SIZE,
         editedAt: Date.now(),
@@ -2408,11 +2417,14 @@ export default function Home() {
         if (block.type === "text") {
           if (!isEditing && !block.content.trim()) return null;
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
+          const backgroundColor = block.backgroundColor ?? DEFAULT_BACKGROUND;
+          const textColor = block.textColor ?? contrastColor(backgroundColor);
+          const usesDarkText = contrastColor(textColor) === "#FFFFFF";
           return (
             <section
               className={`strip-block text-block ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
-              }`}
+              } ${usesDarkText ? "uses-dark-text" : ""}`}
               data-block-id={block.id}
               key={block.id}
               onClick={(event) => {
@@ -2431,8 +2443,8 @@ export default function Home() {
                 setActiveTextTool(null);
               }}
               style={{
-                backgroundColor: block.backgroundColor ?? DEFAULT_BACKGROUND,
-                color: block.textColor ?? DEFAULT_TEXT,
+                backgroundColor,
+                color: textColor,
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
               }}
             >

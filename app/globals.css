@@ -515,6 +515,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   opacity: 0.3;
 }
 
+.text-block.uses-dark-text textarea::placeholder,
+.text-block.uses-dark-text p.is-placeholder {
+  opacity: 0.46;
+}
+
 .image-block,
 .video-block {
   overflow: visible;
