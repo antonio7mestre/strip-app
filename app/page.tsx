@@ -1000,10 +1000,12 @@ export default function Home() {
         (document.scrollingElement?.scrollHeight ?? root.scrollHeight) -
           window.innerHeight,
       );
-      const paintedBuffer = Math.min(
-        window.innerHeight,
-        Number.parseFloat(window.getComputedStyle(stripCanvas).paddingBottom) || 0,
-      );
+      const paintedBuffer =
+        Number.parseFloat(
+          window
+            .getComputedStyle(stripCanvas)
+            .getPropertyValue("--editor-bottom-pull-buffer"),
+        ) || 0;
       return Math.max(
         leadingImageScrollLockRef.current,
         scrollEnd - paintedBuffer,
@@ -1014,14 +1016,6 @@ export default function Home() {
       const offset = editorBottomLock();
       if (!touchIsActive && offset !== null && window.scrollY > offset) {
         setScrollTop(offset, "smooth");
-      }
-    };
-
-    const limitActiveBottomPull = () => {
-      const offset = editorBottomLock();
-      const maximumPull = 96;
-      if (offset !== null && window.scrollY > offset + maximumPull) {
-        setScrollTop(offset + maximumPull);
       }
     };
 
@@ -1054,10 +1048,7 @@ export default function Home() {
 
     const handleLockedTopScroll = () => {
       lockFixedControlsDuringPull();
-      if (touchIsActive) {
-        limitActiveBottomPull();
-        return;
-      }
+      if (touchIsActive) return;
       if (applyingLock) return;
       settleLockedTop();
       settleLockedBottom();

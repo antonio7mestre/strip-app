@@ -240,8 +240,6 @@ textarea:focus-visible,
   position: relative;
   min-height: 100lvh;
   background: var(--black);
-  /* Paint far below the document without adding scrollable page height. */
-  box-shadow: 0 250lvh 0 250lvh var(--black);
 }
 
 .app-shell.has-leading-image {
@@ -451,7 +449,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .editor-mode .strip-canvas {
-  padding-bottom: calc(100lvh + 148px + env(safe-area-inset-bottom));
+  --editor-bottom-pull-buffer: 180px;
+  padding-bottom: calc(
+    148px + env(safe-area-inset-bottom) + var(--editor-bottom-pull-buffer)
+  );
   background: var(--black);
 }
 
