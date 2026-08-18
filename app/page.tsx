@@ -20,11 +20,11 @@ import {
   House,
   ImagePlus,
   Minus,
+  MousePointer2,
   PaintBucket,
   Pencil,
   Pipette,
   Plus,
-  Scan,
   Trash2,
   TriangleAlert,
   Type,
@@ -861,7 +861,7 @@ function TextStyleSelector({
 function BlockSelectionTab() {
   return (
     <span className="block-selection-tab" aria-hidden="true">
-      <Scan />
+      <MousePointer2 />
     </span>
   );
 }

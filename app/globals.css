@@ -606,7 +606,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   height: min(36px, calc(100% - 10px));
   min-height: 24px;
   place-items: center;
-  border-radius: 999px 0 0 999px;
+  border-radius: 4px 0 0 4px;
   background: #ffffff;
   color: #050505;
   box-shadow:
