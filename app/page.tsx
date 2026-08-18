@@ -959,6 +959,8 @@ export default function Home() {
     let applyingLock = false;
     let touchIsActive = false;
     let lastTouchY = 0;
+    let touchStartY = 0;
+    let touchStartedAtLeadingTop = false;
     let leadingImageRefreshArmed = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -1024,6 +1026,10 @@ export default function Home() {
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
       lastTouchY = event.touches[0]?.clientY ?? 0;
+      touchStartY = lastTouchY;
+      touchStartedAtLeadingTop =
+        hasLeadingImage &&
+        window.scrollY <= leadingImageScrollLockRef.current + 4;
       leadingImageRefreshArmed = false;
       applyingLock = false;
       window.clearTimeout(settleTimer);
@@ -1036,6 +1042,12 @@ export default function Home() {
       if (touchY === undefined) return;
       const movingTowardBottom = touchY < lastTouchY;
       lastTouchY = touchY;
+      if (
+        touchStartedAtLeadingTop &&
+        touchY - touchStartY >= 88
+      ) {
+        leadingImageRefreshArmed = true;
+      }
       if (!movingTowardBottom || view !== "edit") return;
       const scrollEnd = Math.max(
         0,
@@ -1045,16 +1057,37 @@ export default function Home() {
       if (window.scrollY >= scrollEnd - 1) event.preventDefault();
     };
 
-    const handleTouchRelease = () => {
+    const handleTouchRelease = (event: TouchEvent) => {
+      const releaseY = event.changedTouches[0]?.clientY ?? lastTouchY;
+      const shouldReloadLeadingImage =
+        hasLeadingImage &&
+        touchStartedAtLeadingTop &&
+        (leadingImageRefreshArmed || releaseY - touchStartY >= 88);
       touchIsActive = false;
       lastTouchY = 0;
+      touchStartY = 0;
+      touchStartedAtLeadingTop = false;
       lockFixedControlsDuringPull();
       window.cancelAnimationFrame(releaseFrame);
-      if (hasLeadingImage && leadingImageRefreshArmed) {
+      if (shouldReloadLeadingImage) {
         leadingImageRefreshArmed = false;
         window.location.reload();
         return;
       }
+      releaseFrame = window.requestAnimationFrame(() => {
+        settleLockedTop();
+        settleLockedBottom();
+      });
+    };
+
+    const handleTouchCancel = () => {
+      touchIsActive = false;
+      lastTouchY = 0;
+      touchStartY = 0;
+      touchStartedAtLeadingTop = false;
+      leadingImageRefreshArmed = false;
+      lockFixedControlsDuringPull();
+      window.cancelAnimationFrame(releaseFrame);
       releaseFrame = window.requestAnimationFrame(() => {
         settleLockedTop();
         settleLockedBottom();
@@ -1074,8 +1107,9 @@ export default function Home() {
       lockFixedControlsDuringPull();
       if (touchIsActive) {
         leadingImageRefreshArmed =
-          hasLeadingImage &&
-          leadingImageScrollLockRef.current - window.scrollY >= 96;
+          leadingImageRefreshArmed ||
+          (hasLeadingImage &&
+            leadingImageScrollLockRef.current - window.scrollY >= 96);
         return;
       }
       if (applyingLock) return;
@@ -1140,7 +1174,7 @@ export default function Home() {
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleTouchRelease, { passive: true });
-    window.addEventListener("touchcancel", handleTouchRelease, { passive: true });
+    window.addEventListener("touchcancel", handleTouchCancel, { passive: true });
     window.addEventListener("resize", applyLeadingImageLock);
 
     const stripCanvas = document.querySelector<HTMLElement>(".strip-canvas");
@@ -1166,7 +1200,7 @@ export default function Home() {
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchRelease);
-      window.removeEventListener("touchcancel", handleTouchRelease);
+      window.removeEventListener("touchcancel", handleTouchCancel);
       window.removeEventListener("resize", applyLeadingImageLock);
       root.classList.remove("leading-image-scroll-locked");
       root.style.removeProperty("--fixed-controls-pull-counter");
