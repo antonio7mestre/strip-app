@@ -450,7 +450,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: inherit;
 }
 
-.editor-mode .strip-canvas,
+.editor-mode .strip-canvas {
+  padding-bottom: calc(100lvh + 148px + env(safe-area-inset-bottom));
+  background: var(--black);
+}
+
 .preview-mode .strip-canvas {
   padding-bottom: calc(148px + env(safe-area-inset-bottom));
   background: var(--black);
