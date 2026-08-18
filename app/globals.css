@@ -240,6 +240,8 @@ textarea:focus-visible,
   position: relative;
   min-height: 100lvh;
   background: var(--black);
+  /* Paint far below the document without adding scrollable page height. */
+  box-shadow: 0 250lvh 0 250lvh var(--black);
 }
 
 .app-shell.has-leading-image {
