@@ -26,7 +26,7 @@ body {
 html {
   color-scheme: light;
   overflow-x: clip;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
   background: var(--black);
 }
 
@@ -38,7 +38,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
 }
 
 @keyframes strip-page-out-up {
