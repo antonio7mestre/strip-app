@@ -1120,9 +1120,43 @@ export default function Home() {
       "content",
       topSafeAreaColor,
     );
-    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
-  }, [topSafeAreaColor]);
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    let bottomEdgeIsActive = false;
+
+    root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
+    document.body.style.backgroundColor = DEFAULT_BACKGROUND;
+
+    const syncBrowserEdgeColor = () => {
+      const scrollHeight = document.scrollingElement?.scrollHeight ?? root.scrollHeight;
+      const maximumScroll = Math.max(0, scrollHeight - window.innerHeight);
+      const nextBottomEdgeIsActive =
+        maximumScroll > 1 && window.scrollY >= maximumScroll - 2;
+
+      if (nextBottomEdgeIsActive === bottomEdgeIsActive) return;
+      bottomEdgeIsActive = nextBottomEdgeIsActive;
+      root.style.backgroundColor = bottomEdgeIsActive
+        ? DEFAULT_BACKGROUND
+        : topSafeAreaColor;
+    };
+
+    root.style.backgroundColor = topSafeAreaColor;
+    syncBrowserEdgeColor();
+    window.addEventListener("scroll", syncBrowserEdgeColor, { passive: true });
+    window.addEventListener("resize", syncBrowserEdgeColor);
+    viewport?.addEventListener("resize", syncBrowserEdgeColor);
+
+    const shell = document.querySelector<HTMLElement>(".app-shell");
+    const shellResizeObserver = shell ? new ResizeObserver(syncBrowserEdgeColor) : null;
+    if (shell && shellResizeObserver) shellResizeObserver.observe(shell);
+
+    return () => {
+      shellResizeObserver?.disconnect();
+      window.removeEventListener("scroll", syncBrowserEdgeColor);
+      window.removeEventListener("resize", syncBrowserEdgeColor);
+      viewport?.removeEventListener("resize", syncBrowserEdgeColor);
+    };
+  }, [topSafeAreaColor, view]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
