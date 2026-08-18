@@ -958,6 +958,7 @@ export default function Home() {
     let settleTimer = 0;
     let applyingLock = false;
     let touchIsActive = false;
+    let lastTouchY = 0;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
@@ -1019,16 +1020,32 @@ export default function Home() {
       }
     };
 
-    const handleTouchStart = () => {
+    const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
+      lastTouchY = event.touches[0]?.clientY ?? 0;
       applyingLock = false;
       window.clearTimeout(settleTimer);
       window.cancelAnimationFrame(releaseFrame);
       lockFixedControlsDuringPull();
     };
 
+    const handleTouchMove = (event: TouchEvent) => {
+      const touchY = event.touches[0]?.clientY;
+      if (touchY === undefined) return;
+      const movingTowardBottom = touchY < lastTouchY;
+      lastTouchY = touchY;
+      if (!movingTowardBottom || view !== "edit") return;
+      const scrollEnd = Math.max(
+        0,
+        (document.scrollingElement?.scrollHeight ?? root.scrollHeight) -
+          window.innerHeight,
+      );
+      if (window.scrollY >= scrollEnd - 1) event.preventDefault();
+    };
+
     const handleTouchRelease = () => {
       touchIsActive = false;
+      lastTouchY = 0;
       lockFixedControlsDuringPull();
       window.cancelAnimationFrame(releaseFrame);
       releaseFrame = window.requestAnimationFrame(() => {
@@ -1109,6 +1126,7 @@ export default function Home() {
     });
     window.addEventListener("scroll", handleLockedTopScroll, { passive: true });
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleTouchRelease, { passive: true });
     window.addEventListener("touchcancel", handleTouchRelease, { passive: true });
     window.addEventListener("resize", applyLeadingImageLock);
@@ -1134,6 +1152,7 @@ export default function Home() {
       resizeObserver?.disconnect();
       window.removeEventListener("scroll", handleLockedTopScroll);
       window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchRelease);
       window.removeEventListener("touchcancel", handleTouchRelease);
       window.removeEventListener("resize", applyLeadingImageLock);
