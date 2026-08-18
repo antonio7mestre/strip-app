@@ -14,6 +14,14 @@
 
 * {
   box-sizing: border-box;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 html,
@@ -577,12 +585,15 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: 4;
   top: 50%;
   right: 0;
-  width: 5px;
+  width: 6px;
   height: min(34px, calc(100% - 12px));
   min-height: 16px;
   border-radius: 999px 0 0 999px;
-  background: #0a84ff;
-  box-shadow: -1px 0 0 rgba(255, 255, 255, 0.72);
+  background: #ffffff;
+  box-shadow:
+    -1px 0 0 rgba(0, 0, 0, 0.5),
+    -3px 0 10px rgba(0, 0, 0, 0.92),
+    -5px 0 22px rgba(0, 0, 0, 0.72);
   content: "";
   pointer-events: none;
   animation: strip-selection-tab-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1)
