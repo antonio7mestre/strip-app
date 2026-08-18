@@ -986,18 +986,56 @@ export default function Home() {
     const root = document.documentElement;
     let frame = 0;
     let followupFrame = 0;
+    let releaseFrame = 0;
+    let settleTimer = 0;
     let applyingLock = false;
+    let touchIsActive = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
-    const setScrollTop = (top: number) => {
+    const setScrollTop = (top: number, behavior: ScrollBehavior = "auto") => {
       applyingLock = true;
-      window.scrollTo({ top, behavior: "auto" });
-      document.documentElement.scrollTop = top;
-      document.body.scrollTop = top;
-      window.requestAnimationFrame(() => {
+      window.scrollTo({ top, behavior });
+      if (behavior === "auto") {
+        document.documentElement.scrollTop = top;
+        document.body.scrollTop = top;
+      }
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
         applyingLock = false;
-      });
+      }, behavior === "smooth" ? 320 : 32);
+    };
+
+    const settleLockedTop = () => {
+      const offset = leadingImageScrollLockRef.current;
+      if (!touchIsActive && offset > 0 && window.scrollY < offset) {
+        setScrollTop(offset, "smooth");
+      }
+    };
+
+    const handleTouchStart = () => {
+      touchIsActive = true;
+      applyingLock = false;
+      window.clearTimeout(settleTimer);
+      window.cancelAnimationFrame(releaseFrame);
+    };
+
+    const handleTouchRelease = () => {
+      touchIsActive = false;
+      window.cancelAnimationFrame(releaseFrame);
+      releaseFrame = window.requestAnimationFrame(settleLockedTop);
+    };
+
+    const preserveLockedTopAfterLayout = () => {
+      const offset = leadingImageScrollLockRef.current;
+      if (!touchIsActive && !applyingLock && offset > 0 && window.scrollY < offset) {
+        setScrollTop(offset);
+      }
+    };
+
+    const handleLockedTopScroll = () => {
+      if (touchIsActive || applyingLock) return;
+      settleLockedTop();
     };
 
     const calculateLeadingImageLock = () => {
@@ -1047,39 +1085,40 @@ export default function Home() {
       }
     };
 
-    const keepLockedTop = () => {
-      const offset = leadingImageScrollLockRef.current;
-      if (!applyingLock && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset);
-      }
-    };
-
     applyLeadingImageLock();
     frame = window.requestAnimationFrame(() => {
       applyLeadingImageLock();
       followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
     });
-    window.addEventListener("scroll", keepLockedTop, { passive: true });
+    window.addEventListener("scroll", handleLockedTopScroll, { passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchend", handleTouchRelease, { passive: true });
+    window.addEventListener("touchcancel", handleTouchRelease, { passive: true });
     window.addEventListener("resize", applyLeadingImageLock);
 
     const stripCanvas = document.querySelector<HTMLElement>(".strip-canvas");
     if (stripCanvas) {
-      mutationObserver = new MutationObserver(keepLockedTop);
+      mutationObserver = new MutationObserver(preserveLockedTopAfterLayout);
       mutationObserver.observe(stripCanvas, {
         childList: true,
         subtree: true,
       });
 
-      resizeObserver = new ResizeObserver(keepLockedTop);
+      resizeObserver = new ResizeObserver(preserveLockedTopAfterLayout);
       resizeObserver.observe(stripCanvas);
     }
 
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(followupFrame);
+      window.cancelAnimationFrame(releaseFrame);
+      window.clearTimeout(settleTimer);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
-      window.removeEventListener("scroll", keepLockedTop);
+      window.removeEventListener("scroll", handleLockedTopScroll);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchRelease);
+      window.removeEventListener("touchcancel", handleTouchRelease);
       window.removeEventListener("resize", applyLeadingImageLock);
       root.classList.remove("leading-image-scroll-locked");
     };
