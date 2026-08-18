@@ -129,6 +129,7 @@ const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
+const STANDARD_PAGE_TRANSITION_DURATION_MS = 180;
 const DOCK_TRANSITION_DURATION_MS = 300;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
@@ -910,6 +911,7 @@ export default function Home() {
   const [dockTransition, setDockTransition] =
     useState<DockTransitionSnapshot | null>(null);
   const [dockTransitionStarted, setDockTransitionStarted] = useState(false);
+  const [editorDockEntering, setEditorDockEntering] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
@@ -953,6 +955,7 @@ export default function Home() {
   const leadingImageScrollLockRef = useRef(0);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
+  const editorDockEntryTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
   const initialRouteHandledRef = useRef(false);
@@ -1092,6 +1095,9 @@ export default function Home() {
       }
       if (draftSaveTimerRef.current !== null) {
         window.clearTimeout(draftSaveTimerRef.current);
+      }
+      if (editorDockEntryTimerRef.current !== null) {
+        window.clearTimeout(editorDockEntryTimerRef.current);
       }
     },
     [],
@@ -1689,6 +1695,47 @@ export default function Home() {
     document.body.scrollTop = top;
   };
 
+  const showEditorDockEntry = () => {
+    if (editorDockEntryTimerRef.current !== null) {
+      window.clearTimeout(editorDockEntryTimerRef.current);
+    }
+    setEditorDockEntering(true);
+    editorDockEntryTimerRef.current = window.setTimeout(() => {
+      setEditorDockEntering(false);
+      editorDockEntryTimerRef.current = null;
+    }, 360);
+  };
+
+  const transitionToViewStandard = async (
+    nextView: View,
+    nextScroll: "top" | "end" = "top",
+  ) => {
+    const root = document.documentElement;
+    cancelDockTransitionSchedule();
+    root.classList.remove("strip-page-transitioning");
+    flushSync(() => {
+      setLegacyPageTransition(null);
+      setDockTransition(null);
+      setDockTransitionStarted(false);
+      setView(nextView);
+    });
+    const top =
+      nextScroll === "end"
+        ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+        : 0;
+    window.scrollTo({ top, behavior: "auto" });
+    document.documentElement.scrollTop = top;
+    document.body.scrollTop = top;
+    root.classList.add("strip-standard-page-entering");
+    try {
+      await new Promise<void>((resolve) =>
+        window.setTimeout(resolve, STANDARD_PAGE_TRANSITION_DURATION_MS),
+      );
+    } finally {
+      root.classList.remove("strip-standard-page-entering");
+    }
+  };
+
   const transitionToView = async (
     nextView: View,
     direction: PageTransitionDirection,
@@ -2062,7 +2109,8 @@ export default function Home() {
     setActiveTextTool(null);
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
-    void transitionToView("edit", "forward", "top", false);
+    showEditorDockEntry();
+    void transitionToViewStandard("edit");
   };
 
   const openDraft = async (draft: DraftStripSummary) => {
@@ -2089,7 +2137,8 @@ export default function Home() {
       setCustomCoverColors([]);
       setCoverColorShape("square");
       setBrowserPath(`/edit/${encodeURIComponent(data.draft.id)}`);
-      await transitionToView("edit", "forward", "top", false);
+      showEditorDockEntry();
+      await transitionToViewStandard("edit");
     } catch {
       setNotice("Couldn’t open this draft. Try again.");
     } finally {
@@ -2133,7 +2182,7 @@ export default function Home() {
       const data = (await response.json()) as { strip: PublishedStripDetail };
       setOpenedPublishedStrip(data.strip);
       setBrowserPath(`/strip/${encodeURIComponent(data.strip.id)}`);
-      await transitionToView("published", "forward", "top", false);
+      await transitionToViewStandard("published");
     } catch {
       setNotice("Couldn’t open this Strip. Try again.");
     } finally {
@@ -2147,7 +2196,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     try {
       setBrowserPath("/");
-      await transitionToView("library", "backward", "top", false);
+      await transitionToViewStandard("library");
       setOpenedPublishedStrip(null);
     } finally {
       pageTransitionInFlightRef.current = false;
@@ -2198,6 +2247,7 @@ export default function Home() {
           setEditingTextBlockId(null);
           setActiveTextTool(null);
           setOpenedPublishedStrip(null);
+          showEditorDockEntry();
           setView("edit");
           window.scrollTo({ top: 0, behavior: "auto" });
         } catch {
@@ -3276,6 +3326,8 @@ export default function Home() {
       <footer
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
+          editorDockEntering ? "is-entering-editor" : ""
+        } ${
           activeTextTool ? "is-shifted" : ""
         }`}
       >
