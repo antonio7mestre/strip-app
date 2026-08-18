@@ -547,47 +547,33 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   outline-offset: 2px;
 }
 
-@keyframes strip-selection-badge-in {
+@keyframes strip-selection-tab-in {
   from {
     opacity: 0;
-    transform: scale(0.72);
+    transform: translate(100%, -50%);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translate(0, -50%);
   }
 }
 
 .strip-block.is-selected::after {
   position: absolute;
   z-index: 4;
-  top: 10px;
-  right: 10px;
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: 1.5px solid rgba(255, 255, 255, 0.96);
-  border-radius: 50%;
+  top: 50%;
+  right: 0;
+  width: 5px;
+  height: min(34px, calc(100% - 12px));
+  min-height: 16px;
+  border-radius: 999px 0 0 999px;
   background: #0a84ff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
-  color: #ffffff;
-  content: "✓";
-  font-family: Arial, sans-serif;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1;
+  box-shadow: -1px 0 0 rgba(255, 255, 255, 0.72);
+  content: "";
   pointer-events: none;
-  animation: strip-selection-badge-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1)
+  animation: strip-selection-tab-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1)
     both;
-}
-
-.editor-mode.has-leading-image .strip-block:first-child.is-selected::after {
-  top: calc(
-    10px + var(--leading-image-scroll-lock) + env(safe-area-inset-top) +
-      max(env(safe-area-inset-top), var(--leading-image-scroll-lock))
-  );
 }
 
 .empty-strip {
