@@ -1006,6 +1006,14 @@ export default function Home() {
       }, behavior === "smooth" ? 320 : 32);
     };
 
+    const lockFixedControlsDuringPull = () => {
+      const pullDistance = Math.max(0, -window.scrollY);
+      root.style.setProperty(
+        "--fixed-controls-pull-counter",
+        `${-pullDistance}px`,
+      );
+    };
+
     const settleLockedTop = () => {
       const offset = leadingImageScrollLockRef.current;
       if (!touchIsActive && offset > 0 && window.scrollY < offset) {
@@ -1018,10 +1026,12 @@ export default function Home() {
       applyingLock = false;
       window.clearTimeout(settleTimer);
       window.cancelAnimationFrame(releaseFrame);
+      lockFixedControlsDuringPull();
     };
 
     const handleTouchRelease = () => {
       touchIsActive = false;
+      lockFixedControlsDuringPull();
       window.cancelAnimationFrame(releaseFrame);
       releaseFrame = window.requestAnimationFrame(settleLockedTop);
     };
@@ -1034,6 +1044,7 @@ export default function Home() {
     };
 
     const handleLockedTopScroll = () => {
+      lockFixedControlsDuringPull();
       if (touchIsActive || applyingLock) return;
       settleLockedTop();
     };
@@ -1086,6 +1097,7 @@ export default function Home() {
     };
 
     applyLeadingImageLock();
+    lockFixedControlsDuringPull();
     frame = window.requestAnimationFrame(() => {
       applyLeadingImageLock();
       followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
@@ -1121,6 +1133,7 @@ export default function Home() {
       window.removeEventListener("touchcancel", handleTouchRelease);
       window.removeEventListener("resize", applyLeadingImageLock);
       root.classList.remove("leading-image-scroll-locked");
+      root.style.removeProperty("--fixed-controls-pull-counter");
     };
   }, [hasLeadingImage, view]);
 

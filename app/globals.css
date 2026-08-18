@@ -261,6 +261,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background: #ffffff !important;
 }
 
+.bottom-safe-area-anchor,
+.composer-dock,
+.block-controls {
+  translate: 0 var(--fixed-controls-pull-counter, 0px);
+}
+
 .library-mode,
 .strip-library {
   background: #000000;
