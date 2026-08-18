@@ -596,23 +596,31 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   }
 }
 
-.strip-block.is-selected::after {
+.block-selection-tab {
   position: absolute;
   z-index: 4;
   top: 50%;
   right: 0;
-  width: 6px;
-  height: min(34px, calc(100% - 12px));
-  min-height: 16px;
+  display: grid;
+  width: 15px;
+  height: min(36px, calc(100% - 10px));
+  min-height: 24px;
+  place-items: center;
   border-radius: 999px 0 0 999px;
   background: #ffffff;
+  color: #050505;
   box-shadow:
     -2px 0 9px rgba(0, 0, 0, 0.46),
     -4px 0 18px rgba(0, 0, 0, 0.24);
-  content: "";
   pointer-events: none;
   animation: strip-selection-tab-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1)
     both;
+}
+
+.block-selection-tab svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 1.35;
 }
 
 .empty-strip {
