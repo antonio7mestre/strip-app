@@ -20,7 +20,6 @@ import {
   House,
   ImagePlus,
   Minus,
-  MousePointer2,
   PaintBucket,
   Pencil,
   Pipette,
@@ -858,14 +857,6 @@ function TextStyleSelector({
   );
 }
 
-function BlockSelectionTab() {
-  return (
-    <span className="block-selection-tab" aria-hidden="true">
-      <MousePointer2 />
-    </span>
-  );
-}
-
 function StripVideoBlock({
   block,
   isEditing,
@@ -936,7 +927,6 @@ function StripVideoBlock({
         preload="metadata"
         draggable={false}
       />
-      {isEditing && isSelected ? <BlockSelectionTab /> : null}
       <button
         className="video-audio-toggle"
         type="button"
@@ -2601,9 +2591,6 @@ export default function Home() {
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
               }}
             >
-              {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTab />
-              ) : null}
               {textIsBeingEdited ? (
                 <textarea
                   data-block-id={block.id}
@@ -2670,9 +2657,6 @@ export default function Home() {
                 setActiveTextTool(null);
               }}
             >
-              {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTab />
-              ) : null}
               {/* A Strip image is intentionally edge-to-edge. */}
               <img
                 src={block.src}
