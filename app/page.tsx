@@ -162,14 +162,96 @@ const BACKGROUND_COLORS = [
   { label: "Safety orange", value: "#FF4D00" },
 ];
 
-const TEXT_COLORS = [
-  { label: "White", value: "#FFFFFF" },
-  { label: "Black", value: "#050505" },
-  { label: "Cream", value: "#FFF1CF" },
-  { label: "Sky", value: "#BFD7FF" },
-  { label: "Rose", value: "#FFC1D1" },
-  { label: "Lime", value: "#D8FF93" },
-];
+type ColorOption = { label: string; value: string };
+
+const TEXT_COLOR_PALETTES: Record<string, ColorOption[]> = {
+  "#000000": [
+    { label: "Optic white", value: "#FFFFFF" },
+    { label: "Toxic lime", value: "#D7FF00" },
+    { label: "Ice", value: "#A9E8FF" },
+    { label: "Bubblegum", value: "#FF64C4" },
+    { label: "Liquid silver", value: "#C9C9C9" },
+    { label: "Lipstick", value: "#FF304F" },
+  ],
+  "#8ACE00": [
+    { label: "Ink", value: "#050505" },
+    { label: "Ultraviolet", value: "#5C00FF" },
+    { label: "Hot pink", value: "#FF1493" },
+    { label: "Bone", value: "#FFF4DE" },
+    { label: "Cobalt", value: "#003CFF" },
+    { label: "Aubergine", value: "#28002F" },
+  ],
+  "#FF4FA3": [
+    { label: "Patent black", value: "#050505" },
+    { label: "Ice", value: "#DDF7FF" },
+    { label: "Acid", value: "#D7FF00" },
+    { label: "Ox blood", value: "#4A0018" },
+    { label: "Powder", value: "#FFD8EA" },
+    { label: "Electric blue", value: "#123EFF" },
+  ],
+  "#D9D9D9": [
+    { label: "Ink", value: "#050505" },
+    { label: "Cobalt", value: "#1640FF" },
+    { label: "Signal red", value: "#F2183D" },
+    { label: "Ultraviolet", value: "#6B16FF" },
+    { label: "Hot pink", value: "#FF2FA7" },
+    { label: "Venom", value: "#3FA600" },
+  ],
+  "#3155FF": [
+    { label: "Optic white", value: "#FFFFFF" },
+    { label: "Acid", value: "#D7FF00" },
+    { label: "Hot pink", value: "#FF6BC7" },
+    { label: "Chrome", value: "#D9D9D9" },
+    { label: "Pale violet", value: "#DFC8FF" },
+    { label: "Ink", value: "#050505" },
+  ],
+  "#7A2CFF": [
+    { label: "Optic white", value: "#FFFFFF" },
+    { label: "Acid", value: "#D7FF00" },
+    { label: "Candy", value: "#FF7CCB" },
+    { label: "Ice", value: "#BCEBFF" },
+    { label: "Safety orange", value: "#FF5A00" },
+    { label: "Ink", value: "#050505" },
+  ],
+  "#FF4D00": [
+    { label: "Patent black", value: "#050505" },
+    { label: "Vanilla", value: "#FFF0C7" },
+    { label: "Cobalt", value: "#123DFF" },
+    { label: "Hot pink", value: "#FF63C3" },
+    { label: "Acid", value: "#CFFF00" },
+    { label: "Wine", value: "#4D001E" },
+  ],
+};
+
+function colorChannels(color: string) {
+  const normalized = color.trim().replace("#", "");
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((channel) => `${channel}${channel}`)
+          .join("")
+      : normalized;
+  if (!/^[0-9a-f]{6}$/i.test(expanded)) return [0, 0, 0];
+  return [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16));
+}
+
+function textColorOptionsForBackground(background: string) {
+  const normalized = background.trim().toUpperCase();
+  if (TEXT_COLOR_PALETTES[normalized]) return TEXT_COLOR_PALETTES[normalized];
+
+  const [red, green, blue] = colorChannels(normalized);
+  const nearestBackground = BACKGROUND_COLORS.reduce((nearest, option) => {
+    const [optionRed, optionGreen, optionBlue] = colorChannels(option.value);
+    const distance =
+      (red - optionRed) ** 2 +
+      (green - optionGreen) ** 2 +
+      (blue - optionBlue) ** 2;
+    return distance < nearest.distance ? { value: option.value, distance } : nearest;
+  }, { value: DEFAULT_BACKGROUND, distance: Number.POSITIVE_INFINITY });
+
+  return TEXT_COLOR_PALETTES[nearestBackground.value.toUpperCase()];
+}
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -513,6 +595,7 @@ function TextStyleSelector({
 }) {
   const background = block.backgroundColor ?? DEFAULT_BACKGROUND;
   const textColor = block.textColor ?? DEFAULT_TEXT;
+  const textColorOptions = textColorOptionsForBackground(background);
   const fontStyle = block.fontStyle ?? "sans";
   const fontSize = block.fontSize ?? DEFAULT_FONT_SIZE;
   const selectorScrollRef = useRef<HTMLDivElement>(null);
@@ -520,7 +603,7 @@ function TextStyleSelector({
   const backgroundIsCustom = !backgroundOptions.some(
     (option) => option.value.toUpperCase() === background.toUpperCase(),
   );
-  const textIsCustom = !TEXT_COLORS.some(
+  const textIsCustom = !textColorOptions.some(
     (option) => option.value.toUpperCase() === textColor.toUpperCase(),
   );
   const activeColor = tool === "background" ? background : textColor;
@@ -723,7 +806,7 @@ function TextStyleSelector({
         ) : null}
 
         {gradientMode !== tool && tool === "color"
-          ? TEXT_COLORS.map((option) => {
+          ? textColorOptions.map((option) => {
               const selected = textColor.toUpperCase() === option.value.toUpperCase();
               return (
                 <button
