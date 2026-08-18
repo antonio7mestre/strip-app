@@ -959,9 +959,6 @@ export default function Home() {
     let applyingLock = false;
     let touchIsActive = false;
     let lastTouchY = 0;
-    let touchStartY = 0;
-    let touchStartedAtLeadingTop = false;
-    let leadingImageRefreshArmed = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
@@ -1026,11 +1023,6 @@ export default function Home() {
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
       lastTouchY = event.touches[0]?.clientY ?? 0;
-      touchStartY = lastTouchY;
-      touchStartedAtLeadingTop =
-        hasLeadingImage &&
-        window.scrollY <= leadingImageScrollLockRef.current + 4;
-      leadingImageRefreshArmed = false;
       applyingLock = false;
       window.clearTimeout(settleTimer);
       window.cancelAnimationFrame(releaseFrame);
@@ -1042,12 +1034,6 @@ export default function Home() {
       if (touchY === undefined) return;
       const movingTowardBottom = touchY < lastTouchY;
       lastTouchY = touchY;
-      if (
-        touchStartedAtLeadingTop &&
-        touchY - touchStartY >= 88
-      ) {
-        leadingImageRefreshArmed = true;
-      }
       if (!movingTowardBottom || view !== "edit") return;
       const scrollEnd = Math.max(
         0,
@@ -1057,23 +1043,11 @@ export default function Home() {
       if (window.scrollY >= scrollEnd - 1) event.preventDefault();
     };
 
-    const handleTouchRelease = (event: TouchEvent) => {
-      const releaseY = event.changedTouches[0]?.clientY ?? lastTouchY;
-      const shouldReloadLeadingImage =
-        hasLeadingImage &&
-        touchStartedAtLeadingTop &&
-        (leadingImageRefreshArmed || releaseY - touchStartY >= 88);
+    const handleTouchRelease = () => {
       touchIsActive = false;
       lastTouchY = 0;
-      touchStartY = 0;
-      touchStartedAtLeadingTop = false;
       lockFixedControlsDuringPull();
       window.cancelAnimationFrame(releaseFrame);
-      if (shouldReloadLeadingImage) {
-        leadingImageRefreshArmed = false;
-        window.location.reload();
-        return;
-      }
       releaseFrame = window.requestAnimationFrame(() => {
         settleLockedTop();
         settleLockedBottom();
@@ -1083,9 +1057,6 @@ export default function Home() {
     const handleTouchCancel = () => {
       touchIsActive = false;
       lastTouchY = 0;
-      touchStartY = 0;
-      touchStartedAtLeadingTop = false;
-      leadingImageRefreshArmed = false;
       lockFixedControlsDuringPull();
       window.cancelAnimationFrame(releaseFrame);
       releaseFrame = window.requestAnimationFrame(() => {
@@ -1105,13 +1076,7 @@ export default function Home() {
 
     const handleLockedTopScroll = () => {
       lockFixedControlsDuringPull();
-      if (touchIsActive) {
-        leadingImageRefreshArmed =
-          leadingImageRefreshArmed ||
-          (hasLeadingImage &&
-            leadingImageScrollLockRef.current - window.scrollY >= 96);
-        return;
-      }
+      if (touchIsActive) return;
       if (applyingLock) return;
       settleLockedTop();
       settleLockedBottom();
