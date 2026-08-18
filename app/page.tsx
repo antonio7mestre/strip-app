@@ -1781,7 +1781,7 @@ export default function Home() {
 
     const outgoingShell = currentShell.cloneNode(true) as HTMLElement;
     outgoingShell
-      .querySelectorAll(".composer-dock, .bottom-safe-area-anchor")
+      .querySelectorAll(".composer-dock")
       .forEach((element) => element.remove());
     const duration = PAGE_TRANSITION_DURATION_MS;
     const snapshot: LegacyPageTransitionSnapshot = {
@@ -2684,8 +2684,6 @@ export default function Home() {
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
-        <div className="bottom-safe-area-anchor" aria-hidden="true" />
-
         <section
           className={`title-setup-shell ${legacyPageEnterClass}`}
           aria-labelledby="title-question-heading"
@@ -2880,8 +2878,6 @@ export default function Home() {
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
-        <div className="bottom-safe-area-anchor" aria-hidden="true" />
-
         <section
           className={`publish-setup-shell ${legacyPageEnterClass}`}
           aria-label="Pick a cover"
@@ -3199,7 +3195,6 @@ export default function Home() {
           style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
-        <div className="bottom-safe-area-anchor" aria-hidden="true" />
         {isPublished ? (
           <header className="topbar reader-topbar">
             <button
@@ -3291,7 +3286,6 @@ export default function Home() {
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
-      <div className="bottom-safe-area-anchor" aria-hidden="true" />
       <div className={`editor-canvas ${legacyPageEnterClass}`}>{renderStrip(true)}</div>
 
       {selectedBlockIndex >= 0 ? (
