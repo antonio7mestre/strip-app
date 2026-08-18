@@ -559,17 +559,47 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   outline-offset: 2px;
 }
 
+@keyframes strip-selection-badge-in {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .strip-block.is-selected::after {
   position: absolute;
-  z-index: 3;
-  inset: 0;
-  background:
-    radial-gradient(circle, var(--selection-marker-color, #ffffff) 0 2.5px, transparent 2.75px) left 4px top 4px / 6px 6px no-repeat,
-    radial-gradient(circle, var(--selection-marker-color, #ffffff) 0 2.5px, transparent 2.75px) right 4px top 4px / 6px 6px no-repeat,
-    radial-gradient(circle, var(--selection-marker-color, #ffffff) 0 2.5px, transparent 2.75px) right 4px bottom 4px / 6px 6px no-repeat,
-    radial-gradient(circle, var(--selection-marker-color, #ffffff) 0 2.5px, transparent 2.75px) left 4px bottom 4px / 6px 6px no-repeat;
-  content: "";
+  z-index: 4;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.96);
+  border-radius: 50%;
+  background: #0a84ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
+  color: #ffffff;
+  content: "✓";
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
   pointer-events: none;
+  animation: strip-selection-badge-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1)
+    both;
+}
+
+.editor-mode.has-leading-image .strip-block:first-child.is-selected::after {
+  top: calc(
+    10px + var(--leading-image-scroll-lock) + env(safe-area-inset-top) +
+      max(env(safe-area-inset-top), var(--leading-image-scroll-lock))
+  );
 }
 
 .empty-strip {
