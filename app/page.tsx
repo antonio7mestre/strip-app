@@ -2191,7 +2191,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     try {
       setBrowserPath("/drafts");
-      await transitionToView("drafts", "forward", "top", false);
+      await transitionToViewStandard("drafts");
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -2202,7 +2202,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     try {
       setBrowserPath("/");
-      await transitionToView("library", "backward", "top", false);
+      await transitionToViewStandard("library");
     } finally {
       pageTransitionInFlightRef.current = false;
     }
