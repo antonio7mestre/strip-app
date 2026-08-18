@@ -1014,14 +1014,9 @@ export default function Home() {
   const draftSaveSequenceRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
-    view === "edit"
-      ? blocks[0]
-      : (view === "published" && openedPublishedStrip
-          ? openedPublishedStrip.blocks
-          : blocks
-        ).find(
-          (block) => block.type !== "text" || block.content.trim().length > 0,
-        );
+    view === "published" && openedPublishedStrip
+      ? openedPublishedStrip.blocks[0]
+      : blocks[0];
   const topSafeAreaColor =
     view === "library" ||
     view === "drafts" ||
@@ -1726,9 +1721,7 @@ export default function Home() {
     }
   };
 
-  const hasContent = blocks.some(
-    (block) => block.type !== "text" || block.content.trim().length > 0,
-  );
+  const hasContent = blocks.length > 0;
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
@@ -2565,8 +2558,8 @@ export default function Home() {
 
       {sourceBlocks.map((block, index) => {
         if (block.type === "text") {
-          if (!isEditing && !block.content.trim()) return null;
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
+          const textIsBlank = block.content.trim().length === 0;
           const backgroundColor = block.backgroundColor ?? DEFAULT_BACKGROUND;
           const textColor = block.textColor ?? contrastColor(backgroundColor);
           const usesDarkText = contrastColor(textColor) === "#FFFFFF";
@@ -2632,10 +2625,17 @@ export default function Home() {
                 />
               ) : (
                 <p
-                  className={isEditing && !block.content ? "is-placeholder" : undefined}
+                  className={
+                    isEditing && textIsBlank
+                      ? "is-placeholder"
+                      : textIsBlank
+                        ? "is-blank"
+                        : undefined
+                  }
                   style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
+                  aria-hidden={textIsBlank || undefined}
                 >
-                  {block.content || (isEditing ? "tap me to write" : "")}
+                  {textIsBlank ? (isEditing ? "tap me to write" : "") : block.content}
                 </p>
               )}
             </section>

@@ -520,6 +520,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   opacity: 0.3;
 }
 
+.text-block p.is-blank {
+  min-height: 1.22em;
+}
+
 .text-block.uses-dark-text textarea::placeholder,
 .text-block.uses-dark-text p.is-placeholder {
   opacity: 0.46;
