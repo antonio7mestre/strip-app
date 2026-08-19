@@ -16,6 +16,7 @@ type StoredStripRow = {
 type PublishRequest = {
   ownerId?: string;
   id?: string;
+  draftId?: string | null;
   title?: string;
   publishedAt?: number;
   cover?:
@@ -38,16 +39,34 @@ type PublishBlock =
       fontStyle?: string;
       fontSize?: number;
       editedAt?: number;
-    }
-  | { id: string; type: "image" | "video"; src: string; alt: string };
+  }
+  | { id: string; type: "image" | "video"; src: string; alt: string }
+  | {
+      id: string;
+      type: "sticker";
+      src: string;
+      alt: string;
+      x: number;
+      y: number;
+      width: number;
+    };
 
 type StoredContentBlock =
-  | Exclude<PublishBlock, { type: "image" | "video" }>
+  | Exclude<PublishBlock, { type: "image" | "video" | "sticker" }>
   | {
       id: string;
       type: "image" | "video";
       objectKey: string;
       alt: string;
+    }
+  | {
+      id: string;
+      type: "sticker";
+      objectKey: string;
+      alt: string;
+      x: number;
+      y: number;
+      width: number;
     };
 
 const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
@@ -107,9 +126,22 @@ function decodeMediaDataUrl(
   return { bytes, contentType };
 }
 
+function draftMediaBlockId(value: string, draftId: string) {
+  try {
+    const url = new URL(value, "https://strip.local");
+    const prefix = `/api/drafts/${encodeURIComponent(draftId)}/media/`;
+    if (!url.pathname.startsWith(prefix)) return null;
+    const blockId = decodeURIComponent(url.pathname.slice(prefix.length));
+    return ID_PATTERN.test(blockId) ? blockId : null;
+  } catch {
+    return null;
+  }
+}
+
 function prepareContentBlocks(
   ownerId: string,
   stripId: string,
+  draftId: string | null,
   inputBlocks: PublishBlock[],
 ) {
   if (inputBlocks.length > MAX_BLOCKS) return null;
@@ -118,6 +150,7 @@ function prepareContentBlocks(
     bytes: Uint8Array;
     contentType: string;
   }> = [];
+  const copies: Array<{ sourceObjectKey: string; objectKey: string }> = [];
   const storedBlocks: StoredContentBlock[] = [];
 
   for (const block of inputBlocks) {
@@ -136,19 +169,45 @@ function prepareContentBlocks(
       continue;
     }
 
-    const media = decodeMediaDataUrl(block.src, block.type, MAX_MEDIA_BYTES);
-    if (!media) return null;
     const objectKey = `strips/${ownerId}/${stripId}/media/${block.id}`;
-    uploads.push({ objectKey, ...media });
-    storedBlocks.push({
-      id: block.id,
-      type: block.type,
-      objectKey,
-      alt: String(block.alt ?? "").slice(0, 160),
-    });
+    const media = decodeMediaDataUrl(
+      block.src,
+      block.type === "video" ? "video" : "image",
+      MAX_MEDIA_BYTES,
+    );
+    if (media) {
+      uploads.push({ objectKey, ...media });
+    } else {
+      const sourceBlockId = draftId
+        ? draftMediaBlockId(block.src, draftId)
+        : null;
+      if (!draftId || sourceBlockId !== block.id) return null;
+      copies.push({
+        sourceObjectKey: `drafts/${ownerId}/${draftId}/media/${block.id}`,
+        objectKey,
+      });
+    }
+    if (block.type === "sticker") {
+      storedBlocks.push({
+        id: block.id,
+        type: "sticker",
+        objectKey,
+        alt: String(block.alt ?? "").slice(0, 160),
+        x: Math.min(100, Math.max(0, Number(block.x) || 50)),
+        y: Math.max(0, Number(block.y) || 0),
+        width: Math.min(80, Math.max(8, Number(block.width) || 30)),
+      });
+    } else {
+      storedBlocks.push({
+        id: block.id,
+        type: block.type,
+        objectKey,
+        alt: String(block.alt ?? "").slice(0, 160),
+      });
+    }
   }
 
-  return { uploads, storedBlocks };
+  return { uploads, copies, storedBlocks };
 }
 
 function imageExtension(contentType: string) {
@@ -190,16 +249,23 @@ export async function POST(request: Request) {
 
   const ownerId = input.ownerId ?? "";
   const id = input.id ?? "";
+  const draftId = input.draftId ?? null;
   const title = (input.title ?? "").trim().slice(0, 80);
   const publishedAt = Number.isFinite(input.publishedAt)
     ? Math.round(input.publishedAt as number)
     : Date.now();
-  if (!OWNER_PATTERN.test(ownerId) || !ID_PATTERN.test(id) || !input.cover) {
+  if (
+    !OWNER_PATTERN.test(ownerId) ||
+    !ID_PATTERN.test(id) ||
+    (draftId !== null && !ID_PATTERN.test(draftId)) ||
+    !input.cover
+  ) {
     return Response.json({ error: "Invalid Strip." }, { status: 400 });
   }
   const preparedContent = prepareContentBlocks(
     ownerId,
     id,
+    draftId,
     Array.isArray(input.blocks) ? input.blocks : [],
   );
   if (!preparedContent) {
@@ -209,15 +275,23 @@ export async function POST(request: Request) {
   let coverColor: string | null = null;
   let coverShape: string | null = null;
   let coverObjectKey: string | null = null;
+  let coverCopySourceKey: string | null = null;
   let coverAlt: string | null = null;
   const uploadedObjectKeys: string[] = [];
 
   if (input.cover.kind === "image") {
     const image = decodeMediaDataUrl(input.cover.src, "image", MAX_COVER_BYTES);
-    if (!image) {
+    const sourceBlockId =
+      !image && draftId ? draftMediaBlockId(input.cover.src, draftId) : null;
+    if (!image && !sourceBlockId) {
       return Response.json({ error: "Invalid cover image." }, { status: 400 });
     }
-    coverObjectKey = `covers/${ownerId}/${id}.${imageExtension(image.contentType)}`;
+    coverObjectKey = image
+      ? `covers/${ownerId}/${id}.${imageExtension(image.contentType)}`
+      : `covers/${ownerId}/${id}`;
+    coverCopySourceKey = sourceBlockId
+      ? `drafts/${ownerId}/${draftId}/media/${sourceBlockId}`
+      : null;
     coverAlt = (input.cover.alt ?? "Strip cover").slice(0, 160);
   } else {
     const color = input.cover.color.trim().toUpperCase();
@@ -232,10 +306,20 @@ export async function POST(request: Request) {
 
   try {
     if (coverObjectKey && input.cover.kind === "image") {
-      const image = decodeMediaDataUrl(input.cover.src, "image", MAX_COVER_BYTES)!;
-      await env.STRIP_MEDIA.put(coverObjectKey, image.bytes, {
-        httpMetadata: { contentType: image.contentType },
-      });
+      const image = decodeMediaDataUrl(input.cover.src, "image", MAX_COVER_BYTES);
+      if (image) {
+        await env.STRIP_MEDIA.put(coverObjectKey, image.bytes, {
+          httpMetadata: { contentType: image.contentType },
+        });
+      } else if (coverCopySourceKey) {
+        const source = await env.STRIP_MEDIA.get(coverCopySourceKey);
+        if (!source?.httpMetadata?.contentType?.startsWith("image/")) {
+          throw new Error("Missing draft cover image.");
+        }
+        await env.STRIP_MEDIA.put(coverObjectKey, source.body, {
+          httpMetadata: source.httpMetadata,
+        });
+      }
       uploadedObjectKeys.push(coverObjectKey);
     }
     for (const upload of preparedContent.uploads) {
@@ -243,6 +327,14 @@ export async function POST(request: Request) {
         httpMetadata: { contentType: upload.contentType },
       });
       uploadedObjectKeys.push(upload.objectKey);
+    }
+    for (const copy of preparedContent.copies) {
+      const source = await env.STRIP_MEDIA.get(copy.sourceObjectKey);
+      if (!source) throw new Error("Missing draft media.");
+      await env.STRIP_MEDIA.put(copy.objectKey, source.body, {
+        httpMetadata: source.httpMetadata,
+      });
+      uploadedObjectKeys.push(copy.objectKey);
     }
     await env.DB.prepare(
       `INSERT INTO strips (

@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 type StoredMediaBlock = {
   id: string;
-  type: "image" | "video";
+  type: "image" | "video" | "sticker";
   objectKey: string;
 };
 
@@ -40,7 +40,9 @@ export async function GET(
     mediaBlock = blocks.find(
       (block) =>
         block.id === blockId &&
-        (block.type === "image" || block.type === "video") &&
+        (block.type === "image" ||
+          block.type === "video" ||
+          block.type === "sticker") &&
         typeof block.objectKey === "string",
     );
   } catch {

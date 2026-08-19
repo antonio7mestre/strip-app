@@ -445,6 +445,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .strip-canvas {
+  position: relative;
   min-height: inherit;
 }
 
@@ -551,6 +552,41 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   max-height: none;
   background: #000000;
   object-fit: contain;
+  pointer-events: none;
+}
+
+.sticker-block {
+  position: absolute;
+  z-index: 8;
+  margin: 0;
+  line-height: 0;
+  transform: translate(-50%, -50%);
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.sticker-block.is-editing {
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.sticker-block.is-editing:active {
+  cursor: grabbing;
+}
+
+.sticker-block.is-selected {
+  z-index: 12;
+}
+
+.sticker-block img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
   pointer-events: none;
 }
 
@@ -1601,6 +1637,17 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.05);
   color: rgba(0, 0, 0, 0.88);
+}
+
+@media (max-width: 430px) {
+  .main-composer-dock .dock-controls-current {
+    gap: 1px;
+  }
+
+  .main-composer-dock .dock-icon-button:not(.publish-strip-button) {
+    width: 43px;
+    flex-basis: 43px;
+  }
 }
 
 .font-size-stepper button {

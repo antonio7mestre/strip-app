@@ -12,16 +12,34 @@ type DraftBlock =
       fontStyle?: string;
       fontSize?: number;
       editedAt?: number;
-    }
-  | { id: string; type: "image" | "video"; src: string; alt: string };
+  }
+  | { id: string; type: "image" | "video"; src: string; alt: string }
+  | {
+      id: string;
+      type: "sticker";
+      src: string;
+      alt: string;
+      x: number;
+      y: number;
+      width: number;
+    };
 
 type StoredDraftBlock =
-  | Exclude<DraftBlock, { type: "image" | "video" }>
+  | Exclude<DraftBlock, { type: "image" | "video" | "sticker" }>
   | {
       id: string;
       type: "image" | "video";
       objectKey: string;
       alt: string;
+    }
+  | {
+      id: string;
+      type: "sticker";
+      objectKey: string;
+      alt: string;
+      x: number;
+      y: number;
+      width: number;
     };
 
 type StoredDraftRow = {
@@ -142,18 +160,33 @@ function prepareDraftBlocks(
     }
 
     const objectKey = `drafts/${ownerId}/${draftId}/media/${block.id}`;
-    const media = decodeMediaDataUrl(block.src, block.type);
+    const media = decodeMediaDataUrl(
+      block.src,
+      block.type === "video" ? "video" : "image",
+    );
     if (media) {
       uploads.push({ objectKey, ...media });
     } else if (!isExistingDraftMediaPath(block.src, draftId, block.id)) {
       return null;
     }
-    storedBlocks.push({
-      id: block.id,
-      type: block.type,
-      objectKey,
-      alt: String(block.alt ?? "").slice(0, 160),
-    });
+    if (block.type === "sticker") {
+      storedBlocks.push({
+        id: block.id,
+        type: "sticker",
+        objectKey,
+        alt: String(block.alt ?? "").slice(0, 160),
+        x: Math.min(100, Math.max(0, Number(block.x) || 50)),
+        y: Math.max(0, Number(block.y) || 0),
+        width: Math.min(80, Math.max(8, Number(block.width) || 30)),
+      });
+    } else {
+      storedBlocks.push({
+        id: block.id,
+        type: block.type,
+        objectKey,
+        alt: String(block.alt ?? "").slice(0, 160),
+      });
+    }
   }
 
   return { uploads, storedBlocks };
@@ -164,7 +197,10 @@ function storedMediaObjectKeys(value: string | null) {
   try {
     const blocks = JSON.parse(value) as StoredDraftBlock[];
     return blocks.flatMap((block) =>
-      block && (block.type === "image" || block.type === "video")
+      block &&
+      (block.type === "image" ||
+        block.type === "video" ||
+        block.type === "sticker")
         ? [block.objectKey]
         : [],
     );

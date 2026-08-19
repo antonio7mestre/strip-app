@@ -18,6 +18,15 @@ type StoredBlock =
       type: "image" | "video";
       objectKey: string;
       alt: string;
+    }
+  | {
+      id: string;
+      type: "sticker";
+      objectKey: string;
+      alt: string;
+      x: number;
+      y: number;
+      width: number;
     };
 
 const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
@@ -101,13 +110,20 @@ export async function GET(
   let blocks = storedBlocks.flatMap((block) => {
     if (!block || !ID_PATTERN.test(block.id)) return [];
     if (block.type === "text") return [block];
-    if (block.type !== "image" && block.type !== "video") return [];
+    if (
+      block.type !== "image" &&
+      block.type !== "video" &&
+      block.type !== "sticker"
+    ) return [];
     return [
       {
         id: block.id,
         type: block.type,
         src: mediaPath(row.owner_id, id, block.id),
         alt: block.alt ?? "",
+        ...(block.type === "sticker"
+          ? { x: block.x, y: block.y, width: block.width }
+          : {}),
       },
     ];
   });

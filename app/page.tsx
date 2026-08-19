@@ -24,6 +24,7 @@ import {
   Pencil,
   Pipette,
   Plus,
+  Sticker,
   Trash2,
   TriangleAlert,
   Type,
@@ -56,7 +57,17 @@ type VideoBlock = {
   alt: string;
 };
 
-type StripBlock = TextBlock | ImageBlock | VideoBlock;
+type StickerBlock = {
+  id: string;
+  type: "sticker";
+  src: string;
+  alt: string;
+  x: number;
+  y: number;
+  width: number;
+};
+
+type StripBlock = TextBlock | ImageBlock | VideoBlock | StickerBlock;
 type View =
   | "library"
   | "drafts"
@@ -512,7 +523,7 @@ function BlockControls({
 }: {
   index: number;
   count: number;
-  onMove: (direction: -1 | 1) => void;
+  onMove?: (direction: -1 | 1) => void;
   onRemove: () => void;
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
@@ -551,22 +562,26 @@ function BlockControls({
           <span className="block-controls-divider" aria-hidden="true" />
         </>
       ) : null}
-      <button
-        type="button"
-        onClick={() => onMove(-1)}
-        disabled={index === 0}
-        aria-label="Move block up"
-      >
-        <ArrowUp className="block-glyph" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onMove(1)}
-        disabled={index === count - 1}
-        aria-label="Move block down"
-      >
-        <ArrowDown className="block-glyph" aria-hidden="true" />
-      </button>
+      {onMove ? (
+        <>
+          <button
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            aria-label="Move block up"
+          >
+            <ArrowUp className="block-glyph" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={index === count - 1}
+            aria-label="Move block down"
+          >
+            <ArrowDown className="block-glyph" aria-hidden="true" />
+          </button>
+        </>
+      ) : null}
       <button type="button" onClick={onRemove} aria-label="Delete block">
         <Trash2 className="block-glyph" aria-hidden="true" />
       </button>
@@ -943,6 +958,95 @@ function StripVideoBlock({
   );
 }
 
+function StripStickerBlock({
+  block,
+  isEditing,
+  isSelected,
+  onSelect,
+  onMove,
+}: {
+  block: StickerBlock;
+  isEditing: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  onMove: (position: Pick<StickerBlock, "x" | "y">) => void;
+}) {
+  const dragRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    x: number;
+    y: number;
+    canvasWidth: number;
+    canvasHeight: number;
+  } | null>(null);
+
+  const stopDragging = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragRef.current = null;
+  };
+
+  return (
+    <figure
+      className={`strip-block sticker-block ${isEditing ? "is-editing" : ""} ${
+        isEditing && isSelected ? "is-selected" : ""
+      }`}
+      data-block-id={block.id}
+      style={{
+        left: `${block.x}%`,
+        top: `${block.y}px`,
+        width: `${block.width}%`,
+      }}
+      onPointerDown={(event) => {
+        if (!isEditing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect();
+        const canvas = event.currentTarget.closest<HTMLElement>(".strip-canvas");
+        if (!canvas) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragRef.current = {
+          pointerId: event.pointerId,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          x: block.x,
+          y: block.y,
+          canvasWidth: Math.max(1, canvas.getBoundingClientRect().width),
+          canvasHeight: Math.max(window.innerHeight, canvas.scrollHeight),
+        };
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        event.preventDefault();
+        const halfWidth = block.width / 2;
+        onMove({
+          x: Math.min(
+            100 - halfWidth,
+            Math.max(
+              halfWidth,
+              drag.x + ((event.clientX - drag.clientX) / drag.canvasWidth) * 100,
+            ),
+          ),
+          y: Math.min(
+            Math.max(36, drag.canvasHeight - 36),
+            Math.max(36, drag.y + event.clientY - drag.clientY),
+          ),
+        });
+      }}
+      onPointerUp={stopDragging}
+      onPointerCancel={stopDragging}
+      onContextMenu={(event) => event.preventDefault()}
+      aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
+    >
+      <img src={block.src} alt={block.alt} draggable={false} />
+    </figure>
+  );
+}
+
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
@@ -996,6 +1100,7 @@ export default function Home() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverStageRef = useRef<HTMLDivElement>(null);
   const coverInstructionRef = useRef<HTMLParagraphElement>(null);
@@ -1015,8 +1120,8 @@ export default function Home() {
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const firstVisibleBlock =
     view === "published" && openedPublishedStrip
-      ? openedPublishedStrip.blocks[0]
-      : blocks[0];
+      ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
+      : blocks.find((block) => block.type !== "sticker");
   const topSafeAreaColor =
     view === "library" ||
     view === "drafts" ||
@@ -1635,6 +1740,45 @@ export default function Home() {
       setEditingTextBlockId(null);
       setActiveTextTool(null);
       revealAddedBlock(id);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const addSticker = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
+      const canvasBounds = canvas?.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportOffsetTop = viewport?.offsetTop ?? 0;
+      const canvasWidth = Math.max(1, canvasBounds?.width ?? window.innerWidth);
+      const id = makeId();
+      const y = Math.max(
+        72,
+        viewportOffsetTop + viewportHeight * 0.42 - (canvasBounds?.top ?? 0),
+      );
+      const width = Math.min(34, Math.max(24, (132 / canvasWidth) * 100));
+      setBlocks((current) => [
+        ...current,
+        {
+          id,
+          type: "sticker",
+          src: reader.result as string,
+          alt: file.name.replace(/\.[^/.]+$/, ""),
+          x: 50,
+          y,
+          width,
+        },
+      ]);
+      setSelectedBlockId(id);
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -2483,6 +2627,7 @@ export default function Home() {
         body: JSON.stringify({
           ownerId: libraryOwnerId,
           id: stripId,
+          draftId: currentDraftId,
           title: stripTitle.trim(),
           publishedAt,
           cover: publishedCover,
@@ -2547,16 +2692,26 @@ export default function Home() {
   const renderStrip = (
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
-  ) => (
-    <div className="strip-canvas">
-      {sourceBlocks.length === 0 && isEditing ? (
-        <div className="empty-strip">
-          <p>Your Strip starts here.</p>
-          <span>Add one block at a time.</span>
-        </div>
-      ) : null}
+  ) => {
+    const stickerFloor = sourceBlocks.reduce(
+      (floor, block) =>
+        block.type === "sticker" ? Math.max(floor, block.y + 180) : floor,
+      0,
+    );
 
-      {sourceBlocks.map((block, index) => {
+    return (
+      <div
+        className="strip-canvas"
+        style={stickerFloor > 0 ? { minHeight: `${stickerFloor}px` } : undefined}
+      >
+        {sourceBlocks.length === 0 && isEditing ? (
+          <div className="empty-strip">
+            <p>Your Strip starts here.</p>
+            <span>Add one block at a time.</span>
+          </div>
+        ) : null}
+
+        {sourceBlocks.map((block, index) => {
         if (block.type === "text") {
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
           const textIsBlank = block.content.trim().length === 0;
@@ -2666,6 +2821,32 @@ export default function Home() {
           );
         }
 
+        if (block.type === "sticker") {
+          return (
+            <StripStickerBlock
+              key={block.id}
+              block={block}
+              isEditing={isEditing}
+              isSelected={selectedBlockId === block.id}
+              onSelect={() => {
+                if (!isEditing) return;
+                setSelectedBlockId(block.id);
+                setEditingTextBlockId(null);
+                setActiveTextTool(null);
+              }}
+              onMove={(position) => {
+                setBlocks((current) =>
+                  current.map((currentBlock) =>
+                    currentBlock.id === block.id && currentBlock.type === "sticker"
+                      ? { ...currentBlock, ...position }
+                      : currentBlock,
+                  ),
+                );
+              }}
+            />
+          );
+        }
+
         return (
           <StripVideoBlock
             key={block.id}
@@ -2680,9 +2861,10 @@ export default function Home() {
             }}
           />
         );
-      })}
-    </div>
-  );
+        })}
+      </div>
+    );
+  };
 
   const legacyTransitionLayer = legacyPageTransition ? (
     <div
@@ -3454,7 +3636,11 @@ export default function Home() {
         <BlockControls
           index={selectedBlockIndex}
           count={blocks.length}
-          onMove={(direction) => moveBlock(selectedBlockIndex, direction)}
+          onMove={
+            selectedBlock?.type === "sticker"
+              ? undefined
+              : (direction) => moveBlock(selectedBlockIndex, direction)
+          }
           onRemove={() => setPendingDeleteId(blocks[selectedBlockIndex].id)}
           onTextTool={
             selectedBlock?.type === "text"
@@ -3524,6 +3710,22 @@ export default function Home() {
             onChange={addVideo}
             aria-label="Choose a video"
           />
+          <button
+            className="dock-icon-button"
+            type="button"
+            onClick={() => stickerInputRef.current?.click()}
+            aria-label="Add sticker"
+          >
+            <Sticker className="dock-glyph" aria-hidden="true" />
+          </button>
+          <input
+            ref={stickerInputRef}
+            className="visually-hidden"
+            type="file"
+            accept="image/*"
+            onChange={addSticker}
+            aria-label="Choose a sticker image"
+          />
           <span className="dock-divider" aria-hidden="true" />
           <button
             className="dock-icon-button"
@@ -3568,7 +3770,9 @@ export default function Home() {
                 ? "text"
                 : pendingDeleteBlock.type === "image"
                   ? "photo"
-                  : "video"} block?
+                  : pendingDeleteBlock.type === "video"
+                    ? "video"
+                    : "sticker"} block?
             </h2>
             <p id="delete-modal-description">This can&apos;t be undone.</p>
             <div className="delete-modal-actions">
