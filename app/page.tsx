@@ -1938,6 +1938,8 @@ export default function Home() {
     let lastScrollPosition = window.scrollY;
     let lastScrollTime = performance.now();
     let rubberBandActive = false;
+    let momentumBounceActive = false;
+    let momentumQuietTimer = 0;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
@@ -1967,6 +1969,17 @@ export default function Home() {
     const stopPullAnimation = () => {
       window.cancelAnimationFrame(pullAnimationFrame);
       pullAnimationFrame = 0;
+    };
+
+    const endMomentumBounceAfterQuietPeriod = () => {
+      window.clearTimeout(momentumQuietTimer);
+      momentumQuietTimer = window.setTimeout(() => {
+        if (pullAnimationFrame !== 0) {
+          endMomentumBounceAfterQuietPeriod();
+          return;
+        }
+        momentumBounceActive = false;
+      }, 140);
     };
 
     const springPullBack = () => {
@@ -2086,6 +2099,8 @@ export default function Home() {
 
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
+      momentumBounceActive = false;
+      window.clearTimeout(momentumQuietTimer);
       lastTouchY = event.touches[0]?.clientY ?? 0;
       lastTouchTime = performance.now();
       stopPullAnimation();
@@ -2202,11 +2217,11 @@ export default function Home() {
       const currentScrollPosition = window.scrollY;
       const elapsed = now - lastScrollTime;
 
-      if (!applyingLock && elapsed > 0 && elapsed < 120) {
+      if (!applyingLock && !momentumBounceActive && elapsed > 0 && elapsed < 120) {
         const currentVelocity =
           (currentScrollPosition - lastScrollPosition) / elapsed;
         scrollVelocity = scrollVelocity * 0.28 + currentVelocity * 0.72;
-      } else if (!applyingLock && elapsed >= 120) {
+      } else if (!applyingLock && !momentumBounceActive && elapsed >= 120) {
         scrollVelocity = 0;
       }
 
@@ -2214,9 +2229,25 @@ export default function Home() {
       lastScrollTime = now;
       lockFixedControlsDuringPull();
       if (touchIsActive) return;
-      if (applyingLock) return;
 
       const lockedTop = leadingImageScrollLockRef.current;
+      if (momentumBounceActive) {
+        /*
+         * Safari keeps dispatching inertial scroll updates after the first
+         * frame reaches our artificial top. Keep those updates pinned to the
+         * anchor without touching the already-running spring. Re-entering the
+         * normal path here used to cancel that spring and start a visible
+         * second bounce.
+         */
+        if (lockedTop > 0 && Math.abs(currentScrollPosition - lockedTop) > 0.25) {
+          setScrollTop(lockedTop, "auto");
+        }
+        endMomentumBounceAfterQuietPeriod();
+        return;
+      }
+
+      if (applyingLock) return;
+
       const reachedLockedTopWithMomentum =
         lockedTop > 0 &&
         currentScrollPosition <= lockedTop + 0.5 &&
@@ -2224,6 +2255,8 @@ export default function Home() {
       const absorbedNativeGap = absorbNativeScrollGap();
 
       if (absorbedNativeGap || reachedLockedTopWithMomentum) {
+        momentumBounceActive = reachedLockedTopWithMomentum;
+        if (momentumBounceActive) endMomentumBounceAfterQuietPeriod();
         if (!absorbedNativeGap) setScrollTop(lockedTop, "auto");
         const incomingMomentum = reachedLockedTopWithMomentum
           ? Math.min(
@@ -2322,6 +2355,7 @@ export default function Home() {
       window.cancelAnimationFrame(scrollAnimationFrame);
       window.cancelAnimationFrame(pullAnimationFrame);
       window.clearTimeout(settleTimer);
+      window.clearTimeout(momentumQuietTimer);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
       window.removeEventListener("scroll", handleLockedTopScroll);
