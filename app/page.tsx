@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type {
   ChangeEvent,
@@ -541,7 +541,6 @@ function BlockControls({
     : onMove
       ? "is-media-tray"
       : "is-single-action-tray";
-  const edgeGradientId = `block-controls-edge-${useId().replace(/:/g, "")}`;
   const edgeGeometry = onTextTool
       ? {
         viewBox: "0 0 336 58",
@@ -635,23 +634,12 @@ function BlockControls({
         preserveAspectRatio="none"
         aria-hidden="true"
       >
-        <defs>
-          <linearGradient id={edgeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="2%" stopColor="currentColor" stopOpacity="0.08" />
-            <stop offset="5%" stopColor="currentColor" stopOpacity="0.18" />
-            <stop offset="50%" stopColor="currentColor" stopOpacity="0.24" />
-            <stop offset="95%" stopColor="currentColor" stopOpacity="0.18" />
-            <stop offset="98%" stopColor="currentColor" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
         <path
           d={edgeGeometry.path}
           fill="none"
-          stroke={`url(#${edgeGradientId})`}
+          stroke="currentColor"
           strokeLinecap="round"
-          strokeWidth="1"
+          strokeWidth="1.75"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
