@@ -638,9 +638,11 @@ function BlockControls({
         <defs>
           <linearGradient id={edgeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="16%" stopColor="currentColor" stopOpacity="0.1" />
+            <stop offset="2%" stopColor="currentColor" stopOpacity="0.08" />
+            <stop offset="5%" stopColor="currentColor" stopOpacity="0.18" />
             <stop offset="50%" stopColor="currentColor" stopOpacity="0.24" />
-            <stop offset="84%" stopColor="currentColor" stopOpacity="0.1" />
+            <stop offset="95%" stopColor="currentColor" stopOpacity="0.18" />
+            <stop offset="98%" stopColor="currentColor" stopOpacity="0.08" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
