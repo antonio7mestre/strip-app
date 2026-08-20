@@ -447,6 +447,9 @@ type BlockControlsStyle = CSSProperties & {
   "--block-controls-foreground"?: string;
   "--block-controls-image"?: string;
 };
+type TopSafeAreaStyle = CSSProperties & {
+  "--top-safe-area-image"?: string;
+};
 type StickerBlockStyle = CSSProperties & {
   "--sticker-rotation": string;
   "--sticker-counter-rotation": string;
@@ -1882,6 +1885,12 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
+  const topSafeAreaStyle: TopSafeAreaStyle = {
+    backgroundColor: topSafeAreaColor,
+    ...(firstVisibleBlock?.type === "image"
+      ? { "--top-safe-area-image": `url(${JSON.stringify(firstVisibleBlock.src)})` }
+      : {}),
+  };
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2135,52 +2144,16 @@ export default function Home() {
     };
 
     const applyLeadingImageTopExtension = () => {
-      const previousOffset = leadingImageScrollLockRef.current;
-      const offset = calculateLeadingImageTopExtension();
-      leadingImageScrollLockRef.current = offset;
       root.style.setProperty(
         "--leading-image-top-extension",
-        `${offset}px`,
+        `${calculateLeadingImageTopExtension()}px`,
       );
-
-      if (!touchIsActive && !releasePending && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset);
-      } else if (
-        !touchIsActive &&
-        !releasePending &&
-        offset === 0 &&
-        previousOffset > 0 &&
-        window.scrollY <= previousOffset
-      ) {
-        setScrollTop(0);
-      }
     };
 
+    leadingImageScrollLockRef.current = 0;
     root.style.removeProperty("--fixed-controls-pull-counter");
     applyLeadingImageTopExtension();
-    lockFixedControlsDuringPull();
-    frame = window.requestAnimationFrame(() => {
-      applyLeadingImageTopExtension();
-      followupFrame = window.requestAnimationFrame(applyLeadingImageTopExtension);
-    });
-    window.addEventListener("scroll", handleLockedTopScroll, { passive: true });
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
-    window.addEventListener("touchend", handleTouchRelease, { passive: true });
-    window.addEventListener("touchcancel", handleTouchCancel, { passive: true });
     window.addEventListener("resize", applyLeadingImageTopExtension);
-
-    const stripCanvas = document.querySelector<HTMLElement>(".strip-canvas");
-    if (stripCanvas) {
-      mutationObserver = new MutationObserver(preserveLockedTopAfterLayout);
-      mutationObserver.observe(stripCanvas, {
-        childList: true,
-        subtree: true,
-      });
-
-      resizeObserver = new ResizeObserver(preserveLockedTopAfterLayout);
-      resizeObserver.observe(stripCanvas);
-    }
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -2190,13 +2163,7 @@ export default function Home() {
       window.clearTimeout(settleTimer);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
-      window.removeEventListener("scroll", handleLockedTopScroll);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchRelease);
-      window.removeEventListener("touchcancel", handleTouchCancel);
       window.removeEventListener("resize", applyLeadingImageTopExtension);
-      leadingImageScrollLockRef.current = 0;
       root.style.removeProperty("--leading-image-top-extension");
       root.style.removeProperty("--fixed-controls-pull-counter");
     };
@@ -4137,7 +4104,7 @@ export default function Home() {
         <main className="app-shell title-setup-mode">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-          style={{ backgroundColor: topSafeAreaColor }}
+          style={topSafeAreaStyle}
           aria-hidden="true"
         />
         <section
@@ -4331,7 +4298,7 @@ export default function Home() {
         <main className="app-shell publish-setup-mode">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-          style={{ backgroundColor: topSafeAreaColor }}
+          style={topSafeAreaStyle}
           aria-hidden="true"
         />
         <section
@@ -4617,7 +4584,7 @@ export default function Home() {
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-              style={{ backgroundColor: topSafeAreaColor }}
+              style={topSafeAreaStyle}
               aria-hidden="true"
             />
 
@@ -4639,7 +4606,7 @@ export default function Home() {
         >
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-          style={{ backgroundColor: topSafeAreaColor }}
+          style={topSafeAreaStyle}
           aria-hidden="true"
         />
         {isPublished ? (
@@ -4732,7 +4699,7 @@ export default function Home() {
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-        style={{ backgroundColor: topSafeAreaColor }}
+        style={topSafeAreaStyle}
         aria-hidden="true"
       />
       <div
