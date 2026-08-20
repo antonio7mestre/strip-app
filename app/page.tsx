@@ -27,7 +27,6 @@ import {
   Plus,
   Sticker,
   Trash2,
-  TriangleAlert,
   Type,
   Volume2,
   VolumeX,
@@ -1729,7 +1728,6 @@ export default function Home() {
   const [coverColorShape, setCoverColorShape] = useState<CoverColorShape>("square");
   const [coverColorPickerOpen, setCoverColorPickerOpen] = useState(false);
   const [pendingCoverColor, setPendingCoverColor] = useState("#2147D9");
-  const [blackCoverWarningVisible, setBlackCoverWarningVisible] = useState(false);
   const [publishSetupReturnView, setPublishSetupReturnView] = useState<"edit" | "preview">(
     "edit",
   );
@@ -3074,17 +3072,15 @@ export default function Home() {
         ? selectedColor.color
         : latestCustomColor ?? nonBlackCoverColors[0] ?? "#2147D9",
     );
-    setBlackCoverWarningVisible(false);
     setCoverColorPickerOpen(true);
   };
 
   const confirmCoverColor = () => {
     const color = pendingCoverColor.toUpperCase();
     if (isBlackCoverColor(color)) {
-      setBlackCoverWarningVisible(true);
+      setNotice("Our system can’t handle pure black covers.");
       return;
     }
-    setBlackCoverWarningVisible(false);
     setCustomCoverColors((current) =>
       current.some((option) => option.toUpperCase() === color)
         ? current
@@ -3102,7 +3098,6 @@ export default function Home() {
     if (!choice) return;
     if (coverColorPickerOpen && choice.kind !== "pick-color") {
       setCoverColorPickerOpen(false);
-      setBlackCoverWarningVisible(false);
     }
     setCoverStackStarted(true);
     setActiveCoverKey(choice.key);
@@ -4378,9 +4373,6 @@ export default function Home() {
           onChange={(change) => {
             if (!change.backgroundColor) return;
             setPendingCoverColor(change.backgroundColor);
-            if (!isBlackCoverColor(change.backgroundColor)) {
-              setBlackCoverWarningVisible(false);
-            }
           }}
           onBack={confirmCoverColor}
           backgroundOptions={BACKGROUND_COLORS.filter(
@@ -4388,12 +4380,6 @@ export default function Home() {
           )}
           startInGradientMode
         />
-        {coverColorPickerOpen && blackCoverWarningVisible ? (
-          <div className="cover-color-warning" role="alert">
-            <TriangleAlert aria-hidden="true" />
-            <span>Our system can&apos;t handle pure black covers</span>
-          </div>
-        ) : null}
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
