@@ -72,6 +72,11 @@ type DraftRequest = {
 
 const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
+
+function finiteNumber(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 const MAX_MEDIA_BYTES = 80 * 1024 * 1024;
 const MAX_BLOCKS = 100;
 
@@ -184,9 +189,9 @@ function prepareDraftBlocks(
         type: "sticker",
         objectKey,
         alt: String(block.alt ?? "").slice(0, 160),
-        x: Math.min(100, Math.max(0, Number(block.x) || 50)),
-        y: Math.max(0, Number(block.y) || 0),
-        width: Math.min(80, Math.max(8, Number(block.width) || 30)),
+        x: Math.min(100, Math.max(0, finiteNumber(block.x, 50))),
+        y: Math.max(0, finiteNumber(block.y, 0)),
+        width: Math.min(80, Math.max(8, finiteNumber(block.width, 30))),
       });
     } else {
       storedBlocks.push({
