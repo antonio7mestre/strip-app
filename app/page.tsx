@@ -1958,74 +1958,27 @@ export default function Home() {
     leadingImageInsetRef.current = offset;
     root.style.setProperty("--leading-image-inset", `${offset}px`);
     root.classList.toggle("leading-image-inset-active", offset > 0);
-    if (offset > 0) {
+
+    const placeLeadingImageAtAnchor = () => {
+      if (offset <= 0) return;
       window.scrollTo({ top: offset, left: 0, behavior: "auto" });
-    }
+    };
+
+    placeLeadingImageAtAnchor();
+    const anchorFrame = window.requestAnimationFrame(placeLeadingImageAtAnchor);
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) placeLeadingImageAtAnchor();
+    };
+    window.addEventListener("pageshow", handlePageShow);
 
     return () => {
+      window.cancelAnimationFrame(anchorFrame);
+      window.removeEventListener("pageshow", handlePageShow);
       leadingImageInsetRef.current = 0;
       root.classList.remove("leading-image-inset-active");
       root.style.removeProperty("--leading-image-inset");
     };
   }, [hasLeadingImage, view]);
-
-  useEffect(() => {
-    let pullStartX = 0;
-    let pullStartY = 0;
-    let pullDistance = 0;
-    let canReload = false;
-
-    const resetPull = () => {
-      pullStartX = 0;
-      pullStartY = 0;
-      pullDistance = 0;
-      canReload = false;
-    };
-
-    const beginPull = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        resetPull();
-        return;
-      }
-
-      const touch = event.touches[0];
-      pullStartX = touch.clientX;
-      pullStartY = touch.clientY;
-      pullDistance = 0;
-      canReload = window.scrollY <= leadingImageInsetRef.current + 1;
-    };
-
-    const trackPull = (event: TouchEvent) => {
-      if (!canReload || event.touches.length !== 1) {
-        resetPull();
-        return;
-      }
-
-      const touch = event.touches[0];
-      const verticalDistance = touch.clientY - pullStartY;
-      const horizontalDistance = Math.abs(touch.clientX - pullStartX);
-      pullDistance =
-        verticalDistance > horizontalDistance ? Math.max(0, verticalDistance) : 0;
-    };
-
-    const finishPull = () => {
-      const shouldReload = canReload && pullDistance >= 72;
-      resetPull();
-      if (shouldReload) window.location.reload();
-    };
-
-    document.addEventListener("touchstart", beginPull, { passive: true });
-    document.addEventListener("touchmove", trackPull, { passive: true });
-    document.addEventListener("touchend", finishPull, { passive: true });
-    document.addEventListener("touchcancel", resetPull, { passive: true });
-
-    return () => {
-      document.removeEventListener("touchstart", beginPull);
-      document.removeEventListener("touchmove", trackPull);
-      document.removeEventListener("touchend", finishPull);
-      document.removeEventListener("touchcancel", resetPull);
-    };
-  }, []);
 
   useEffect(
     () => () => {
