@@ -1946,25 +1946,23 @@ export default function Home() {
 
     const getRubberBandDimension = () => Math.max(1, window.innerHeight);
 
+    const getRubberBandRange = () => getRubberBandDimension() * 0.9;
+
     const rubberBandDistance = (distance: number) => {
-      const dimension = getRubberBandDimension();
+      const range = getRubberBandRange();
       /*
-       * Keep the stable manual gesture handoff, but let the canvas follow the
-       * finger farther before resistance takes over. The curve still has a
-       * viewport-sized asymptote, so a hard pull never exposes the page edge.
+       * This curve has a slope of exactly 1 at the top boundary. Native scroll
+       * and the rubber band therefore carry the same velocity through the
+       * handoff instead of briefly slowing before the elastic resistance grows.
        */
-      const resistance = 0.82;
-      return (
-        (dimension * resistance * Math.max(0, distance)) /
-        (dimension + resistance * Math.max(0, distance))
-      );
+      const pullDistance = Math.max(0, distance);
+      return (range * pullDistance) / (range + pullDistance);
     };
 
     const rawDistanceFromRubberBand = (distance: number) => {
-      const dimension = getRubberBandDimension();
-      const resistance = 0.64;
-      const clamped = Math.min(Math.max(0, distance), dimension - 0.5);
-      return (clamped * dimension) / (resistance * (dimension - clamped));
+      const range = getRubberBandRange();
+      const clamped = Math.min(Math.max(0, distance), range - 0.5);
+      return (clamped * range) / (range - clamped);
     };
 
     const setPullOffset = (offset: number) => {
