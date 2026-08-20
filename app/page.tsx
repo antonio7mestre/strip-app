@@ -145,6 +145,7 @@ const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 180;
 const DOCK_TRANSITION_DURATION_MS = 300;
+const STICKER_MIN_VISIBLE_PX = 44;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -1467,8 +1468,37 @@ function StripStickerBlock({
     );
   };
 
-  const clampStickerX = (x: number) => {
-    return Math.min(100, Math.max(0, x));
+  const clampStickerX = (
+    x: number,
+    width: number,
+    rotation: number,
+    canvasWidth: number,
+  ) => {
+    const safeCanvasWidth = Math.max(1, canvasWidth);
+    const stickerWidth = (width / 100) * safeCanvasWidth;
+    const image = stickerElementRef.current?.querySelector("img");
+    const aspectRatio =
+      image && image.naturalWidth > 0 && image.naturalHeight > 0
+        ? image.naturalWidth / image.naturalHeight
+        : image && image.clientWidth > 0 && image.clientHeight > 0
+          ? image.clientWidth / image.clientHeight
+          : 1;
+    const stickerHeight = stickerWidth / Math.max(0.01, aspectRatio);
+    const radians = (rotation * Math.PI) / 180;
+    const projectedWidth =
+      Math.abs(stickerWidth * Math.cos(radians)) +
+      Math.abs(stickerHeight * Math.sin(radians));
+    const visiblePixels = Math.min(STICKER_MIN_VISIBLE_PX, projectedWidth);
+    const minimumCenter = visiblePixels - projectedWidth / 2;
+    const maximumCenter =
+      safeCanvasWidth - visiblePixels + projectedWidth / 2;
+    const center = (x / 100) * safeCanvasWidth;
+    const clampedCenter = Math.min(
+      maximumCenter,
+      Math.max(minimumCenter, center),
+    );
+
+    return (clampedCenter / safeCanvasWidth) * 100;
   };
 
   const clampStickerY = (y: number, canvasHeight: number) => {
@@ -1555,6 +1585,9 @@ function StripStickerBlock({
           x: clampStickerX(
             transform.x +
               ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+            width,
+            rotation,
+            transform.canvasWidth,
           ),
           y: clampStickerY(
             transform.y + midpointY - transform.midpointY,
@@ -1576,6 +1609,9 @@ function StripStickerBlock({
       previewTransform({
         x: clampStickerX(
           drag.x + ((touch.clientX - drag.clientX) / drag.canvasWidth) * 100,
+          drag.width,
+          drag.rotation,
+          drag.canvasWidth,
         ),
         y: clampStickerY(
           drag.y + touch.clientY - drag.clientY,
@@ -1876,6 +1912,9 @@ function StripStickerBlock({
             x: clampStickerX(
               transform.x +
                 ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+              width,
+              rotation,
+              transform.canvasWidth,
             ),
             y: clampStickerY(
               transform.y + midpointY - transform.midpointY,
@@ -1894,6 +1933,9 @@ function StripStickerBlock({
         previewTransform({
           x: clampStickerX(
             drag.x + ((event.clientX - drag.clientX) / drag.canvasWidth) * 100,
+            current.width,
+            current.rotation ?? 0,
+            drag.canvasWidth,
           ),
           y: clampStickerY(
             drag.y + event.clientY - drag.clientY,
