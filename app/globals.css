@@ -9,7 +9,7 @@
   --line: rgba(255, 255, 255, 0.14);
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
-  --leading-image-top-extension: 0px;
+  --leading-image-scroll-lock: 0px;
 }
 
 * {
@@ -114,6 +114,13 @@ html.strip-page-transitioning {
 
 html.strip-standard-page-entering .app-shell {
   animation: strip-standard-page-enter 180ms ease-out backwards;
+}
+
+html.leading-image-scroll-locked,
+html.leading-image-scroll-locked body,
+html.leading-image-scroll-locked .app-shell,
+html.leading-image-scroll-locked .strip-canvas {
+  overflow-anchor: none;
 }
 
 .legacy-page-transition-overlay {
@@ -236,7 +243,11 @@ textarea:focus-visible,
 }
 
 .app-shell.has-leading-image {
-  min-height: calc(100lvh + var(--leading-image-top-extension));
+  min-height: calc(100lvh + var(--leading-image-scroll-lock));
+}
+
+html.is-releasing-leading-image-scroll .app-shell.editor-mode {
+  min-height: calc(100lvh + var(--text-first-scroll-release, 62px));
 }
 
 .top-safe-area-anchor {
@@ -798,7 +809,7 @@ textarea:focus-visible,
 
 .selected-tools-locator.is-above {
   top: calc(
-    max(env(safe-area-inset-top), var(--leading-image-top-extension)) + 6px
+    max(env(safe-area-inset-top), var(--leading-image-scroll-lock)) + 6px
   );
   animation: selected-tools-from-top 260ms cubic-bezier(0.16, 1, 0.3, 1)
     both;
@@ -2170,9 +2181,7 @@ textarea:focus-visible,
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
-    margin-top: calc(
-      -1 * env(safe-area-inset-top) - var(--leading-image-top-extension)
-    );
+    margin-top: calc(-1 * env(safe-area-inset-top));
     margin-bottom: 0;
     padding-top: 0;
     transform: none;

@@ -2110,44 +2110,83 @@ export default function Home() {
       settleLockedTop("auto");
     };
 
-    const calculateLeadingImageTopExtension = () => {
-      if (!hasLeadingImage) return 0;
+    const calculateLeadingImageLock = () => {
+      let offset = 0;
       const isIOS =
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       const stripIsVisible =
         view === "edit" || view === "preview" || view === "published";
-      if (!stripIsVisible || !isIOS || window.screen.height / window.screen.width <= 2) {
-        return 0;
+
+      if (
+        stripIsVisible &&
+        hasLeadingImage &&
+        isIOS &&
+        window.screen.height / window.screen.width > 2
+      ) {
+        const probe = document.createElement("div");
+        probe.style.cssText =
+          "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
+        document.body.appendChild(probe);
+        const reportedSafeTop = Number.parseFloat(
+          window.getComputedStyle(probe).paddingTop,
+        );
+        probe.remove();
+
+        if (!Number.isFinite(reportedSafeTop) || reportedSafeTop < 1) {
+          offset = Math.round(
+            Math.min(62, Math.max(47, window.screen.width * 0.154)),
+          );
+        }
       }
 
-      const probe = document.createElement("div");
-      probe.style.cssText =
-        "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
-      document.body.appendChild(probe);
-      const reportedSafeTop = Number.parseFloat(
-        window.getComputedStyle(probe).paddingTop,
-      );
-      probe.remove();
-
-      return !Number.isFinite(reportedSafeTop) || reportedSafeTop < 1
-        ? Math.round(Math.min(62, Math.max(47, window.screen.width * 0.154)))
-        : 0;
+      return offset;
     };
 
-    const applyLeadingImageTopExtension = () => {
-      root.style.setProperty(
-        "--leading-image-top-extension",
-        `${calculateLeadingImageTopExtension()}px`,
-      );
+    const applyLeadingImageLock = () => {
+      const previousOffset = leadingImageScrollLockRef.current;
+      const offset = calculateLeadingImageLock();
+      leadingImageScrollLockRef.current = offset;
+      root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
+      root.classList.toggle("leading-image-scroll-locked", offset > 0);
+
+      if (!touchIsActive && !releasePending && offset > 0 && window.scrollY < offset) {
+        setScrollTop(offset);
+      } else if (
+        !touchIsActive &&
+        !releasePending &&
+        offset === 0 &&
+        previousOffset > 0 &&
+        window.scrollY <= previousOffset
+      ) {
+        setScrollTop(0);
+      }
     };
 
-    leadingImageScrollLockRef.current = 0;
-    root.classList.remove("leading-image-scroll-locked");
-    root.style.removeProperty("--leading-image-scroll-lock");
-    root.style.removeProperty("--fixed-controls-pull-counter");
-    applyLeadingImageTopExtension();
-    window.addEventListener("resize", applyLeadingImageTopExtension);
+    applyLeadingImageLock();
+    lockFixedControlsDuringPull();
+    frame = window.requestAnimationFrame(() => {
+      applyLeadingImageLock();
+      followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
+    });
+    window.addEventListener("scroll", handleLockedTopScroll, { passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchRelease, { passive: true });
+    window.addEventListener("touchcancel", handleTouchCancel, { passive: true });
+    window.addEventListener("resize", applyLeadingImageLock);
+
+    const stripCanvas = document.querySelector<HTMLElement>(".strip-canvas");
+    if (stripCanvas) {
+      mutationObserver = new MutationObserver(preserveLockedTopAfterLayout);
+      mutationObserver.observe(stripCanvas, {
+        childList: true,
+        subtree: true,
+      });
+
+      resizeObserver = new ResizeObserver(preserveLockedTopAfterLayout);
+      resizeObserver.observe(stripCanvas);
+    }
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -2157,10 +2196,14 @@ export default function Home() {
       window.clearTimeout(settleTimer);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
-      window.removeEventListener("resize", applyLeadingImageTopExtension);
+      window.removeEventListener("scroll", handleLockedTopScroll);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchRelease);
+      window.removeEventListener("touchcancel", handleTouchCancel);
+      window.removeEventListener("resize", applyLeadingImageLock);
       root.classList.remove("leading-image-scroll-locked");
       root.style.removeProperty("--leading-image-scroll-lock");
-      root.style.removeProperty("--leading-image-top-extension");
       root.style.removeProperty("--fixed-controls-pull-counter");
     };
   }, [hasLeadingImage, view]);
@@ -2451,7 +2494,7 @@ export default function Home() {
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
       const centeredTop =
         window.scrollY + bounds.top - Math.max(0, (viewportHeight - bounds.height) / 2);
-      const targetTop = Math.max(0, centeredTop);
+      const targetTop = Math.max(leadingImageScrollLockRef.current, centeredTop);
       window.scrollTo({ top: targetTop, behavior: "smooth" });
     });
   };
@@ -2604,6 +2647,10 @@ export default function Home() {
 
   const moveBlock = (index: number, direction: -1 | 1) => {
     const target = index + direction;
+    const nextTopBlock =
+      target === 0 ? blocks[index] : index === 0 ? blocks[target] : blocks[0];
+    const textWillBecomeTop =
+      blocks[0]?.type !== "text" && nextTopBlock?.type === "text";
 
     setBlocks((current) => {
       const next = [...current];
@@ -2611,6 +2658,45 @@ export default function Home() {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+
+    if (textWillBecomeTop) {
+      const root = document.documentElement;
+      const releaseOffset = Math.max(
+        leadingImageScrollLockRef.current,
+        Math.ceil(window.scrollY),
+        Math.round(Math.min(62, Math.max(47, window.screen.width * 0.154))),
+      );
+
+      root.style.setProperty("--text-first-scroll-release", `${releaseOffset}px`);
+      root.classList.add("is-releasing-leading-image-scroll");
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          let attempts = 0;
+
+          const settleAtTop = () => {
+            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+            attempts += 1;
+
+            if (window.scrollY > 0.5 && attempts < 8) {
+              window.requestAnimationFrame(settleAtTop);
+              return;
+            }
+
+            window.requestAnimationFrame(() => {
+              root.classList.remove("is-releasing-leading-image-scroll");
+              root.style.removeProperty("--text-first-scroll-release");
+              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            });
+          };
+
+          settleAtTop();
+        });
+      });
+    }
   };
 
   const hasContent = blocks.length > 0;
