@@ -2093,6 +2093,12 @@ export default function Home() {
   const leadingImageInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const suppressLeadingImageSettleUntilTouchRef = useRef(false);
+  const blockReorderFrameRef = useRef<number | null>(null);
+  const blockReorderReleaseFrameRef = useRef<number | null>(null);
+  const blockReorderOverflowAnchorRef = useRef<{
+    root: string;
+    body: string;
+  } | null>(null);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const editorDockEntryTimerRef = useRef<number | null>(null);
@@ -2401,6 +2407,18 @@ export default function Home() {
       }
       if (editorDockEntryTimerRef.current !== null) {
         window.clearTimeout(editorDockEntryTimerRef.current);
+      }
+      if (blockReorderFrameRef.current !== null) {
+        window.cancelAnimationFrame(blockReorderFrameRef.current);
+      }
+      if (blockReorderReleaseFrameRef.current !== null) {
+        window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
+      }
+      const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
+      if (originalOverflowAnchor) {
+        document.documentElement.style.overflowAnchor = originalOverflowAnchor.root;
+        document.body.style.overflowAnchor = originalOverflowAnchor.body;
+        blockReorderOverflowAnchorRef.current = null;
       }
     },
     [],
@@ -2829,6 +2847,27 @@ export default function Home() {
     const target = index + direction;
     if (target < 0 || target >= blocks.length) return;
 
+    const root = document.documentElement;
+    const body = document.body;
+    const scrollTop = window.scrollY;
+    if (!blockReorderOverflowAnchorRef.current) {
+      blockReorderOverflowAnchorRef.current = {
+        root: root.style.overflowAnchor,
+        body: body.style.overflowAnchor,
+      };
+    }
+    root.style.overflowAnchor = "none";
+    body.style.overflowAnchor = "none";
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    if (blockReorderFrameRef.current !== null) {
+      window.cancelAnimationFrame(blockReorderFrameRef.current);
+    }
+    if (blockReorderReleaseFrameRef.current !== null) {
+      window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
+    }
+
     if (target === 0 || index === 0) {
       const nextTopBlock = target === 0 ? blocks[index] : blocks[target];
       const imageWillBecomeTop =
@@ -2837,10 +2876,33 @@ export default function Home() {
       suppressLeadingImageSettleUntilTouchRef.current = imageWillBecomeTop;
     }
 
-    setBlocks((current) => {
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
+    flushSync(() => {
+      setBlocks((current) => {
+        const next = [...current];
+        [next[index], next[target]] = [next[target], next[index]];
+        return next;
+      });
+    });
+
+    const restoreViewport = () => {
+      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = scrollTop;
+      document.body.scrollTop = scrollTop;
+    };
+
+    restoreViewport();
+    blockReorderFrameRef.current = window.requestAnimationFrame(() => {
+      blockReorderFrameRef.current = null;
+      restoreViewport();
+      blockReorderReleaseFrameRef.current = window.requestAnimationFrame(() => {
+        blockReorderReleaseFrameRef.current = null;
+        restoreViewport();
+        const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
+        if (!originalOverflowAnchor) return;
+        root.style.overflowAnchor = originalOverflowAnchor.root;
+        body.style.overflowAnchor = originalOverflowAnchor.body;
+        blockReorderOverflowAnchorRef.current = null;
+      });
     });
   };
 
