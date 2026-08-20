@@ -7,6 +7,7 @@ type DraftBlock =
       id: string;
       type: "text";
       content: string;
+      height?: number;
       backgroundColor?: string;
       textColor?: string;
       fontStyle?: string;
@@ -18,6 +19,7 @@ type DraftBlock =
       type: "image" | "video";
       src: string;
       alt: string;
+      height?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -38,6 +40,7 @@ type StoredDraftBlock =
       type: "image" | "video";
       objectKey: string;
       alt: string;
+      height?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -164,6 +167,9 @@ function prepareDraftBlocks(
         id: block.id,
         type: "text",
         content: String(block.content ?? "").slice(0, 100_000),
+        ...(finiteNumber(block.height, 0) > 0
+          ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
+          : {}),
         backgroundColor: block.backgroundColor,
         textColor: block.textColor,
         fontStyle: block.fontStyle,
@@ -199,6 +205,9 @@ function prepareDraftBlocks(
         type: block.type,
         objectKey,
         alt: String(block.alt ?? "").slice(0, 160),
+        ...(finiteNumber(block.height, 0) > 0
+          ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
+          : {}),
         ...(block.type === "video"
           ? {
               audioEnabled: block.audioEnabled !== false,

@@ -7,6 +7,7 @@ type StoredBlock =
       id: string;
       type: "text";
       content: string;
+      height?: number;
       backgroundColor?: string;
       textColor?: string;
       fontStyle?: string;
@@ -18,6 +19,7 @@ type StoredBlock =
       type: "image" | "video";
       objectKey: string;
       alt: string;
+      height?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -123,6 +125,7 @@ export async function GET(
         type: block.type,
         src: mediaPath(row.owner_id, id, block.id),
         alt: block.alt ?? "",
+        ...(typeof block.height === "number" ? { height: block.height } : {}),
         ...(block.type === "video"
           ? {
               audioEnabled: block.audioEnabled !== false,

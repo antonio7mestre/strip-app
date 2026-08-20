@@ -36,6 +36,7 @@ type TextBlock = {
   id: string;
   type: "text";
   content: string;
+  height?: number;
   backgroundColor?: string;
   textColor?: string;
   fontStyle?: FontStyle;
@@ -48,6 +49,7 @@ type ImageBlock = {
   type: "image";
   src: string;
   alt: string;
+  height?: number;
 };
 
 type VideoBlock = {
@@ -55,6 +57,7 @@ type VideoBlock = {
   type: "video";
   src: string;
   alt: string;
+  height?: number;
   audioEnabled?: boolean;
   hasAudio?: boolean;
 };
@@ -1219,6 +1222,40 @@ function triggerSelectionHaptic() {
   safariHapticSwitch.click();
 }
 
+function BlockHeightReporter({
+  blockId,
+  onHeight,
+}: {
+  blockId: string;
+  onHeight: (blockId: string, height: number) => void;
+}) {
+  const markerRef = useRef<HTMLSpanElement>(null);
+  const onHeightRef = useRef(onHeight);
+  onHeightRef.current = onHeight;
+
+  useLayoutEffect(() => {
+    const block = markerRef.current?.parentElement;
+    if (!block) return;
+
+    const report = () => {
+      const height = Math.round(block.getBoundingClientRect().height);
+      if (height > 0) onHeightRef.current(blockId, height);
+    };
+
+    report();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", report);
+      return () => window.removeEventListener("resize", report);
+    }
+
+    const observer = new ResizeObserver(report);
+    observer.observe(block);
+    return () => observer.disconnect();
+  }, [blockId]);
+
+  return <span ref={markerRef} hidden aria-hidden="true" />;
+}
+
 function StripVideoBlock({
   block,
   isEditing,
@@ -1229,6 +1266,11 @@ function StripVideoBlock({
   onToggleAudio,
   onAudioPresence,
   onFirstFrameColor,
+  shouldLoad,
+  isLoaded,
+  reservedHeight,
+  onLoadSettled,
+  onHeight,
   controls,
 }: {
   block: VideoBlock;
@@ -1240,6 +1282,11 @@ function StripVideoBlock({
   onToggleAudio: () => void;
   onAudioPresence?: (hasAudio: boolean) => void;
   onFirstFrameColor?: (color: string) => void;
+  shouldLoad: boolean;
+  isLoaded: boolean;
+  reservedHeight?: number;
+  onLoadSettled: (loaded: boolean) => void;
+  onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1256,7 +1303,7 @@ function StripVideoBlock({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !shouldLoad) return;
     video.muted = muted;
   }, [muted]);
 
@@ -1282,7 +1329,7 @@ function StripVideoBlock({
     const bounds = video.getBoundingClientRect();
     updatePlayback(bounds.bottom > 0 && bounds.top < window.innerHeight);
     return () => observer.disconnect();
-  }, [block.src]);
+  }, [block.src, shouldLoad]);
 
   return (
     <figure
@@ -1290,6 +1337,8 @@ function StripVideoBlock({
         isEditing && isSelected ? "is-selected" : ""
       }`}
       data-block-id={block.id}
+      aria-busy={!isLoaded}
+      style={!isLoaded && reservedHeight ? { minHeight: reservedHeight } : undefined}
       onPointerDown={(event) => {
         tapGestureRef.current = {
           pointerId: event.pointerId,
@@ -1318,7 +1367,7 @@ function StripVideoBlock({
     >
       <video
         ref={videoRef}
-        src={block.src}
+        src={shouldLoad ? block.src : undefined}
         aria-label={block.alt ? `Video: ${block.alt}` : "Strip video"}
         autoPlay
         muted={muted}
@@ -1327,9 +1376,11 @@ function StripVideoBlock({
         controls={false}
         disablePictureInPicture
         controlsList="nodownload nofullscreen noremoteplayback"
-        preload="metadata"
+        preload={shouldLoad ? "metadata" : "none"}
         draggable={false}
+        style={{ visibility: isLoaded ? "visible" : "hidden" }}
         onLoadedData={(event) => {
+          onLoadSettled(true);
           const sampledColor = sampleVideoBottomColor(event.currentTarget);
           if (sampledColor) onFirstFrameColor?.(sampledColor);
           reportAudioPresence(event.currentTarget);
@@ -1337,7 +1388,9 @@ function StripVideoBlock({
         onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
         onCanPlay={(event) => reportAudioPresence(event.currentTarget)}
         onTimeUpdate={(event) => reportAudioPresence(event.currentTarget)}
+        onError={() => onLoadSettled(false)}
       />
+      {onHeight ? <BlockHeightReporter blockId={block.id} onHeight={onHeight} /> : null}
       {controls}
       {showAudioToggle ? (
         <button
@@ -1974,6 +2027,9 @@ export default function Home() {
   const [videoAudioPresence, setVideoAudioPresence] = useState<Record<string, boolean>>(
     {},
   );
+  const [mediaLoadStatus, setMediaLoadStatus] = useState<
+    Record<string, "loaded" | "error">
+  >({});
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -2052,6 +2108,12 @@ export default function Home() {
     y: number;
     moved: boolean;
   } | null>(null);
+
+  const mediaLoadKey = currentDraftId ?? openedPublishedStrip?.id ?? "none";
+
+  useEffect(() => {
+    setMediaLoadStatus({});
+  }, [mediaLoadKey]);
 
   const beginBlockTapGesture = (
     event: ReactPointerEvent<HTMLElement>,
@@ -3841,6 +3903,33 @@ export default function Home() {
     );
   };
 
+  const recordBlockHeight = (blockId: string, height: number) => {
+    setBlocks((current) => {
+      let changed = false;
+      const next = current.map((block) => {
+        if (
+          block.id !== blockId ||
+          block.type === "sticker" ||
+          Math.abs((block.height ?? 0) - height) < 1
+        ) {
+          return block;
+        }
+        changed = true;
+        return { ...block, height };
+      });
+      return changed ? next : current;
+    });
+  };
+
+  const settleMediaLoad = (blockId: string, loadedSuccessfully: boolean) => {
+    setMediaLoadStatus((current) => {
+      const status = loadedSuccessfully ? "loaded" : "error";
+      return current[blockId] === status
+        ? current
+        : { ...current, [blockId]: status };
+    });
+  };
+
   const renderBlockControls = (block: StripBlock, index: number) => {
     if (selectedBlockId !== block.id) return null;
     const firstFlowBlockIndex = blocks.findIndex(
@@ -3893,6 +3982,18 @@ export default function Home() {
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
   ) => {
+    const mediaBlockIds = sourceBlocks.flatMap((block) =>
+      block.type === "image" || block.type === "video" ? [block.id] : [],
+    );
+    const shouldLoadMedia = (blockId: string) => {
+      const mediaIndex = mediaBlockIds.indexOf(blockId);
+      return (
+        mediaIndex >= 0 &&
+        mediaBlockIds
+          .slice(0, mediaIndex)
+          .every((precedingId) => mediaLoadStatus[precedingId] !== undefined)
+      );
+    };
     const stickerFloor = sourceBlocks.reduce(
       (floor, block) =>
         block.type === "sticker" ? Math.max(floor, block.y + 180) : floor,
@@ -3926,6 +4027,7 @@ export default function Home() {
               } ${usesDarkText ? "uses-dark-text" : ""}`}
               data-block-id={block.id}
               key={block.id}
+              aria-busy={mediaLoadStatus[block.id] !== "loaded"}
               onPointerDown={(event) => beginBlockTapGesture(event, block.id)}
               onPointerMove={trackBlockTapGesture}
               onPointerCancel={cancelBlockTapGesture}
@@ -4004,6 +4106,12 @@ export default function Home() {
                     : `${block.content}\u200B`}
                 </p>
               )}
+              {isEditing ? (
+                <BlockHeightReporter
+                  blockId={block.id}
+                  onHeight={recordBlockHeight}
+                />
+              ) : null}
             </section>
           );
         }
@@ -4016,6 +4124,11 @@ export default function Home() {
               }`}
               data-block-id={block.id}
               key={block.id}
+              style={
+                mediaLoadStatus[block.id] !== "loaded" && block.height
+                  ? { minHeight: block.height }
+                  : undefined
+              }
               onPointerDown={(event) => beginBlockTapGesture(event, block.id)}
               onPointerMove={trackBlockTapGesture}
               onPointerCancel={cancelBlockTapGesture}
@@ -4031,9 +4144,14 @@ export default function Home() {
               {/* A Strip image is intentionally edge-to-edge. */}
               {isEditing ? renderBlockControls(block, index) : null}
               <img
-                src={block.src}
+                src={shouldLoadMedia(block.id) ? block.src : undefined}
                 alt={block.alt}
+                style={{
+                  visibility:
+                    mediaLoadStatus[block.id] === "loaded" ? "visible" : "hidden",
+                }}
                 onLoad={(event) => {
+                  settleMediaLoad(block.id, true);
                   const sampledColor = sampleImageBottomColor(event.currentTarget);
                   if (!sampledColor) return;
                   setImageTrayColors((current) =>
@@ -4042,7 +4160,14 @@ export default function Home() {
                       : { ...current, [block.id]: sampledColor },
                   );
                 }}
+                onError={() => settleMediaLoad(block.id, false)}
               />
+              {isEditing ? (
+                <BlockHeightReporter
+                  blockId={block.id}
+                  onHeight={recordBlockHeight}
+                />
+              ) : null}
             </figure>
           );
         }
@@ -4141,6 +4266,13 @@ export default function Home() {
                   : { ...current, [block.id]: color },
               );
             }}
+            shouldLoad={shouldLoadMedia(block.id)}
+            isLoaded={mediaLoadStatus[block.id] === "loaded"}
+            reservedHeight={block.height}
+            onLoadSettled={(loadedSuccessfully) =>
+              settleMediaLoad(block.id, loadedSuccessfully)
+            }
+            onHeight={isEditing ? recordBlockHeight : undefined}
             controls={isEditing ? renderBlockControls(block, index) : null}
           />
         );
