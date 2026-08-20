@@ -1470,10 +1470,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   content: "";
   background-image: var(--block-controls-image);
   background-repeat: no-repeat;
-  background-position: center bottom;
-  background-size: 100vw auto;
+  background-position: center calc(100% - 12px);
+  background-size: 118vw auto;
   filter: blur(9px);
-  transform: scale(1.06);
 }
 
 .block-controls-under-edge {
