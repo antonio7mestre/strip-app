@@ -440,6 +440,10 @@ type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
 type CoverCardStyle = CSSProperties & {
   "--cover-dim": number;
 };
+type BlockControlsStyle = CSSProperties & {
+  "--block-controls-surface"?: string;
+  "--block-controls-foreground"?: string;
+};
 
 function contrastColor(color: string) {
   const channels = color
@@ -521,6 +525,7 @@ function BlockControls({
   onRemove,
   onTextTool,
   activeTextTool,
+  surfaceColor,
 }: {
   index: number;
   count: number;
@@ -528,12 +533,21 @@ function BlockControls({
   onRemove: () => void;
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
+  surfaceColor?: string;
 }) {
+  const style: BlockControlsStyle | undefined = surfaceColor
+    ? {
+        "--block-controls-surface": surfaceColor,
+        "--block-controls-foreground": contrastColor(surfaceColor),
+      }
+    : undefined;
+
   return (
     <div
       className={`block-controls ${
         onTextTool ? "is-text-tray" : onMove ? "is-media-tray" : "is-single-action-tray"
       }`}
+      style={style}
       aria-label="Block controls"
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
@@ -2820,6 +2834,9 @@ export default function Home() {
             : undefined
         }
         activeTextTool={activeTextTool}
+        surfaceColor={
+          block.type === "text" ? block.backgroundColor ?? DEFAULT_BACKGROUND : undefined
+        }
       />
     );
   };

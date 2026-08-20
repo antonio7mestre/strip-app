@@ -1452,27 +1452,27 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .block-controls {
   position: absolute;
   z-index: 34;
-  top: calc(100% - 0.5px);
+  top: calc(100% - 1px);
   left: 50%;
   display: flex;
-  width: 286px;
-  height: 58px;
+  width: 204px;
+  height: 56px;
   max-width: calc(100vw - 32px);
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   overflow: visible;
-  padding: 7px 18px 11px;
+  padding: 6px 12px;
   transform: translateX(-50%);
   border: 0;
-  background: var(--white);
+  background: var(--block-controls-surface, var(--white));
   -webkit-clip-path: path(
-    "M 0 0 H 286 C 270 0 258 10 258 20 V 29 C 258 46 244 58 227 58 H 59 C 42 58 28 46 28 29 V 20 C 28 10 16 0 0 0 Z"
+    "M 0 0 H 204 C 197 0 192 5 192 12 V 30 C 192 44 180 56 166 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
   clip-path: path(
-    "M 0 0 H 286 C 270 0 258 10 258 20 V 29 C 258 46 244 58 227 58 H 59 C 42 58 28 46 28 29 V 20 C 28 10 16 0 0 0 Z"
+    "M 0 0 H 204 C 197 0 192 5 192 12 V 30 C 192 44 180 56 166 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
-  filter: drop-shadow(0 9px 14px rgba(0, 0, 0, 0.24));
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.18));
   scrollbar-width: none;
   transition:
     transform 180ms ease,
@@ -1480,22 +1480,23 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .block-controls.is-text-tray {
-  width: 286px;
+  width: 336px;
+  filter: none;
   -webkit-clip-path: path(
-    "M 0 0 H 286 C 276 0 268 8 268 18 V 28 C 268 45 254 58 237 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+    "M 0 0 H 336 C 329 0 324 5 324 12 V 30 C 324 44 312 56 298 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
   clip-path: path(
-    "M 0 0 H 286 C 276 0 268 8 268 18 V 28 C 268 45 254 58 237 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+    "M 0 0 H 336 C 329 0 324 5 324 12 V 30 C 324 44 312 56 298 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
 }
 
 .block-controls.is-single-action-tray {
-  width: 92px;
+  width: 80px;
   -webkit-clip-path: path(
-    "M 0 0 H 92 C 82 0 74 8 74 18 V 28 C 74 45 64 58 50 58 H 42 C 28 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+    "M 0 0 H 80 C 73 0 68 5 68 12 V 30 C 68 44 58 56 44 56 H 36 C 22 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
   clip-path: path(
-    "M 0 0 H 92 C 82 0 74 8 74 18 V 28 C 74 45 64 58 50 58 H 42 C 28 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+    "M 0 0 H 80 C 73 0 68 5 68 12 V 30 C 68 44 58 56 44 56 H 36 C 22 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
 }
 
@@ -1512,32 +1513,38 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .block-controls button {
   display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   place-items: center;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 50%;
   background: transparent;
-  color: rgba(0, 0, 0, 0.88);
+  color: var(--block-controls-foreground, rgba(0, 0, 0, 0.88));
   cursor: pointer;
 }
 
 .block-controls button:hover,
 .block-controls button:focus-visible {
-  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(
+    in srgb,
+    var(--block-controls-foreground, #000000) 9%,
+    transparent
+  );
 }
 
 .block-controls button:disabled {
-  color: rgba(0, 0, 0, 0.22);
+  color: var(--block-controls-foreground, #000000);
+  opacity: 0.22;
   cursor: default;
 }
 
 .block-controls button.is-active {
-  border-color: #080808;
-  background: #080808;
-  color: #ffffff;
+  border-color: var(--block-controls-foreground, #080808);
+  background: var(--block-controls-foreground, #080808);
+  color: var(--block-controls-surface, #ffffff);
+  opacity: 1;
 }
 
 .block-glyph {
@@ -1552,7 +1559,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   height: 24px;
   margin: 0 2px;
   flex: 0 0 1px;
-  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.18), transparent);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--block-controls-foreground, #000000) 20%, transparent),
+    transparent
+  );
 }
 
 .selector-dock {
