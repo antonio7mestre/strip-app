@@ -634,7 +634,27 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   position: absolute;
   z-index: 7;
   inset: 0;
-  border: 3px solid var(--selection-outline-color, #3155ff);
+  padding: 3px;
+  background: linear-gradient(
+    135deg,
+    #dce7ff 0%,
+    #6f8cff 11%,
+    #163fde 27%,
+    #00249f 40%,
+    #8aa4ff 50%,
+    #1744eb 61%,
+    #001f91 77%,
+    #6382ff 90%,
+    #e4ecff 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
   pointer-events: none;
   animation: strip-selection-outline-in 120ms ease-out both;
 }
