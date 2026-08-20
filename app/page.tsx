@@ -2397,7 +2397,7 @@ export default function Home() {
     revealAddedBlock(id);
   };
 
-  const addImage = (event: ChangeEvent<HTMLInputElement>) => {
+  const addMedia = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -2405,15 +2405,23 @@ export default function Home() {
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
       const id = makeId();
+      const mediaBlock: ImageBlock | VideoBlock = file.type.startsWith("video/")
+        ? {
+            id,
+            type: "video",
+            src: reader.result,
+            alt: file.name.replace(/\.[^/.]+$/, ""),
+          }
+        : {
+            id,
+            type: "image",
+            src: reader.result,
+            alt: file.name.replace(/\.[^/.]+$/, ""),
+          };
       setBlocks((current) => {
         const next = [...current];
         const selectedIndex = current.findIndex((block) => block.id === selectedBlockId);
-        next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, {
-          id,
-          type: "image",
-          src: reader.result as string,
-          alt: file.name.replace(/\.[^/.]+$/, ""),
-        });
+        next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, mediaBlock);
         return next;
       });
       setSelectedBlockId(id);
@@ -4571,7 +4579,7 @@ export default function Home() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={inlinePreview}
-            aria-label="Add photo"
+            aria-label="Add photo or video"
           >
             <ImagePlus className="dock-glyph" aria-hidden="true" />
           </button>
@@ -4579,9 +4587,9 @@ export default function Home() {
             ref={fileInputRef}
             className="visually-hidden"
             type="file"
-            accept="image/*"
-            onChange={addImage}
-            aria-label="Choose a photo"
+            accept="image/*,video/*"
+            onChange={addMedia}
+            aria-label="Choose a photo or video"
           />
           <button
             className="dock-icon-button dock-tool-button"

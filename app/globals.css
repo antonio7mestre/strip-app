@@ -791,6 +791,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background: transparent;
   color: rgba(0, 0, 0, 0.88);
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
