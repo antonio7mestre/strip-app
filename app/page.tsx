@@ -448,9 +448,6 @@ type BlockControlsStyle = CSSProperties & {
   "--block-controls-foreground"?: string;
   "--block-controls-image"?: string;
 };
-type TopSafeAreaStyle = CSSProperties & {
-  "--top-safe-area-image"?: string;
-};
 type StickerBlockStyle = CSSProperties & {
   "--sticker-rotation": string;
   "--sticker-counter-rotation": string;
@@ -1886,12 +1883,6 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
-  const topSafeAreaStyle: TopSafeAreaStyle = {
-    backgroundColor: topSafeAreaColor,
-    ...(firstVisibleBlock?.type === "image"
-      ? { "--top-safe-area-image": `url(${JSON.stringify(firstVisibleBlock.src)})` }
-      : {}),
-  };
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2152,6 +2143,8 @@ export default function Home() {
     };
 
     leadingImageScrollLockRef.current = 0;
+    root.classList.remove("leading-image-scroll-locked");
+    root.style.removeProperty("--leading-image-scroll-lock");
     root.style.removeProperty("--fixed-controls-pull-counter");
     applyLeadingImageTopExtension();
     window.addEventListener("resize", applyLeadingImageTopExtension);
@@ -2165,6 +2158,8 @@ export default function Home() {
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
       window.removeEventListener("resize", applyLeadingImageTopExtension);
+      root.classList.remove("leading-image-scroll-locked");
+      root.style.removeProperty("--leading-image-scroll-lock");
       root.style.removeProperty("--leading-image-top-extension");
       root.style.removeProperty("--fixed-controls-pull-counter");
     };
@@ -4204,7 +4199,7 @@ export default function Home() {
         <main className="app-shell title-setup-mode">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-          style={topSafeAreaStyle}
+          style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
         <section
@@ -4398,7 +4393,7 @@ export default function Home() {
         <main className="app-shell publish-setup-mode">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-          style={topSafeAreaStyle}
+          style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
         <section
@@ -4684,7 +4679,7 @@ export default function Home() {
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-              style={topSafeAreaStyle}
+              style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
 
@@ -4706,7 +4701,7 @@ export default function Home() {
         >
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-          style={topSafeAreaStyle}
+          style={{ backgroundColor: topSafeAreaColor }}
           aria-hidden="true"
         />
         {isPublished ? (
@@ -4799,7 +4794,7 @@ export default function Home() {
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-        style={topSafeAreaStyle}
+        style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
       <div

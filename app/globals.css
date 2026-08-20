@@ -257,13 +257,7 @@ textarea:focus-visible,
 }
 
 .has-leading-image .top-safe-area-anchor {
-  display: block;
-  height: max(env(safe-area-inset-top), var(--leading-image-top-extension));
-  background-color: #000000;
-  background-image: var(--top-safe-area-image);
-  background-repeat: no-repeat;
-  background-position: top center;
-  background-size: 100vw auto;
+  display: none;
 }
 
 .composer-dock {
@@ -2176,7 +2170,9 @@ textarea:focus-visible,
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
-    margin-top: 0;
+    margin-top: calc(
+      -1 * env(safe-area-inset-top) - var(--leading-image-top-extension)
+    );
     margin-bottom: 0;
     padding-top: 0;
     transform: none;
