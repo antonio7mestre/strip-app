@@ -4539,6 +4539,7 @@ export default function Home() {
           );
           const blockId = blockElement?.dataset.blockId;
           if (!blockId || !event.currentTarget.contains(blockElement)) return;
+          event.stopPropagation();
           exitInlinePreviewAndSelect(blockId);
         }}
       >
