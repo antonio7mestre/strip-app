@@ -10,6 +10,7 @@
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
   --leading-image-scroll-lock: 0px;
+  --leading-image-pull-offset: 0px;
 }
 
 * {
@@ -2184,7 +2185,8 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     margin-top: calc(-1 * env(safe-area-inset-top));
     margin-bottom: 0;
     padding-top: 0;
-    transform: none;
+    transform: translate3d(0, var(--leading-image-pull-offset), 0);
+    will-change: transform;
   }
 
   .app-shell::after {
