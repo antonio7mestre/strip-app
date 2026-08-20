@@ -18,6 +18,8 @@ type StoredDraftBlock =
       type: "image" | "video";
       objectKey: string;
       alt: string;
+      audioEnabled?: boolean;
+      hasAudio?: boolean;
     }
   | {
       id: string;
@@ -84,6 +86,14 @@ export async function GET(
         type: block.type,
         src: mediaPath(ownerId, id, block.id),
         alt: block.alt ?? "",
+        ...(block.type === "video"
+          ? {
+              audioEnabled: block.audioEnabled !== false,
+              ...(typeof block.hasAudio === "boolean"
+                ? { hasAudio: block.hasAudio }
+                : {}),
+            }
+          : {}),
         ...(block.type === "sticker"
           ? { x: block.x, y: block.y, width: block.width }
           : {}),

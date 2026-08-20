@@ -13,7 +13,14 @@ type DraftBlock =
       fontSize?: number;
       editedAt?: number;
   }
-  | { id: string; type: "image" | "video"; src: string; alt: string }
+  | {
+      id: string;
+      type: "image" | "video";
+      src: string;
+      alt: string;
+      audioEnabled?: boolean;
+      hasAudio?: boolean;
+    }
   | {
       id: string;
       type: "sticker";
@@ -31,6 +38,8 @@ type StoredDraftBlock =
       type: "image" | "video";
       objectKey: string;
       alt: string;
+      audioEnabled?: boolean;
+      hasAudio?: boolean;
     }
   | {
       id: string;
@@ -185,6 +194,14 @@ function prepareDraftBlocks(
         type: block.type,
         objectKey,
         alt: String(block.alt ?? "").slice(0, 160),
+        ...(block.type === "video"
+          ? {
+              audioEnabled: block.audioEnabled !== false,
+              ...(typeof block.hasAudio === "boolean"
+                ? { hasAudio: block.hasAudio }
+                : {}),
+            }
+          : {}),
       });
     }
   }

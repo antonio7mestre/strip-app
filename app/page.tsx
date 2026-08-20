@@ -55,6 +55,8 @@ type VideoBlock = {
   type: "video";
   src: string;
   alt: string;
+  audioEnabled?: boolean;
+  hasAudio?: boolean;
 };
 
 type StickerBlock = {
@@ -523,6 +525,27 @@ function sampleImageBottomColor(image: HTMLImageElement) {
 function sampleVideoBottomColor(video: HTMLVideoElement) {
   if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return null;
   return sampleVisualBottomColor(video, video.videoWidth, video.videoHeight);
+}
+
+type VideoAudioProbe = HTMLVideoElement & {
+  audioTracks?: { length: number };
+  mozHasAudio?: boolean;
+  webkitAudioDecodedByteCount?: number;
+};
+
+function detectVideoAudio(video: HTMLVideoElement) {
+  const probe = video as VideoAudioProbe;
+  if (probe.audioTracks && typeof probe.audioTracks.length === "number") {
+    return probe.audioTracks.length > 0;
+  }
+  if (typeof probe.mozHasAudio === "boolean") return probe.mozHasAudio;
+  if (
+    typeof probe.webkitAudioDecodedByteCount === "number" &&
+    probe.webkitAudioDecodedByteCount > 0
+  ) {
+    return true;
+  }
+  return null;
 }
 
 function swatchStyle(color: string): SwatchStyle {
@@ -1094,7 +1117,9 @@ function StripVideoBlock({
   isSelected,
   onSelect,
   muted,
+  showAudioToggle,
   onToggleAudio,
+  onAudioPresence,
   onFirstFrameColor,
   controls,
 }: {
@@ -1103,7 +1128,9 @@ function StripVideoBlock({
   isSelected: boolean;
   onSelect: () => void;
   muted: boolean;
+  showAudioToggle: boolean;
   onToggleAudio: () => void;
+  onAudioPresence?: (hasAudio: boolean) => void;
   onFirstFrameColor?: (color: string) => void;
   controls?: ReactNode;
 }) {
@@ -1114,6 +1141,17 @@ function StripVideoBlock({
     y: number;
     moved: boolean;
   } | null>(null);
+  const reportAudioPresence = (video: HTMLVideoElement) => {
+    const hasAudio = detectVideoAudio(video);
+    if (hasAudio !== null) onAudioPresence?.(hasAudio);
+  };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = muted;
+  }, [muted]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -1186,21 +1224,27 @@ function StripVideoBlock({
         onLoadedData={(event) => {
           const sampledColor = sampleVideoBottomColor(event.currentTarget);
           if (sampledColor) onFirstFrameColor?.(sampledColor);
+          reportAudioPresence(event.currentTarget);
         }}
+        onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
+        onCanPlay={(event) => reportAudioPresence(event.currentTarget)}
+        onTimeUpdate={(event) => reportAudioPresence(event.currentTarget)}
       />
       {controls}
-      <button
-        className="video-audio-toggle"
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleAudio();
-        }}
-        aria-label={muted ? "Turn video sound on" : "Turn video sound off"}
-        aria-pressed={!muted}
-      >
-        {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
-      </button>
+      {showAudioToggle ? (
+        <button
+          className="video-audio-toggle"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleAudio();
+          }}
+          aria-label={muted ? "Turn video sound on" : "Turn video sound off"}
+          aria-pressed={!muted}
+        >
+          {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
+        </button>
+      ) : null}
     </figure>
   );
 }
@@ -1712,6 +1756,9 @@ function StripStickerBlock({
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
   const [imageTrayColors, setImageTrayColors] = useState<Record<string, string>>({});
+  const [videoAudioPresence, setVideoAudioPresence] = useState<Record<string, boolean>>(
+    {},
+  );
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -2550,6 +2597,7 @@ export default function Home() {
             type: "video",
             src: reader.result,
             alt: file.name.replace(/\.[^/.]+$/, ""),
+            audioEnabled: true,
           }
         : {
             id,
@@ -3641,7 +3689,7 @@ export default function Home() {
     }
   };
 
-  const toggleVideoAudio = (blockId: string) => {
+  const toggleVideoPlaybackAudio = (blockId: string) => {
     const nextAudibleVideoId = audibleVideoId === blockId ? null : blockId;
     const videos = Array.from(
       document.querySelectorAll<HTMLVideoElement>(".video-block video"),
@@ -3669,6 +3717,49 @@ export default function Home() {
     setAudibleVideoId(nextAudibleVideoId);
   };
 
+  const toggleVideoAudioSetting = (blockId: string) => {
+    const disablingAudio = blocks.some(
+      (block) =>
+        block.id === blockId &&
+        block.type === "video" &&
+        block.audioEnabled !== false,
+    );
+    setBlocks((current) =>
+      current.map((block) => {
+        if (block.id !== blockId || block.type !== "video") return block;
+        return { ...block, audioEnabled: block.audioEnabled === false };
+      }),
+    );
+    if (disablingAudio && audibleVideoId === blockId) {
+      document
+        .querySelectorAll<HTMLVideoElement>(
+          `.video-block[data-block-id="${blockId}"] video`,
+        )
+        .forEach((video) => {
+          video.muted = true;
+        });
+      setAudibleVideoId(null);
+    }
+  };
+
+  const recordVideoAudioPresence = (blockId: string, hasAudio: boolean) => {
+    setVideoAudioPresence((current) =>
+      current[blockId] === hasAudio
+        ? current
+        : { ...current, [blockId]: hasAudio },
+    );
+    if (view === "published") return;
+    setBlocks((current) =>
+      current.map((block) =>
+        block.id === blockId &&
+        block.type === "video" &&
+        block.hasAudio !== hasAudio
+          ? { ...block, hasAudio }
+          : block,
+      ),
+    );
+  };
+
   const renderBlockControls = (block: StripBlock, index: number) => {
     if (selectedBlockId !== block.id) return null;
 
@@ -3693,9 +3784,11 @@ export default function Home() {
         }
         activeTextTool={activeTextTool}
         onVideoAudio={
-          block.type === "video" ? () => toggleVideoAudio(block.id) : undefined
+          block.type === "video"
+            ? () => toggleVideoAudioSetting(block.id)
+            : undefined
         }
-        videoMuted={block.type === "video" ? audibleVideoId !== block.id : undefined}
+        videoMuted={block.type === "video" ? block.audioEnabled === false : undefined}
         surfaceColor={
           block.type === "text"
             ? block.backgroundColor ?? DEFAULT_BACKGROUND
@@ -3930,8 +4023,20 @@ export default function Home() {
             block={block}
             isEditing={isEditing}
             isSelected={selectedBlockId === block.id}
-            muted={audibleVideoId !== block.id}
-            onToggleAudio={() => toggleVideoAudio(block.id)}
+            muted={
+              isEditing ||
+              block.audioEnabled === false ||
+              audibleVideoId !== block.id
+            }
+            showAudioToggle={
+              !isEditing &&
+              block.audioEnabled !== false &&
+              (videoAudioPresence[block.id] ?? block.hasAudio === true)
+            }
+            onToggleAudio={() => toggleVideoPlaybackAudio(block.id)}
+            onAudioPresence={(hasAudio) =>
+              recordVideoAudioPresence(block.id, hasAudio)
+            }
             onSelect={() => {
               if (!isEditing) return;
               if (selectedBlockId !== block.id) triggerSelectionHaptic();
