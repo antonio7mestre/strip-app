@@ -15,7 +15,6 @@ import {
   Baseline,
   CaseUpper,
   Check,
-  Clapperboard,
   Eye,
   EyeOff,
   Files,
@@ -747,7 +746,7 @@ function BlockControls({
           stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="3"
+          strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
@@ -1182,6 +1181,7 @@ function StripStickerBlock({
   isEditing,
   isSelected,
   isOverlappingSelection,
+  onTapSelectedText,
   onSelect,
   onTransform,
   controls,
@@ -1190,6 +1190,11 @@ function StripStickerBlock({
   isEditing: boolean;
   isSelected: boolean;
   isOverlappingSelection: boolean;
+  onTapSelectedText: (
+    clientX: number,
+    clientY: number,
+    stickerElement: HTMLElement,
+  ) => boolean;
   onSelect: () => void;
   onTransform: (
     transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
@@ -1263,6 +1268,15 @@ function StripStickerBlock({
       if (!cancelled && !selectionTap.moved) {
         event.preventDefault();
         event.stopPropagation();
+        if (
+          onTapSelectedText(
+            event.clientX,
+            event.clientY,
+            event.currentTarget,
+          )
+        ) {
+          return;
+        }
         onSelect();
       }
       return;
@@ -1554,7 +1568,6 @@ export default function Home() {
     "edit",
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverStageRef = useRef<HTMLDivElement>(null);
@@ -2234,34 +2247,6 @@ export default function Home() {
         next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, {
           id,
           type: "image",
-          src: reader.result as string,
-          alt: file.name.replace(/\.[^/.]+$/, ""),
-        });
-        return next;
-      });
-      setSelectedBlockId(id);
-      setEditingTextBlockId(null);
-      setActiveTextTool(null);
-      revealAddedBlock(id);
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
-  };
-
-  const addVideo = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      const id = makeId();
-      setBlocks((current) => {
-        const next = [...current];
-        const selectedIndex = current.findIndex((block) => block.id === selectedBlockId);
-        next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, {
-          id,
-          type: "video",
           src: reader.result as string,
           alt: file.name.replace(/\.[^/.]+$/, ""),
         });
@@ -3521,6 +3506,37 @@ export default function Home() {
               isEditing={isEditing}
               isSelected={selectedBlockId === block.id}
               isOverlappingSelection={overlappingStickerIds.includes(block.id)}
+              onTapSelectedText={(clientX, clientY, stickerElement) => {
+                if (!isEditing || selectedBlock?.type !== "text") return false;
+                const selectedTextElement = Array.from(
+                  document.querySelectorAll<HTMLElement>(
+                    ".editor-mode .text-block",
+                  ),
+                ).find(
+                  (element) => element.dataset.blockId === selectedBlock.id,
+                );
+                if (!selectedTextElement) return false;
+
+                const bounds = selectedTextElement.getBoundingClientRect();
+                const tapIsInsideTextBlock =
+                  clientX >= bounds.left &&
+                  clientX <= bounds.right &&
+                  clientY >= bounds.top &&
+                  clientY <= bounds.bottom;
+                if (!tapIsInsideTextBlock) return false;
+
+                const previousPointerEvents = stickerElement.style.pointerEvents;
+                stickerElement.style.pointerEvents = "none";
+                const caretOffset = caretOffsetAtPoint(
+                  selectedTextElement,
+                  clientX,
+                  clientY,
+                  selectedBlock.content.length,
+                );
+                stickerElement.style.pointerEvents = previousPointerEvents;
+                enterTextEditing(selectedBlock.id, caretOffset);
+                return true;
+              }}
               onSelect={() => {
                 if (!isEditing) return;
                 if (selectedBlockId !== block.id) triggerSelectionHaptic();
@@ -4378,23 +4394,6 @@ export default function Home() {
             accept="image/*"
             onChange={addImage}
             aria-label="Choose a photo"
-          />
-          <button
-            className="dock-icon-button dock-tool-button"
-            type="button"
-            onClick={() => videoInputRef.current?.click()}
-            disabled={inlinePreview}
-            aria-label="Add video"
-          >
-            <Clapperboard className="dock-glyph" aria-hidden="true" />
-          </button>
-          <input
-            ref={videoInputRef}
-            className="visually-hidden"
-            type="file"
-            accept="video/*"
-            onChange={addVideo}
-            aria-label="Choose a video"
           />
           <button
             className="dock-icon-button dock-tool-button"
