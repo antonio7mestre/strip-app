@@ -1883,8 +1883,12 @@ export default function Home() {
     let touchIsActive = false;
     let releasePending = false;
     let lastTouchY = 0;
+    let touchStartY = 0;
+    let leadingPullEligible = false;
+    let deliberateLeadingPull = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    const leadingPullThreshold = 12;
 
     const setScrollTop = (top: number, behavior: ScrollBehavior = "auto") => {
       window.cancelAnimationFrame(scrollAnimationFrame);
@@ -1943,10 +1947,10 @@ export default function Home() {
       );
     };
 
-    const settleLockedTop = () => {
+    const settleLockedTop = (behavior: ScrollBehavior = "smooth") => {
       const offset = leadingImageScrollLockRef.current;
       if (!touchIsActive && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset, "smooth");
+        setScrollTop(offset, behavior);
       }
     };
 
@@ -1984,6 +1988,11 @@ export default function Home() {
       touchIsActive = true;
       releasePending = false;
       lastTouchY = event.touches[0]?.clientY ?? 0;
+      touchStartY = lastTouchY;
+      const lockedTop = leadingImageScrollLockRef.current;
+      leadingPullEligible =
+        lockedTop > 0 && window.scrollY <= lockedTop + 2;
+      deliberateLeadingPull = false;
       applyingLock = false;
       window.cancelAnimationFrame(scrollAnimationFrame);
       scrollAnimationFrame = 0;
@@ -1995,7 +2004,33 @@ export default function Home() {
     const handleTouchMove = (event: TouchEvent) => {
       const touchY = event.touches[0]?.clientY;
       if (touchY === undefined) return;
+      const touchDelta = touchY - lastTouchY;
+      const movingTowardTop = touchY > lastTouchY;
       const movingTowardBottom = touchY < lastTouchY;
+      const lockedTop = leadingImageScrollLockRef.current;
+
+      if (
+        leadingPullEligible &&
+        movingTowardTop &&
+        touchY - touchStartY >= leadingPullThreshold &&
+        lockedTop > 0 &&
+        window.scrollY < lockedTop - 2
+      ) {
+        deliberateLeadingPull = true;
+      }
+
+      if (
+        movingTowardTop &&
+        !leadingPullEligible &&
+        lockedTop > 0 &&
+        window.scrollY - touchDelta <= lockedTop
+      ) {
+        event.preventDefault();
+        setScrollTop(lockedTop);
+        lastTouchY = touchY;
+        return;
+      }
+
       lastTouchY = touchY;
       if (!movingTowardBottom || view !== "edit") return;
       const scrollEnd = Math.max(
@@ -2017,18 +2052,35 @@ export default function Home() {
 
     const handleTouchRelease = () => {
       touchIsActive = false;
-      releasePending = true;
+      const lockedTop = leadingImageScrollLockRef.current;
+      const shouldAllowNativeRelease =
+        deliberateLeadingPull && lockedTop > 0 && window.scrollY < lockedTop;
+      releasePending = shouldAllowNativeRelease;
       lastTouchY = 0;
+      touchStartY = 0;
+      leadingPullEligible = false;
+      deliberateLeadingPull = false;
       lockFixedControlsDuringPull();
-      settleAfterNativeRelease();
+      if (shouldAllowNativeRelease) {
+        settleAfterNativeRelease();
+      } else {
+        window.clearTimeout(releaseTimer);
+        settleLockedTop("auto");
+        settleLockedBottom();
+      }
     };
 
     const handleTouchCancel = () => {
       touchIsActive = false;
-      releasePending = true;
+      releasePending = false;
       lastTouchY = 0;
+      touchStartY = 0;
+      leadingPullEligible = false;
+      deliberateLeadingPull = false;
       lockFixedControlsDuringPull();
-      settleAfterNativeRelease();
+      window.clearTimeout(releaseTimer);
+      settleLockedTop("auto");
+      settleLockedBottom();
     };
 
     const preserveLockedTopAfterLayout = () => {
@@ -2049,7 +2101,7 @@ export default function Home() {
         return;
       }
       if (applyingLock) return;
-      settleLockedTop();
+      settleLockedTop("auto");
       settleLockedBottom();
     };
 
