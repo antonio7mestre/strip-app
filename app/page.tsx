@@ -1962,7 +1962,7 @@ export default function Home() {
     };
 
     const setPullOffset = (offset: number) => {
-      pullOffset = Math.max(0, offset);
+      pullOffset = offset;
       root.style.setProperty("--leading-image-pull-offset", `${pullOffset}px`);
     };
 
@@ -1999,18 +1999,24 @@ export default function Home() {
       endAnchorBounceAfterQuietPeriod();
       let position = pullOffset;
       let velocity = startingVelocity;
+      let reachedPullSide = position >= 0;
       let previousTime = performance.now();
       const stiffness = 130;
       const damping = 18;
+      const approachDamping = 3.2;
 
       const step = (time: number) => {
         const elapsed = Math.min(0.032, Math.max(0.001, (time - previousTime) / 1000));
         previousTime = time;
-        const acceleration = -stiffness * position - damping * velocity;
+        const acceleration = reachedPullSide
+          ? -stiffness * position - damping * velocity
+          : -approachDamping * velocity;
         velocity += acceleration * elapsed;
         position += velocity * elapsed;
+        if (position >= 0) reachedPullSide = true;
 
-        if (position <= 0 || (Math.abs(position) < 0.12 && Math.abs(velocity) < 3)) {
+        const returnedHome = reachedPullSide && position <= 0 && velocity <= 0;
+        if (returnedHome || (Math.abs(position) < 0.12 && Math.abs(velocity) < 3)) {
           setPullOffset(0);
           pullVelocity = 0;
           pullAnimationFrame = 0;
@@ -2109,6 +2115,13 @@ export default function Home() {
       lastTouchTime = performance.now();
       stopPullAnimation();
       const lockedTop = leadingImageScrollLockRef.current;
+      if (pullOffset < 0 && lockedTop > 0) {
+        const restoredScrollTop = lockedTop - pullOffset;
+        setPullOffset(0);
+        window.scrollTo({ top: restoredScrollTop, left: 0, behavior: "auto" });
+        document.documentElement.scrollTop = restoredScrollTop;
+        document.body.scrollTop = restoredScrollTop;
+      }
       rubberBandActive = false;
       pullStartY =
         lockedTop > 0 && window.scrollY <= lockedTop + 2
@@ -2221,6 +2234,7 @@ export default function Home() {
     const handleLockedTopScroll = () => {
       const now = performance.now();
       const currentScrollPosition = window.scrollY;
+      const previousScrollPosition = lastScrollPosition;
       const elapsed = now - lastScrollTime;
 
       if (!applyingLock && !anchorBounceActive && elapsed > 0 && elapsed < 120) {
@@ -2253,24 +2267,45 @@ export default function Home() {
 
       if (applyingLock) return;
 
-      const reachedLockedTopWithMomentum =
+      const incomingSpeed = Math.max(0, -scrollVelocity);
+      const frameTravel = Math.max(
+        0,
+        previousScrollPosition - currentScrollPosition,
+      );
+      const momentumHandoffDistance = Math.min(
+        64,
+        Math.max(2, frameTravel * 1.2, incomingSpeed * 8),
+      );
+      const approachingLockedTopWithMomentum =
         lockedTop > 0 &&
-        currentScrollPosition <= lockedTop + 0.5 &&
+        currentScrollPosition <= lockedTop + momentumHandoffDistance &&
         scrollVelocity < -0.035;
-      const absorbedNativeGap = absorbNativeScrollGap();
 
-      if (absorbedNativeGap || reachedLockedTopWithMomentum) {
-        if (!absorbedNativeGap) setScrollTop(lockedTop, "auto");
-        const incomingMomentum = reachedLockedTopWithMomentum
-          ? Math.min(
-              1.35,
-              0.34 + Math.pow(Math.max(0, -scrollVelocity), 0.78) * 0.82,
-            )
-          : 0;
+      if (approachingLockedTopWithMomentum) {
+        /*
+         * Transfer the exact visible position into the compositor before
+         * pinning native scroll. A negative offset represents the remaining
+         * distance above the artificial top, so the spring crosses the anchor
+         * continuously instead of correcting upward and starting downward
+         * again on the next frame.
+         */
+        setPullOffset(lockedTop - currentScrollPosition);
+        setScrollTop(lockedTop, "auto");
+        const incomingMomentum = Math.min(
+          1.35,
+          0.34 + Math.pow(incomingSpeed, 0.78) * 0.82,
+        );
         pullVelocity = Math.max(
           pullVelocity,
           incomingMomentum,
         );
+        springPullBack();
+        return;
+      }
+
+      const absorbedNativeGap = absorbNativeScrollGap();
+      if (absorbedNativeGap) {
+        pullVelocity = 0;
         springPullBack();
       }
     };
