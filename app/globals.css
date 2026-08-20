@@ -1475,13 +1475,19 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .block-controls::before,
 .block-controls::after {
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   top: 0;
   width: 18px;
   height: 18px;
   background: var(--white);
   content: "";
   pointer-events: none;
+}
+
+.block-controls button,
+.block-controls-divider {
+  position: relative;
+  z-index: 1;
 }
 
 .block-controls::before {
