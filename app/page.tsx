@@ -703,7 +703,6 @@ function BlockControls({
             >
               <Baseline className="block-glyph" aria-hidden="true" />
             </button>
-            <span className="block-controls-divider" aria-hidden="true" />
           </>
         ) : null}
         {onMove ? (
@@ -1845,10 +1844,11 @@ export default function Home() {
     const root = document.documentElement;
     let frame = 0;
     let followupFrame = 0;
-    let releaseFrame = 0;
+    let releaseTimer = 0;
     let settleTimer = 0;
     let applyingLock = false;
     let touchIsActive = false;
+    let releasePending = false;
     let lastTouchY = 0;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -1913,10 +1913,11 @@ export default function Home() {
 
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
+      releasePending = false;
       lastTouchY = event.touches[0]?.clientY ?? 0;
       applyingLock = false;
       window.clearTimeout(settleTimer);
-      window.cancelAnimationFrame(releaseFrame);
+      window.clearTimeout(releaseTimer);
       lockFixedControlsDuringPull();
     };
 
@@ -1934,29 +1935,33 @@ export default function Home() {
       if (window.scrollY >= scrollEnd - 1) event.preventDefault();
     };
 
-    const handleTouchRelease = () => {
-      touchIsActive = false;
-      lastTouchY = 0;
-      lockFixedControlsDuringPull();
-      window.cancelAnimationFrame(releaseFrame);
-      releaseFrame = window.requestAnimationFrame(() => {
+    const settleAfterNativeRelease = () => {
+      window.clearTimeout(releaseTimer);
+      releaseTimer = window.setTimeout(() => {
+        releasePending = false;
         settleLockedTop();
         settleLockedBottom();
-      });
+      }, 84);
+    };
+
+    const handleTouchRelease = () => {
+      touchIsActive = false;
+      releasePending = true;
+      lastTouchY = 0;
+      lockFixedControlsDuringPull();
+      settleAfterNativeRelease();
     };
 
     const handleTouchCancel = () => {
       touchIsActive = false;
+      releasePending = true;
       lastTouchY = 0;
       lockFixedControlsDuringPull();
-      window.cancelAnimationFrame(releaseFrame);
-      releaseFrame = window.requestAnimationFrame(() => {
-        settleLockedTop();
-        settleLockedBottom();
-      });
+      settleAfterNativeRelease();
     };
 
     const preserveLockedTopAfterLayout = () => {
+      if (releasePending) return;
       const offset = leadingImageScrollLockRef.current;
       if (!touchIsActive && !applyingLock && offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
@@ -1968,6 +1973,10 @@ export default function Home() {
     const handleLockedTopScroll = () => {
       lockFixedControlsDuringPull();
       if (touchIsActive) return;
+      if (releasePending) {
+        settleAfterNativeRelease();
+        return;
+      }
       if (applyingLock) return;
       settleLockedTop();
       settleLockedBottom();
@@ -2013,9 +2022,15 @@ export default function Home() {
       root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
       root.classList.toggle("leading-image-scroll-locked", offset > 0);
 
-      if (offset > 0 && window.scrollY < offset) {
+      if (!touchIsActive && !releasePending && offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
-      } else if (offset === 0 && previousOffset > 0 && window.scrollY <= previousOffset) {
+      } else if (
+        !touchIsActive &&
+        !releasePending &&
+        offset === 0 &&
+        previousOffset > 0 &&
+        window.scrollY <= previousOffset
+      ) {
         setScrollTop(0);
       }
     };
@@ -2048,7 +2063,7 @@ export default function Home() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(followupFrame);
-      window.cancelAnimationFrame(releaseFrame);
+      window.clearTimeout(releaseTimer);
       window.clearTimeout(settleTimer);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
@@ -4611,7 +4626,6 @@ export default function Home() {
             onChange={addSticker}
             aria-label="Choose a sticker image"
           />
-          <span className="dock-divider" aria-hidden="true" />
           <button
             className="dock-icon-button preview-toggle-button"
             type="button"
@@ -4625,6 +4639,7 @@ export default function Home() {
               <Eye className="dock-glyph" aria-hidden="true" />
             )}
           </button>
+          <span className="dock-divider" aria-hidden="true" />
           <button
             className="dock-icon-button publish-icon-button publish-strip-button"
             type="button"

@@ -488,7 +488,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .strip-block.is-selected:not(.sticker-block) {
   z-index: auto;
-  isolation: isolate;
 }
 
 .text-block {
@@ -497,37 +496,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .text-block.is-editing {
   touch-action: manipulation;
-}
-
-.text-block.is-editing.is-selected::before,
-.image-block.is-editing.is-selected::before,
-.video-block.is-editing.is-selected::before {
-  position: absolute;
-  z-index: 36;
-  inset: 0;
-  content: "";
-  pointer-events: none;
-}
-
-.text-block.is-editing.is-selected::before {
-  background-color: inherit;
-}
-
-.image-block.is-editing.is-selected::before,
-.video-block.is-editing.is-selected::before {
-  background: #000000;
-}
-
-.text-block.is-editing.is-selected > textarea,
-.text-block.is-editing.is-selected > p,
-.image-block.is-editing.is-selected > img,
-.video-block.is-editing.is-selected > video {
-  position: relative;
-  z-index: 37;
-}
-
-.video-block.is-editing.is-selected .video-audio-toggle {
-  z-index: 38;
 }
 
 .text-block textarea,
@@ -875,11 +843,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .dock-divider {
-  width: 1px;
-  height: 28px;
-  margin: 0 3px;
-  flex: 0 0 1px;
-  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.18), transparent);
+  width: 2px;
+  height: 20px;
+  margin: 0 5px;
+  flex: 0 0 2px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .publish-icon-button {
@@ -1482,8 +1451,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   );
   filter: none;
   scrollbar-width: none;
-  animation: block-controls-emerge 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 180ms ease,
+    opacity 140ms ease;
 }
 
 .block-controls.has-image-surface {
@@ -1516,18 +1486,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   color: var(--block-controls-foreground, #000000);
   transform: translateX(-50%);
   pointer-events: none;
-  animation: block-controls-emerge 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes block-controls-emerge {
-  from {
-    transform: translate(-50%, -58px);
-  }
-
-  to {
-    transform: translate(-50%, 0);
-  }
+  transition:
+    transform 180ms ease,
+    opacity 140ms ease;
 }
 
 .sticker-delete-orbit {
@@ -1608,8 +1569,8 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .editor-mode.is-typing .block-controls,
 .keyboard-open .block-controls-under-edge,
 .editor-mode.is-typing .block-controls-under-edge {
-  animation: none;
-  transform: translate(-50%, -58px);
+  transform: translate(-50%, 125%);
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -1679,19 +1640,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   height: 18px;
   stroke-width: 1.8;
   vector-effect: non-scaling-stroke;
-}
-
-.block-controls-divider {
-  width: 1px;
-  height: 24px;
-  margin: 0 2px;
-  flex: 0 0 1px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    color-mix(in srgb, var(--block-controls-foreground, #000000) 20%, transparent),
-    transparent
-  );
 }
 
 .selector-dock {
@@ -2168,10 +2116,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
   .composer-dock,
   .dock-icon-button,
-  .selector-option,
-  .block-controls,
-  .block-controls-under-edge {
-    animation: none;
+  .selector-option {
     transition: none;
   }
 
