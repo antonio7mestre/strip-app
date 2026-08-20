@@ -1932,6 +1932,7 @@ export default function Home() {
     let lastTouchY = 0;
     let lastTouchTime = 0;
     let pullStartY = 0;
+    let manualStartOffset = 0;
     let pullOffset = 0;
     let pullVelocity = 0;
     let scrollVelocity = 0;
@@ -2003,6 +2004,7 @@ export default function Home() {
       let previousTime = performance.now();
       const stiffness = 130;
       const damping = 18;
+      const approachStiffness = 10;
       const approachDamping = 3.2;
 
       const step = (time: number) => {
@@ -2010,7 +2012,7 @@ export default function Home() {
         previousTime = time;
         const acceleration = reachedPullSide
           ? -stiffness * position - damping * velocity
-          : -approachDamping * velocity;
+          : -approachStiffness * position - approachDamping * velocity;
         velocity += acceleration * elapsed;
         position += velocity * elapsed;
         if (position >= 0) reachedPullSide = true;
@@ -2145,39 +2147,46 @@ export default function Home() {
       const movingTowardTop = touchDelta > 0;
       const lockedTop = leadingImageScrollLockRef.current;
       const now = performance.now();
-      const atLockedTop = lockedTop > 0 && window.scrollY <= lockedTop + 1.5;
-      const crossesLockedTop =
+      const elapsed = Math.max(1, now - lastTouchTime);
+      const fingerVelocity = movingTowardTop ? touchDelta / elapsed : 0;
+      const maximumTakeoverDistance = Math.min(
+        520,
+        Math.max(320, window.innerHeight * 0.65),
+      );
+      const takeoverDistance = Math.min(
+        maximumTakeoverDistance,
+        Math.max(220, fingerVelocity * 520),
+      );
+      const entersManualTopZone =
         movingTowardTop &&
         lockedTop > 0 &&
-        window.scrollY - touchDelta <= lockedTop;
+        window.scrollY - touchDelta <= lockedTop + takeoverDistance;
 
-      if (rubberBandActive || (movingTowardTop && (atLockedTop || crossesLockedTop))) {
+      if (rubberBandActive || entersManualTopZone) {
         event.preventDefault();
         if (!rubberBandActive) {
           rubberBandActive = true;
-          const nativeGap = Math.max(0, lockedTop - window.scrollY);
-          const currentVisualOffset = pullOffset + nativeGap;
-          const crossingDistance = Math.max(
-            0,
-            lockedTop - (window.scrollY - touchDelta),
+          pullStartY = lastTouchY;
+          manualStartOffset =
+            pullOffset > 0
+              ? rawDistanceFromRubberBand(pullOffset)
+              : lockedTop - window.scrollY;
+          setPullOffset(
+            manualStartOffset <= 0
+              ? manualStartOffset
+              : rubberBandDistance(manualStartOffset),
           );
-          pullStartY =
-            touchY -
-            Math.max(
-              rawDistanceFromRubberBand(currentVisualOffset),
-              crossingDistance,
-            );
         }
 
         window.scrollTo({ top: lockedTop, left: 0, behavior: "auto" });
         document.documentElement.scrollTop = lockedTop;
         document.body.scrollTop = lockedTop;
 
-        const nextPullOffset = rubberBandDistance(
-          Math.max(0, touchY - pullStartY),
-        );
-        const elapsed = Math.max(1, now - lastTouchTime);
-        pullVelocity = (nextPullOffset - pullOffset) / elapsed;
+        const rawOffset = manualStartOffset + (touchY - pullStartY);
+        const nextPullOffset =
+          rawOffset <= 0 ? rawOffset : rubberBandDistance(rawOffset);
+        const instantaneousVelocity = (nextPullOffset - pullOffset) / elapsed;
+        pullVelocity = pullVelocity * 0.3 + instantaneousVelocity * 0.7;
         setPullOffset(nextPullOffset);
         lastTouchY = touchY;
         lastTouchTime = now;
@@ -2198,8 +2207,23 @@ export default function Home() {
       lastTouchY = 0;
       lastTouchTime = 0;
       pullStartY = 0;
+      manualStartOffset = 0;
       rubberBandActive = false;
       lockFixedControlsDuringPull();
+
+      if (pullOffset < 0 && pullVelocity <= 0.02) {
+        const lockedTop = leadingImageScrollLockRef.current;
+        const restoredScrollTop = lockedTop - pullOffset;
+        setPullOffset(0);
+        window.scrollTo({ top: restoredScrollTop, left: 0, behavior: "auto" });
+        document.documentElement.scrollTop = restoredScrollTop;
+        document.body.scrollTop = restoredScrollTop;
+        pullVelocity = 0;
+        lastScrollPosition = restoredScrollTop;
+        lastScrollTime = performance.now();
+        return;
+      }
+
       const absorbedNativeGap = absorbNativeScrollGap();
       if (shouldSpring || absorbedNativeGap) {
         springPullBack();
@@ -2214,8 +2238,23 @@ export default function Home() {
       lastTouchY = 0;
       lastTouchTime = 0;
       pullStartY = 0;
+      manualStartOffset = 0;
       rubberBandActive = false;
       lockFixedControlsDuringPull();
+
+      if (pullOffset < 0) {
+        const lockedTop = leadingImageScrollLockRef.current;
+        const restoredScrollTop = lockedTop - pullOffset;
+        setPullOffset(0);
+        window.scrollTo({ top: restoredScrollTop, left: 0, behavior: "auto" });
+        document.documentElement.scrollTop = restoredScrollTop;
+        document.body.scrollTop = restoredScrollTop;
+        pullVelocity = 0;
+        lastScrollPosition = restoredScrollTop;
+        lastScrollTime = performance.now();
+        return;
+      }
+
       const absorbedNativeGap = absorbNativeScrollGap();
       if (pullOffset > 0.1 || absorbedNativeGap) {
         springPullBack();
@@ -2237,6 +2276,13 @@ export default function Home() {
       const previousScrollPosition = lastScrollPosition;
       const elapsed = now - lastScrollTime;
 
+      if (touchIsActive) {
+        lastScrollPosition = currentScrollPosition;
+        lastScrollTime = now;
+        lockFixedControlsDuringPull();
+        return;
+      }
+
       if (!applyingLock && !anchorBounceActive && elapsed > 0 && elapsed < 120) {
         const currentVelocity =
           (currentScrollPosition - lastScrollPosition) / elapsed;
@@ -2248,7 +2294,6 @@ export default function Home() {
       lastScrollPosition = currentScrollPosition;
       lastScrollTime = now;
       lockFixedControlsDuringPull();
-      if (touchIsActive) return;
 
       const lockedTop = leadingImageScrollLockRef.current;
       if (anchorBounceActive) {
