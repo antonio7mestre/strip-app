@@ -2091,6 +2091,8 @@ export default function Home() {
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
   const leadingImageInsetRef = useRef(0);
+  const skipLeadingImagePlacementOnReorderRef = useRef(false);
+  const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const editorDockEntryTimerRef = useRef<number | null>(null);
@@ -2244,6 +2246,9 @@ export default function Home() {
       initialRouteReady &&
       stripIsVisible &&
       root.dataset.stripReloadScroll === "manual";
+    const skipInitialAnchor =
+      skipLeadingImagePlacementOnReorderRef.current && !ownsReloadScroll;
+    skipLeadingImagePlacementOnReorderRef.current = false;
 
     const placeLeadingImageAtAnchor = () => {
       if (offset > 0) {
@@ -2255,8 +2260,11 @@ export default function Home() {
       }
     };
 
-    placeLeadingImageAtAnchor();
-    const anchorFrame = window.requestAnimationFrame(placeLeadingImageAtAnchor);
+    let anchorFrame: number | null = null;
+    if (!skipInitialAnchor) {
+      placeLeadingImageAtAnchor();
+      anchorFrame = window.requestAnimationFrame(placeLeadingImageAtAnchor);
+    }
     let releaseFrame: number | null = null;
     let releaseTimer: number | null = null;
 
@@ -2277,7 +2285,7 @@ export default function Home() {
     window.addEventListener("pageshow", handlePageShow);
 
     return () => {
-      window.cancelAnimationFrame(anchorFrame);
+      if (anchorFrame !== null) window.cancelAnimationFrame(anchorFrame);
       if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
       if (releaseTimer !== null) window.clearTimeout(releaseTimer);
       window.removeEventListener("pageshow", handlePageShow);
@@ -2299,6 +2307,8 @@ export default function Home() {
     let settleFrame: number | null = null;
     let settleTimer: number | null = null;
     let touchIsActive = false;
+    let settleIsArmed = !suppressLeadingImageSettleUntilTouchRef.current;
+    suppressLeadingImageSettleUntilTouchRef.current = false;
 
     const clearPendingSettle = () => {
       if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
@@ -2308,7 +2318,7 @@ export default function Home() {
     };
 
     const settleLeadingImageAtAnchor = () => {
-      if (touchIsActive) return;
+      if (touchIsActive || !settleIsArmed) return;
       if (settleTimer !== null) window.clearTimeout(settleTimer);
       settleTimer = null;
       settleFrame = window.requestAnimationFrame(() => {
@@ -2338,6 +2348,7 @@ export default function Home() {
     };
 
     const handleTouchStart = () => {
+      settleIsArmed = true;
       touchIsActive = true;
       clearPendingSettle();
     };
@@ -2816,56 +2827,21 @@ export default function Home() {
 
   const moveBlock = (index: number, direction: -1 | 1) => {
     const target = index + direction;
-    const nextTopBlock =
-      target === 0 ? blocks[index] : index === 0 ? blocks[target] : blocks[0];
-    const textWillBecomeTop =
-      blocks[0]?.type !== "text" && nextTopBlock?.type === "text";
+    if (target < 0 || target >= blocks.length) return;
+
+    if (target === 0 || index === 0) {
+      const nextTopBlock = target === 0 ? blocks[index] : blocks[target];
+      const imageWillBecomeTop =
+        blocks[0]?.type !== "image" && nextTopBlock?.type === "image";
+      skipLeadingImagePlacementOnReorderRef.current = imageWillBecomeTop;
+      suppressLeadingImageSettleUntilTouchRef.current = imageWillBecomeTop;
+    }
 
     setBlocks((current) => {
       const next = [...current];
-      if (target < 0 || target >= next.length) return current;
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
-
-    if (textWillBecomeTop) {
-      const root = document.documentElement;
-      const releaseOffset = Math.max(
-        leadingImageInsetRef.current,
-        Math.ceil(window.scrollY),
-        Math.round(Math.min(62, Math.max(47, window.screen.width * 0.154))),
-      );
-
-      root.style.setProperty("--text-first-scroll-release", `${releaseOffset}px`);
-      root.classList.add("is-releasing-leading-image-scroll");
-
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          let attempts = 0;
-
-          const settleAtTop = () => {
-            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-            document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
-            document.documentElement.scrollTop = 0;
-            document.body.scrollTop = 0;
-            attempts += 1;
-
-            if (window.scrollY > 0.5 && attempts < 8) {
-              window.requestAnimationFrame(settleAtTop);
-              return;
-            }
-
-            window.requestAnimationFrame(() => {
-              root.classList.remove("is-releasing-leading-image-scroll");
-              root.style.removeProperty("--text-first-scroll-release");
-              window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-            });
-          };
-
-          settleAtTop();
-        });
-      });
-    }
   };
 
   const hasContent = blocks.length > 0;
