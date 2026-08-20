@@ -786,14 +786,22 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     transform 140ms ease;
 }
 
-.dock-icon-button:hover,
 .dock-icon-button:focus-visible {
   border-color: rgba(0, 0, 0, 0.08);
-  background: rgba(0, 0, 0, 0.06);
+  background: transparent;
 }
 
 .dock-icon-button:active {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.06);
   transform: scale(0.94);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dock-icon-button:hover {
+    border-color: rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.06);
+  }
 }
 
 .dock-icon-button:disabled {
@@ -1612,13 +1620,26 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   cursor: pointer;
 }
 
-.block-controls button:hover,
 .block-controls button:focus-visible {
+  background: transparent;
+}
+
+.block-controls button:active {
   background: color-mix(
     in srgb,
     var(--block-controls-foreground, #000000) 9%,
     transparent
   );
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .block-controls button:hover {
+    background: color-mix(
+      in srgb,
+      var(--block-controls-foreground, #000000) 9%,
+      transparent
+    );
+  }
 }
 
 .block-controls button:disabled {
@@ -1628,10 +1649,18 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .block-controls button.is-active {
-  border-color: var(--block-controls-foreground, #080808);
-  background: var(--block-controls-foreground, #080808);
-  color: var(--block-controls-surface, #ffffff);
+  border-color: transparent;
+  background: transparent;
+  color: var(--block-controls-foreground, rgba(0, 0, 0, 0.88));
   opacity: 1;
+}
+
+.block-controls button.is-active:active {
+  background: color-mix(
+    in srgb,
+    var(--block-controls-foreground, #000000) 9%,
+    transparent
+  );
 }
 
 .block-glyph {
