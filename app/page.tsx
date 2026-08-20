@@ -1945,7 +1945,7 @@ export default function Home() {
 
     const rubberBandDistance = (distance: number) => {
       const dimension = getRubberBandDimension();
-      const resistance = 0.55;
+      const resistance = 0.64;
       return (
         (dimension * resistance * Math.max(0, distance)) /
         (dimension + resistance * Math.max(0, distance))
@@ -1954,7 +1954,7 @@ export default function Home() {
 
     const rawDistanceFromRubberBand = (distance: number) => {
       const dimension = getRubberBandDimension();
-      const resistance = 0.55;
+      const resistance = 0.64;
       const clamped = Math.min(Math.max(0, distance), dimension - 0.5);
       return (clamped * dimension) / (resistance * (dimension - clamped));
     };
@@ -1972,7 +1972,7 @@ export default function Home() {
     const springPullBack = () => {
       stopPullAnimation();
       const startingVelocity = Math.min(
-        820,
+        1250,
         Math.max(-420, pullVelocity * 1000),
       );
       if (pullOffset <= 0.1 && startingVelocity <= 3) {
@@ -1984,8 +1984,8 @@ export default function Home() {
       let position = pullOffset;
       let velocity = startingVelocity;
       let previousTime = performance.now();
-      const stiffness = 170;
-      const damping = 22;
+      const stiffness = 130;
+      const damping = 18;
 
       const step = (time: number) => {
         const elapsed = Math.min(0.032, Math.max(0.001, (time - previousTime) / 1000));
@@ -2225,9 +2225,15 @@ export default function Home() {
 
       if (absorbedNativeGap || reachedLockedTopWithMomentum) {
         if (!absorbedNativeGap) setScrollTop(lockedTop, "auto");
+        const incomingMomentum = reachedLockedTopWithMomentum
+          ? Math.min(
+              1.35,
+              0.34 + Math.pow(Math.max(0, -scrollVelocity), 0.78) * 0.82,
+            )
+          : 0;
         pullVelocity = Math.max(
           pullVelocity,
-          Math.min(0.92, Math.max(0, -scrollVelocity * 0.82)),
+          incomingMomentum,
         );
         springPullBack();
       }
