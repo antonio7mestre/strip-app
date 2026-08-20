@@ -1862,6 +1862,7 @@ export default function Home() {
     const root = document.documentElement;
     let frame = 0;
     let followupFrame = 0;
+    let scrollAnimationFrame = 0;
     let releaseTimer = 0;
     let settleTimer = 0;
     let applyingLock = false;
@@ -1872,16 +1873,52 @@ export default function Home() {
     let resizeObserver: ResizeObserver | null = null;
 
     const setScrollTop = (top: number, behavior: ScrollBehavior = "auto") => {
-      applyingLock = true;
-      window.scrollTo({ top, behavior });
-      if (behavior === "auto") {
-        document.documentElement.scrollTop = top;
-        document.body.scrollTop = top;
-      }
+      window.cancelAnimationFrame(scrollAnimationFrame);
+      scrollAnimationFrame = 0;
       window.clearTimeout(settleTimer);
+      applyingLock = true;
+
+      if (behavior === "smooth" && Math.abs(window.scrollY - top) > 0.5) {
+        const startTop = Math.max(0, window.scrollY);
+        const distance = top - startTop;
+        const duration = Math.min(280, Math.max(190, Math.abs(distance) * 3.4));
+        const startedAt = performance.now();
+
+        const animate = (timestamp: number) => {
+          const progress = Math.min(1, (timestamp - startedAt) / duration);
+          const eased =
+            progress < 0.5
+              ? 4 * progress * progress * progress
+              : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+          window.scrollTo({
+            top: startTop + distance * eased,
+            left: 0,
+            behavior: "auto",
+          });
+          lockFixedControlsDuringPull();
+
+          if (progress < 1) {
+            scrollAnimationFrame = window.requestAnimationFrame(animate);
+            return;
+          }
+
+          scrollAnimationFrame = 0;
+          window.scrollTo({ top, left: 0, behavior: "auto" });
+          settleTimer = window.setTimeout(() => {
+            applyingLock = false;
+          }, 32);
+        };
+
+        scrollAnimationFrame = window.requestAnimationFrame(animate);
+        return;
+      }
+
+      window.scrollTo({ top, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
       settleTimer = window.setTimeout(() => {
         applyingLock = false;
-      }, behavior === "smooth" ? 320 : 32);
+      }, 32);
     };
 
     const lockFixedControlsDuringPull = () => {
@@ -1934,6 +1971,8 @@ export default function Home() {
       releasePending = false;
       lastTouchY = event.touches[0]?.clientY ?? 0;
       applyingLock = false;
+      window.cancelAnimationFrame(scrollAnimationFrame);
+      scrollAnimationFrame = 0;
       window.clearTimeout(settleTimer);
       window.clearTimeout(releaseTimer);
       lockFixedControlsDuringPull();
@@ -2081,6 +2120,7 @@ export default function Home() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(followupFrame);
+      window.cancelAnimationFrame(scrollAnimationFrame);
       window.clearTimeout(releaseTimer);
       window.clearTimeout(settleTimer);
       mutationObserver?.disconnect();
