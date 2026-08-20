@@ -145,6 +145,8 @@ const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 180;
 const DOCK_TRANSITION_DURATION_MS = 300;
+const STICKER_LEFT_OVERFLOW_PX = 64;
+const STICKER_RIGHT_OVERFLOW_PX = 32;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -1467,9 +1469,12 @@ function StripStickerBlock({
     );
   };
 
-  const clampStickerX = (x: number, width: number) => {
-    const allowedOverflow = width * 0.25;
-    return Math.min(100 + allowedOverflow, Math.max(-allowedOverflow, x));
+  const clampStickerX = (x: number, canvasWidth: number) => {
+    const leftOverflow =
+      (STICKER_LEFT_OVERFLOW_PX / Math.max(1, canvasWidth)) * 100;
+    const rightOverflow =
+      (STICKER_RIGHT_OVERFLOW_PX / Math.max(1, canvasWidth)) * 100;
+    return Math.min(100 + rightOverflow, Math.max(-leftOverflow, x));
   };
 
   const clampStickerY = (y: number, canvasHeight: number) => {
@@ -1556,7 +1561,7 @@ function StripStickerBlock({
           x: clampStickerX(
             transform.x +
               ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
-            width,
+            transform.canvasWidth,
           ),
           y: clampStickerY(
             transform.y + midpointY - transform.midpointY,
@@ -1578,7 +1583,7 @@ function StripStickerBlock({
       previewTransform({
         x: clampStickerX(
           drag.x + ((touch.clientX - drag.clientX) / drag.canvasWidth) * 100,
-          drag.width,
+          drag.canvasWidth,
         ),
         y: clampStickerY(
           drag.y + touch.clientY - drag.clientY,
@@ -1879,7 +1884,7 @@ function StripStickerBlock({
             x: clampStickerX(
               transform.x +
                 ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
-              width,
+              transform.canvasWidth,
             ),
             y: clampStickerY(
               transform.y + midpointY - transform.midpointY,
@@ -1898,7 +1903,7 @@ function StripStickerBlock({
         previewTransform({
           x: clampStickerX(
             drag.x + ((event.clientX - drag.clientX) / drag.canvasWidth) * 100,
-            current.width,
+            drag.canvasWidth,
           ),
           y: clampStickerY(
             drag.y + event.clientY - drag.clientY,
