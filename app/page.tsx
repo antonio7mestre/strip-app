@@ -876,61 +876,25 @@ function BlockSelectionTab() {
   return <span className="block-selection-tab" aria-hidden="true" />;
 }
 
-function SelectionHapticSurface({ onSelect }: { onSelect: () => void }) {
-  const gestureRef = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-    moved: boolean;
-  } | null>(null);
-  const rejectNextClickRef = useRef(false);
+let safariHapticSwitch: HTMLInputElement | null = null;
 
-  return (
-    <input
-      {...({ switch: "" } as Record<string, string>)}
-      className="selection-haptic-surface"
-      type="checkbox"
-      tabIndex={-1}
-      aria-hidden="true"
-      onPointerDown={(event) => {
-        rejectNextClickRef.current = false;
-        gestureRef.current = {
-          pointerId: event.pointerId,
-          x: event.clientX,
-          y: event.clientY,
-          moved: false,
-        };
-      }}
-      onPointerMove={(event) => {
-        const gesture = gestureRef.current;
-        if (!gesture || gesture.pointerId !== event.pointerId) return;
-        if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8) {
-          gesture.moved = true;
-        }
-      }}
-      onPointerUp={(event) => {
-        const gesture = gestureRef.current;
-        if (!gesture || gesture.pointerId !== event.pointerId) return;
-        rejectNextClickRef.current = gesture.moved;
-      }}
-      onPointerCancel={() => {
-        rejectNextClickRef.current = true;
-        gestureRef.current = null;
-      }}
-      onClick={(event) => {
-        event.stopPropagation();
-        const rejectClick = rejectNextClickRef.current || gestureRef.current?.moved;
-        gestureRef.current = null;
-        rejectNextClickRef.current = false;
-        if (rejectClick) {
-          event.preventDefault();
-          return;
-        }
-        navigator.vibrate?.(10);
-        onSelect();
-      }}
-    />
-  );
+function triggerSelectionHaptic() {
+  if (navigator.vibrate) {
+    navigator.vibrate(10);
+    return;
+  }
+
+  if (!safariHapticSwitch) {
+    safariHapticSwitch = document.createElement("input");
+    safariHapticSwitch.type = "checkbox";
+    safariHapticSwitch.setAttribute("switch", "");
+    safariHapticSwitch.tabIndex = -1;
+    safariHapticSwitch.setAttribute("aria-hidden", "true");
+    safariHapticSwitch.className = "selection-haptic-proxy";
+    document.body.append(safariHapticSwitch);
+  }
+
+  safariHapticSwitch.click();
 }
 
 function StripVideoBlock({
@@ -945,6 +909,12 @@ function StripVideoBlock({
   onSelect: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const tapGestureRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
   const [muted, setMuted] = useState(true);
 
   useEffect(() => {
@@ -986,7 +956,30 @@ function StripVideoBlock({
         isEditing && isSelected ? "is-selected" : ""
       }`}
       data-block-id={block.id}
-      onClick={onSelect}
+      onPointerDown={(event) => {
+        tapGestureRef.current = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+          moved: false,
+        };
+      }}
+      onPointerMove={(event) => {
+        const gesture = tapGestureRef.current;
+        if (!gesture || gesture.pointerId !== event.pointerId) return;
+        if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8) {
+          gesture.moved = true;
+        }
+      }}
+      onPointerCancel={() => {
+        if (tapGestureRef.current) tapGestureRef.current.moved = true;
+      }}
+      onClick={() => {
+        const gesture = tapGestureRef.current;
+        tapGestureRef.current = null;
+        if (gesture?.moved) return;
+        onSelect();
+      }}
       onContextMenu={(event) => event.preventDefault()}
     >
       <video
@@ -1004,9 +997,6 @@ function StripVideoBlock({
         draggable={false}
       />
       {isEditing && isSelected ? <BlockSelectionTab /> : null}
-      {isEditing && !isSelected ? (
-        <SelectionHapticSurface onSelect={onSelect} />
-      ) : null}
       <button
         className="video-audio-toggle"
         type="button"
@@ -1067,12 +1057,6 @@ function StripStickerBlock({
       }}
       onPointerDown={(event) => {
         if (!isEditing) return;
-        if (
-          event.target instanceof HTMLInputElement &&
-          event.target.classList.contains("selection-haptic-surface")
-        ) {
-          return;
-        }
         event.preventDefault();
         event.stopPropagation();
         onSelect();
@@ -1114,9 +1098,6 @@ function StripStickerBlock({
       aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
     >
       {isEditing && isSelected ? <BlockSelectionTab /> : null}
-      {isEditing && !isSelected ? (
-        <SelectionHapticSurface onSelect={onSelect} />
-      ) : null}
       <img src={block.src} alt={block.alt} draggable={false} />
     </figure>
   );
@@ -1193,6 +1174,44 @@ export default function Home() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSequenceRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const blockTapGestureRef = useRef<{
+    blockId: string;
+    pointerId: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+
+  const beginBlockTapGesture = (
+    event: ReactPointerEvent<HTMLElement>,
+    blockId: string,
+  ) => {
+    blockTapGestureRef.current = {
+      blockId,
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+    };
+  };
+
+  const trackBlockTapGesture = (event: ReactPointerEvent<HTMLElement>) => {
+    const gesture = blockTapGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8) {
+      gesture.moved = true;
+    }
+  };
+
+  const cancelBlockTapGesture = () => {
+    if (blockTapGestureRef.current) blockTapGestureRef.current.moved = true;
+  };
+
+  const completeBlockTapGesture = (blockId: string) => {
+    const gesture = blockTapGestureRef.current;
+    blockTapGestureRef.current = null;
+    return !gesture || (gesture.blockId === blockId && !gesture.moved);
+  };
   const firstVisibleBlock =
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
@@ -2800,8 +2819,12 @@ export default function Home() {
               } ${usesDarkText ? "uses-dark-text" : ""}`}
               data-block-id={block.id}
               key={block.id}
+              onPointerDown={(event) => beginBlockTapGesture(event, block.id)}
+              onPointerMove={trackBlockTapGesture}
+              onPointerCancel={cancelBlockTapGesture}
               onClick={(event) => {
                 if (!isEditing || textIsBeingEdited) return;
+                if (!completeBlockTapGesture(block.id)) return;
                 if (selectedBlockId === block.id) {
                   const caretOffset = caretOffsetAtPoint(
                     event.currentTarget,
@@ -2812,6 +2835,7 @@ export default function Home() {
                   enterTextEditing(block.id, caretOffset);
                   return;
                 }
+                triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setActiveTextTool(null);
               }}
@@ -2823,14 +2847,6 @@ export default function Home() {
             >
               {isEditing && selectedBlockId === block.id ? (
                 <BlockSelectionTab />
-              ) : null}
-              {isEditing && selectedBlockId !== block.id ? (
-                <SelectionHapticSurface
-                  onSelect={() => {
-                    setSelectedBlockId(block.id);
-                    setActiveTextTool(null);
-                  }}
-                />
               ) : null}
               {textIsBeingEdited ? (
                 <textarea
@@ -2891,8 +2907,13 @@ export default function Home() {
               }`}
               data-block-id={block.id}
               key={block.id}
+              onPointerDown={(event) => beginBlockTapGesture(event, block.id)}
+              onPointerMove={trackBlockTapGesture}
+              onPointerCancel={cancelBlockTapGesture}
               onClick={() => {
                 if (!isEditing) return;
+                if (!completeBlockTapGesture(block.id)) return;
+                if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
@@ -2901,15 +2922,6 @@ export default function Home() {
               {/* A Strip image is intentionally edge-to-edge. */}
               {isEditing && selectedBlockId === block.id ? (
                 <BlockSelectionTab />
-              ) : null}
-              {isEditing && selectedBlockId !== block.id ? (
-                <SelectionHapticSurface
-                  onSelect={() => {
-                    setSelectedBlockId(block.id);
-                    setEditingTextBlockId(null);
-                    setActiveTextTool(null);
-                  }}
-                />
               ) : null}
               <img
                 src={block.src}
@@ -2928,6 +2940,7 @@ export default function Home() {
               isSelected={selectedBlockId === block.id}
               onSelect={() => {
                 if (!isEditing) return;
+                if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
@@ -2953,6 +2966,7 @@ export default function Home() {
             isSelected={selectedBlockId === block.id}
             onSelect={() => {
               if (!isEditing) return;
+              if (selectedBlockId !== block.id) triggerSelectionHaptic();
               setSelectedBlockId(block.id);
               setEditingTextBlockId(null);
               setActiveTextTool(null);
