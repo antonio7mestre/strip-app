@@ -708,6 +708,11 @@ function BlockControls({
 
   return (
     <>
+      <span
+        className="block-controls-top-edge"
+        style={style}
+        aria-hidden="true"
+      />
       <div
         className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
         style={style}
