@@ -770,6 +770,18 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     opacity 160ms ease;
 }
 
+.composer-dock,
+.composer-dock *,
+.block-controls,
+.block-controls *,
+.sticker-delete-control,
+.sticker-delete-control * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .composer-dock button:focus-visible,
 .block-controls button:focus-visible {
   outline-color: #000000;
@@ -1831,6 +1843,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background: transparent;
   color: inherit;
   cursor: pointer;
+  touch-action: none;
 }
 
 .font-size-stepper button:disabled {

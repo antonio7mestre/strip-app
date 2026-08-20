@@ -837,7 +837,12 @@ function TextStyleSelector({
   const fontStyle = block.fontStyle ?? "sans";
   const fontSize = block.fontSize ?? DEFAULT_FONT_SIZE;
   const selectorScrollRef = useRef<HTMLDivElement>(null);
+  const fontSizeRef = useRef(fontSize);
+  const fontSizeRepeatDelayRef = useRef<number | null>(null);
+  const fontSizeRepeatIntervalRef = useRef<number | null>(null);
+  const fontSizeDidRepeatRef = useRef(false);
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
+  fontSizeRef.current = fontSize;
   const backgroundIsCustom = !backgroundOptions.some(
     (option) => option.value.toUpperCase() === background.toUpperCase(),
   );
@@ -866,6 +871,18 @@ function TextStyleSelector({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [tool, visible]);
+
+  useEffect(
+    () => () => {
+      if (fontSizeRepeatDelayRef.current !== null) {
+        window.clearTimeout(fontSizeRepeatDelayRef.current);
+      }
+      if (fontSizeRepeatIntervalRef.current !== null) {
+        window.clearInterval(fontSizeRepeatIntervalRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (decodedGradientPosition.saturation > 0) {
@@ -897,6 +914,73 @@ function TextStyleSelector({
     setGradientHue(nextHue);
     const nextColor = hslToHex(nextHue, 100, nextLightness);
     onChange(tool === "background" ? { backgroundColor: nextColor } : { textColor: nextColor });
+  };
+
+  const changeFontSize = (direction: -1 | 1) => {
+    const currentSize = fontSizeRef.current;
+    const nextSize = Math.min(
+      MAX_FONT_SIZE,
+      Math.max(MIN_FONT_SIZE, currentSize + direction * FONT_SIZE_STEP),
+    );
+    if (nextSize === currentSize) {
+      stopFontSizeRepeat();
+      return;
+    }
+    fontSizeRef.current = nextSize;
+    onChange({ fontSize: nextSize });
+    if (nextSize === MIN_FONT_SIZE || nextSize === MAX_FONT_SIZE) {
+      stopFontSizeRepeat();
+    }
+  };
+
+  const stopFontSizeRepeat = () => {
+    if (fontSizeRepeatDelayRef.current !== null) {
+      window.clearTimeout(fontSizeRepeatDelayRef.current);
+      fontSizeRepeatDelayRef.current = null;
+    }
+    if (fontSizeRepeatIntervalRef.current !== null) {
+      window.clearInterval(fontSizeRepeatIntervalRef.current);
+      fontSizeRepeatIntervalRef.current = null;
+    }
+  };
+
+  const startFontSizeRepeat = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    direction: -1 | 1,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    stopFontSizeRepeat();
+    fontSizeDidRepeatRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    fontSizeRepeatDelayRef.current = window.setTimeout(() => {
+      fontSizeDidRepeatRef.current = true;
+      changeFontSize(direction);
+      fontSizeRepeatIntervalRef.current = window.setInterval(
+        () => changeFontSize(direction),
+        72,
+      );
+    }, 320);
+  };
+
+  const finishFontSizeRepeat = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const repeated = fontSizeDidRepeatRef.current;
+    stopFontSizeRepeat();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (repeated) {
+      window.setTimeout(() => {
+        fontSizeDidRepeatRef.current = false;
+      }, 0);
+    }
+  };
+
+  const activateFontSizeStep = (direction: -1 | 1) => {
+    if (fontSizeDidRepeatRef.current) {
+      fontSizeDidRepeatRef.current = false;
+      return;
+    }
+    changeFontSize(direction);
   };
 
   return (
@@ -963,7 +1047,14 @@ function TextStyleSelector({
               <div className="font-size-stepper" role="group" aria-label="Font size" key="font-size">
                 <button
                   type="button"
-                  onClick={() => onChange({ fontSize: Math.max(MIN_FONT_SIZE, fontSize - FONT_SIZE_STEP) })}
+                  onPointerDown={(event) => startFontSizeRepeat(event, -1)}
+                  onPointerUp={finishFontSizeRepeat}
+                  onPointerCancel={(event) => {
+                    finishFontSizeRepeat(event);
+                    fontSizeDidRepeatRef.current = false;
+                  }}
+                  onClick={() => activateFontSizeStep(-1)}
+                  onContextMenu={(event) => event.preventDefault()}
                   disabled={fontSize <= MIN_FONT_SIZE}
                   tabIndex={visible ? 0 : -1}
                   aria-label="Decrease font size"
@@ -973,7 +1064,14 @@ function TextStyleSelector({
                 <output aria-label={`${fontSize} pixels`}>{fontSize}</output>
                 <button
                   type="button"
-                  onClick={() => onChange({ fontSize: Math.min(MAX_FONT_SIZE, fontSize + FONT_SIZE_STEP) })}
+                  onPointerDown={(event) => startFontSizeRepeat(event, 1)}
+                  onPointerUp={finishFontSizeRepeat}
+                  onPointerCancel={(event) => {
+                    finishFontSizeRepeat(event);
+                    fontSizeDidRepeatRef.current = false;
+                  }}
+                  onClick={() => activateFontSizeStep(1)}
+                  onContextMenu={(event) => event.preventDefault()}
                   disabled={fontSize >= MAX_FONT_SIZE}
                   tabIndex={visible ? 0 : -1}
                   aria-label="Increase font size"
