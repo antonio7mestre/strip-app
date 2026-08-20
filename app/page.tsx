@@ -543,26 +543,45 @@ function BlockControls({
     : onMove
       ? "is-media-tray"
       : "is-single-action-tray";
-  const edgeGeometry = onTextTool
-      ? {
-        viewBox: "0 0 336 58",
-        path: "M 0 0 C 7 0 12 5 12 12 V 30 C 12 44 24 56 38 56 H 298 C 312 56 324 44 324 30 V 12 C 324 5 329 0 336 0",
-      }
-    : onMove
-      ? {
-          viewBox: "0 0 204 58",
-          path: "M 0 0 C 7 0 12 5 12 12 V 30 C 12 44 24 56 38 56 H 166 C 180 56 192 44 192 30 V 12 C 192 5 197 0 204 0",
-        }
-      : {
-          viewBox: "0 0 80 58",
-          path: "M 0 0 C 7 0 12 5 12 12 V 30 C 12 44 22 56 36 56 H 44 C 58 56 68 44 68 30 V 12 C 68 5 73 0 80 0",
-        };
+  const edgeRef = useRef<SVGSVGElement>(null);
+  const [edgeWidth, setEdgeWidth] = useState(0);
+  const trayWidth = onTextTool ? 336 : onMove ? 204 : 80;
+  const edgeStart = Math.max(0, (edgeWidth - trayWidth) / 2);
+  const edgeEnd = edgeStart + trayWidth;
+  const edgePath = edgeWidth
+    ? [
+        `M 0 0 H ${edgeStart}`,
+        `C ${edgeStart + 7} 0 ${edgeStart + 12} 5 ${edgeStart + 12} 12`,
+        `V 30 C ${edgeStart + 12} 44 ${edgeStart + 24} 56 ${edgeStart + 38} 56`,
+        `H ${edgeEnd - 38}`,
+        `C ${edgeEnd - 24} 56 ${edgeEnd - 12} 44 ${edgeEnd - 12} 30`,
+        `V 12 C ${edgeEnd - 12} 5 ${edgeEnd - 7} 0 ${edgeEnd} 0`,
+        `H ${edgeWidth}`,
+      ].join(" ")
+    : "";
   const style: BlockControlsStyle | undefined = surfaceColor
     ? {
         "--block-controls-surface": surfaceColor,
         "--block-controls-foreground": contrastColor(surfaceColor),
       }
     : undefined;
+
+  useLayoutEffect(() => {
+    const edge = edgeRef.current;
+    if (!edge || stickerRotation !== undefined) return;
+
+    const measure = () => setEdgeWidth(edge.getBoundingClientRect().width);
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(edge);
+    return () => observer.disconnect();
+  }, [stickerRotation]);
 
   if (stickerRotation !== undefined) {
     return (
@@ -655,29 +674,25 @@ function BlockControls({
           <Trash2 className="block-glyph" aria-hidden="true" />
         </button>
       </div>
-      <div
+      <svg
+        ref={edgeRef}
         className={`block-controls-under-edge ${trayClass}`}
         style={style}
+        viewBox={`0 0 ${edgeWidth || 1} 58`}
+        preserveAspectRatio="none"
+        shapeRendering="geometricPrecision"
         aria-hidden="true"
       >
-        <span className="block-controls-edge-wing" />
-        <svg
-          className="block-controls-edge-center"
-          viewBox={edgeGeometry.viewBox}
-          preserveAspectRatio="none"
-        >
-          <path
-            d={edgeGeometry.path}
-            fill="none"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2.5"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
-        <span className="block-controls-edge-wing" />
-      </div>
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="4"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
     </>
   );
 }
