@@ -2087,9 +2087,7 @@ textarea:focus-visible,
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
-    margin-top: calc(
-      -1 * env(safe-area-inset-top) - var(--leading-image-top-extension)
-    );
+    margin-top: calc(-1 * var(--leading-image-top-extension));
     margin-bottom: 0;
     padding-top: 0;
     transform: none;
