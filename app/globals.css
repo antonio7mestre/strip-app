@@ -1455,7 +1455,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   top: calc(100% - 0.5px);
   left: 50%;
   display: flex;
-  width: 184px;
+  width: 286px;
   height: 58px;
   max-width: calc(100vw - 32px);
   align-items: center;
@@ -1467,10 +1467,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   border: 0;
   background: var(--white);
   -webkit-clip-path: path(
-    "M 0 0 H 184 C 174 0 166 8 166 18 V 28 C 166 45 152 58 135 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+    "M 0 0 H 286 C 270 0 258 10 258 20 V 29 C 258 46 244 58 227 58 H 59 C 42 58 28 46 28 29 V 20 C 28 10 16 0 0 0 Z"
   );
   clip-path: path(
-    "M 0 0 H 184 C 174 0 166 8 166 18 V 28 C 166 45 152 58 135 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+    "M 0 0 H 286 C 270 0 258 10 258 20 V 29 C 258 46 244 58 227 58 H 59 C 42 58 28 46 28 29 V 20 C 28 10 16 0 0 0 Z"
   );
   filter: drop-shadow(0 9px 14px rgba(0, 0, 0, 0.24));
   scrollbar-width: none;
