@@ -2020,11 +2020,22 @@ export default function Home() {
     if (!initialRouteReady || !hasLeadingImage || !stripIsVisible) return;
 
     let settleFrame: number | null = null;
+    let settleTimer: number | null = null;
+    let waitingForNativeRebound = false;
 
-    const settleLeadingImageAtAnchor = (event: TouchEvent) => {
-      if (event.touches.length > 0) return;
+    const cancelPendingSettle = () => {
       if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleFrame = null;
+      settleTimer = null;
+      waitingForNativeRebound = false;
+    };
 
+    const settleLeadingImageAtAnchor = () => {
+      if (!waitingForNativeRebound) return;
+      waitingForNativeRebound = false;
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = null;
       settleFrame = window.requestAnimationFrame(() => {
         settleFrame = null;
         const anchor = leadingImageInsetRef.current;
@@ -2033,13 +2044,41 @@ export default function Home() {
       });
     };
 
-    document.addEventListener("touchend", settleLeadingImageAtAnchor, {
+    const scheduleSettleFallback = (delay: number) => {
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(settleLeadingImageAtAnchor, delay);
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length > 0) return;
+      const anchor = leadingImageInsetRef.current;
+      if (anchor <= 0 || window.scrollY >= anchor - 0.5) return;
+      waitingForNativeRebound = true;
+      scheduleSettleFallback(360);
+    };
+
+    const handleNativeReboundScroll = () => {
+      if (!waitingForNativeRebound) return;
+      scheduleSettleFallback(90);
+    };
+
+    document.addEventListener("touchstart", cancelPendingSettle, {
       passive: true,
     });
+    document.addEventListener("touchend", handleTouchEnd, {
+      passive: true,
+    });
+    window.addEventListener("scroll", handleNativeReboundScroll, {
+      passive: true,
+    });
+    window.addEventListener("scrollend", settleLeadingImageAtAnchor);
 
     return () => {
-      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
-      document.removeEventListener("touchend", settleLeadingImageAtAnchor);
+      cancelPendingSettle();
+      document.removeEventListener("touchstart", cancelPendingSettle);
+      document.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("scroll", handleNativeReboundScroll);
+      window.removeEventListener("scrollend", settleLeadingImageAtAnchor);
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
