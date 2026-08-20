@@ -1927,6 +1927,7 @@ export default function Home() {
     let scrollAnimationFrame = 0;
     let pullAnimationFrame = 0;
     let pullHandoffAnimationFrame = 0;
+    let pullHandoffDelayTimer = 0;
     let settleTimer = 0;
     let applyingLock = false;
     let touchIsActive = false;
@@ -2099,6 +2100,8 @@ export default function Home() {
     };
 
     const stopPullHandoffAtLockedTop = () => {
+      window.clearTimeout(pullHandoffDelayTimer);
+      pullHandoffDelayTimer = 0;
       if (!pullHandoffActive) return;
       window.cancelAnimationFrame(pullHandoffAnimationFrame);
       pullHandoffAnimationFrame = 0;
@@ -2116,63 +2119,75 @@ export default function Home() {
     };
 
     const handPullOffsetBackToNativeScroll = () => {
-      const lockedTop = leadingImageScrollLockRef.current;
-      const startingOffset = pullOffset;
-      if (lockedTop <= 0 || startingOffset >= 0) return;
-
+      window.clearTimeout(pullHandoffDelayTimer);
       window.cancelAnimationFrame(pullHandoffAnimationFrame);
-      pullHandoffActive = true;
-      applyingLock = true;
-      const maximumScrollTop = Math.max(
-        lockedTop,
-        document.documentElement.scrollHeight - window.innerHeight,
-      );
-      const targetScrollTop = Math.min(
-        lockedTop - startingOffset,
-        maximumScrollTop,
-      );
-      const startedAt = performance.now();
-      const duration = 96;
+      pullHandoffAnimationFrame = 0;
+      pullHandoffActive = false;
 
-      const step = (time: number) => {
-        if (!pullHandoffActive) return;
-        const progress = Math.min(1, (time - startedAt) / duration);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const requestedScrollTop =
-          lockedTop + (targetScrollTop - lockedTop) * eased;
+      /*
+       * Leave the visual offset untouched briefly. A quick reverse gesture can
+       * then continue with the exact same owner instead of interrupting a
+       * compositor handoff that Safari has already started.
+       */
+      pullHandoffDelayTimer = window.setTimeout(() => {
+        pullHandoffDelayTimer = 0;
+        const lockedTop = leadingImageScrollLockRef.current;
+        const startingOffset = pullOffset;
+        if (touchIsActive || lockedTop <= 0 || startingOffset >= 0) return;
 
-        window.scrollTo({ top: requestedScrollTop, left: 0, behavior: "auto" });
-        const actualScrollTop = window.scrollY;
-        /*
-         * Native scroll and the canvas offset move in equal, opposite amounts.
-         * Their sum therefore stays fixed while Safari takes ownership back,
-         * even when its compositor commits the scroll a frame later.
-         */
-        setPullOffset(startingOffset + (actualScrollTop - lockedTop));
-        lastScrollPosition = actualScrollTop;
-        lastScrollTime = time;
-        lockFixedControlsDuringPull();
+        pullHandoffActive = true;
+        applyingLock = true;
+        const maximumScrollTop = Math.max(
+          lockedTop,
+          document.documentElement.scrollHeight - window.innerHeight,
+        );
+        const targetScrollTop = Math.min(
+          lockedTop - startingOffset,
+          maximumScrollTop,
+        );
+        const startedAt = performance.now();
+        const duration = 96;
 
-        const waitingForSafari =
-          Math.abs(actualScrollTop - targetScrollTop) > 0.5 &&
-          time - startedAt < 240;
-        if (progress < 1 || waitingForSafari) {
-          pullHandoffAnimationFrame = window.requestAnimationFrame(step);
-          return;
-        }
+        const step = (time: number) => {
+          if (!pullHandoffActive) return;
+          const progress = Math.min(1, (time - startedAt) / duration);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          const requestedScrollTop =
+            lockedTop + (targetScrollTop - lockedTop) * eased;
 
-        if (
-          Math.abs(startingOffset + (actualScrollTop - lockedTop)) <= 0.5
-        ) {
-          setPullOffset(0);
-        }
-        pullVelocity = 0;
-        pullHandoffAnimationFrame = 0;
-        pullHandoffActive = false;
-        applyingLock = false;
-      };
+          window.scrollTo({ top: requestedScrollTop, left: 0, behavior: "auto" });
+          const actualScrollTop = window.scrollY;
+          /*
+           * Native scroll and the canvas offset move in equal, opposite amounts.
+           * Their sum therefore stays fixed while Safari takes ownership back,
+           * even when its compositor commits the scroll a frame later.
+           */
+          setPullOffset(startingOffset + (actualScrollTop - lockedTop));
+          lastScrollPosition = actualScrollTop;
+          lastScrollTime = time;
+          lockFixedControlsDuringPull();
 
-      pullHandoffAnimationFrame = window.requestAnimationFrame(step);
+          const waitingForSafari =
+            Math.abs(actualScrollTop - targetScrollTop) > 0.5 &&
+            time - startedAt < 240;
+          if (progress < 1 || waitingForSafari) {
+            pullHandoffAnimationFrame = window.requestAnimationFrame(step);
+            return;
+          }
+
+          if (
+            Math.abs(startingOffset + (actualScrollTop - lockedTop)) <= 0.5
+          ) {
+            setPullOffset(0);
+          }
+          pullVelocity = 0;
+          pullHandoffAnimationFrame = 0;
+          pullHandoffActive = false;
+          applyingLock = false;
+        };
+
+        pullHandoffAnimationFrame = window.requestAnimationFrame(step);
+      }, 320);
     };
 
     const settleLockedTop = (behavior: ScrollBehavior = "smooth") => {
@@ -2201,12 +2216,19 @@ export default function Home() {
       stopPullAnimation();
       stopPullHandoffAtLockedTop();
       const lockedTop = leadingImageScrollLockRef.current;
+      const manualGestureDistance = Math.min(
+        1000,
+        Math.max(520, window.innerHeight * 1.15),
+      );
+      const startsInsideManualTopZone =
+        lockedTop > 0 && window.scrollY <= lockedTop + manualGestureDistance;
       rubberBandActive =
-        lockedTop > 0 &&
-        window.scrollY <= lockedTop + 2 &&
-        Math.abs(pullOffset) > 0.1;
-      manualStartOffset =
-        pullOffset > 0 ? rawDistanceFromRubberBand(pullOffset) : pullOffset;
+        startsInsideManualTopZone || Math.abs(pullOffset) > 0.1;
+      manualStartOffset = pullOffset > 0
+        ? rawDistanceFromRubberBand(pullOffset)
+        : Math.abs(pullOffset) > 0.1
+          ? pullOffset
+          : lockedTop - window.scrollY;
       pullStartY = lastTouchY;
       pullVelocity = 0;
       scrollVelocity = 0;
@@ -2222,40 +2244,12 @@ export default function Home() {
     const handleTouchMove = (event: TouchEvent) => {
       const touchY = event.touches[0]?.clientY;
       if (touchY === undefined) return;
-      const touchDelta = touchY - lastTouchY;
-      const movingTowardTop = touchDelta > 0;
       const lockedTop = leadingImageScrollLockRef.current;
       const now = performance.now();
       const elapsed = Math.max(1, now - lastTouchTime);
-      const fingerVelocity = movingTowardTop ? touchDelta / elapsed : 0;
-      const maximumTakeoverDistance = Math.min(
-        520,
-        Math.max(320, window.innerHeight * 0.65),
-      );
-      const takeoverDistance = Math.min(
-        maximumTakeoverDistance,
-        Math.max(220, fingerVelocity * 520),
-      );
-      const entersManualTopZone =
-        movingTowardTop &&
-        lockedTop > 0 &&
-        window.scrollY - touchDelta <= lockedTop + takeoverDistance;
 
-      if (rubberBandActive || entersManualTopZone) {
+      if (rubberBandActive) {
         event.preventDefault();
-        if (!rubberBandActive) {
-          rubberBandActive = true;
-          pullStartY = lastTouchY;
-          manualStartOffset =
-            pullOffset > 0
-              ? rawDistanceFromRubberBand(pullOffset)
-              : lockedTop - window.scrollY;
-          setPullOffset(
-            manualStartOffset <= 0
-              ? manualStartOffset
-              : rubberBandDistance(manualStartOffset),
-          );
-        }
 
         window.scrollTo({ top: lockedTop, left: 0, behavior: "auto" });
         document.documentElement.scrollTop = lockedTop;
@@ -2503,6 +2497,7 @@ export default function Home() {
       window.cancelAnimationFrame(scrollAnimationFrame);
       window.cancelAnimationFrame(pullAnimationFrame);
       window.cancelAnimationFrame(pullHandoffAnimationFrame);
+      window.clearTimeout(pullHandoffDelayTimer);
       window.clearTimeout(settleTimer);
       window.clearTimeout(anchorBounceQuietTimer);
       mutationObserver?.disconnect();
