@@ -619,6 +619,7 @@ function BlockControls({
   surfaceColor,
   imageSrc,
   stickerRotation,
+  showTopEdge = true,
 }: {
   index: number;
   count: number;
@@ -631,6 +632,7 @@ function BlockControls({
   surfaceColor?: string;
   imageSrc?: string;
   stickerRotation?: number;
+  showTopEdge?: boolean;
 }) {
   const trayClass = onTextTool
     ? "is-text-tray"
@@ -709,11 +711,13 @@ function BlockControls({
 
   return (
     <>
-      <span
-        className="block-controls-top-edge"
-        style={style}
-        aria-hidden="true"
-      />
+      {showTopEdge ? (
+        <span
+          className="block-controls-top-edge"
+          style={style}
+          aria-hidden="true"
+        />
+      ) : null}
       <div
         className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
         style={style}
@@ -3839,6 +3843,9 @@ export default function Home() {
 
   const renderBlockControls = (block: StripBlock, index: number) => {
     if (selectedBlockId !== block.id) return null;
+    const firstFlowBlockIndex = blocks.findIndex(
+      (candidate) => candidate.type !== "sticker",
+    );
 
     return (
       <BlockControls
@@ -3877,6 +3884,7 @@ export default function Home() {
         }
         imageSrc={block.type === "image" ? block.src : undefined}
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
+        showTopEdge={!(block.type === "text" && index === firstFlowBlockIndex)}
       />
     );
   };
