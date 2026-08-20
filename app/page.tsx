@@ -1946,7 +1946,7 @@ export default function Home() {
 
     const getRubberBandDimension = () => Math.max(1, window.innerHeight);
 
-    const getRubberBandRange = () => getRubberBandDimension() * 0.9;
+    const getRubberBandRange = () => getRubberBandDimension() * 1.8;
 
     const rubberBandDistance = (distance: number) => {
       const range = getRubberBandRange();
