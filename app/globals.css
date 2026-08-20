@@ -449,12 +449,14 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .editor-mode .strip-canvas {
-  --editor-bottom-pull-buffer: 180px;
-  padding-bottom: calc(
-    148px + env(safe-area-inset-bottom) + var(--editor-bottom-pull-buffer)
-  );
+  padding-bottom: calc(148px + env(safe-area-inset-bottom));
   background: var(--black);
   touch-action: pan-y;
+}
+
+.route-loading-mode {
+  min-height: 100lvh;
+  background: var(--black);
 }
 
 .editor-mode.is-typing .strip-canvas {

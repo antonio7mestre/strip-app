@@ -1773,6 +1773,7 @@ export default function Home() {
   const [currentDraftCreatedAt, setCurrentDraftCreatedAt] = useState(0);
   const [publishing, setPublishing] = useState(false);
   const [view, setView] = useState<View>("library");
+  const [initialRouteReady, setInitialRouteReady] = useState(false);
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
   const [dockTransition, setDockTransition] =
@@ -2001,36 +2002,6 @@ export default function Home() {
       }
     };
 
-    const editorBottomLock = () => {
-      if (view !== "edit") return null;
-      const stripCanvas = document.querySelector<HTMLElement>(
-        ".editor-mode .strip-canvas",
-      );
-      if (!stripCanvas) return null;
-      const scrollEnd = Math.max(
-        0,
-        (document.scrollingElement?.scrollHeight ?? root.scrollHeight) -
-          window.innerHeight,
-      );
-      const paintedBuffer =
-        Number.parseFloat(
-          window
-            .getComputedStyle(stripCanvas)
-            .getPropertyValue("--editor-bottom-pull-buffer"),
-        ) || 0;
-      return Math.max(
-        leadingImageScrollLockRef.current,
-        scrollEnd - paintedBuffer,
-      );
-    };
-
-    const settleLockedBottom = () => {
-      const offset = editorBottomLock();
-      if (!touchIsActive && offset !== null && window.scrollY > offset) {
-        setScrollTop(offset, "smooth");
-      }
-    };
-
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
       releasePending = false;
@@ -2053,7 +2024,6 @@ export default function Home() {
       if (touchY === undefined) return;
       const touchDelta = touchY - lastTouchY;
       const movingTowardTop = touchY > lastTouchY;
-      const movingTowardBottom = touchY < lastTouchY;
       const lockedTop = leadingImageScrollLockRef.current;
 
       if (
@@ -2079,13 +2049,6 @@ export default function Home() {
       }
 
       lastTouchY = touchY;
-      if (!movingTowardBottom || view !== "edit") return;
-      const scrollEnd = Math.max(
-        0,
-        (document.scrollingElement?.scrollHeight ?? root.scrollHeight) -
-          window.innerHeight,
-      );
-      if (window.scrollY >= scrollEnd - 1) event.preventDefault();
     };
 
     const settleAfterNativeRelease = () => {
@@ -2093,7 +2056,6 @@ export default function Home() {
       releaseTimer = window.setTimeout(() => {
         releasePending = false;
         settleLockedTop();
-        settleLockedBottom();
       }, 84);
     };
 
@@ -2113,7 +2075,6 @@ export default function Home() {
       } else {
         window.clearTimeout(releaseTimer);
         settleLockedTop("auto");
-        settleLockedBottom();
       }
     };
 
@@ -2127,7 +2088,6 @@ export default function Home() {
       lockFixedControlsDuringPull();
       window.clearTimeout(releaseTimer);
       settleLockedTop("auto");
-      settleLockedBottom();
     };
 
     const preserveLockedTopAfterLayout = () => {
@@ -2135,8 +2095,6 @@ export default function Home() {
       const offset = leadingImageScrollLockRef.current;
       if (!touchIsActive && !applyingLock && offset > 0 && window.scrollY < offset) {
         setScrollTop(offset);
-      } else if (!touchIsActive && !applyingLock) {
-        settleLockedBottom();
       }
     };
 
@@ -2149,7 +2107,6 @@ export default function Home() {
       }
       if (applyingLock) return;
       settleLockedTop("auto");
-      settleLockedBottom();
     };
 
     const calculateLeadingImageLock = () => {
@@ -3517,68 +3474,72 @@ export default function Home() {
     let cancelled = false;
 
     const applyRoute = async () => {
-      const route = routeFromPathname(window.location.pathname);
-      if (route.kind === "library") {
-        setView("library");
-        setOpenedPublishedStrip(null);
-        window.scrollTo({ top: 0, behavior: "auto" });
-        return;
-      }
-      if (route.kind === "drafts") {
-        setView("drafts");
-        setOpenedPublishedStrip(null);
-        window.scrollTo({ top: 0, behavior: "auto" });
-        return;
-      }
-      if (route.kind === "edit") {
-        try {
-          const response = await fetch(
-            `/api/drafts/${encodeURIComponent(route.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
-            { cache: "no-store" },
-          );
-          if (cancelled) return;
-          if (response.status === 404) {
-            setCurrentDraftId(route.id);
-            setCurrentDraftCreatedAt(Date.now());
-            setBlocks([]);
-            setStripTitle("");
-          } else {
-            if (!response.ok) throw new Error("Draft route request failed");
-            const data = (await response.json()) as { draft: DraftStripDetail };
-            if (cancelled) return;
-            setCurrentDraftId(data.draft.id);
-            setCurrentDraftCreatedAt(data.draft.createdAt);
-            setBlocks(data.draft.blocks);
-            setStripTitle(data.draft.title);
-          }
-          setSelectedBlockId(null);
-          setEditingTextBlockId(null);
-          setActiveTextTool(null);
+      try {
+        const route = routeFromPathname(window.location.pathname);
+        if (route.kind === "library") {
+          setView("library");
           setOpenedPublishedStrip(null);
-          showEditorDockEntry();
-          setView("edit");
+          window.scrollTo({ top: 0, behavior: "auto" });
+          return;
+        }
+        if (route.kind === "drafts") {
+          setView("drafts");
+          setOpenedPublishedStrip(null);
+          window.scrollTo({ top: 0, behavior: "auto" });
+          return;
+        }
+        if (route.kind === "edit") {
+          try {
+            const response = await fetch(
+              `/api/drafts/${encodeURIComponent(route.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+              { cache: "no-store" },
+            );
+            if (cancelled) return;
+            if (response.status === 404) {
+              setCurrentDraftId(route.id);
+              setCurrentDraftCreatedAt(Date.now());
+              setBlocks([]);
+              setStripTitle("");
+            } else {
+              if (!response.ok) throw new Error("Draft route request failed");
+              const data = (await response.json()) as { draft: DraftStripDetail };
+              if (cancelled) return;
+              setCurrentDraftId(data.draft.id);
+              setCurrentDraftCreatedAt(data.draft.createdAt);
+              setBlocks(data.draft.blocks);
+              setStripTitle(data.draft.title);
+            }
+            setSelectedBlockId(null);
+            setEditingTextBlockId(null);
+            setActiveTextTool(null);
+            setOpenedPublishedStrip(null);
+            showEditorDockEntry();
+            setView("edit");
+            window.scrollTo({ top: 0, behavior: "auto" });
+          } catch {
+            if (!cancelled) setNotice("Couldn’t open this draft. Try again.");
+          }
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/strips/${encodeURIComponent(route.id)}`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error("Published route request failed");
+          const data = (await response.json()) as { strip: PublishedStripDetail };
+          if (cancelled) return;
+          setOpenedPublishedStrip(data.strip);
+          setView("published");
           window.scrollTo({ top: 0, behavior: "auto" });
         } catch {
-          if (!cancelled) setNotice("Couldn’t open this draft. Try again.");
+          if (cancelled) return;
+          setBrowserPath("/", true);
+          setView("library");
+          setNotice("Couldn’t open this Strip.");
         }
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/strips/${encodeURIComponent(route.id)}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error("Published route request failed");
-        const data = (await response.json()) as { strip: PublishedStripDetail };
-        if (cancelled) return;
-        setOpenedPublishedStrip(data.strip);
-        setView("published");
-        window.scrollTo({ top: 0, behavior: "auto" });
-      } catch {
-        if (cancelled) return;
-        setBrowserPath("/", true);
-        setView("library");
-        setNotice("Couldn’t open this Strip.");
+      } finally {
+        if (!cancelled) setInitialRouteReady(true);
       }
     };
 
@@ -4091,6 +4052,10 @@ export default function Home() {
   const currentDockControlsClass = `dock-controls dock-controls-current ${
     dockTransition ? "is-entering" : ""
   } ${dockTransitionStarted ? "is-transitioning" : ""}`;
+
+  if (!initialRouteReady) {
+    return <main className="app-shell route-loading-mode" aria-busy="true" />;
+  }
 
   if (view === "library" || view === "drafts") {
     const isDraftLibrary = view === "drafts";
