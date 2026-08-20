@@ -1958,7 +1958,7 @@ export default function Home() {
     leadingImageInsetRef.current = offset;
     root.style.setProperty("--leading-image-inset", `${offset}px`);
     root.classList.toggle("leading-image-inset-active", offset > 0);
-    if (offset > 0 && window.scrollY < 1) {
+    if (offset > 0) {
       window.scrollTo({ top: offset, left: 0, behavior: "auto" });
     }
 
@@ -2412,6 +2412,7 @@ export default function Home() {
       target === 0 ? blocks[index] : index === 0 ? blocks[target] : blocks[0];
     const textWillBecomeTop =
       blocks[0]?.type !== "text" && nextTopBlock?.type === "text";
+    const imageWillBecomeTop = target === 0 && blocks[index]?.type === "image";
 
     setBlocks((current) => {
       const next = [...current];
@@ -2419,6 +2420,16 @@ export default function Home() {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+
+    if (imageWillBecomeTop) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({
+          top: leadingImageInsetRef.current,
+          left: 0,
+          behavior: "auto",
+        });
+      });
+    }
 
     if (textWillBecomeTop) {
       const root = document.documentElement;
