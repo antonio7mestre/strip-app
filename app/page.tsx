@@ -546,16 +546,16 @@ function BlockControls({
   const edgeGeometry = onTextTool
       ? {
         viewBox: "0 0 336 58",
-        path: "M 11.5 30 C 11.5 44.5 23.5 56.5 38 56.5 H 298 C 312.5 56.5 324.5 44.5 324.5 30",
+        path: "M 0 0 C 7 0 12 5 12 12 V 30 C 12 44 24 56 38 56 H 298 C 312 56 324 44 324 30 V 12 C 324 5 329 0 336 0",
       }
     : onMove
       ? {
           viewBox: "0 0 204 58",
-          path: "M 11.5 30 C 11.5 44.5 23.5 56.5 38 56.5 H 166 C 180.5 56.5 192.5 44.5 192.5 30",
+          path: "M 0 0 C 7 0 12 5 12 12 V 30 C 12 44 24 56 38 56 H 166 C 180 56 192 44 192 30 V 12 C 192 5 197 0 204 0",
         }
       : {
           viewBox: "0 0 80 58",
-          path: "M 11.5 30 C 11.5 44.5 21.5 56.5 35.5 56.5 H 44.5 C 58.5 56.5 68.5 44.5 68.5 30",
+          path: "M 0 0 C 7 0 12 5 12 12 V 30 C 12 44 22 56 36 56 H 44 C 58 56 68 44 68 30 V 12 C 68 5 73 0 80 0",
         };
   const style: BlockControlsStyle | undefined = surfaceColor
     ? {
@@ -655,22 +655,29 @@ function BlockControls({
           <Trash2 className="block-glyph" aria-hidden="true" />
         </button>
       </div>
-      <svg
+      <div
         className={`block-controls-under-edge ${trayClass}`}
         style={style}
-        viewBox={edgeGeometry.viewBox}
-        preserveAspectRatio="none"
         aria-hidden="true"
       >
-        <path
-          d={edgeGeometry.path}
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="1.75"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+        <span className="block-controls-edge-wing" />
+        <svg
+          className="block-controls-edge-center"
+          viewBox={edgeGeometry.viewBox}
+          preserveAspectRatio="none"
+        >
+          <path
+            d={edgeGeometry.path}
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2.5"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <span className="block-controls-edge-wing" />
+      </div>
     </>
   );
 }

@@ -1451,7 +1451,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   clip-path: path(
     "M 0 0 H 204 C 197 0 192 5 192 12 V 30 C 192 44 180 56 166 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
-  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.18));
+  filter: none;
   scrollbar-width: none;
   transition:
     transform 180ms ease,
@@ -1463,9 +1463,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: 35;
   top: calc(100% - 1px);
   left: 50%;
-  width: 204px;
+  display: flex;
+  width: 100%;
   height: 58px;
-  max-width: calc(100vw - 32px);
+  max-width: none;
+  align-items: flex-start;
   overflow: visible;
   color: var(--block-controls-foreground, #000000);
   transform: translateX(-50%);
@@ -1475,12 +1477,29 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     opacity 140ms ease;
 }
 
-.block-controls-under-edge.is-text-tray {
-  width: 336px;
+.block-controls-edge-wing {
+  height: 0;
+  flex: 1 1 auto;
+  border-top: 2.5px solid currentColor;
 }
 
-.block-controls-under-edge.is-single-action-tray {
+.block-controls-edge-center {
+  display: block;
+  width: 204px;
+  height: 58px;
+  flex: 0 0 204px;
+  overflow: visible;
+  color: inherit;
+}
+
+.block-controls-under-edge.is-text-tray .block-controls-edge-center {
+  width: 336px;
+  flex-basis: 336px;
+}
+
+.block-controls-under-edge.is-single-action-tray .block-controls-edge-center {
   width: 80px;
+  flex-basis: 80px;
 }
 
 .sticker-delete-orbit {
