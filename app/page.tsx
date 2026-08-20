@@ -2409,23 +2409,33 @@ export default function Home() {
         canvas.querySelectorAll<HTMLElement>(".strip-block"),
       ).find((element) => element.dataset.blockId === selectedBlockId);
       const activeTools = selectedElement?.querySelector<HTMLElement>(".block-controls");
+      const textIsBeingTypedIn =
+        selected?.type === "text" && editingTextBlockId === selected.id;
+      const overlapTargets = [
+        ...(activeTools && !textIsBeingTypedIn
+          ? [activeTools.getBoundingClientRect()]
+          : []),
+        ...(selectedElement && textIsBeingTypedIn
+          ? [selectedElement.getBoundingClientRect()]
+          : []),
+      ];
 
-      if (!activeTools) {
+      if (overlapTargets.length === 0) {
         setOverlappingStickerIds((current) => (current.length === 0 ? current : []));
         return;
       }
 
-      const toolBounds = activeTools.getBoundingClientRect();
       const nextIds = Array.from(
         canvas.querySelectorAll<HTMLElement>(".sticker-block"),
       )
         .filter((sticker) => {
           const stickerBounds = sticker.getBoundingClientRect();
-          return (
-            stickerBounds.left < toolBounds.right &&
-            stickerBounds.right > toolBounds.left &&
-            stickerBounds.top < toolBounds.bottom &&
-            stickerBounds.bottom > toolBounds.top
+          return overlapTargets.some(
+            (targetBounds) =>
+              stickerBounds.left < targetBounds.right &&
+              stickerBounds.right > targetBounds.left &&
+              stickerBounds.top < targetBounds.bottom &&
+              stickerBounds.bottom > targetBounds.top,
           );
         })
         .map((sticker) => sticker.dataset.blockId)
@@ -2456,7 +2466,7 @@ export default function Home() {
       window.removeEventListener("resize", updateOverlaps);
       resizeObserver.disconnect();
     };
-  }, [blocks, selectedBlockId, view]);
+  }, [blocks, editingTextBlockId, selectedBlockId, view]);
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
   const imageCoverBlocks = blocks.filter(
     (block): block is ImageBlock => block.type === "image",
