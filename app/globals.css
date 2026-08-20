@@ -632,11 +632,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .block-selection-corners {
   --selection-corner-length: 22px;
-  --selection-corner-stroke: 3.5px;
+  --selection-corner-stroke: 3px;
   position: absolute;
   z-index: 7;
   inset: 6px;
-  filter: drop-shadow(0 0 2px rgba(212, 228, 255, 0.6));
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72))
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.42));
   pointer-events: none;
   animation: strip-selection-chrome-in 120ms ease-out both;
 }
@@ -653,7 +655,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   top: 0;
   left: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ffffff 0%, #aeb4bd 52%, #ffffff 100%);
+  background: #ffffff;
   content: "";
 }
 
@@ -665,7 +667,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .block-selection-corners > span::after {
   width: var(--selection-corner-stroke);
   height: var(--selection-corner-length);
-  background: linear-gradient(180deg, #ffffff 0%, #aeb4bd 52%, #ffffff 100%);
+  background: #ffffff;
 }
 
 .block-selection-corners .is-top-left {
