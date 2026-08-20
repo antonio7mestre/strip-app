@@ -18,6 +18,23 @@ const initialThemeColorScript = `
   })();
 `;
 
+const initialReloadScrollScript = `
+  (() => {
+    try {
+      const navigationEntry = performance.getEntriesByType("navigation")[0];
+      const isReload = navigationEntry
+        ? navigationEntry.type === "reload"
+        : performance.navigation?.type === 1;
+      const isStripRoute = /^\\/(?:edit|strip)\\//.test(window.location.pathname);
+
+      if (isReload && isStripRoute && "scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
+        document.documentElement.dataset.stripReloadScroll = "manual";
+      }
+    } catch {}
+  })();
+`;
+
 export const metadata: Metadata = {
   title: "Strip — make something for your friends",
   description: "A personal, visual newsletter made for your friends.",
@@ -39,6 +56,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <head>
         <meta id="strip-theme-color" name="theme-color" content="#000000" />
+        <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>
       <body>{children}</body>

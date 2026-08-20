@@ -1922,10 +1922,10 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
+    const stripIsVisible =
+      view === "edit" || view === "preview" || view === "published";
 
     const calculateLeadingImageOffset = () => {
-      const stripIsVisible =
-        view === "edit" || view === "preview" || view === "published";
       const isIOS =
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -1963,14 +1963,37 @@ export default function Home() {
     leadingImageInsetRef.current = offset;
     root.style.setProperty("--leading-image-inset", `${offset}px`);
     root.classList.toggle("leading-image-inset-active", offset > 0);
+    const ownsReloadScroll =
+      initialRouteReady &&
+      stripIsVisible &&
+      root.dataset.stripReloadScroll === "manual";
 
     const placeLeadingImageAtAnchor = () => {
-      if (offset <= 0) return;
-      window.scrollTo({ top: offset, left: 0, behavior: "auto" });
+      if (offset > 0) {
+        window.scrollTo({ top: offset, left: 0, behavior: "auto" });
+        return;
+      }
+      if (ownsReloadScroll) {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
     };
 
     placeLeadingImageAtAnchor();
     const anchorFrame = window.requestAnimationFrame(placeLeadingImageAtAnchor);
+    let releaseFrame: number | null = null;
+    let releaseTimer: number | null = null;
+
+    if (ownsReloadScroll) {
+      releaseFrame = window.requestAnimationFrame(() => {
+        placeLeadingImageAtAnchor();
+        releaseTimer = window.setTimeout(() => {
+          placeLeadingImageAtAnchor();
+          history.scrollRestoration = "auto";
+          delete root.dataset.stripReloadScroll;
+        }, 0);
+      });
+    }
+
     const handlePageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) placeLeadingImageAtAnchor();
     };
@@ -1978,12 +2001,18 @@ export default function Home() {
 
     return () => {
       window.cancelAnimationFrame(anchorFrame);
+      if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
+      if (releaseTimer !== null) window.clearTimeout(releaseTimer);
       window.removeEventListener("pageshow", handlePageShow);
+      if (ownsReloadScroll && root.dataset.stripReloadScroll === "manual") {
+        history.scrollRestoration = "auto";
+        delete root.dataset.stripReloadScroll;
+      }
       leadingImageInsetRef.current = 0;
       root.classList.remove("leading-image-inset-active");
       root.style.removeProperty("--leading-image-inset");
     };
-  }, [hasLeadingImage, view]);
+  }, [hasLeadingImage, initialRouteReady, view]);
 
   useEffect(
     () => () => {
