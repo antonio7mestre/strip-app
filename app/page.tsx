@@ -1938,8 +1938,8 @@ export default function Home() {
     let lastScrollPosition = window.scrollY;
     let lastScrollTime = performance.now();
     let rubberBandActive = false;
-    let momentumBounceActive = false;
-    let momentumQuietTimer = 0;
+    let anchorBounceActive = false;
+    let anchorBounceQuietTimer = 0;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
@@ -1971,18 +1971,19 @@ export default function Home() {
       pullAnimationFrame = 0;
     };
 
-    const endMomentumBounceAfterQuietPeriod = () => {
-      window.clearTimeout(momentumQuietTimer);
-      momentumQuietTimer = window.setTimeout(() => {
+    const endAnchorBounceAfterQuietPeriod = () => {
+      window.clearTimeout(anchorBounceQuietTimer);
+      anchorBounceQuietTimer = window.setTimeout(() => {
         if (pullAnimationFrame !== 0) {
-          endMomentumBounceAfterQuietPeriod();
+          endAnchorBounceAfterQuietPeriod();
           return;
         }
-        momentumBounceActive = false;
+        anchorBounceActive = false;
       }, 140);
     };
 
     const springPullBack = () => {
+      if (anchorBounceActive && pullAnimationFrame !== 0) return;
       stopPullAnimation();
       const startingVelocity = Math.min(
         1250,
@@ -1994,6 +1995,8 @@ export default function Home() {
         return;
       }
 
+      anchorBounceActive = true;
+      endAnchorBounceAfterQuietPeriod();
       let position = pullOffset;
       let velocity = startingVelocity;
       let previousTime = performance.now();
@@ -2011,6 +2014,7 @@ export default function Home() {
           setPullOffset(0);
           pullVelocity = 0;
           pullAnimationFrame = 0;
+          endAnchorBounceAfterQuietPeriod();
           return;
         }
 
@@ -2099,8 +2103,8 @@ export default function Home() {
 
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
-      momentumBounceActive = false;
-      window.clearTimeout(momentumQuietTimer);
+      anchorBounceActive = false;
+      window.clearTimeout(anchorBounceQuietTimer);
       lastTouchY = event.touches[0]?.clientY ?? 0;
       lastTouchTime = performance.now();
       stopPullAnimation();
@@ -2171,7 +2175,8 @@ export default function Home() {
       lastTouchTime = now;
     };
 
-    const handleTouchRelease = () => {
+    const handleTouchRelease = (event: TouchEvent) => {
+      if (!touchIsActive || event.touches.length > 0) return;
       touchIsActive = false;
       const shouldSpring =
         rubberBandActive ||
@@ -2191,6 +2196,7 @@ export default function Home() {
     };
 
     const handleTouchCancel = () => {
+      if (!touchIsActive) return;
       touchIsActive = false;
       lastTouchY = 0;
       lastTouchTime = 0;
@@ -2208,7 +2214,7 @@ export default function Home() {
     const preserveLockedTopAfterLayout = () => {
       const offset = leadingImageScrollLockRef.current;
       if (!touchIsActive && !applyingLock && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset);
+        setScrollTop(offset, "auto");
       }
     };
 
@@ -2217,11 +2223,11 @@ export default function Home() {
       const currentScrollPosition = window.scrollY;
       const elapsed = now - lastScrollTime;
 
-      if (!applyingLock && !momentumBounceActive && elapsed > 0 && elapsed < 120) {
+      if (!applyingLock && !anchorBounceActive && elapsed > 0 && elapsed < 120) {
         const currentVelocity =
           (currentScrollPosition - lastScrollPosition) / elapsed;
         scrollVelocity = scrollVelocity * 0.28 + currentVelocity * 0.72;
-      } else if (!applyingLock && !momentumBounceActive && elapsed >= 120) {
+      } else if (!applyingLock && !anchorBounceActive && elapsed >= 120) {
         scrollVelocity = 0;
       }
 
@@ -2231,18 +2237,17 @@ export default function Home() {
       if (touchIsActive) return;
 
       const lockedTop = leadingImageScrollLockRef.current;
-      if (momentumBounceActive) {
+      if (anchorBounceActive) {
         /*
-         * Safari keeps dispatching inertial scroll updates after the first
-         * frame reaches our artificial top. Keep those updates pinned to the
-         * anchor without touching the already-running spring. Re-entering the
-         * normal path here used to cancel that spring and start a visible
-         * second bounce.
+         * Every top spring exclusively owns the visual offset until it and
+         * Safari's remaining inertial events have both settled. This covers
+         * momentum handoffs, raw native-gap absorption, and touch-release
+         * springs without ever cancelling and restarting the active rebound.
          */
         if (lockedTop > 0 && Math.abs(currentScrollPosition - lockedTop) > 0.25) {
           setScrollTop(lockedTop, "auto");
         }
-        endMomentumBounceAfterQuietPeriod();
+        endAnchorBounceAfterQuietPeriod();
         return;
       }
 
@@ -2255,8 +2260,6 @@ export default function Home() {
       const absorbedNativeGap = absorbNativeScrollGap();
 
       if (absorbedNativeGap || reachedLockedTopWithMomentum) {
-        momentumBounceActive = reachedLockedTopWithMomentum;
-        if (momentumBounceActive) endMomentumBounceAfterQuietPeriod();
         if (!absorbedNativeGap) setScrollTop(lockedTop, "auto");
         const incomingMomentum = reachedLockedTopWithMomentum
           ? Math.min(
@@ -2313,7 +2316,7 @@ export default function Home() {
       root.classList.toggle("leading-image-scroll-locked", offset > 0);
 
       if (!touchIsActive && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset);
+        setScrollTop(offset, "auto");
       } else if (
         !touchIsActive &&
         offset === 0 &&
@@ -2355,7 +2358,7 @@ export default function Home() {
       window.cancelAnimationFrame(scrollAnimationFrame);
       window.cancelAnimationFrame(pullAnimationFrame);
       window.clearTimeout(settleTimer);
-      window.clearTimeout(momentumQuietTimer);
+      window.clearTimeout(anchorBounceQuietTimer);
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
       window.removeEventListener("scroll", handleLockedTopScroll);
