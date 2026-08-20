@@ -620,7 +620,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   outline-offset: 2px;
 }
 
-@keyframes strip-selection-outline-in {
+@keyframes strip-selection-tab-in {
   from {
     opacity: 0;
   }
@@ -630,50 +630,31 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   }
 }
 
-.block-selection-outline {
+.block-selection-tab {
   position: absolute;
   z-index: 7;
-  inset: 0;
-  padding: 3px;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(194, 211, 255, 0.58) 0%,
-      rgba(31, 83, 255, 0.18) 12%,
-      rgba(0, 11, 76, 0.38) 48%,
-      rgba(108, 145, 255, 0.36) 82%,
-      rgba(0, 9, 67, 0.48) 100%
-    ),
-    linear-gradient(
-      135deg,
-      #0a2ca8 0%,
-      #245aff 16%,
-      #7398ff 22%,
-      #0735df 28%,
-      #001a82 43%,
-      #1a51ff 49%,
-      #a8bdff 52%,
-      #1f56ff 56%,
-      #00176f 70%,
-      #0b39dc 82%,
-      #517dff 89%,
-      #052294 100%
-    );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  filter: drop-shadow(0 0 1px rgba(58, 103, 255, 0.85));
+  top: 50%;
+  right: 0;
+  width: 9px;
+  height: 60%;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #aeb4bd 42%,
+    #686e77 58%,
+    #f9fbff 100%
+  );
+  box-shadow:
+    -2px 0 6px rgba(0, 0, 0, 0.38),
+    inset 1px 0 rgba(255, 255, 255, 0.72);
+  transform: translateY(-50%);
   pointer-events: none;
-  animation: strip-selection-outline-in 120ms ease-out both;
+  animation: strip-selection-tab-in 120ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .block-selection-outline {
+  .block-selection-tab {
     animation: none;
   }
 }
