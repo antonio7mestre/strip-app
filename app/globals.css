@@ -2095,9 +2095,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
-    margin-top: calc(
-      0px - env(safe-area-inset-top) - var(--leading-image-inset)
-    );
+    margin-top: calc(-1 * env(safe-area-inset-top));
     margin-bottom: 0;
     padding-top: 0;
   }

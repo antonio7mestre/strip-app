@@ -1958,6 +1958,9 @@ export default function Home() {
     leadingImageInsetRef.current = offset;
     root.style.setProperty("--leading-image-inset", `${offset}px`);
     root.classList.toggle("leading-image-inset-active", offset > 0);
+    if (offset > 0 && window.scrollY < 1) {
+      window.scrollTo({ top: offset, left: 0, behavior: "auto" });
+    }
 
     return () => {
       leadingImageInsetRef.current = 0;
