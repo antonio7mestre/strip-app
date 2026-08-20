@@ -4691,6 +4691,7 @@ export default function Home() {
             onChange={addSticker}
             aria-label="Choose a sticker image"
           />
+          <span className="dock-divider" aria-hidden="true" />
           <button
             className="dock-icon-button preview-toggle-button"
             type="button"
@@ -4704,7 +4705,6 @@ export default function Home() {
               <Eye className="dock-glyph" aria-hidden="true" />
             )}
           </button>
-          <span className="dock-divider" aria-hidden="true" />
           <button
             className="dock-icon-button publish-icon-button publish-strip-button"
             type="button"
