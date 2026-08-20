@@ -572,7 +572,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .sticker-block {
   position: absolute;
-  z-index: 8;
+  z-index: 36;
   margin: 0;
   line-height: 0;
   transform: translate(-50%, -50%);
@@ -604,10 +604,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .sticker-block.is-selected {
-  z-index: 12;
+  z-index: 36;
 }
 
 .sticker-block.is-overlapping-selection {
+  z-index: 33;
   opacity: 0.28;
 }
 
