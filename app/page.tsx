@@ -2014,6 +2014,35 @@ export default function Home() {
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
+  useEffect(() => {
+    const stripIsVisible =
+      view === "edit" || view === "preview" || view === "published";
+    if (!initialRouteReady || !hasLeadingImage || !stripIsVisible) return;
+
+    let settleFrame: number | null = null;
+
+    const settleLeadingImageAtAnchor = (event: TouchEvent) => {
+      if (event.touches.length > 0) return;
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+
+      settleFrame = window.requestAnimationFrame(() => {
+        settleFrame = null;
+        const anchor = leadingImageInsetRef.current;
+        if (anchor <= 0 || window.scrollY >= anchor - 0.5) return;
+        window.scrollTo({ top: anchor, left: 0, behavior: "smooth" });
+      });
+    };
+
+    document.addEventListener("touchend", settleLeadingImageAtAnchor, {
+      passive: true,
+    });
+
+    return () => {
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      document.removeEventListener("touchend", settleLeadingImageAtAnchor);
+    };
+  }, [hasLeadingImage, initialRouteReady, view]);
+
   useEffect(
     () => () => {
       if (dockTransitionTimerRef.current !== null) {
