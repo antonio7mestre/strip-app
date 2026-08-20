@@ -1007,7 +1007,7 @@ function TextStyleSelector({
                   onClick={() =>
                     onChange({
                       backgroundColor: option.value,
-                      ...(block.content.trim().length === 0
+                      ...(block.content.length === 0
                         ? { textColor: contrastColor(option.value) }
                         : {}),
                     })
@@ -3580,7 +3580,8 @@ export default function Home() {
         {sourceBlocks.map((block, index) => {
         if (block.type === "text") {
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
-          const textIsBlank = block.content.trim().length === 0;
+          const textIsEmpty = block.content.length === 0;
+          const textIsVisuallyBlank = block.content.trim().length === 0;
           const backgroundColor = block.backgroundColor ?? DEFAULT_BACKGROUND;
           const textColor = block.textColor ?? contrastColor(backgroundColor);
           const usesDarkText = contrastColor(textColor) === "#FFFFFF";
@@ -3653,16 +3654,20 @@ export default function Home() {
               ) : (
                 <p
                   className={
-                    isEditing && textIsBlank
+                    isEditing && textIsEmpty
                       ? "is-placeholder"
-                      : textIsBlank
+                      : textIsEmpty
                         ? "is-blank"
                         : undefined
                   }
                   style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
-                  aria-hidden={textIsBlank || undefined}
+                  aria-hidden={textIsVisuallyBlank || undefined}
                 >
-                  {textIsBlank ? (isEditing ? "tap me to write" : "") : block.content}
+                  {textIsEmpty
+                    ? isEditing
+                      ? "tap me to write"
+                      : ""
+                    : `${block.content}\u200B`}
                 </p>
               )}
             </section>
