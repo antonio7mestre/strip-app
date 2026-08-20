@@ -461,6 +461,54 @@ function contrastColor(color: string) {
   return luminance > 0.179 ? "#000000" : "#FFFFFF";
 }
 
+function sampleImageBottomColor(image: HTMLImageElement) {
+  if (!image.naturalWidth || !image.naturalHeight) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 8;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+
+  const sourceHeight = Math.max(1, Math.round(image.naturalHeight * 0.06));
+  try {
+    context.drawImage(
+      image,
+      0,
+      image.naturalHeight - sourceHeight,
+      image.naturalWidth,
+      sourceHeight,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+    let weight = 0;
+
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      const alpha = pixels[offset + 3] / 255;
+      if (alpha < 0.1) continue;
+      red += pixels[offset] * alpha;
+      green += pixels[offset + 1] * alpha;
+      blue += pixels[offset + 2] * alpha;
+      weight += alpha;
+    }
+
+    if (!weight) return null;
+    const toHex = (channel: number) =>
+      Math.round(channel / weight)
+        .toString(16)
+        .padStart(2, "0");
+    return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+  } catch {
+    return null;
+  }
+}
+
 function swatchStyle(color: string): SwatchStyle {
   const foreground = contrastColor(color);
   return {
@@ -1416,6 +1464,7 @@ function StripStickerBlock({
 
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
+  const [imageTrayColors, setImageTrayColors] = useState<Record<string, string>>({});
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
@@ -3216,7 +3265,11 @@ export default function Home() {
         }
         activeTextTool={activeTextTool}
         surfaceColor={
-          block.type === "text" ? block.backgroundColor ?? DEFAULT_BACKGROUND : undefined
+          block.type === "text"
+            ? block.backgroundColor ?? DEFAULT_BACKGROUND
+            : block.type === "image"
+              ? imageTrayColors[block.id]
+              : undefined
         }
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
       />
@@ -3362,6 +3415,15 @@ export default function Home() {
               <img
                 src={block.src}
                 alt={block.alt}
+                onLoad={(event) => {
+                  const sampledColor = sampleImageBottomColor(event.currentTarget);
+                  if (!sampledColor) return;
+                  setImageTrayColors((current) =>
+                    current[block.id] === sampledColor
+                      ? current
+                      : { ...current, [block.id]: sampledColor },
+                  );
+                }}
               />
             </figure>
           );
