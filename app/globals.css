@@ -768,7 +768,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .main-composer-dock .dock-controls-current {
-  width: min(100%, 560px);
+  width: min(calc(100% - 24px), 536px);
   justify-content: space-between;
   gap: 0;
 }
