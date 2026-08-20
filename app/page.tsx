@@ -135,6 +135,7 @@ const STORAGE_KEY = "strip-draft-v1";
 const OWNER_STORAGE_KEY = "strip-owner-v1";
 const DEFAULT_BACKGROUND = "#000000";
 const DEFAULT_TEXT = "#FFFFFF";
+const SELECTION_COBALT = "#3155FF";
 const DEFAULT_FONT_SIZE = 18;
 const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
@@ -453,6 +454,30 @@ function contrastColor(color: string) {
         .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
     : 0;
   return luminance > 0.179 ? "#000000" : "#FFFFFF";
+}
+
+function selectionOutlineColor(backgroundColor?: string) {
+  if (!backgroundColor) return SELECTION_COBALT;
+
+  const channels = backgroundColor
+    .replace("#", "")
+    .match(/.{2}/g)
+    ?.map((value) => Number.parseInt(value, 16));
+  const cobaltChannels = SELECTION_COBALT
+    .replace("#", "")
+    .match(/.{2}/g)!
+    .map((value) => Number.parseInt(value, 16));
+
+  if (!channels || channels.length !== 3) return SELECTION_COBALT;
+
+  const distance = Math.sqrt(
+    channels.reduce(
+      (sum, channel, index) => sum + (channel - cobaltChannels[index]) ** 2,
+      0,
+    ),
+  );
+
+  return distance <= 70 ? "#FFFFFF" : SELECTION_COBALT;
 }
 
 function swatchStyle(color: string): SwatchStyle {
@@ -872,8 +897,20 @@ function TextStyleSelector({
   );
 }
 
-function BlockSelectionTab() {
-  return <span className="block-selection-tab" aria-hidden="true" />;
+function BlockSelectionOutline({
+  backgroundColor,
+}: {
+  backgroundColor?: string;
+}) {
+  return (
+    <span
+      className="block-selection-outline"
+      style={{
+        "--selection-outline-color": selectionOutlineColor(backgroundColor),
+      } as CSSProperties}
+      aria-hidden="true"
+    />
+  );
 }
 
 function StripVideoBlock({
@@ -946,7 +983,7 @@ function StripVideoBlock({
         preload="metadata"
         draggable={false}
       />
-      {isEditing && isSelected ? <BlockSelectionTab /> : null}
+      {isEditing && isSelected ? <BlockSelectionOutline /> : null}
       <button
         className="video-audio-toggle"
         type="button"
@@ -1047,7 +1084,7 @@ function StripStickerBlock({
       onContextMenu={(event) => event.preventDefault()}
       aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
     >
-      {isEditing && isSelected ? <BlockSelectionTab /> : null}
+      {isEditing && isSelected ? <BlockSelectionOutline /> : null}
       <img src={block.src} alt={block.alt} draggable={false} />
     </figure>
   );
@@ -2753,7 +2790,7 @@ export default function Home() {
               }}
             >
               {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTab />
+                <BlockSelectionOutline backgroundColor={backgroundColor} />
               ) : null}
               {textIsBeingEdited ? (
                 <textarea
@@ -2823,7 +2860,7 @@ export default function Home() {
             >
               {/* A Strip image is intentionally edge-to-edge. */}
               {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTab />
+                <BlockSelectionOutline />
               ) : null}
               <img
                 src={block.src}
