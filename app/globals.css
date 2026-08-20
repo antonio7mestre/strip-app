@@ -1545,20 +1545,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   filter: blur(3px);
 }
 
-.block-controls.has-image-surface::after {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  content: "";
-  background-image: url("/add-color-cover.webp");
-  background-repeat: repeat;
-  background-size: 240px 240px;
-  filter: grayscale(1) contrast(4);
-  mix-blend-mode: soft-light;
-  opacity: 0.82;
-  pointer-events: none;
-}
-
 .block-controls-under-edge {
   position: absolute;
   z-index: 35;
