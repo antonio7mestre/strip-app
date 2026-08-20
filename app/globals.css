@@ -635,18 +635,30 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: 7;
   inset: 0;
   padding: 3px;
-  background: linear-gradient(
-    135deg,
-    #dce7ff 0%,
-    #6f8cff 11%,
-    #163fde 27%,
-    #00249f 40%,
-    #8aa4ff 50%,
-    #1744eb 61%,
-    #001f91 77%,
-    #6382ff 90%,
-    #e4ecff 100%
-  );
+  background:
+    linear-gradient(
+      90deg,
+      rgba(194, 211, 255, 0.58) 0%,
+      rgba(31, 83, 255, 0.18) 12%,
+      rgba(0, 11, 76, 0.38) 48%,
+      rgba(108, 145, 255, 0.36) 82%,
+      rgba(0, 9, 67, 0.48) 100%
+    ),
+    linear-gradient(
+      135deg,
+      #0a2ca8 0%,
+      #245aff 16%,
+      #7398ff 22%,
+      #0735df 28%,
+      #001a82 43%,
+      #1a51ff 49%,
+      #a8bdff 52%,
+      #1f56ff 56%,
+      #00176f 70%,
+      #0b39dc 82%,
+      #517dff 89%,
+      #052294 100%
+    );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -655,6 +667,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   mask-composite: exclude;
+  filter: drop-shadow(0 0 1px rgba(58, 103, 255, 0.85));
   pointer-events: none;
   animation: strip-selection-outline-in 120ms ease-out both;
 }
