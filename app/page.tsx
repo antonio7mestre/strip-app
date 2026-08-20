@@ -1369,6 +1369,21 @@ function StripStickerBlock({
     );
   };
 
+  const clampStickerX = (x: number, width: number) => {
+    const allowedOverflow = width * 0.25;
+    return Math.min(100 + allowedOverflow, Math.max(-allowedOverflow, x));
+  };
+
+  const clampStickerY = (y: number, canvasHeight: number) => {
+    const stickerHeight =
+      stickerElementRef.current?.getBoundingClientRect().height ?? 48;
+    const allowedOverflow = stickerHeight * 0.25;
+    return Math.min(
+      canvasHeight + allowedOverflow,
+      Math.max(-allowedOverflow, y),
+    );
+  };
+
   useEffect(() => {
     if (!isEditing || !isSelected) {
       canvasTouchTransformRef.current = null;
@@ -1435,23 +1450,19 @@ function StripStickerBlock({
           92,
           Math.max(10, transform.width * (distance / transform.distance)),
         );
-        const halfWidth = width / 2;
         const rawRotation =
           transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
         const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
 
         previewTransform({
-          x: Math.min(
-            100 - halfWidth,
-            Math.max(
-              halfWidth,
-              transform.x +
-                ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
-            ),
+          x: clampStickerX(
+            transform.x +
+              ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+            width,
           ),
-          y: Math.min(
-            Math.max(36, transform.canvasHeight - 36),
-            Math.max(36, transform.y + midpointY - transform.midpointY),
+          y: clampStickerY(
+            transform.y + midpointY - transform.midpointY,
+            transform.canvasHeight,
           ),
           width,
           rotation,
@@ -1466,18 +1477,14 @@ function StripStickerBlock({
       );
       if (!touch) return;
       event.preventDefault();
-      const halfWidth = drag.width / 2;
       previewTransform({
-        x: Math.min(
-          100 - halfWidth,
-          Math.max(
-            halfWidth,
-            drag.x + ((touch.clientX - drag.clientX) / drag.canvasWidth) * 100,
-          ),
+        x: clampStickerX(
+          drag.x + ((touch.clientX - drag.clientX) / drag.canvasWidth) * 100,
+          drag.width,
         ),
-        y: Math.min(
-          Math.max(36, drag.canvasHeight - 36),
-          Math.max(36, drag.y + touch.clientY - drag.clientY),
+        y: clampStickerY(
+          drag.y + touch.clientY - drag.clientY,
+          drag.canvasHeight,
         ),
         width: drag.width,
         rotation: drag.rotation,
@@ -1766,23 +1773,19 @@ function StripStickerBlock({
             92,
             Math.max(10, transform.width * (distance / transform.distance)),
           );
-          const halfWidth = width / 2;
           const rawRotation =
             transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
           const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
 
           previewTransform({
-            x: Math.min(
-              100 - halfWidth,
-              Math.max(
-                halfWidth,
-                transform.x +
-                  ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
-              ),
+            x: clampStickerX(
+              transform.x +
+                ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+              width,
             ),
-            y: Math.min(
-              Math.max(36, transform.canvasHeight - 36),
-              Math.max(36, transform.y + midpointY - transform.midpointY),
+            y: clampStickerY(
+              transform.y + midpointY - transform.midpointY,
+              transform.canvasHeight,
             ),
             width,
             rotation,
@@ -1794,18 +1797,14 @@ function StripStickerBlock({
         if (!drag || drag.pointerId !== event.pointerId) return;
         event.preventDefault();
         const current = liveBlockRef.current;
-        const halfWidth = current.width / 2;
         previewTransform({
-          x: Math.min(
-            100 - halfWidth,
-            Math.max(
-              halfWidth,
-              drag.x + ((event.clientX - drag.clientX) / drag.canvasWidth) * 100,
-            ),
+          x: clampStickerX(
+            drag.x + ((event.clientX - drag.clientX) / drag.canvasWidth) * 100,
+            current.width,
           ),
-          y: Math.min(
-            Math.max(36, drag.canvasHeight - 36),
-            Math.max(36, drag.y + event.clientY - drag.clientY),
+          y: clampStickerY(
+            drag.y + event.clientY - drag.clientY,
+            drag.canvasHeight,
           ),
           width: current.width,
           rotation: current.rotation ?? 0,
