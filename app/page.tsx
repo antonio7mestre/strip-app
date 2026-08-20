@@ -7,6 +7,7 @@ import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
 } from "react";
 import {
   ArrowDown,
@@ -529,7 +530,12 @@ function BlockControls({
   activeTextTool?: TextTool | null;
 }) {
   return (
-    <div className="block-controls" aria-label="Block controls">
+    <div
+      className="block-controls"
+      aria-label="Block controls"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
       {onTextTool ? (
         <>
           <button
@@ -902,11 +908,13 @@ function StripVideoBlock({
   isEditing,
   isSelected,
   onSelect,
+  controls,
 }: {
   block: VideoBlock;
   isEditing: boolean;
   isSelected: boolean;
   onSelect: () => void;
+  controls?: ReactNode;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const tapGestureRef = useRef<{
@@ -997,6 +1005,7 @@ function StripVideoBlock({
         draggable={false}
       />
       {isEditing && isSelected ? <BlockSelectionTab /> : null}
+      {controls}
       <button
         className="video-audio-toggle"
         type="button"
@@ -1019,12 +1028,14 @@ function StripStickerBlock({
   isSelected,
   onSelect,
   onMove,
+  controls,
 }: {
   block: StickerBlock;
   isEditing: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onMove: (position: Pick<StickerBlock, "x" | "y">) => void;
+  controls?: ReactNode;
 }) {
   const dragRef = useRef<{
     pointerId: number;
@@ -1099,6 +1110,7 @@ function StripStickerBlock({
     >
       {isEditing && isSelected ? <BlockSelectionTab /> : null}
       <img src={block.src} alt={block.alt} draggable={false} />
+      {controls}
     </figure>
   );
 }
@@ -2783,6 +2795,33 @@ export default function Home() {
     }
   };
 
+  const renderBlockControls = (block: StripBlock, index: number) => {
+    if (selectedBlockId !== block.id) return null;
+
+    return (
+      <BlockControls
+        index={index}
+        count={blocks.length}
+        onMove={
+          block.type === "sticker"
+            ? undefined
+            : (direction) => moveBlock(index, direction)
+        }
+        onRemove={() => setPendingDeleteId(block.id)}
+        onTextTool={
+          block.type === "text"
+            ? (tool) => {
+                setEditingTextBlockId(null);
+                setLastTextTool(tool);
+                setActiveTextTool(tool);
+              }
+            : undefined
+        }
+        activeTextTool={activeTextTool}
+      />
+    );
+  };
+
   const renderStrip = (
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
@@ -2848,6 +2887,7 @@ export default function Home() {
               {isEditing && selectedBlockId === block.id ? (
                 <BlockSelectionTab />
               ) : null}
+              {isEditing ? renderBlockControls(block, index) : null}
               {textIsBeingEdited ? (
                 <textarea
                   data-block-id={block.id}
@@ -2923,6 +2963,7 @@ export default function Home() {
               {isEditing && selectedBlockId === block.id ? (
                 <BlockSelectionTab />
               ) : null}
+              {isEditing ? renderBlockControls(block, index) : null}
               <img
                 src={block.src}
                 alt={block.alt}
@@ -2954,6 +2995,7 @@ export default function Home() {
                   ),
                 );
               }}
+              controls={isEditing ? renderBlockControls(block, index) : null}
             />
           );
         }
@@ -2971,6 +3013,7 @@ export default function Home() {
               setEditingTextBlockId(null);
               setActiveTextTool(null);
             }}
+            controls={isEditing ? renderBlockControls(block, index) : null}
           />
         );
         })}
@@ -3743,29 +3786,6 @@ export default function Home() {
         aria-hidden="true"
       />
       <div className={`editor-canvas ${legacyPageEnterClass}`}>{renderStrip(true)}</div>
-
-      {selectedBlockIndex >= 0 ? (
-        <BlockControls
-          index={selectedBlockIndex}
-          count={blocks.length}
-          onMove={
-            selectedBlock?.type === "sticker"
-              ? undefined
-              : (direction) => moveBlock(selectedBlockIndex, direction)
-          }
-          onRemove={() => setPendingDeleteId(blocks[selectedBlockIndex].id)}
-          onTextTool={
-            selectedBlock?.type === "text"
-              ? (tool) => {
-                  setEditingTextBlockId(null);
-                  setLastTextTool(tool);
-                  setActiveTextTool(tool);
-                }
-              : undefined
-          }
-          activeTextTool={activeTextTool}
-        />
-      ) : null}
 
       {selectedBlock?.type === "text" ? (
         <TextStyleSelector

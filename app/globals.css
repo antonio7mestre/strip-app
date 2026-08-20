@@ -271,8 +271,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   display: none;
 }
 
-.composer-dock,
-.block-controls {
+.composer-dock {
   translate: 0 var(--fixed-controls-pull-counter, 0px);
 }
 
@@ -478,6 +477,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   position: relative;
   margin: 0;
   scroll-margin-block: 16px calc(148px + env(safe-area-inset-bottom));
+}
+
+.strip-block.is-selected {
+  z-index: 13;
 }
 
 .text-block {
@@ -1447,17 +1450,17 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .block-controls {
-  position: fixed;
+  position: absolute;
   z-index: 34;
-  right: 50%;
-  bottom: calc(76px + env(safe-area-inset-bottom));
+  top: calc(100% + 10px);
+  left: 50%;
   display: flex;
   max-width: calc(100vw - 20px);
   align-items: center;
   gap: 2px;
   overflow-x: auto;
   padding: 4px;
-  transform: translateX(50%);
+  transform: translateX(-50%);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 999px;
   background: var(--white);
@@ -1466,14 +1469,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
   scrollbar-width: none;
   transition:
-    bottom 180ms ease,
     transform 180ms ease,
     opacity 140ms ease;
 }
 
 .keyboard-open .block-controls,
 .editor-mode.is-typing .block-controls {
-  transform: translate(50%, 125%);
+  transform: translate(-50%, 125%);
   opacity: 0;
   pointer-events: none;
 }
