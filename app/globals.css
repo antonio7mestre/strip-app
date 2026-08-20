@@ -1059,9 +1059,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .story-asset-loading {
   display: block;
   width: auto;
-  height: min(52dvh, 600px);
-  max-width: min(100%, 338px);
-  aspect-ratio: 9 / 16;
+  height: min(52dvh, 540px);
+  max-width: min(100%, 432px);
+  aspect-ratio: 4 / 5;
   background: #0b0b0b;
   box-shadow: 0 18px 54px rgba(0, 0, 0, 0.52);
 }
@@ -1119,19 +1119,22 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .share-dock .dock-controls-current {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   width: min(100%, 560px);
 }
 
-.share-story-button {
-  display: flex;
-  flex-direction: row;
-  gap: 7px;
+.share-dock .publish-flow-back-button {
+  width: max-content;
+  padding-inline: 22px;
+  justify-self: start;
 }
 
-.share-story-button svg {
-  width: 17px;
-  height: 17px;
-  stroke-width: 2;
+.share-story-button {
+  width: max-content !important;
+  min-width: 116px !important;
+  padding-inline: 28px;
+  justify-self: center;
 }
 
 .cover-picker {

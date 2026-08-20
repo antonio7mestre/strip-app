@@ -26,7 +26,6 @@ import {
   Pencil,
   Pipette,
   Plus,
-  Share2,
   Sticker,
   Trash2,
   Type,
@@ -516,33 +515,6 @@ function storyPalette(strip: PublishedStripDetail) {
   return Array.from(new Set(colors)).slice(0, 4);
 }
 
-function roundedCanvasPath(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  const safeRadius = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + safeRadius, y);
-  context.lineTo(x + width - safeRadius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
-  context.lineTo(x + width, y + height - safeRadius);
-  context.quadraticCurveTo(
-    x + width,
-    y + height,
-    x + width - safeRadius,
-    y + height,
-  );
-  context.lineTo(x + safeRadius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
-  context.lineTo(x, y + safeRadius);
-  context.quadraticCurveTo(x, y, x + safeRadius, y);
-  context.closePath();
-}
-
 function loadStoryImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -618,10 +590,7 @@ function drawCenteredStoryTitle(
 
 async function createInstagramStoryAsset(strip: PublishedStripDetail) {
   const storyWidth = 1080;
-  const storyHeight = 1920;
-  const storySafeTop = Math.round(storyHeight * 0.14);
-  const storySafeBottom = Math.round(storyHeight * 0.2);
-  const storySafeEnd = storyHeight - storySafeBottom;
+  const storyHeight = 1350;
   const canvas = document.createElement("canvas");
   canvas.width = storyWidth;
   canvas.height = storyHeight;
@@ -676,13 +645,13 @@ async function createInstagramStoryAsset(strip: PublishedStripDetail) {
   context.textAlign = "left";
   context.font = '700 38px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
   context.letterSpacing = "5px";
-  context.fillText("STRIP", 72, storySafeTop + 16);
+  context.fillText("STRIP", 72, 64);
   context.letterSpacing = "0px";
 
   const maxCoverWidth = 820;
-  const maxCoverHeight = 810;
+  const maxCoverHeight = 760;
   let coverWidth = maxCoverWidth;
-  let coverHeight = 800;
+  let coverHeight = 730;
   if (coverImage) {
     const ratio = coverImage.naturalWidth / coverImage.naturalHeight;
     coverWidth = Math.min(maxCoverWidth, maxCoverHeight * ratio);
@@ -693,18 +662,18 @@ async function createInstagramStoryAsset(strip: PublishedStripDetail) {
     }
   } else if (strip.cover.kind === "color") {
     if (strip.cover.shape === "portrait") {
-      coverWidth = 608;
-      coverHeight = 810;
+      coverWidth = 570;
+      coverHeight = 760;
     } else if (strip.cover.shape === "landscape") {
       coverWidth = 820;
-      coverHeight = 600;
+      coverHeight = 590;
     } else {
-      coverWidth = 800;
-      coverHeight = 800;
+      coverWidth = 730;
+      coverHeight = 730;
     }
   }
   const coverX = (canvas.width - coverWidth) / 2;
-  const coverY = storySafeTop + 96;
+  const coverY = 150;
   if (coverImage) {
     context.drawImage(coverImage, coverX, coverY, coverWidth, coverHeight);
   } else {
@@ -712,11 +681,7 @@ async function createInstagramStoryAsset(strip: PublishedStripDetail) {
     context.fillRect(coverX, coverY, coverWidth, coverHeight);
   }
 
-  const linkZoneWidth = 560;
-  const linkZoneHeight = 116;
-  const linkZoneX = (canvas.width - linkZoneWidth) / 2;
-  const linkZoneY = storySafeEnd - linkZoneHeight - 16;
-  const titleTop = Math.min(linkZoneY - 164, coverY + coverHeight + 52);
+  const titleTop = Math.min(storyHeight - 205, coverY + coverHeight + 52);
   context.fillStyle = foreground;
   context.textAlign = "center";
   context.font = '600 56px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
@@ -728,48 +693,11 @@ async function createInstagramStoryAsset(strip: PublishedStripDetail) {
     870,
   );
 
-  roundedCanvasPath(
-    context,
-    linkZoneX,
-    linkZoneY,
-    linkZoneWidth,
-    linkZoneHeight,
-    linkZoneHeight / 2,
-  );
-  context.fillStyle = foreground === "#FFFFFF"
-    ? "rgba(255, 255, 255, 0.10)"
-    : "rgba(0, 0, 0, 0.08)";
-  context.fill();
-  context.lineWidth = 3;
-  context.strokeStyle = foreground === "#FFFFFF"
-    ? "rgba(255, 255, 255, 0.64)"
-    : "rgba(0, 0, 0, 0.50)";
-  context.stroke();
-
-  context.fillStyle = foreground;
-  context.globalAlpha = 0.72;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.font = '600 29px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-  context.fillText(
-    "Add your Strip link here",
-    canvas.width / 2,
-    linkZoneY + linkZoneHeight / 2,
-  );
-
-  context.fillStyle = foreground;
-  context.globalAlpha = 0.62;
-  context.textAlign = "center";
-  context.textBaseline = "top";
-  context.font = '500 28px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-  context.fillText("made with STRIP", canvas.width / 2, storySafeEnd + 74);
-  context.globalAlpha = 1;
-
   const accentColors = palette.length > 0 ? palette : [coverColor];
   const accentWidth = canvas.width / accentColors.length;
   accentColors.forEach((color, index) => {
     context.fillStyle = color;
-    context.fillRect(index * accentWidth, 1906, accentWidth + 1, 14);
+    context.fillRect(index * accentWidth, storyHeight - 14, accentWidth + 1, 14);
   });
 
   const blob = await new Promise<Blob>((resolve, reject) => {
@@ -2766,7 +2694,7 @@ export default function Home() {
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "")
           .slice(0, 48) || "strip";
-        const file = new File([blob], `${filenameBase}-story.png`, {
+        const file = new File([blob], `${filenameBase}-share.png`, {
           type: "image/png",
         });
         const assetUrl = URL.createObjectURL(blob);
@@ -2775,7 +2703,7 @@ export default function Home() {
         setStoryAssetUrl(assetUrl);
       })
       .catch(() => {
-        if (!cancelled) setNotice("Couldn’t build your Story image. Try again.");
+        if (!cancelled) setNotice("Couldn’t build your share image. Try again.");
       })
       .finally(() => {
         if (!cancelled) setStoryAssetLoading(false);
@@ -4226,7 +4154,7 @@ export default function Home() {
     )}`;
     try {
       await navigator.clipboard.writeText(stripUrl);
-      setNotice("Strip link copied. Add it with Instagram’s link sticker.");
+      setNotice("Strip link copied.");
     } catch {
       setNotice("Copy the Strip link from its published page.");
     }
@@ -4240,12 +4168,12 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setNotice("Story image saved. Add it to Instagram Stories.");
+    setNotice("Share image saved.");
   };
 
   const shareStoryToInstagram = async () => {
     if (!storyAssetFile) {
-      setNotice(storyAssetLoading ? "Finishing your Story image…" : "Try again.");
+      setNotice(storyAssetLoading ? "Finishing your share image…" : "Try again.");
       return;
     }
     const shareData: ShareData = { files: [storyAssetFile] };
@@ -4885,11 +4813,7 @@ export default function Home() {
           >
             <header className="share-heading">
               <span>Published</span>
-              <h1 id="share-heading">Your Story is ready.</h1>
-              <p>
-                Copy your link, then place Instagram’s link sticker over the
-                labeled area.
-              </p>
+              <h1 id="share-heading">Ready to share.</h1>
             </header>
 
             <div className="story-asset-stage" aria-live="polite">
@@ -4897,14 +4821,14 @@ export default function Home() {
                 <img
                   className="story-asset-preview"
                   src={storyAssetUrl}
-                  alt={`Instagram Story artwork for ${
+                  alt={`Share artwork for ${
                     openedPublishedStrip.title || "Untitled"
                   }`}
                 />
               ) : (
                 <div className="story-asset-loading" aria-busy="true">
                   <span />
-                  Building your Story…
+                  Preparing…
                 </div>
               )}
             </div>
@@ -4915,7 +4839,7 @@ export default function Home() {
               onClick={() => void copyPublishedStripLink()}
             >
               <Link2 aria-hidden="true" />
-              <span>Copy Strip link</span>
+              <span>Copy link</span>
             </button>
           </section>
 
@@ -4933,11 +4857,10 @@ export default function Home() {
                 type="button"
                 onClick={() => void shareStoryToInstagram()}
                 disabled={storyAssetLoading || !storyAssetFile}
-                aria-label="Share image to Instagram Story"
+                aria-label="Share Strip"
               >
-                <Share2 aria-hidden="true" />
                 <span>
-                  {storyAssetLoading ? "Preparing…" : "Share to Instagram Story"}
+                  {storyAssetLoading ? "Preparing…" : "Share"}
                 </span>
               </button>
             </div>
