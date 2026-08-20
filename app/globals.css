@@ -525,6 +525,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   opacity: 0.3;
 }
 
+.text-block textarea:placeholder-shown,
+.text-block p.is-placeholder {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .text-block p.is-placeholder {
   opacity: 0.3;
 }
