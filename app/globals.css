@@ -2108,6 +2108,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     padding-top: 0;
   }
 
+  html.leading-image-inset-active .editor-mode.has-leading-image .strip-canvas,
+  html.leading-image-inset-active .preview-mode.has-leading-image .strip-canvas,
+  html.leading-image-inset-active .published-mode.has-leading-image .strip-canvas {
+    margin-top: 0;
+  }
+
   .app-shell::after {
     height: max(env(safe-area-inset-bottom), 34px);
   }

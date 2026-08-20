@@ -1948,9 +1948,14 @@ export default function Home() {
       );
       probe.remove();
 
-      if (Number.isFinite(reportedSafeTop) && reportedSafeTop >= 1) return 0;
+      const fallbackSafeTop = Math.min(
+        62,
+        Math.max(47, window.screen.width * 0.154),
+      );
       return Math.round(
-        Math.min(62, Math.max(47, window.screen.width * 0.154)),
+        Number.isFinite(reportedSafeTop) && reportedSafeTop >= 1
+          ? reportedSafeTop
+          : fallbackSafeTop,
       );
     };
 
