@@ -1119,22 +1119,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .share-dock .dock-controls-current {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
   width: min(100%, 560px);
 }
 
-.share-dock .publish-flow-back-button {
-  width: max-content;
-  padding-inline: 22px;
-  justify-self: start;
-}
-
 .share-story-button {
-  width: max-content !important;
-  min-width: 116px !important;
-  padding-inline: 28px;
-  justify-self: center;
+  justify-content: center;
 }
 
 .cover-picker {
