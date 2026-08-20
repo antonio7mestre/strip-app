@@ -2634,13 +2634,14 @@ export default function Home() {
         canvas.querySelectorAll<HTMLElement>(".strip-block"),
       ).find((element) => element.dataset.blockId === selectedBlockId);
       const activeTools = selectedElement?.querySelector<HTMLElement>(".block-controls");
+      const selectedIsText = selected?.type === "text";
       const textIsBeingTypedIn =
-        selected?.type === "text" && editingTextBlockId === selected.id;
+        selectedIsText && editingTextBlockId === selected.id;
       const overlapTargets = [
         ...(activeTools && !textIsBeingTypedIn
           ? [activeTools.getBoundingClientRect()]
           : []),
-        ...(selectedElement && textIsBeingTypedIn
+        ...(selectedElement && selectedIsText
           ? [selectedElement.getBoundingClientRect()]
           : []),
       ];
