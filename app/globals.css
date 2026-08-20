@@ -782,6 +782,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
+    opacity 140ms ease,
     transform 140ms ease;
 }
 
@@ -798,6 +799,16 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .dock-icon-button:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+.dock-icon-button:disabled:hover,
+.dock-icon-button:disabled:focus-visible {
+  border-color: transparent;
+  background: transparent;
+}
+
+.main-composer-dock.is-inline-preview .dock-divider {
+  opacity: 0.45;
 }
 
 .dock-glyph {

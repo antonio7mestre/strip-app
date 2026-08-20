@@ -17,6 +17,7 @@ import {
   Check,
   Clapperboard,
   Eye,
+  EyeOff,
   Files,
   House,
   ImagePlus,
@@ -1523,6 +1524,7 @@ export default function Home() {
   const [editorDockEntering, setEditorDockEntering] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [inlinePreview, setInlinePreview] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
@@ -1566,6 +1568,7 @@ export default function Home() {
   const dockTransitionFrameRef = useRef<number | null>(null);
   const editorDockEntryTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
+  const inlinePreviewScrollRef = useRef<number | null>(null);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
   const initialRouteHandledRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
@@ -1623,6 +1626,12 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
+
+  useEffect(() => {
+    if (view === "edit") return;
+    setInlinePreview(false);
+    inlinePreviewScrollRef.current = null;
+  }, [view]);
 
   useEffect(() => {
     if (view !== "edit") return;
@@ -2793,6 +2802,32 @@ export default function Home() {
     };
   }, [view, coverChoices.length, customCoverSrc]);
 
+  const toggleInlinePreview = () => {
+    if (!inlinePreview && !hasContent) {
+      setNotice("Add something to preview.");
+      return;
+    }
+
+    inlinePreviewScrollRef.current = window.scrollY;
+    flushSync(() => {
+      setActiveTextTool(null);
+      setEditingTextBlockId(null);
+      setInlinePreview((current) => !current);
+    });
+
+    const restoreScroll = () => {
+      const scrollTop = inlinePreviewScrollRef.current;
+      if (scrollTop === null) return;
+      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+    };
+
+    restoreScroll();
+    window.requestAnimationFrame(() => {
+      restoreScroll();
+      inlinePreviewScrollRef.current = null;
+    });
+  };
+
   const continueToPublish = () => {
     if (!hasContent) {
       setNotice("Add something before you continue.");
@@ -2814,6 +2849,7 @@ export default function Home() {
     setCoverColorPickerOpen(false);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
+    setInlinePreview(false);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
     publishFlowStartScrollRef.current = window.scrollY;
     try {
@@ -4282,18 +4318,22 @@ export default function Home() {
     <>
       {legacyTransitionLayer}
       <main
-        className={`app-shell editor-mode ${selectedBlockIndex >= 0 ? "has-block-toolbar" : ""} ${
-          editingTextBlockId ? "is-typing" : ""
-        } ${hasLeadingImage ? "has-leading-image" : ""}`}
+        className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview" : ""} ${
+          selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
+        } ${editingTextBlockId ? "is-typing" : ""} ${
+          hasLeadingImage ? "has-leading-image" : ""
+        }`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
-      <div className={`editor-canvas ${legacyPageEnterClass}`}>{renderStrip(true)}</div>
+      <div className={`editor-canvas ${legacyPageEnterClass}`}>
+        {renderStrip(!inlinePreview)}
+      </div>
 
-      {selectedBlock?.type === "text" ? (
+      {!inlinePreview && selectedBlock?.type === "text" ? (
         <TextStyleSelector
           block={selectedBlock}
           tool={activeTextTool ?? lastTextTool}
@@ -4307,19 +4347,26 @@ export default function Home() {
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
           editorDockEntering ? "is-entering-editor" : ""
-        } ${
-          activeTextTool ? "is-shifted" : ""
+        } ${activeTextTool ? "is-shifted" : ""} ${
+          inlinePreview ? "is-inline-preview" : ""
         }`}
       >
         {dockTransitionLayer}
         <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
-          <button className="dock-icon-button" type="button" onClick={addText} aria-label="Add text">
+          <button
+            className="dock-icon-button dock-tool-button"
+            type="button"
+            onClick={addText}
+            disabled={inlinePreview}
+            aria-label="Add text"
+          >
             <Type className="dock-glyph" aria-hidden="true" />
           </button>
           <button
-            className="dock-icon-button"
+            className="dock-icon-button dock-tool-button"
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            disabled={inlinePreview}
             aria-label="Add photo"
           >
             <ImagePlus className="dock-glyph" aria-hidden="true" />
@@ -4333,9 +4380,10 @@ export default function Home() {
             aria-label="Choose a photo"
           />
           <button
-            className="dock-icon-button"
+            className="dock-icon-button dock-tool-button"
             type="button"
             onClick={() => videoInputRef.current?.click()}
+            disabled={inlinePreview}
             aria-label="Add video"
           >
             <Clapperboard className="dock-glyph" aria-hidden="true" />
@@ -4349,9 +4397,10 @@ export default function Home() {
             aria-label="Choose a video"
           />
           <button
-            className="dock-icon-button"
+            className="dock-icon-button dock-tool-button"
             type="button"
             onClick={() => stickerInputRef.current?.click()}
+            disabled={inlinePreview}
             aria-label="Add sticker"
           >
             <Sticker className="dock-glyph" aria-hidden="true" />
@@ -4366,21 +4415,17 @@ export default function Home() {
           />
           <span className="dock-divider" aria-hidden="true" />
           <button
-            className="dock-icon-button"
+            className="dock-icon-button preview-toggle-button"
             type="button"
-            aria-label="Preview Strip"
-            onClick={() => {
-              if (!hasContent) {
-                setNotice("Add something to preview.");
-                return;
-              }
-              setActiveTextTool(null);
-              setEditingTextBlockId(null);
-              changeViewWithDockTransition("preview");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
+            aria-label={inlinePreview ? "Exit preview" : "Preview Strip"}
+            aria-pressed={inlinePreview}
+            onClick={toggleInlinePreview}
           >
-            <Eye className="dock-glyph" aria-hidden="true" />
+            {inlinePreview ? (
+              <EyeOff className="dock-glyph" aria-hidden="true" />
+            ) : (
+              <Eye className="dock-glyph" aria-hidden="true" />
+            )}
           </button>
           <button
             className="dock-icon-button publish-icon-button publish-strip-button"
