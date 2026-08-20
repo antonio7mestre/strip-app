@@ -465,23 +465,26 @@ function contrastColor(color: string) {
   return luminance > 0.179 ? "#000000" : "#FFFFFF";
 }
 
-function sampleImageBottomColor(image: HTMLImageElement) {
-  if (!image.naturalWidth || !image.naturalHeight) return null;
-
+function sampleVisualBottomColor(
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+) {
+  if (!sourceWidth || !sourceHeight) return null;
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 8;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return null;
 
-  const sourceHeight = Math.max(1, Math.round(image.naturalHeight * 0.06));
+  const sampledHeight = Math.max(1, Math.round(sourceHeight * 0.06));
   try {
     context.drawImage(
-      image,
+      source,
       0,
-      image.naturalHeight - sourceHeight,
-      image.naturalWidth,
-      sourceHeight,
+      sourceHeight - sampledHeight,
+      sourceWidth,
+      sampledHeight,
       0,
       0,
       canvas.width,
@@ -511,6 +514,15 @@ function sampleImageBottomColor(image: HTMLImageElement) {
   } catch {
     return null;
   }
+}
+
+function sampleImageBottomColor(image: HTMLImageElement) {
+  return sampleVisualBottomColor(image, image.naturalWidth, image.naturalHeight);
+}
+
+function sampleVideoBottomColor(video: HTMLVideoElement) {
+  if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return null;
+  return sampleVisualBottomColor(video, video.videoWidth, video.videoHeight);
 }
 
 function swatchStyle(color: string): SwatchStyle {
@@ -1061,12 +1073,14 @@ function StripVideoBlock({
   isEditing,
   isSelected,
   onSelect,
+  onFirstFrameColor,
   controls,
 }: {
   block: VideoBlock;
   isEditing: boolean;
   isSelected: boolean;
   onSelect: () => void;
+  onFirstFrameColor?: (color: string) => void;
   controls?: ReactNode;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1156,6 +1170,10 @@ function StripVideoBlock({
         controlsList="nodownload nofullscreen noremoteplayback"
         preload="metadata"
         draggable={false}
+        onLoadedData={(event) => {
+          const sampledColor = sampleVideoBottomColor(event.currentTarget);
+          if (sampledColor) onFirstFrameColor?.(sampledColor);
+        }}
       />
       {controls}
       <button
@@ -3546,7 +3564,7 @@ export default function Home() {
             : block.type === "image"
               ? imageTrayColors[block.id]
               : block.type === "video"
-                ? "#000000"
+                ? imageTrayColors[block.id] ?? "#000000"
               : undefined
         }
         imageSrc={block.type === "image" ? block.src : undefined}
@@ -3780,6 +3798,13 @@ export default function Home() {
               setSelectedBlockId(block.id);
               setEditingTextBlockId(null);
               setActiveTextTool(null);
+            }}
+            onFirstFrameColor={(color) => {
+              setImageTrayColors((current) =>
+                current[block.id] === color
+                  ? current
+                  : { ...current, [block.id]: color },
+              );
             }}
             controls={isEditing ? renderBlockControls(block, index) : null}
           />
