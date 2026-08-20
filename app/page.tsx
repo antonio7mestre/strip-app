@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type {
   ChangeEvent,
@@ -535,6 +535,26 @@ function BlockControls({
   activeTextTool?: TextTool | null;
   surfaceColor?: string;
 }) {
+  const trayClass = onTextTool
+    ? "is-text-tray"
+    : onMove
+      ? "is-media-tray"
+      : "is-single-action-tray";
+  const edgeGradientId = `block-controls-edge-${useId().replace(/:/g, "")}`;
+  const edgeGeometry = onTextTool
+      ? {
+        viewBox: "0 0 336 58",
+        path: "M 11.5 30 C 11.5 44.5 23.5 56.5 38 56.5 H 298 C 312.5 56.5 324.5 44.5 324.5 30",
+      }
+    : onMove
+      ? {
+          viewBox: "0 0 204 58",
+          path: "M 11.5 30 C 11.5 44.5 23.5 56.5 38 56.5 H 166 C 180.5 56.5 192.5 44.5 192.5 30",
+        }
+      : {
+          viewBox: "0 0 80 58",
+          path: "M 11.5 30 C 11.5 44.5 21.5 56.5 35.5 56.5 H 44.5 C 58.5 56.5 68.5 44.5 68.5 30",
+        };
   const style: BlockControlsStyle | undefined = surfaceColor
     ? {
         "--block-controls-surface": surfaceColor,
@@ -543,71 +563,96 @@ function BlockControls({
     : undefined;
 
   return (
-    <div
-      className={`block-controls ${
-        onTextTool ? "is-text-tray" : onMove ? "is-media-tray" : "is-single-action-tray"
-      }`}
-      style={style}
-      aria-label="Block controls"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
-    >
-      {onTextTool ? (
-        <>
-          <button
-            type="button"
-            className={activeTextTool === "font" ? "is-active" : ""}
-            onClick={() => onTextTool("font")}
-            aria-label="Choose typeface"
-            aria-pressed={activeTextTool === "font"}
-          >
-            <CaseUpper className="block-glyph" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={activeTextTool === "background" ? "is-active" : ""}
-            onClick={() => onTextTool("background")}
-            aria-label="Choose background color"
-            aria-pressed={activeTextTool === "background"}
-          >
-            <PaintBucket className="block-glyph" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={activeTextTool === "color" ? "is-active" : ""}
-            onClick={() => onTextTool("color")}
-            aria-label="Choose text color"
-            aria-pressed={activeTextTool === "color"}
-          >
-            <Baseline className="block-glyph" aria-hidden="true" />
-          </button>
-          <span className="block-controls-divider" aria-hidden="true" />
-        </>
-      ) : null}
-      {onMove ? (
-        <>
-          <button
-            type="button"
-            onClick={() => onMove(-1)}
-            disabled={index === 0}
-            aria-label="Move block up"
-          >
-            <ArrowUp className="block-glyph" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onMove(1)}
-            disabled={index === count - 1}
-            aria-label="Move block down"
-          >
-            <ArrowDown className="block-glyph" aria-hidden="true" />
-          </button>
-        </>
-      ) : null}
-      <button type="button" onClick={onRemove} aria-label="Delete block">
-        <Trash2 className="block-glyph" aria-hidden="true" />
-      </button>
-    </div>
+    <>
+      <div
+        className={`block-controls ${trayClass}`}
+        style={style}
+        aria-label="Block controls"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {onTextTool ? (
+          <>
+            <button
+              type="button"
+              className={activeTextTool === "font" ? "is-active" : ""}
+              onClick={() => onTextTool("font")}
+              aria-label="Choose typeface"
+              aria-pressed={activeTextTool === "font"}
+            >
+              <CaseUpper className="block-glyph" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={activeTextTool === "background" ? "is-active" : ""}
+              onClick={() => onTextTool("background")}
+              aria-label="Choose background color"
+              aria-pressed={activeTextTool === "background"}
+            >
+              <PaintBucket className="block-glyph" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={activeTextTool === "color" ? "is-active" : ""}
+              onClick={() => onTextTool("color")}
+              aria-label="Choose text color"
+              aria-pressed={activeTextTool === "color"}
+            >
+              <Baseline className="block-glyph" aria-hidden="true" />
+            </button>
+            <span className="block-controls-divider" aria-hidden="true" />
+          </>
+        ) : null}
+        {onMove ? (
+          <>
+            <button
+              type="button"
+              onClick={() => onMove(-1)}
+              disabled={index === 0}
+              aria-label="Move block up"
+            >
+              <ArrowUp className="block-glyph" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onMove(1)}
+              disabled={index === count - 1}
+              aria-label="Move block down"
+            >
+              <ArrowDown className="block-glyph" aria-hidden="true" />
+            </button>
+          </>
+        ) : null}
+        <button type="button" onClick={onRemove} aria-label="Delete block">
+          <Trash2 className="block-glyph" aria-hidden="true" />
+        </button>
+      </div>
+      <svg
+        className={`block-controls-under-edge ${trayClass}`}
+        style={style}
+        viewBox={edgeGeometry.viewBox}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id={edgeGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+            <stop offset="16%" stopColor="currentColor" stopOpacity="0.1" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.24" />
+            <stop offset="84%" stopColor="currentColor" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path
+          d={edgeGeometry.path}
+          fill="none"
+          stroke={`url(#${edgeGradientId})`}
+          strokeLinecap="round"
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    </>
   );
 }
 

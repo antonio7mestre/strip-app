@@ -1484,24 +1484,29 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     opacity 140ms ease;
 }
 
-.block-controls::after {
+.block-controls-under-edge {
   position: absolute;
-  right: 20%;
-  bottom: 0;
-  left: 20%;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    color-mix(
-      in srgb,
-      var(--block-controls-foreground, #000000) 22%,
-      transparent
-    ) 50%,
-    transparent
-  );
-  content: "";
+  z-index: 35;
+  top: calc(100% - 1px);
+  left: 50%;
+  width: 204px;
+  height: 58px;
+  max-width: calc(100vw - 32px);
+  overflow: visible;
+  color: var(--block-controls-foreground, #000000);
+  transform: translateX(-50%);
   pointer-events: none;
+  transition:
+    transform 180ms ease,
+    opacity 140ms ease;
+}
+
+.block-controls-under-edge.is-text-tray {
+  width: 336px;
+}
+
+.block-controls-under-edge.is-single-action-tray {
+  width: 80px;
 }
 
 .block-controls.is-text-tray {
@@ -1526,7 +1531,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .keyboard-open .block-controls,
-.editor-mode.is-typing .block-controls {
+.editor-mode.is-typing .block-controls,
+.keyboard-open .block-controls-under-edge,
+.editor-mode.is-typing .block-controls-under-edge {
   transform: translate(-50%, 125%);
   opacity: 0;
   pointer-events: none;
