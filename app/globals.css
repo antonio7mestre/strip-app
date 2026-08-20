@@ -1499,7 +1499,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   inset: 0;
   content: "";
   background: url("/image-tab-grain.png") 0 0 / 128px 128px repeat;
-  opacity: 0.18;
+  opacity: 0.34;
   mix-blend-mode: soft-light;
   pointer-events: none;
 }
