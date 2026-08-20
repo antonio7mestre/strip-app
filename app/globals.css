@@ -454,6 +454,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     148px + env(safe-area-inset-bottom) + var(--editor-bottom-pull-buffer)
   );
   background: var(--black);
+  touch-action: pan-y;
 }
 
 .preview-mode .strip-canvas {
@@ -570,12 +571,18 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .sticker-block.is-editing {
-  cursor: grab;
-  touch-action: none;
+  cursor: pointer;
+  touch-action: pan-y;
   pointer-events: auto;
 }
 
-.sticker-block.is-editing:active {
+.sticker-block.is-editing.is-selected {
+  cursor: grab;
+  touch-action: none;
+}
+
+.sticker-block.is-editing.is-selected:active,
+.sticker-block.is-transforming {
   cursor: grabbing;
 }
 
@@ -585,6 +592,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .sticker-block.is-overlapping-selection {
   opacity: 0.28;
+}
+
+.sticker-visual {
+  display: block;
+  width: 100%;
+  transform-origin: center;
 }
 
 .sticker-block img {

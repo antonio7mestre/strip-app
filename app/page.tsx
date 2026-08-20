@@ -66,6 +66,7 @@ type StickerBlock = {
   x: number;
   y: number;
   width: number;
+  rotation?: number;
 };
 
 type StripBlock = TextBlock | ImageBlock | VideoBlock | StickerBlock;
@@ -1084,7 +1085,7 @@ function StripStickerBlock({
   isSelected,
   isOverlappingSelection,
   onSelect,
-  onMove,
+  onTransform,
   controls,
 }: {
   block: StickerBlock;
@@ -1092,9 +1093,22 @@ function StripStickerBlock({
   isSelected: boolean;
   isOverlappingSelection: boolean;
   onSelect: () => void;
-  onMove: (position: Pick<StickerBlock, "x" | "y">) => void;
+  onTransform: (
+    transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
+  ) => void;
   controls?: ReactNode;
 }) {
+  const liveBlockRef = useRef(block);
+  liveBlockRef.current = block;
+  const selectionTapRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    moved: boolean;
+  } | null>(null);
+  const activePointersRef = useRef(
+    new Map<number, { clientX: number; clientY: number }>(),
+  );
   const dragRef = useRef<{
     pointerId: number;
     clientX: number;
@@ -1104,20 +1118,86 @@ function StripStickerBlock({
     canvasWidth: number;
     canvasHeight: number;
   } | null>(null);
+  const transformRef = useRef<{
+    distance: number;
+    angle: number;
+    midpointX: number;
+    midpointY: number;
+    x: number;
+    y: number;
+    width: number;
+    rotation: number;
+    canvasWidth: number;
+    canvasHeight: number;
+  } | null>(null);
+  const [isTransforming, setIsTransforming] = useState(false);
 
-  const stopDragging = (event: ReactPointerEvent<HTMLElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
+  const commitTransform = (
+    transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
+  ) => {
+    liveBlockRef.current = { ...liveBlockRef.current, ...transform };
+    onTransform(transform);
+  };
+
+  const stopPointer = (
+    event: ReactPointerEvent<HTMLElement>,
+    cancelled = false,
+  ) => {
+    const selectionTap = selectionTapRef.current;
+    if (selectionTap?.pointerId === event.pointerId) {
+      selectionTapRef.current = null;
+      if (!cancelled && !selectionTap.moved) {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect();
+      }
+      return;
+    }
+
+    const activePointers = activePointersRef.current;
+    if (!activePointers.has(event.pointerId)) return;
+    event.preventDefault();
+    event.stopPropagation();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    dragRef.current = null;
+    activePointers.delete(event.pointerId);
+
+    if (activePointers.size < 2) {
+      transformRef.current = null;
+      setIsTransforming(false);
+    }
+
+    if (activePointers.size === 1) {
+      const [pointerId, pointer] = activePointers.entries().next().value as [
+        number,
+        { clientX: number; clientY: number },
+      ];
+      const canvas = event.currentTarget.closest<HTMLElement>(".strip-canvas");
+      const current = liveBlockRef.current;
+      dragRef.current = canvas
+        ? {
+            pointerId,
+            clientX: pointer.clientX,
+            clientY: pointer.clientY,
+            x: current.x,
+            y: current.y,
+            canvasWidth: Math.max(1, canvas.getBoundingClientRect().width),
+            canvasHeight: Math.max(window.innerHeight, canvas.scrollHeight),
+          }
+        : null;
+    } else {
+      dragRef.current = null;
+    }
   };
 
   return (
     <figure
       className={`strip-block sticker-block ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
-      } ${isEditing && isOverlappingSelection ? "is-overlapping-selection" : ""}`}
+      } ${isEditing && isTransforming ? "is-transforming" : ""} ${
+        isEditing && isOverlappingSelection ? "is-overlapping-selection" : ""
+      }`}
       data-block-id={block.id}
       style={{
         left: `${block.x}%`,
@@ -1126,28 +1206,137 @@ function StripStickerBlock({
       }}
       onPointerDown={(event) => {
         if (!isEditing) return;
-        event.preventDefault();
         event.stopPropagation();
-        onSelect();
+
+        if (!isSelected) {
+          selectionTapRef.current = {
+            pointerId: event.pointerId,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            moved: false,
+          };
+          return;
+        }
+
+        event.preventDefault();
         const canvas = event.currentTarget.closest<HTMLElement>(".strip-canvas");
         if (!canvas) return;
         event.currentTarget.setPointerCapture(event.pointerId);
-        dragRef.current = {
-          pointerId: event.pointerId,
+        const canvasWidth = Math.max(1, canvas.getBoundingClientRect().width);
+        const canvasHeight = Math.max(window.innerHeight, canvas.scrollHeight);
+        const activePointers = activePointersRef.current;
+        activePointers.set(event.pointerId, {
           clientX: event.clientX,
           clientY: event.clientY,
-          x: block.x,
-          y: block.y,
-          canvasWidth: Math.max(1, canvas.getBoundingClientRect().width),
-          canvasHeight: Math.max(window.innerHeight, canvas.scrollHeight),
+        });
+
+        if (activePointers.size === 1) {
+          const current = liveBlockRef.current;
+          dragRef.current = {
+            pointerId: event.pointerId,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            x: current.x,
+            y: current.y,
+            canvasWidth,
+            canvasHeight,
+          };
+          return;
+        }
+
+        const [first, second] = Array.from(activePointers.values());
+        const current = liveBlockRef.current;
+        transformRef.current = {
+          distance: Math.max(
+            1,
+            Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
+          ),
+          angle: Math.atan2(
+            second.clientY - first.clientY,
+            second.clientX - first.clientX,
+          ),
+          midpointX: (first.clientX + second.clientX) / 2,
+          midpointY: (first.clientY + second.clientY) / 2,
+          x: current.x,
+          y: current.y,
+          width: current.width,
+          rotation: current.rotation ?? 0,
+          canvasWidth,
+          canvasHeight,
         };
+        dragRef.current = null;
+        setIsTransforming(true);
       }}
       onPointerMove={(event) => {
+        const selectionTap = selectionTapRef.current;
+        if (selectionTap?.pointerId === event.pointerId) {
+          if (
+            Math.hypot(
+              event.clientX - selectionTap.clientX,
+              event.clientY - selectionTap.clientY,
+            ) > 8
+          ) {
+            selectionTap.moved = true;
+          }
+          return;
+        }
+
+        const activePointers = activePointersRef.current;
+        if (activePointers.has(event.pointerId)) {
+          activePointers.set(event.pointerId, {
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+        }
+
+        const transform = transformRef.current;
+        if (transform && activePointers.size >= 2) {
+          event.preventDefault();
+          const [first, second] = Array.from(activePointers.values());
+          const distance = Math.max(
+            1,
+            Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
+          );
+          const angle = Math.atan2(
+            second.clientY - first.clientY,
+            second.clientX - first.clientX,
+          );
+          const midpointX = (first.clientX + second.clientX) / 2;
+          const midpointY = (first.clientY + second.clientY) / 2;
+          const width = Math.min(
+            92,
+            Math.max(10, transform.width * (distance / transform.distance)),
+          );
+          const halfWidth = width / 2;
+          const rawRotation =
+            transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
+          const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
+
+          commitTransform({
+            x: Math.min(
+              100 - halfWidth,
+              Math.max(
+                halfWidth,
+                transform.x +
+                  ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+              ),
+            ),
+            y: Math.min(
+              Math.max(36, transform.canvasHeight - 36),
+              Math.max(36, transform.y + midpointY - transform.midpointY),
+            ),
+            width,
+            rotation,
+          });
+          return;
+        }
+
         const drag = dragRef.current;
         if (!drag || drag.pointerId !== event.pointerId) return;
         event.preventDefault();
-        const halfWidth = block.width / 2;
-        onMove({
+        const current = liveBlockRef.current;
+        const halfWidth = current.width / 2;
+        commitTransform({
           x: Math.min(
             100 - halfWidth,
             Math.max(
@@ -1159,14 +1348,27 @@ function StripStickerBlock({
             Math.max(36, drag.canvasHeight - 36),
             Math.max(36, drag.y + event.clientY - drag.clientY),
           ),
+          width: current.width,
+          rotation: current.rotation ?? 0,
         });
       }}
-      onPointerUp={stopDragging}
-      onPointerCancel={stopDragging}
+      onPointerUp={(event) => stopPointer(event)}
+      onPointerCancel={(event) => stopPointer(event, true)}
       onContextMenu={(event) => event.preventDefault()}
-      aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
+      aria-label={
+        isEditing
+          ? isSelected
+            ? "Sticker selected. Drag with one finger, or resize and rotate with two fingers."
+            : "Sticker. Tap to select."
+          : block.alt || "Sticker"
+      }
     >
-      <img src={block.src} alt={block.alt} draggable={false} />
+      <span
+        className="sticker-visual"
+        style={{ transform: `rotate(${block.rotation ?? 0}deg)` }}
+      >
+        <img src={block.src} alt={block.alt} draggable={false} />
+      </span>
       {controls}
     </figure>
   );
@@ -1295,6 +1497,37 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
+
+  useEffect(() => {
+    if (view !== "edit") return;
+
+    const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    const originalViewport = viewportMeta?.content;
+    viewportMeta?.setAttribute(
+      "content",
+      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+    );
+
+    const preventGestureZoom = (event: Event) => event.preventDefault();
+    const preventMultiTouchZoom = (event: TouchEvent) => {
+      if (event.touches.length > 1) event.preventDefault();
+    };
+
+    document.addEventListener("gesturestart", preventGestureZoom, { passive: false });
+    document.addEventListener("gesturechange", preventGestureZoom, { passive: false });
+    document.addEventListener("gestureend", preventGestureZoom, { passive: false });
+    document.addEventListener("touchmove", preventMultiTouchZoom, { passive: false });
+
+    return () => {
+      if (viewportMeta && originalViewport !== undefined) {
+        viewportMeta.setAttribute("content", originalViewport);
+      }
+      document.removeEventListener("gesturestart", preventGestureZoom);
+      document.removeEventListener("gesturechange", preventGestureZoom);
+      document.removeEventListener("gestureend", preventGestureZoom);
+      document.removeEventListener("touchmove", preventMultiTouchZoom);
+    };
+  }, [view]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -3108,11 +3341,11 @@ export default function Home() {
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
               }}
-              onMove={(position) => {
+              onTransform={(transform) => {
                 setBlocks((current) =>
                   current.map((currentBlock) =>
                     currentBlock.id === block.id && currentBlock.type === "sticker"
-                      ? { ...currentBlock, ...position }
+                      ? { ...currentBlock, ...transform }
                       : currentBlock,
                   ),
                 );
