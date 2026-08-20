@@ -446,6 +446,10 @@ type BlockControlsStyle = CSSProperties & {
   "--block-controls-foreground"?: string;
   "--block-controls-image"?: string;
 };
+type StickerBlockStyle = CSSProperties & {
+  "--sticker-rotation": string;
+  "--sticker-counter-rotation": string;
+};
 
 function contrastColor(color: string) {
   const channels = color
@@ -642,13 +646,11 @@ function BlockControls({
     return (
       <div
         className="sticker-delete-orbit"
-        style={{ transform: `rotate(${stickerRotation}deg)` }}
         aria-label="Sticker controls"
       >
         <div className="sticker-delete-anchor">
           <button
             className="sticker-delete-control"
-            style={{ transform: `rotate(${-stickerRotation}deg)` }}
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -744,7 +746,7 @@ function BlockControls({
           stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth="4"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
@@ -1193,8 +1195,8 @@ function StripStickerBlock({
   ) => void;
   controls?: ReactNode;
 }) {
+  const stickerElementRef = useRef<HTMLElement>(null);
   const liveBlockRef = useRef(block);
-  liveBlockRef.current = block;
   const selectionTapRef = useRef<{
     pointerId: number;
     clientX: number;
@@ -1227,11 +1229,27 @@ function StripStickerBlock({
   } | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
 
-  const commitTransform = (
+  useEffect(() => {
+    if (activePointersRef.current.size === 0) liveBlockRef.current = block;
+  }, [block]);
+
+  const renderedBlock =
+    activePointersRef.current.size > 0 ? liveBlockRef.current : block;
+
+  const previewTransform = (
     transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
   ) => {
     liveBlockRef.current = { ...liveBlockRef.current, ...transform };
-    onTransform(transform);
+    const sticker = stickerElementRef.current;
+    if (!sticker) return;
+    sticker.style.left = `${transform.x}%`;
+    sticker.style.top = `${transform.y}px`;
+    sticker.style.width = `${transform.width}%`;
+    sticker.style.setProperty("--sticker-rotation", `${transform.rotation}deg`);
+    sticker.style.setProperty(
+      "--sticker-counter-rotation",
+      `${-transform.rotation}deg`,
+    );
   };
 
   const stopPointer = (
@@ -1257,6 +1275,16 @@ function StripStickerBlock({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     activePointers.delete(event.pointerId);
+
+    if (activePointers.size === 0) {
+      const current = liveBlockRef.current;
+      onTransform({
+        x: current.x,
+        y: current.y,
+        width: current.width,
+        rotation: current.rotation ?? 0,
+      });
+    }
 
     if (activePointers.size < 2) {
       transformRef.current = null;
@@ -1288,17 +1316,22 @@ function StripStickerBlock({
 
   return (
     <figure
+      ref={stickerElementRef}
       className={`strip-block sticker-block ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
       } ${isEditing && isTransforming ? "is-transforming" : ""} ${
         isEditing && isOverlappingSelection ? "is-overlapping-selection" : ""
       }`}
       data-block-id={block.id}
-      style={{
-        left: `${block.x}%`,
-        top: `${block.y}px`,
-        width: `${block.width}%`,
-      }}
+      style={
+        {
+          left: `${renderedBlock.x}%`,
+          top: `${renderedBlock.y}px`,
+          width: `${renderedBlock.width}%`,
+          "--sticker-rotation": `${renderedBlock.rotation ?? 0}deg`,
+          "--sticker-counter-rotation": `${-(renderedBlock.rotation ?? 0)}deg`,
+        } satisfies StickerBlockStyle
+      }
       onPointerDown={(event) => {
         if (!isEditing) return;
         event.stopPropagation();
@@ -1407,7 +1440,7 @@ function StripStickerBlock({
             transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
           const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
 
-          commitTransform({
+          previewTransform({
             x: Math.min(
               100 - halfWidth,
               Math.max(
@@ -1431,7 +1464,7 @@ function StripStickerBlock({
         event.preventDefault();
         const current = liveBlockRef.current;
         const halfWidth = current.width / 2;
-        commitTransform({
+        previewTransform({
           x: Math.min(
             100 - halfWidth,
             Math.max(
@@ -1458,10 +1491,7 @@ function StripStickerBlock({
           : block.alt || "Sticker"
       }
     >
-      <span
-        className="sticker-visual"
-        style={{ transform: `rotate(${block.rotation ?? 0}deg)` }}
-      >
+      <span className="sticker-visual">
         <img src={block.src} alt={block.alt} draggable={false} />
       </span>
       {controls}

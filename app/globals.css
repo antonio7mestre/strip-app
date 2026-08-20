@@ -457,6 +457,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   touch-action: pan-y;
 }
 
+.editor-mode.is-typing .strip-canvas {
+  padding-bottom: calc(
+    100dvh + var(--keyboard-inset, 0px) + env(safe-area-inset-bottom) + 32px
+  );
+}
+
 .preview-mode .strip-canvas {
   padding-bottom: calc(148px + env(safe-area-inset-bottom));
   background: var(--black);
@@ -597,6 +603,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .sticker-visual {
   display: block;
   width: 100%;
+  transform: rotate(var(--sticker-rotation, 0deg));
   transform-origin: center;
 }
 
@@ -1497,7 +1504,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   position: absolute;
   z-index: 36;
   inset: 0;
+  transform: translateZ(0) rotate(var(--sticker-rotation, 0deg));
   transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  will-change: transform;
   pointer-events: none;
 }
 
@@ -1515,18 +1525,21 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   height: 44px;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 3px solid #000000;
   border-radius: 50%;
   background: #ffffff;
   color: #000000;
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
   cursor: pointer;
   pointer-events: auto;
+  transform: translateZ(0) rotate(var(--sticker-counter-rotation, 0deg));
   transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 .sticker-delete-control:hover {
-  background: #f4f4f4;
+  background: #ffffff;
 }
 
 .sticker-delete-control:focus-visible {
