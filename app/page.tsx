@@ -2979,6 +2979,30 @@ export default function Home() {
     });
   };
 
+  const exitInlinePreviewAndSelect = (blockId: string) => {
+    if (!inlinePreview) return;
+    inlinePreviewScrollRef.current = window.scrollY;
+    flushSync(() => {
+      setInlinePreview(false);
+      setSelectedBlockId(blockId);
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
+    });
+    triggerSelectionHaptic();
+
+    const restoreScroll = () => {
+      const scrollTop = inlinePreviewScrollRef.current;
+      if (scrollTop === null) return;
+      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+    };
+
+    restoreScroll();
+    window.requestAnimationFrame(() => {
+      restoreScroll();
+      inlinePreviewScrollRef.current = null;
+    });
+  };
+
   const continueToPublish = () => {
     if (!hasContent) {
       setNotice("Add something before you continue.");
@@ -4511,7 +4535,19 @@ export default function Home() {
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
-      <div className={`editor-canvas ${legacyPageEnterClass}`}>
+      <div
+        className={`editor-canvas ${legacyPageEnterClass}`}
+        onClickCapture={(event) => {
+          if (!inlinePreview || !(event.target instanceof Element)) return;
+          if (event.target.closest("button, a, input, textarea")) return;
+          const blockElement = event.target.closest<HTMLElement>(
+            ".strip-block[data-block-id]",
+          );
+          const blockId = blockElement?.dataset.blockId;
+          if (!blockId || !event.currentTarget.contains(blockElement)) return;
+          exitInlinePreviewAndSelect(blockId);
+        }}
+      >
         {renderStrip(!inlinePreview)}
       </div>
 

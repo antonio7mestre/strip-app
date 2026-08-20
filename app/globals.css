@@ -582,6 +582,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   pointer-events: auto;
 }
 
+.editor-mode.is-inline-preview .sticker-block {
+  cursor: pointer;
+  touch-action: pan-y;
+  pointer-events: auto;
+}
+
 .sticker-block.is-editing.is-selected {
   cursor: grab;
   touch-action: none;
