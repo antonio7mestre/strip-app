@@ -1233,14 +1233,33 @@ function StripStickerBlock({
     canvasWidth: number;
     canvasHeight: number;
   } | null>(null);
+  const canvasTouchTransformRef = useRef<{
+    distance: number;
+    angle: number;
+    midpointX: number;
+    midpointY: number;
+    x: number;
+    y: number;
+    width: number;
+    rotation: number;
+    canvasWidth: number;
+    canvasHeight: number;
+  } | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
 
   useEffect(() => {
-    if (activePointersRef.current.size === 0) liveBlockRef.current = block;
+    if (
+      activePointersRef.current.size === 0 &&
+      !canvasTouchTransformRef.current
+    ) {
+      liveBlockRef.current = block;
+    }
   }, [block]);
 
   const renderedBlock =
-    activePointersRef.current.size > 0 ? liveBlockRef.current : block;
+    activePointersRef.current.size > 0 || canvasTouchTransformRef.current
+      ? liveBlockRef.current
+      : block;
 
   const previewTransform = (
     transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
@@ -1257,6 +1276,135 @@ function StripStickerBlock({
       `${-transform.rotation}deg`,
     );
   };
+
+  useEffect(() => {
+    if (!isEditing || !isSelected) {
+      canvasTouchTransformRef.current = null;
+      return;
+    }
+
+    const beginCanvasTransform = (event: TouchEvent) => {
+      if (event.touches.length < 2 || canvasTouchTransformRef.current) return;
+      const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
+      if (!canvas) return;
+
+      const [first, second] = [event.touches[0], event.touches[1]];
+      const current = liveBlockRef.current;
+      canvasTouchTransformRef.current = {
+        distance: Math.max(
+          1,
+          Math.hypot(
+            second.clientX - first.clientX,
+            second.clientY - first.clientY,
+          ),
+        ),
+        angle: Math.atan2(
+          second.clientY - first.clientY,
+          second.clientX - first.clientX,
+        ),
+        midpointX: (first.clientX + second.clientX) / 2,
+        midpointY: (first.clientY + second.clientY) / 2,
+        x: current.x,
+        y: current.y,
+        width: current.width,
+        rotation: current.rotation ?? 0,
+        canvasWidth: Math.max(1, canvas.getBoundingClientRect().width),
+        canvasHeight: Math.max(window.innerHeight, canvas.scrollHeight),
+      };
+      activePointersRef.current.clear();
+      dragRef.current = null;
+      transformRef.current = null;
+      setIsTransforming(true);
+      event.preventDefault();
+    };
+
+    const updateCanvasTransform = (event: TouchEvent) => {
+      const transform = canvasTouchTransformRef.current;
+      if (!transform || event.touches.length < 2) return;
+      event.preventDefault();
+
+      const [first, second] = [event.touches[0], event.touches[1]];
+      const distance = Math.max(
+        1,
+        Math.hypot(
+          second.clientX - first.clientX,
+          second.clientY - first.clientY,
+        ),
+      );
+      const angle = Math.atan2(
+        second.clientY - first.clientY,
+        second.clientX - first.clientX,
+      );
+      const midpointX = (first.clientX + second.clientX) / 2;
+      const midpointY = (first.clientY + second.clientY) / 2;
+      const width = Math.min(
+        92,
+        Math.max(10, transform.width * (distance / transform.distance)),
+      );
+      const halfWidth = width / 2;
+      const rawRotation =
+        transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
+      const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
+
+      previewTransform({
+        x: Math.min(
+          100 - halfWidth,
+          Math.max(
+            halfWidth,
+            transform.x +
+              ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+          ),
+        ),
+        y: Math.min(
+          Math.max(36, transform.canvasHeight - 36),
+          Math.max(36, transform.y + midpointY - transform.midpointY),
+        ),
+        width,
+        rotation,
+      });
+    };
+
+    const finishCanvasTransform = (event: TouchEvent) => {
+      if (!canvasTouchTransformRef.current || event.touches.length >= 2) return;
+      if (event.cancelable) event.preventDefault();
+      canvasTouchTransformRef.current = null;
+      activePointersRef.current.clear();
+      dragRef.current = null;
+      transformRef.current = null;
+      setIsTransforming(false);
+      const current = liveBlockRef.current;
+      onTransform({
+        x: current.x,
+        y: current.y,
+        width: current.width,
+        rotation: current.rotation ?? 0,
+      });
+    };
+
+    document.addEventListener("touchstart", beginCanvasTransform, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("touchmove", updateCanvasTransform, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("touchend", finishCanvasTransform, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("touchcancel", finishCanvasTransform, {
+      capture: true,
+      passive: false,
+    });
+
+    return () => {
+      document.removeEventListener("touchstart", beginCanvasTransform, true);
+      document.removeEventListener("touchmove", updateCanvasTransform, true);
+      document.removeEventListener("touchend", finishCanvasTransform, true);
+      document.removeEventListener("touchcancel", finishCanvasTransform, true);
+    };
+  }, [block.id, isEditing, isSelected]);
 
   const stopPointer = (
     event: ReactPointerEvent<HTMLElement>,
@@ -1283,6 +1431,17 @@ function StripStickerBlock({
     }
 
     const activePointers = activePointersRef.current;
+    if (canvasTouchTransformRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      activePointers.delete(event.pointerId);
+      dragRef.current = null;
+      transformRef.current = null;
+      return;
+    }
     if (!activePointers.has(event.pointerId)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1361,6 +1520,8 @@ function StripStickerBlock({
           return;
         }
 
+        if (event.pointerType === "touch" && !event.isPrimary) return;
+
         event.preventDefault();
         const canvas = event.currentTarget.closest<HTMLElement>(".strip-canvas");
         if (!canvas) return;
@@ -1421,6 +1582,11 @@ function StripStickerBlock({
           ) {
             selectionTap.moved = true;
           }
+          return;
+        }
+
+        if (canvasTouchTransformRef.current) {
+          event.preventDefault();
           return;
         }
 
@@ -1501,7 +1667,7 @@ function StripStickerBlock({
       aria-label={
         isEditing
           ? isSelected
-            ? "Sticker selected. Drag with one finger, or resize and rotate with two fingers."
+            ? "Sticker selected. Drag from the sticker with one finger, or resize and rotate from anywhere with two fingers."
             : "Sticker. Tap to select."
           : block.alt || "Sticker"
       }
