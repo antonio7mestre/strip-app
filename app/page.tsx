@@ -2055,19 +2055,24 @@ export default function Home() {
       const selectedElement = Array.from(
         canvas.querySelectorAll<HTMLElement>(".strip-block"),
       ).find((element) => element.dataset.blockId === selectedBlockId);
-      if (!selectedElement) return;
+      const activeTools = selectedElement?.querySelector<HTMLElement>(".block-controls");
 
-      const selectedBounds = selectedElement.getBoundingClientRect();
+      if (!activeTools) {
+        setOverlappingStickerIds((current) => (current.length === 0 ? current : []));
+        return;
+      }
+
+      const toolBounds = activeTools.getBoundingClientRect();
       const nextIds = Array.from(
         canvas.querySelectorAll<HTMLElement>(".sticker-block"),
       )
         .filter((sticker) => {
           const stickerBounds = sticker.getBoundingClientRect();
           return (
-            stickerBounds.left < selectedBounds.right &&
-            stickerBounds.right > selectedBounds.left &&
-            stickerBounds.top < selectedBounds.bottom &&
-            stickerBounds.bottom > selectedBounds.top
+            stickerBounds.left < toolBounds.right &&
+            stickerBounds.right > toolBounds.left &&
+            stickerBounds.top < toolBounds.bottom &&
+            stickerBounds.bottom > toolBounds.top
           );
         })
         .map((sticker) => sticker.dataset.blockId)
