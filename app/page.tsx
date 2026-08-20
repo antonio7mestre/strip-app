@@ -81,6 +81,7 @@ type View =
   | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
+type SelectedToolsDirection = "above" | "below";
 type CoverColorShape = "portrait" | "square" | "landscape";
 type PublishedCover =
   | { kind: "image"; src: string; alt: string }
@@ -2621,6 +2622,105 @@ export default function Home() {
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
+  const [selectedToolsDirection, setSelectedToolsDirection] =
+    useState<SelectedToolsDirection | null>(null);
+
+  useLayoutEffect(() => {
+    if (
+      view !== "edit" ||
+      inlinePreview ||
+      !selectedBlockId ||
+      selectedBlock?.type === "sticker" ||
+      editingTextBlockId ||
+      activeTextTool
+    ) {
+      setSelectedToolsDirection(null);
+      return;
+    }
+
+    let frame = 0;
+    const block = document.querySelector<HTMLElement>(
+      `.editor-mode .strip-block[data-block-id="${selectedBlockId}"]`,
+    );
+    const tools = block?.querySelector<HTMLElement>(".block-controls");
+    const dock = document.querySelector<HTMLElement>(".main-composer-dock");
+    if (!block || !tools) {
+      setSelectedToolsDirection(null);
+      return;
+    }
+
+    const updateDirection = () => {
+      const toolsBounds = tools.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+      const dockTop = dock?.getBoundingClientRect().top ?? viewportBottom;
+      const visibleBottom = Math.min(viewportBottom, dockTop);
+      const nextDirection =
+        toolsBounds.bottom < viewportTop + 8
+          ? "above"
+          : toolsBounds.top > visibleBottom - 8
+            ? "below"
+            : null;
+      setSelectedToolsDirection((current) =>
+        current === nextDirection ? current : nextDirection,
+      );
+    };
+
+    const queueUpdate = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updateDirection);
+    };
+    const resizeObserver = new ResizeObserver(queueUpdate);
+    resizeObserver.observe(block);
+    resizeObserver.observe(tools);
+    if (dock) resizeObserver.observe(dock);
+    window.addEventListener("scroll", queueUpdate, { passive: true });
+    window.addEventListener("resize", queueUpdate);
+    window.visualViewport?.addEventListener("scroll", queueUpdate);
+    window.visualViewport?.addEventListener("resize", queueUpdate);
+    queueUpdate();
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      window.removeEventListener("scroll", queueUpdate);
+      window.removeEventListener("resize", queueUpdate);
+      window.visualViewport?.removeEventListener("scroll", queueUpdate);
+      window.visualViewport?.removeEventListener("resize", queueUpdate);
+    };
+  }, [
+    activeTextTool,
+    blocks,
+    editingTextBlockId,
+    inlinePreview,
+    selectedBlock?.type,
+    selectedBlockId,
+    view,
+  ]);
+
+  const revealSelectedBlockTools = () => {
+    if (!selectedBlockId || !selectedToolsDirection) return;
+    const block = document.querySelector<HTMLElement>(
+      `.editor-mode .strip-block[data-block-id="${selectedBlockId}"]`,
+    );
+    const tools = block?.querySelector<HTMLElement>(".block-controls");
+    if (!tools) return;
+
+    const toolsBounds = tools.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+    const dockTop =
+      document.querySelector<HTMLElement>(".main-composer-dock")
+        ?.getBoundingClientRect().top ?? viewportBottom;
+    const visibleBottom = Math.min(viewportBottom, dockTop) - 16;
+    const scrollDelta =
+      selectedToolsDirection === "above"
+        ? toolsBounds.top - viewportTop - 16
+        : toolsBounds.bottom - visibleBottom;
+    window.scrollBy({ top: scrollDelta, left: 0, behavior: "smooth" });
+  };
 
   useLayoutEffect(() => {
     const selected = blocks.find((block) => block.id === selectedBlockId);
@@ -4718,6 +4818,21 @@ export default function Home() {
       >
         {renderStrip(!inlinePreview)}
       </div>
+
+      {selectedToolsDirection ? (
+        <button
+          className={`selected-tools-locator is-${selectedToolsDirection}`}
+          type="button"
+          onClick={revealSelectedBlockTools}
+          aria-label={`Show selected block tools ${selectedToolsDirection}`}
+        >
+          {selectedToolsDirection === "above" ? (
+            <ArrowUp aria-hidden="true" />
+          ) : (
+            <ArrowDown aria-hidden="true" />
+          )}
+        </button>
+      ) : null}
 
       {!inlinePreview && selectedBlock?.type === "text" ? (
         <TextStyleSelector
