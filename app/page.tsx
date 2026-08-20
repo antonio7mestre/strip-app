@@ -1934,6 +1934,9 @@ export default function Home() {
     let pullStartY = 0;
     let pullOffset = 0;
     let pullVelocity = 0;
+    let scrollVelocity = 0;
+    let lastScrollPosition = window.scrollY;
+    let lastScrollTime = performance.now();
     let rubberBandActive = false;
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
@@ -1968,13 +1971,18 @@ export default function Home() {
 
     const springPullBack = () => {
       stopPullAnimation();
-      if (pullOffset <= 0.1) {
+      const startingVelocity = Math.min(
+        820,
+        Math.max(-420, pullVelocity * 1000),
+      );
+      if (pullOffset <= 0.1 && startingVelocity <= 3) {
         setPullOffset(0);
+        pullVelocity = 0;
         return;
       }
 
       let position = pullOffset;
-      let velocity = Math.min(360, Math.max(-420, pullVelocity * 1000));
+      let velocity = startingVelocity;
       let previousTime = performance.now();
       const stiffness = 170;
       const damping = 22;
@@ -1988,6 +1996,7 @@ export default function Home() {
 
         if (position <= 0 || (Math.abs(position) < 0.12 && Math.abs(velocity) < 3)) {
           setPullOffset(0);
+          pullVelocity = 0;
           pullAnimationFrame = 0;
           return;
         }
@@ -2043,6 +2052,8 @@ export default function Home() {
       window.scrollTo({ top, left: 0, behavior: "auto" });
       document.documentElement.scrollTop = top;
       document.body.scrollTop = top;
+      lastScrollPosition = top;
+      lastScrollTime = performance.now();
       settleTimer = window.setTimeout(() => {
         applyingLock = false;
       }, 32);
@@ -2085,6 +2096,9 @@ export default function Home() {
           ? lastTouchY - rawDistanceFromRubberBand(pullOffset)
           : lastTouchY;
       pullVelocity = 0;
+      scrollVelocity = 0;
+      lastScrollPosition = window.scrollY;
+      lastScrollTime = performance.now();
       applyingLock = false;
       window.cancelAnimationFrame(scrollAnimationFrame);
       scrollAnimationFrame = 0;
@@ -2184,10 +2198,37 @@ export default function Home() {
     };
 
     const handleLockedTopScroll = () => {
+      const now = performance.now();
+      const currentScrollPosition = window.scrollY;
+      const elapsed = now - lastScrollTime;
+
+      if (!applyingLock && elapsed > 0 && elapsed < 120) {
+        const currentVelocity =
+          (currentScrollPosition - lastScrollPosition) / elapsed;
+        scrollVelocity = scrollVelocity * 0.28 + currentVelocity * 0.72;
+      } else if (!applyingLock && elapsed >= 120) {
+        scrollVelocity = 0;
+      }
+
+      lastScrollPosition = currentScrollPosition;
+      lastScrollTime = now;
       lockFixedControlsDuringPull();
       if (touchIsActive) return;
       if (applyingLock) return;
-      if (absorbNativeScrollGap()) {
+
+      const lockedTop = leadingImageScrollLockRef.current;
+      const reachedLockedTopWithMomentum =
+        lockedTop > 0 &&
+        currentScrollPosition <= lockedTop + 0.5 &&
+        scrollVelocity < -0.035;
+      const absorbedNativeGap = absorbNativeScrollGap();
+
+      if (absorbedNativeGap || reachedLockedTopWithMomentum) {
+        if (!absorbedNativeGap) setScrollTop(lockedTop, "auto");
+        pullVelocity = Math.max(
+          pullVelocity,
+          Math.min(0.92, Math.max(0, -scrollVelocity * 0.82)),
+        );
         springPullBack();
       }
     };
