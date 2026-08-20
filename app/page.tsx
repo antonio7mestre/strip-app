@@ -939,10 +939,6 @@ function TextStyleSelector({
   );
 }
 
-function BlockSelectionTab() {
-  return <span className="block-selection-tab" aria-hidden="true" />;
-}
-
 let safariHapticSwitch: HTMLInputElement | null = null;
 
 function triggerSelectionHaptic() {
@@ -1065,7 +1061,6 @@ function StripVideoBlock({
         preload="metadata"
         draggable={false}
       />
-      {isEditing && isSelected ? <BlockSelectionTab /> : null}
       {controls}
       <button
         className="video-audio-toggle"
@@ -1171,7 +1166,6 @@ function StripStickerBlock({
       onContextMenu={(event) => event.preventDefault()}
       aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
     >
-      {isEditing && isSelected ? <BlockSelectionTab /> : null}
       <img src={block.src} alt={block.alt} draggable={false} />
       {controls}
     </figure>
@@ -3017,9 +3011,6 @@ export default function Home() {
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
               }}
             >
-              {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTab />
-              ) : null}
               {isEditing ? renderBlockControls(block, index) : null}
               {textIsBeingEdited ? (
                 <textarea
@@ -3093,9 +3084,6 @@ export default function Home() {
               }}
             >
               {/* A Strip image is intentionally edge-to-edge. */}
-              {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTab />
-              ) : null}
               {isEditing ? renderBlockControls(block, index) : null}
               <img
                 src={block.src}

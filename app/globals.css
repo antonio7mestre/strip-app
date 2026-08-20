@@ -628,39 +628,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   outline-offset: 2px;
 }
 
-@keyframes strip-selection-tab-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.block-selection-tab {
-  position: absolute;
-  z-index: 7;
-  top: 50%;
-  right: 0;
-  width: 9px;
-  height: 60%;
-  border-radius: 999px 0 0 999px;
-  background: linear-gradient(
-    180deg,
-    #ffffff 0%,
-    #aeb4bd 42%,
-    #686e77 58%,
-    #f9fbff 100%
-  );
-  box-shadow:
-    -2px 0 6px rgba(0, 0, 0, 0.38),
-    inset 1px 0 rgba(255, 255, 255, 0.72);
-  transform: translateY(-50%);
-  pointer-events: none;
-  animation: strip-selection-tab-in 120ms ease-out both;
-}
-
 .selection-haptic-proxy {
   position: absolute;
   width: 1px;
@@ -671,12 +638,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   pointer-events: none;
   -webkit-appearance: auto;
   appearance: auto;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .block-selection-tab {
-    animation: none;
-  }
 }
 
 .empty-strip {
