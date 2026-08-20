@@ -1939,12 +1939,11 @@ export default function Home() {
     let mutationObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
 
-    const getRubberBandDimension = () =>
-      Math.min(148, Math.max(112, window.innerHeight * 0.16));
+    const getRubberBandDimension = () => Math.max(1, window.innerHeight);
 
     const rubberBandDistance = (distance: number) => {
       const dimension = getRubberBandDimension();
-      const resistance = 0.62;
+      const resistance = 0.55;
       return (
         (dimension * resistance * Math.max(0, distance)) /
         (dimension + resistance * Math.max(0, distance))
@@ -1953,7 +1952,7 @@ export default function Home() {
 
     const rawDistanceFromRubberBand = (distance: number) => {
       const dimension = getRubberBandDimension();
-      const resistance = 0.62;
+      const resistance = 0.55;
       const clamped = Math.min(Math.max(0, distance), dimension - 0.5);
       return (clamped * dimension) / (resistance * (dimension - clamped));
     };
@@ -1976,10 +1975,10 @@ export default function Home() {
       }
 
       let position = pullOffset;
-      let velocity = Math.min(900, Math.max(-500, pullVelocity * 1000));
+      let velocity = Math.min(360, Math.max(-420, pullVelocity * 1000));
       let previousTime = performance.now();
-      const stiffness = 235;
-      const damping = 29;
+      const stiffness = 170;
+      const damping = 22;
 
       const step = (time: number) => {
         const elapsed = Math.min(0.032, Math.max(0.001, (time - previousTime) / 1000));
@@ -2065,6 +2064,16 @@ export default function Home() {
       }
     };
 
+    const absorbNativeScrollGap = () => {
+      const offset = leadingImageScrollLockRef.current;
+      const nativeGap = Math.max(0, offset - window.scrollY);
+      if (offset <= 0 || nativeGap <= 0.25) return false;
+
+      setPullOffset(pullOffset + nativeGap);
+      setScrollTop(offset, "auto");
+      return true;
+    };
+
     const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
       lastTouchY = event.touches[0]?.clientY ?? 0;
@@ -2101,11 +2110,18 @@ export default function Home() {
         event.preventDefault();
         if (!rubberBandActive) {
           rubberBandActive = true;
+          const nativeGap = Math.max(0, lockedTop - window.scrollY);
+          const currentVisualOffset = pullOffset + nativeGap;
           const crossingDistance = Math.max(
             0,
             lockedTop - (window.scrollY - touchDelta),
           );
-          pullStartY = touchY - crossingDistance;
+          pullStartY =
+            touchY -
+            Math.max(
+              rawDistanceFromRubberBand(currentVisualOffset),
+              crossingDistance,
+            );
         }
 
         window.scrollTo({ top: lockedTop, left: 0, behavior: "auto" });
@@ -2129,13 +2145,21 @@ export default function Home() {
 
     const handleTouchRelease = () => {
       touchIsActive = false;
+      const shouldSpring =
+        rubberBandActive ||
+        pullOffset > 0.1 ||
+        window.scrollY < leadingImageScrollLockRef.current;
       lastTouchY = 0;
       lastTouchTime = 0;
       pullStartY = 0;
       rubberBandActive = false;
       lockFixedControlsDuringPull();
-      settleLockedTop("auto");
-      springPullBack();
+      const absorbedNativeGap = absorbNativeScrollGap();
+      if (shouldSpring || absorbedNativeGap) {
+        springPullBack();
+      } else {
+        settleLockedTop();
+      }
     };
 
     const handleTouchCancel = () => {
@@ -2145,8 +2169,12 @@ export default function Home() {
       pullStartY = 0;
       rubberBandActive = false;
       lockFixedControlsDuringPull();
-      settleLockedTop("auto");
-      springPullBack();
+      const absorbedNativeGap = absorbNativeScrollGap();
+      if (pullOffset > 0.1 || absorbedNativeGap) {
+        springPullBack();
+      } else {
+        settleLockedTop();
+      }
     };
 
     const preserveLockedTopAfterLayout = () => {
@@ -2160,7 +2188,9 @@ export default function Home() {
       lockFixedControlsDuringPull();
       if (touchIsActive) return;
       if (applyingLock) return;
-      settleLockedTop();
+      if (absorbNativeScrollGap()) {
+        springPullBack();
+      }
     };
 
     const calculateLeadingImageLock = () => {
