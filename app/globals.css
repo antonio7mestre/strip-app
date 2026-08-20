@@ -620,82 +620,32 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   outline-offset: 2px;
 }
 
-@keyframes strip-selection-chrome-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.block-selection-corners {
-  --selection-corner-length: 22px;
-  --selection-corner-stroke: 3px;
+.editor-mode .strip-canvas::after {
   position: absolute;
-  z-index: 7;
-  inset: 6px;
-  filter:
-    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72))
-    drop-shadow(0 0 1px rgba(0, 0, 0, 0.42));
-  pointer-events: none;
-  animation: strip-selection-chrome-in 120ms ease-out both;
-}
-
-.block-selection-corners > span {
-  position: absolute;
-  width: var(--selection-corner-length);
-  height: var(--selection-corner-length);
-}
-
-.block-selection-corners > span::before,
-.block-selection-corners > span::after {
-  position: absolute;
-  top: 0;
-  left: 0;
-  border-radius: 999px;
-  background: #ffffff;
+  z-index: 10;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.56);
   content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
-.block-selection-corners > span::before {
-  width: var(--selection-corner-length);
-  height: var(--selection-corner-stroke);
+.editor-mode.has-block-toolbar .strip-canvas::after {
+  opacity: 1;
 }
 
-.block-selection-corners > span::after {
-  width: var(--selection-corner-stroke);
-  height: var(--selection-corner-length);
-  background: #ffffff;
+.editor-mode.has-block-toolbar .strip-block {
+  z-index: 1;
 }
 
-.block-selection-corners .is-top-left {
-  top: 0;
-  left: 0;
-}
-
-.block-selection-corners .is-top-right {
-  top: 0;
-  right: 0;
-  transform: rotate(90deg);
-}
-
-.block-selection-corners .is-bottom-right {
-  right: 0;
-  bottom: 0;
-  transform: rotate(180deg);
-}
-
-.block-selection-corners .is-bottom-left {
-  bottom: 0;
-  left: 0;
-  transform: rotate(270deg);
+.editor-mode.has-block-toolbar .strip-block.is-selected {
+  z-index: 11;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .block-selection-corners {
-    animation: none;
+  .editor-mode .strip-canvas::after {
+    transition: none;
   }
 }
 
