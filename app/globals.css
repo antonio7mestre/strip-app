@@ -1544,6 +1544,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .block-controls.is-text-tray {
+  top: 100%;
   width: 336px;
   filter: none;
   -webkit-clip-path: path(
