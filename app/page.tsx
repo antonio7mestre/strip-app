@@ -1948,7 +1948,12 @@ export default function Home() {
 
     const rubberBandDistance = (distance: number) => {
       const dimension = getRubberBandDimension();
-      const resistance = 0.64;
+      /*
+       * Keep the stable manual gesture handoff, but let the canvas follow the
+       * finger farther before resistance takes over. The curve still has a
+       * viewport-sized asymptote, so a hard pull never exposes the page edge.
+       */
+      const resistance = 0.82;
       return (
         (dimension * resistance * Math.max(0, distance)) /
         (dimension + resistance * Math.max(0, distance))
@@ -2002,10 +2007,11 @@ export default function Home() {
       let velocity = startingVelocity;
       let reachedPullSide = position >= 0;
       let previousTime = performance.now();
-      const stiffness = 130;
-      const damping = 18;
-      const approachStiffness = 10;
-      const approachDamping = 3.2;
+      /* A softer, near-critically-damped return on one uninterrupted curve. */
+      const stiffness = 108;
+      const damping = 16.5;
+      const approachStiffness = 9;
+      const approachDamping = 3;
 
       const step = (time: number) => {
         const elapsed = Math.min(0.032, Math.max(0.001, (time - previousTime) / 1000));
