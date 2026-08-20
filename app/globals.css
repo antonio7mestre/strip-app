@@ -636,8 +636,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   top: 50%;
   right: 0;
   width: 9px;
-  height: min(46px, calc(100% - 12px));
-  min-height: 18px;
+  height: 60%;
   border-radius: 999px 0 0 999px;
   background: linear-gradient(
     180deg,
