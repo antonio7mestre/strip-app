@@ -1819,7 +1819,7 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
-  const leadingImageScrollLockRef = useRef(0);
+  const leadingImageInsetRef = useRef(0);
   const dockTransitionTimerRef = useRef<number | null>(null);
   const dockTransitionFrameRef = useRef<number | null>(null);
   const editorDockEntryTimerRef = useRef<number | null>(null);
@@ -1922,596 +1922,47 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    let frame = 0;
-    let followupFrame = 0;
-    let scrollAnimationFrame = 0;
-    let pullAnimationFrame = 0;
-    let pullHandoffAnimationFrame = 0;
-    let pullHandoffDelayTimer = 0;
-    let settleTimer = 0;
-    let applyingLock = false;
-    let touchIsActive = false;
-    let lastTouchY = 0;
-    let lastTouchTime = 0;
-    let pullStartY = 0;
-    let manualStartOffset = 0;
-    let pullOffset = 0;
-    let pullVelocity = 0;
-    let scrollVelocity = 0;
-    let lastScrollPosition = window.scrollY;
-    let lastScrollTime = performance.now();
-    let rubberBandActive = false;
-    let anchorBounceActive = false;
-    let pullHandoffActive = false;
-    let anchorBounceQuietTimer = 0;
-    let mutationObserver: MutationObserver | null = null;
-    let resizeObserver: ResizeObserver | null = null;
 
-    const getRubberBandDimension = () => Math.max(1, window.innerHeight);
-
-    const getRubberBandRange = () => getRubberBandDimension() * 1.8;
-
-    const rubberBandDistance = (distance: number) => {
-      const range = getRubberBandRange();
-      /*
-       * This curve has a slope of exactly 1 at the top boundary. Native scroll
-       * and the rubber band therefore carry the same velocity through the
-       * handoff instead of briefly slowing before the elastic resistance grows.
-       */
-      const pullDistance = Math.max(0, distance);
-      return (range * pullDistance) / (range + pullDistance);
-    };
-
-    const rawDistanceFromRubberBand = (distance: number) => {
-      const range = getRubberBandRange();
-      const clamped = Math.min(Math.max(0, distance), range - 0.5);
-      return (clamped * range) / (range - clamped);
-    };
-
-    const setPullOffset = (offset: number) => {
-      pullOffset = offset;
-      root.style.setProperty("--leading-image-pull-offset", `${pullOffset}px`);
-    };
-
-    const stopPullAnimation = () => {
-      window.cancelAnimationFrame(pullAnimationFrame);
-      pullAnimationFrame = 0;
-    };
-
-    const endAnchorBounceAfterQuietPeriod = () => {
-      window.clearTimeout(anchorBounceQuietTimer);
-      anchorBounceQuietTimer = window.setTimeout(() => {
-        if (pullAnimationFrame !== 0) {
-          endAnchorBounceAfterQuietPeriod();
-          return;
-        }
-        anchorBounceActive = false;
-      }, 140);
-    };
-
-    const springPullBack = () => {
-      if (anchorBounceActive && pullAnimationFrame !== 0) return;
-      stopPullAnimation();
-      const startingVelocity = Math.min(
-        1250,
-        Math.max(-420, pullVelocity * 1000),
-      );
-      if (pullOffset <= 0.1 && startingVelocity <= 3) {
-        setPullOffset(0);
-        pullVelocity = 0;
-        return;
-      }
-
-      anchorBounceActive = true;
-      endAnchorBounceAfterQuietPeriod();
-      let position = pullOffset;
-      let velocity = startingVelocity;
-      let reachedPullSide = position >= 0;
-      let previousTime = performance.now();
-      /* A softer, near-critically-damped return on one uninterrupted curve. */
-      const stiffness = 108;
-      const damping = 16.5;
-      const approachStiffness = 9;
-      const approachDamping = 3;
-
-      const step = (time: number) => {
-        const elapsed = Math.min(0.032, Math.max(0.001, (time - previousTime) / 1000));
-        previousTime = time;
-        const acceleration = reachedPullSide
-          ? -stiffness * position - damping * velocity
-          : -approachStiffness * position - approachDamping * velocity;
-        velocity += acceleration * elapsed;
-        position += velocity * elapsed;
-        if (position >= 0) reachedPullSide = true;
-
-        const returnedHome = reachedPullSide && position <= 0 && velocity <= 0;
-        if (returnedHome || (Math.abs(position) < 0.12 && Math.abs(velocity) < 3)) {
-          setPullOffset(0);
-          pullVelocity = 0;
-          pullAnimationFrame = 0;
-          endAnchorBounceAfterQuietPeriod();
-          return;
-        }
-
-        setPullOffset(position);
-        pullAnimationFrame = window.requestAnimationFrame(step);
-      };
-
-      pullAnimationFrame = window.requestAnimationFrame(step);
-    };
-
-    const setScrollTop = (top: number, behavior: ScrollBehavior = "auto") => {
-      window.cancelAnimationFrame(scrollAnimationFrame);
-      scrollAnimationFrame = 0;
-      window.clearTimeout(settleTimer);
-      applyingLock = true;
-
-      if (behavior === "smooth" && Math.abs(window.scrollY - top) > 0.5) {
-        const startTop = Math.max(0, window.scrollY);
-        const distance = top - startTop;
-        const duration = Math.min(280, Math.max(190, Math.abs(distance) * 3.4));
-        const startedAt = performance.now();
-
-        const animate = (timestamp: number) => {
-          const progress = Math.min(1, (timestamp - startedAt) / duration);
-          const eased =
-            progress < 0.5
-              ? 4 * progress * progress * progress
-              : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-          window.scrollTo({
-            top: startTop + distance * eased,
-            left: 0,
-            behavior: "auto",
-          });
-          lockFixedControlsDuringPull();
-
-          if (progress < 1) {
-            scrollAnimationFrame = window.requestAnimationFrame(animate);
-            return;
-          }
-
-          scrollAnimationFrame = 0;
-          window.scrollTo({ top, left: 0, behavior: "auto" });
-          settleTimer = window.setTimeout(() => {
-            applyingLock = false;
-          }, 32);
-        };
-
-        scrollAnimationFrame = window.requestAnimationFrame(animate);
-        return;
-      }
-
-      window.scrollTo({ top, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = top;
-      document.body.scrollTop = top;
-      lastScrollPosition = top;
-      lastScrollTime = performance.now();
-      settleTimer = window.setTimeout(() => {
-        applyingLock = false;
-      }, 32);
-    };
-
-    const lockFixedControlsDuringPull = () => {
-      const pullDistance = Math.max(0, -window.scrollY);
-      root.style.setProperty(
-        "--fixed-controls-pull-counter",
-        `${-pullDistance}px`,
-      );
-    };
-
-    const stopPullHandoffAtLockedTop = () => {
-      window.clearTimeout(pullHandoffDelayTimer);
-      pullHandoffDelayTimer = 0;
-      if (!pullHandoffActive) return;
-      window.cancelAnimationFrame(pullHandoffAnimationFrame);
-      pullHandoffAnimationFrame = 0;
-      pullHandoffActive = false;
-
-      const lockedTop = leadingImageScrollLockRef.current;
-      const visualOffset = pullOffset - (window.scrollY - lockedTop);
-      setPullOffset(visualOffset);
-      window.scrollTo({ top: lockedTop, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = lockedTop;
-      document.body.scrollTop = lockedTop;
-      applyingLock = false;
-      lastScrollPosition = lockedTop;
-      lastScrollTime = performance.now();
-    };
-
-    const handPullOffsetBackToNativeScroll = () => {
-      window.clearTimeout(pullHandoffDelayTimer);
-      window.cancelAnimationFrame(pullHandoffAnimationFrame);
-      pullHandoffAnimationFrame = 0;
-      pullHandoffActive = false;
-
-      /*
-       * Leave the visual offset untouched briefly. A quick reverse gesture can
-       * then continue with the exact same owner instead of interrupting a
-       * compositor handoff that Safari has already started.
-       */
-      pullHandoffDelayTimer = window.setTimeout(() => {
-        pullHandoffDelayTimer = 0;
-        const lockedTop = leadingImageScrollLockRef.current;
-        const startingOffset = pullOffset;
-        if (touchIsActive || lockedTop <= 0 || startingOffset >= 0) return;
-
-        pullHandoffActive = true;
-        applyingLock = true;
-        const maximumScrollTop = Math.max(
-          lockedTop,
-          document.documentElement.scrollHeight - window.innerHeight,
-        );
-        const targetScrollTop = Math.min(
-          lockedTop - startingOffset,
-          maximumScrollTop,
-        );
-        const startedAt = performance.now();
-        const duration = 96;
-
-        const step = (time: number) => {
-          if (!pullHandoffActive) return;
-          const progress = Math.min(1, (time - startedAt) / duration);
-          const eased = 1 - Math.pow(1 - progress, 3);
-          const requestedScrollTop =
-            lockedTop + (targetScrollTop - lockedTop) * eased;
-
-          window.scrollTo({ top: requestedScrollTop, left: 0, behavior: "auto" });
-          const actualScrollTop = window.scrollY;
-          /*
-           * Native scroll and the canvas offset move in equal, opposite amounts.
-           * Their sum therefore stays fixed while Safari takes ownership back,
-           * even when its compositor commits the scroll a frame later.
-           */
-          setPullOffset(startingOffset + (actualScrollTop - lockedTop));
-          lastScrollPosition = actualScrollTop;
-          lastScrollTime = time;
-          lockFixedControlsDuringPull();
-
-          const waitingForSafari =
-            Math.abs(actualScrollTop - targetScrollTop) > 0.5 &&
-            time - startedAt < 240;
-          if (progress < 1 || waitingForSafari) {
-            pullHandoffAnimationFrame = window.requestAnimationFrame(step);
-            return;
-          }
-
-          if (
-            Math.abs(startingOffset + (actualScrollTop - lockedTop)) <= 0.5
-          ) {
-            setPullOffset(0);
-          }
-          pullVelocity = 0;
-          pullHandoffAnimationFrame = 0;
-          pullHandoffActive = false;
-          applyingLock = false;
-        };
-
-        pullHandoffAnimationFrame = window.requestAnimationFrame(step);
-      }, 320);
-    };
-
-    const settleLockedTop = (behavior: ScrollBehavior = "smooth") => {
-      const offset = leadingImageScrollLockRef.current;
-      if (!touchIsActive && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset, behavior);
-      }
-    };
-
-    const absorbNativeScrollGap = () => {
-      const offset = leadingImageScrollLockRef.current;
-      const nativeGap = Math.max(0, offset - window.scrollY);
-      if (offset <= 0 || nativeGap <= 0.25) return false;
-
-      setPullOffset(pullOffset + nativeGap);
-      setScrollTop(offset, "auto");
-      return true;
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      touchIsActive = true;
-      anchorBounceActive = false;
-      window.clearTimeout(anchorBounceQuietTimer);
-      lastTouchY = event.touches[0]?.clientY ?? 0;
-      lastTouchTime = performance.now();
-      stopPullAnimation();
-      stopPullHandoffAtLockedTop();
-      const lockedTop = leadingImageScrollLockRef.current;
-      const manualGestureDistance = Math.min(
-        1000,
-        Math.max(520, window.innerHeight * 1.15),
-      );
-      const startsInsideManualTopZone =
-        lockedTop > 0 && window.scrollY <= lockedTop + manualGestureDistance;
-      rubberBandActive =
-        startsInsideManualTopZone || Math.abs(pullOffset) > 0.1;
-      manualStartOffset = pullOffset > 0
-        ? rawDistanceFromRubberBand(pullOffset)
-        : Math.abs(pullOffset) > 0.1
-          ? pullOffset
-          : lockedTop - window.scrollY;
-      pullStartY = lastTouchY;
-      pullVelocity = 0;
-      scrollVelocity = 0;
-      lastScrollPosition = window.scrollY;
-      lastScrollTime = performance.now();
-      applyingLock = false;
-      window.cancelAnimationFrame(scrollAnimationFrame);
-      scrollAnimationFrame = 0;
-      window.clearTimeout(settleTimer);
-      lockFixedControlsDuringPull();
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      const touchY = event.touches[0]?.clientY;
-      if (touchY === undefined) return;
-      const lockedTop = leadingImageScrollLockRef.current;
-      const now = performance.now();
-      const elapsed = Math.max(1, now - lastTouchTime);
-
-      if (rubberBandActive) {
-        event.preventDefault();
-
-        window.scrollTo({ top: lockedTop, left: 0, behavior: "auto" });
-        document.documentElement.scrollTop = lockedTop;
-        document.body.scrollTop = lockedTop;
-
-        const rawOffset = manualStartOffset + (touchY - pullStartY);
-        const nextPullOffset =
-          rawOffset <= 0 ? rawOffset : rubberBandDistance(rawOffset);
-        const instantaneousVelocity = (nextPullOffset - pullOffset) / elapsed;
-        pullVelocity = pullVelocity * 0.3 + instantaneousVelocity * 0.7;
-        setPullOffset(nextPullOffset);
-        lastTouchY = touchY;
-        lastTouchTime = now;
-        return;
-      }
-
-      lastTouchY = touchY;
-      lastTouchTime = now;
-    };
-
-    const handleTouchRelease = (event: TouchEvent) => {
-      if (!touchIsActive || event.touches.length > 0) return;
-      touchIsActive = false;
-      const shouldSpring =
-        rubberBandActive ||
-        pullOffset > 0.1 ||
-        window.scrollY < leadingImageScrollLockRef.current;
-      lastTouchY = 0;
-      lastTouchTime = 0;
-      pullStartY = 0;
-      manualStartOffset = 0;
-      rubberBandActive = false;
-      lockFixedControlsDuringPull();
-
-      if (pullOffset < 0 && pullVelocity <= 0.02) {
-        pullVelocity = 0;
-        handPullOffsetBackToNativeScroll();
-        return;
-      }
-
-      const absorbedNativeGap = absorbNativeScrollGap();
-      if (shouldSpring || absorbedNativeGap) {
-        springPullBack();
-      } else {
-        settleLockedTop();
-      }
-    };
-
-    const handleTouchCancel = () => {
-      if (!touchIsActive) return;
-      touchIsActive = false;
-      lastTouchY = 0;
-      lastTouchTime = 0;
-      pullStartY = 0;
-      manualStartOffset = 0;
-      rubberBandActive = false;
-      lockFixedControlsDuringPull();
-
-      if (pullOffset < 0) {
-        pullVelocity = 0;
-        handPullOffsetBackToNativeScroll();
-        return;
-      }
-
-      const absorbedNativeGap = absorbNativeScrollGap();
-      if (pullOffset > 0.1 || absorbedNativeGap) {
-        springPullBack();
-      } else {
-        settleLockedTop();
-      }
-    };
-
-    const preserveLockedTopAfterLayout = () => {
-      const offset = leadingImageScrollLockRef.current;
-      if (!touchIsActive && !applyingLock && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset, "auto");
-      }
-    };
-
-    const handleLockedTopScroll = () => {
-      const now = performance.now();
-      const currentScrollPosition = window.scrollY;
-      const previousScrollPosition = lastScrollPosition;
-      const elapsed = now - lastScrollTime;
-
-      if (touchIsActive) {
-        lastScrollPosition = currentScrollPosition;
-        lastScrollTime = now;
-        lockFixedControlsDuringPull();
-        return;
-      }
-
-      if (!applyingLock && !anchorBounceActive && elapsed > 0 && elapsed < 120) {
-        const currentVelocity =
-          (currentScrollPosition - lastScrollPosition) / elapsed;
-        scrollVelocity = scrollVelocity * 0.28 + currentVelocity * 0.72;
-      } else if (!applyingLock && !anchorBounceActive && elapsed >= 120) {
-        scrollVelocity = 0;
-      }
-
-      lastScrollPosition = currentScrollPosition;
-      lastScrollTime = now;
-      lockFixedControlsDuringPull();
-
-      const lockedTop = leadingImageScrollLockRef.current;
-      if (anchorBounceActive) {
-        /*
-         * Every top spring exclusively owns the visual offset until it and
-         * Safari's remaining inertial events have both settled. This covers
-         * momentum handoffs, raw native-gap absorption, and touch-release
-         * springs without ever cancelling and restarting the active rebound.
-         */
-        if (lockedTop > 0 && Math.abs(currentScrollPosition - lockedTop) > 0.25) {
-          setScrollTop(lockedTop, "auto");
-        }
-        endAnchorBounceAfterQuietPeriod();
-        return;
-      }
-
-      if (applyingLock) return;
-
-      const incomingSpeed = Math.max(0, -scrollVelocity);
-      const frameTravel = Math.max(
-        0,
-        previousScrollPosition - currentScrollPosition,
-      );
-      const momentumHandoffDistance = Math.min(
-        64,
-        Math.max(2, frameTravel * 1.2, incomingSpeed * 8),
-      );
-      const approachingLockedTopWithMomentum =
-        lockedTop > 0 &&
-        currentScrollPosition <= lockedTop + momentumHandoffDistance &&
-        scrollVelocity < -0.035;
-
-      if (approachingLockedTopWithMomentum) {
-        /*
-         * Transfer the exact visible position into the compositor before
-         * pinning native scroll. A negative offset represents the remaining
-         * distance above the artificial top, so the spring crosses the anchor
-         * continuously instead of correcting upward and starting downward
-         * again on the next frame.
-         */
-        setPullOffset(lockedTop - currentScrollPosition);
-        setScrollTop(lockedTop, "auto");
-        const incomingMomentum = Math.min(
-          1.35,
-          0.34 + Math.pow(incomingSpeed, 0.78) * 0.82,
-        );
-        pullVelocity = Math.max(
-          pullVelocity,
-          incomingMomentum,
-        );
-        springPullBack();
-        return;
-      }
-
-      const absorbedNativeGap = absorbNativeScrollGap();
-      if (absorbedNativeGap) {
-        pullVelocity = 0;
-        springPullBack();
-      }
-    };
-
-    const calculateLeadingImageLock = () => {
-      let offset = 0;
+    const calculateLeadingImageOffset = () => {
+      const stripIsVisible =
+        view === "edit" || view === "preview" || view === "published";
       const isIOS =
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      const stripIsVisible =
-        view === "edit" || view === "preview" || view === "published";
 
       if (
-        stripIsVisible &&
-        hasLeadingImage &&
-        isIOS &&
-        window.screen.height / window.screen.width > 2
+        !stripIsVisible ||
+        !hasLeadingImage ||
+        !isIOS ||
+        window.screen.height / window.screen.width <= 2
       ) {
-        const probe = document.createElement("div");
-        probe.style.cssText =
-          "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
-        document.body.appendChild(probe);
-        const reportedSafeTop = Number.parseFloat(
-          window.getComputedStyle(probe).paddingTop,
-        );
-        probe.remove();
-
-        if (!Number.isFinite(reportedSafeTop) || reportedSafeTop < 1) {
-          offset = Math.round(
-            Math.min(62, Math.max(47, window.screen.width * 0.154)),
-          );
-        }
+        return 0;
       }
 
-      return offset;
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
+      document.body.appendChild(probe);
+      const reportedSafeTop = Number.parseFloat(
+        window.getComputedStyle(probe).paddingTop,
+      );
+      probe.remove();
+
+      if (Number.isFinite(reportedSafeTop) && reportedSafeTop >= 1) return 0;
+      return Math.round(
+        Math.min(62, Math.max(47, window.screen.width * 0.154)),
+      );
     };
 
-    const applyLeadingImageLock = () => {
-      const previousOffset = leadingImageScrollLockRef.current;
-      const offset = calculateLeadingImageLock();
-      leadingImageScrollLockRef.current = offset;
-      root.style.setProperty("--leading-image-scroll-lock", `${offset}px`);
-      root.classList.toggle("leading-image-scroll-locked", offset > 0);
-
-      if (!touchIsActive && offset > 0 && window.scrollY < offset) {
-        setScrollTop(offset, "auto");
-      } else if (
-        !touchIsActive &&
-        offset === 0 &&
-        previousOffset > 0 &&
-        window.scrollY <= previousOffset
-      ) {
-        setScrollTop(0);
-      }
-    };
-
-    applyLeadingImageLock();
-    lockFixedControlsDuringPull();
-    frame = window.requestAnimationFrame(() => {
-      applyLeadingImageLock();
-      followupFrame = window.requestAnimationFrame(applyLeadingImageLock);
-    });
-    window.addEventListener("scroll", handleLockedTopScroll, { passive: true });
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
-    window.addEventListener("touchend", handleTouchRelease, { passive: true });
-    window.addEventListener("touchcancel", handleTouchCancel, { passive: true });
-    window.addEventListener("resize", applyLeadingImageLock);
-
-    const stripCanvas = document.querySelector<HTMLElement>(".strip-canvas");
-    if (stripCanvas) {
-      mutationObserver = new MutationObserver(preserveLockedTopAfterLayout);
-      mutationObserver.observe(stripCanvas, {
-        childList: true,
-        subtree: true,
-      });
-
-      resizeObserver = new ResizeObserver(preserveLockedTopAfterLayout);
-      resizeObserver.observe(stripCanvas);
-    }
+    const offset = calculateLeadingImageOffset();
+    leadingImageInsetRef.current = offset;
+    root.style.setProperty("--leading-image-inset", `${offset}px`);
+    root.classList.toggle("leading-image-inset-active", offset > 0);
 
     return () => {
-      window.cancelAnimationFrame(frame);
-      window.cancelAnimationFrame(followupFrame);
-      window.cancelAnimationFrame(scrollAnimationFrame);
-      window.cancelAnimationFrame(pullAnimationFrame);
-      window.cancelAnimationFrame(pullHandoffAnimationFrame);
-      window.clearTimeout(pullHandoffDelayTimer);
-      window.clearTimeout(settleTimer);
-      window.clearTimeout(anchorBounceQuietTimer);
-      mutationObserver?.disconnect();
-      resizeObserver?.disconnect();
-      window.removeEventListener("scroll", handleLockedTopScroll);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchRelease);
-      window.removeEventListener("touchcancel", handleTouchCancel);
-      window.removeEventListener("resize", applyLeadingImageLock);
-      root.classList.remove("leading-image-scroll-locked");
-      root.style.removeProperty("--leading-image-scroll-lock");
-      root.style.removeProperty("--leading-image-pull-offset");
-      root.style.removeProperty("--fixed-controls-pull-counter");
+      leadingImageInsetRef.current = 0;
+      root.classList.remove("leading-image-inset-active");
+      root.style.removeProperty("--leading-image-inset");
     };
   }, [hasLeadingImage, view]);
 
@@ -2801,7 +2252,7 @@ export default function Home() {
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
       const centeredTop =
         window.scrollY + bounds.top - Math.max(0, (viewportHeight - bounds.height) / 2);
-      const targetTop = Math.max(leadingImageScrollLockRef.current, centeredTop);
+      const targetTop = Math.max(0, centeredTop);
       window.scrollTo({ top: targetTop, behavior: "smooth" });
     });
   };
@@ -2969,7 +2420,7 @@ export default function Home() {
     if (textWillBecomeTop) {
       const root = document.documentElement;
       const releaseOffset = Math.max(
-        leadingImageScrollLockRef.current,
+        leadingImageInsetRef.current,
         Math.ceil(window.scrollY),
         Math.round(Math.min(62, Math.max(47, window.screen.width * 0.154))),
       );

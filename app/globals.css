@@ -9,8 +9,7 @@
   --line: rgba(255, 255, 255, 0.14);
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
-  --leading-image-scroll-lock: 0px;
-  --leading-image-pull-offset: 0px;
+  --leading-image-inset: 0px;
 }
 
 * {
@@ -117,10 +116,10 @@ html.strip-standard-page-entering .app-shell {
   animation: strip-standard-page-enter 180ms ease-out backwards;
 }
 
-html.leading-image-scroll-locked,
-html.leading-image-scroll-locked body,
-html.leading-image-scroll-locked .app-shell,
-html.leading-image-scroll-locked .strip-canvas {
+html.leading-image-inset-active,
+html.leading-image-inset-active body,
+html.leading-image-inset-active .app-shell,
+html.leading-image-inset-active .strip-canvas {
   overflow-anchor: none;
 }
 
@@ -244,7 +243,7 @@ textarea:focus-visible,
 }
 
 .app-shell.has-leading-image {
-  min-height: calc(100lvh + var(--leading-image-scroll-lock));
+  min-height: calc(100lvh + var(--leading-image-inset));
 }
 
 html.is-releasing-leading-image-scroll .app-shell.editor-mode {
@@ -270,10 +269,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .has-leading-image .top-safe-area-anchor {
   display: none;
-}
-
-.composer-dock {
-  translate: 0 var(--fixed-controls-pull-counter, 0px);
 }
 
 .library-mode,
@@ -2100,11 +2095,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
-    margin-top: calc(-1 * env(safe-area-inset-top));
+    margin-top: calc(
+      0px - env(safe-area-inset-top) - var(--leading-image-inset)
+    );
     margin-bottom: 0;
     padding-top: 0;
-    transform: translate3d(0, var(--leading-image-pull-offset), 0);
-    will-change: transform;
   }
 
   .app-shell::after {
