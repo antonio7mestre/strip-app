@@ -68,7 +68,7 @@ export async function GET(
 
   const row = ownerId
     ? await env.DB.prepare(
-        `SELECT id, owner_id, title, cover_kind, cover_color, cover_alt,
+        `SELECT id, owner_id, title, cover_kind, cover_color, cover_shape, cover_alt,
           content_json, published_at
          FROM strips
          WHERE id = ? AND owner_id = ?`,
@@ -80,12 +80,13 @@ export async function GET(
           title: string;
           cover_kind: "image" | "color";
           cover_color: string | null;
+          cover_shape: "portrait" | "square" | "landscape" | null;
           cover_alt: string | null;
           content_json: string;
           published_at: number;
         }>()
     : await env.DB.prepare(
-        `SELECT id, owner_id, title, cover_kind, cover_color, cover_alt,
+        `SELECT id, owner_id, title, cover_kind, cover_color, cover_shape, cover_alt,
           content_json, published_at
          FROM strips
          WHERE id = ?`,
@@ -97,6 +98,7 @@ export async function GET(
           title: string;
           cover_kind: "image" | "color";
           cover_color: string | null;
+          cover_shape: "portrait" | "square" | "landscape" | null;
           cover_alt: string | null;
           content_json: string;
           published_at: number;
@@ -168,6 +170,21 @@ export async function GET(
     strip: {
       id: row.id,
       title: row.title,
+      cover:
+        row.cover_kind === "image"
+          ? {
+              kind: "image" as const,
+              src: coverPath(row.owner_id, id),
+              alt: row.cover_alt ?? "Strip cover",
+            }
+          : {
+              kind: "color" as const,
+              color: row.cover_color ?? "#2147D9",
+              shape:
+                row.cover_shape === "portrait" || row.cover_shape === "landscape"
+                  ? row.cover_shape
+                  : "square",
+            },
       publishedAt: row.published_at,
       blocks,
     },

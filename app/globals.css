@@ -994,6 +994,146 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   font-size: 13px;
 }
 
+.share-mode {
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--black);
+  color: var(--white);
+}
+
+.share-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  overflow-y: auto;
+  padding: calc(env(safe-area-inset-top) + 18px)
+    max(20px, env(safe-area-inset-right))
+    calc(92px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+  background: var(--black);
+}
+
+.share-heading {
+  width: min(100%, 560px);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.share-heading > span {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.share-heading h1 {
+  margin: 0;
+  font-size: clamp(26px, 7vw, 42px);
+  font-weight: 580;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.share-heading p {
+  max-width: 330px;
+  margin: 9px auto 0;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.story-asset-stage {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+}
+
+.story-asset-preview,
+.story-asset-loading {
+  display: block;
+  width: auto;
+  height: min(52dvh, 600px);
+  max-width: min(100%, 338px);
+  aspect-ratio: 9 / 16;
+  background: #0b0b0b;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.52);
+}
+
+.story-asset-preview {
+  object-fit: contain;
+}
+
+.story-asset-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 12px;
+}
+
+.story-asset-loading span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: story-asset-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes story-asset-pulse {
+  to {
+    transform: scale(0.55);
+    opacity: 0.3;
+  }
+}
+
+.share-link-button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  justify-self: center;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-link-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.share-dock .dock-controls-current {
+  width: min(100%, 560px);
+}
+
+.share-story-button {
+  display: flex;
+  flex-direction: row;
+  gap: 7px;
+}
+
+.share-story-button svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2;
+}
+
 .cover-picker {
   display: flex;
   min-height: 0;

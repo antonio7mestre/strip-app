@@ -20,11 +20,13 @@ import {
   Files,
   House,
   ImagePlus,
+  Link2,
   Minus,
   PaintBucket,
   Pencil,
   Pipette,
   Plus,
+  Share2,
   Sticker,
   Trash2,
   Type,
@@ -81,6 +83,7 @@ type View =
   | "preview"
   | "publish-setup"
   | "title-setup"
+  | "share"
   | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
@@ -97,6 +100,7 @@ type PublishedStripSummary = {
 type PublishedStripDetail = {
   id: string;
   title: string;
+  cover: PublishedCover;
   publishedAt: number;
   blocks: StripBlock[];
 };
@@ -118,6 +122,7 @@ type AppRoute =
   | { kind: "library" }
   | { kind: "drafts" }
   | { kind: "edit"; id: string }
+  | { kind: "share"; id: string }
   | { kind: "published"; id: string };
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
@@ -278,6 +283,8 @@ function makeId() {
 function routeFromPathname(pathname: string): AppRoute {
   const editMatch = /^\/edit\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (editMatch) return { kind: "edit", id: editMatch[1] };
+  const shareMatch = /^\/share\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
+  if (shareMatch) return { kind: "share", id: shareMatch[1] };
   const publishedMatch = /^\/strip\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (publishedMatch) return { kind: "published", id: publishedMatch[1] };
   if (/^\/drafts\/?$/.test(pathname)) return { kind: "drafts" };
@@ -469,6 +476,289 @@ function contrastColor(color: string) {
         .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
     : 0;
   return luminance > 0.179 ? "#000000" : "#FFFFFF";
+}
+
+function normalizeStoryColor(color: string, fallback = DEFAULT_BACKGROUND) {
+  const compact = color.trim().replace("#", "");
+  const expanded =
+    compact.length === 3
+      ? compact
+          .split("")
+          .map((channel) => `${channel}${channel}`)
+          .join("")
+      : compact;
+  return /^[0-9a-f]{6}$/i.test(expanded) ? `#${expanded.toUpperCase()}` : fallback;
+}
+
+function colorWithAlpha(color: string, alpha: number) {
+  const [red, green, blue] = colorChannels(normalizeStoryColor(color));
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function mixStoryColors(color: string, target: string, amount: number) {
+  const sourceChannels = colorChannels(normalizeStoryColor(color));
+  const targetChannels = colorChannels(normalizeStoryColor(target));
+  const mixed = sourceChannels.map((channel, index) =>
+    Math.round(channel + (targetChannels[index] - channel) * amount),
+  );
+  return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function storyPalette(strip: PublishedStripDetail) {
+  const colors = strip.blocks.flatMap((block) =>
+    block.type === "text" && block.backgroundColor
+      ? [normalizeStoryColor(block.backgroundColor)]
+      : [],
+  );
+  if (strip.cover.kind === "color") {
+    colors.unshift(normalizeStoryColor(strip.cover.color));
+  }
+  return Array.from(new Set(colors)).slice(0, 4);
+}
+
+function roundedCanvasPath(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.lineTo(x + width - safeRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  context.lineTo(x + width, y + height - safeRadius);
+  context.quadraticCurveTo(
+    x + width,
+    y + height,
+    x + width - safeRadius,
+    y + height,
+  );
+  context.lineTo(x + safeRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  context.lineTo(x, y + safeRadius);
+  context.quadraticCurveTo(x, y, x + safeRadius, y);
+  context.closePath();
+}
+
+function loadStoryImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Story cover could not load"));
+    image.src = src;
+  });
+}
+
+function drawImageCover(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const imageRatio = image.naturalWidth / image.naturalHeight;
+  const targetRatio = width / height;
+  const sourceWidth = imageRatio > targetRatio
+    ? image.naturalHeight * targetRatio
+    : image.naturalWidth;
+  const sourceHeight = imageRatio > targetRatio
+    ? image.naturalHeight
+    : image.naturalWidth / targetRatio;
+  const sourceX = (image.naturalWidth - sourceWidth) / 2;
+  const sourceY = (image.naturalHeight - sourceHeight) / 2;
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    x,
+    y,
+    width,
+    height,
+  );
+}
+
+function drawCenteredStoryTitle(
+  context: CanvasRenderingContext2D,
+  title: string,
+  centerX: number,
+  top: number,
+  maxWidth: number,
+) {
+  const words = title.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let currentLine = "";
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    if (context.measureText(candidate).width <= maxWidth || !currentLine) {
+      currentLine = candidate;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+      if (lines.length === 2) break;
+    }
+  }
+  if (currentLine && lines.length < 2) lines.push(currentLine);
+  if (lines.length === 2 && words.join(" ") !== lines.join(" ")) {
+    let lastLine = lines[1];
+    while (lastLine.length > 1 && context.measureText(`${lastLine}…`).width > maxWidth) {
+      lastLine = lastLine.slice(0, -1);
+    }
+    lines[1] = `${lastLine.trimEnd()}…`;
+  }
+  lines.forEach((line, index) => context.fillText(line, centerX, top + index * 72));
+}
+
+async function createInstagramStoryAsset(strip: PublishedStripDetail) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Story canvas is unavailable");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
+  const palette = storyPalette(strip);
+  let coverImage: HTMLImageElement | null = null;
+  if (strip.cover.kind === "image") {
+    coverImage = await loadStoryImage(strip.cover.src);
+  }
+
+  const coverColor =
+    strip.cover.kind === "color"
+      ? normalizeStoryColor(strip.cover.color)
+      : palette[0] ?? "#3155FF";
+  const alternateColor = palette.find((color) => color !== coverColor);
+  const backgroundColor =
+    strip.cover.kind === "color"
+      ? alternateColor ??
+        mixStoryColors(
+          coverColor,
+          contrastColor(coverColor) === "#FFFFFF" ? "#FFFFFF" : "#000000",
+          0.22,
+        )
+      : DEFAULT_BACKGROUND;
+
+  context.fillStyle = backgroundColor;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (coverImage) {
+    context.save();
+    context.filter = "blur(78px) saturate(0.92)";
+    drawImageCover(context, coverImage, -110, -110, 1300, 2140);
+    context.restore();
+    context.fillStyle = "rgba(0, 0, 0, 0.44)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    const wash = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    wash.addColorStop(0, colorWithAlpha(coverColor, 0.12));
+    wash.addColorStop(0.62, "rgba(0, 0, 0, 0)");
+    wash.addColorStop(1, colorWithAlpha(contrastColor(backgroundColor), 0.08));
+    context.fillStyle = wash;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  const foreground = coverImage ? "#FFFFFF" : contrastColor(backgroundColor);
+  context.fillStyle = foreground;
+  context.textBaseline = "top";
+  context.textAlign = "left";
+  context.font = '700 38px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+  context.letterSpacing = "5px";
+  context.fillText("STRIP", 72, 76);
+  context.letterSpacing = "0px";
+
+  const maxCoverWidth = 858;
+  const maxCoverHeight = 980;
+  let coverWidth = maxCoverWidth;
+  let coverHeight = 858;
+  if (coverImage) {
+    const ratio = coverImage.naturalWidth / coverImage.naturalHeight;
+    coverWidth = Math.min(maxCoverWidth, maxCoverHeight * ratio);
+    coverHeight = coverWidth / ratio;
+    if (coverHeight > maxCoverHeight) {
+      coverHeight = maxCoverHeight;
+      coverWidth = coverHeight * ratio;
+    }
+  } else if (strip.cover.kind === "color") {
+    if (strip.cover.shape === "portrait") {
+      coverWidth = 690;
+      coverHeight = 920;
+    } else if (strip.cover.shape === "landscape") {
+      coverWidth = 890;
+      coverHeight = 650;
+    }
+  }
+  const coverX = (canvas.width - coverWidth) / 2;
+  const coverY = 210;
+  if (coverImage) {
+    context.drawImage(coverImage, coverX, coverY, coverWidth, coverHeight);
+  } else {
+    context.fillStyle = coverColor;
+    context.fillRect(coverX, coverY, coverWidth, coverHeight);
+  }
+
+  const titleTop = Math.min(1290, coverY + coverHeight + 72);
+  context.fillStyle = foreground;
+  context.textAlign = "center";
+  context.font = '600 62px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+  drawCenteredStoryTitle(
+    context,
+    strip.title.trim() || "Untitled",
+    canvas.width / 2,
+    titleTop,
+    870,
+  );
+
+  const linkZoneWidth = 560;
+  const linkZoneHeight = 132;
+  const linkZoneX = (canvas.width - linkZoneWidth) / 2;
+  const linkZoneY = 1530;
+  roundedCanvasPath(
+    context,
+    linkZoneX,
+    linkZoneY,
+    linkZoneWidth,
+    linkZoneHeight,
+    linkZoneHeight / 2,
+  );
+  context.fillStyle = foreground === "#FFFFFF"
+    ? "rgba(255, 255, 255, 0.10)"
+    : "rgba(0, 0, 0, 0.08)";
+  context.fill();
+  context.lineWidth = 3;
+  context.strokeStyle = foreground === "#FFFFFF"
+    ? "rgba(255, 255, 255, 0.64)"
+    : "rgba(0, 0, 0, 0.50)";
+  context.stroke();
+
+  context.fillStyle = foreground;
+  context.globalAlpha = 0.62;
+  context.textAlign = "center";
+  context.font = '500 28px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+  context.fillText("made with STRIP", canvas.width / 2, 1780);
+  context.globalAlpha = 1;
+
+  const accentColors = palette.length > 0 ? palette : [coverColor];
+  const accentWidth = canvas.width / accentColors.length;
+  accentColors.forEach((color, index) => {
+    context.fillStyle = color;
+    context.fillRect(index * accentWidth, 1906, accentWidth + 1, 14);
+  });
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => (result ? resolve(result) : reject(new Error("Story image failed"))),
+      "image/png",
+    );
+  });
+  return blob;
 }
 
 function sampleVisualBottomColor(
@@ -2043,6 +2333,9 @@ export default function Home() {
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [currentDraftCreatedAt, setCurrentDraftCreatedAt] = useState(0);
   const [publishing, setPublishing] = useState(false);
+  const [storyAssetFile, setStoryAssetFile] = useState<File | null>(null);
+  const [storyAssetUrl, setStoryAssetUrl] = useState("");
+  const [storyAssetLoading, setStoryAssetLoading] = useState(false);
   const [view, setView] = useState<View>("library");
   const [initialRouteReady, setInitialRouteReady] = useState(false);
   const [legacyPageTransition, setLegacyPageTransition] =
@@ -2109,6 +2402,7 @@ export default function Home() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSequenceRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const storyAssetObjectUrlRef = useRef("");
   const blockTapGestureRef = useRef<{
     blockId: string;
     pointerId: number;
@@ -2161,7 +2455,8 @@ export default function Home() {
     view === "library" ||
     view === "drafts" ||
     view === "publish-setup" ||
-    view === "title-setup"
+    view === "title-setup" ||
+    view === "share"
       ? DEFAULT_BACKGROUND
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
@@ -2432,6 +2727,53 @@ export default function Home() {
     document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
     document.documentElement.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
+
+  useEffect(() => {
+    if (view !== "share" || !openedPublishedStrip) return;
+    let cancelled = false;
+    setStoryAssetLoading(true);
+    setStoryAssetFile(null);
+    setStoryAssetUrl("");
+
+    void createInstagramStoryAsset(openedPublishedStrip)
+      .then((blob) => {
+        if (cancelled) return;
+        if (storyAssetObjectUrlRef.current) {
+          URL.revokeObjectURL(storyAssetObjectUrlRef.current);
+        }
+        const filenameBase = (openedPublishedStrip.title.trim() || "untitled")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 48) || "strip";
+        const file = new File([blob], `${filenameBase}-story.png`, {
+          type: "image/png",
+        });
+        const assetUrl = URL.createObjectURL(blob);
+        storyAssetObjectUrlRef.current = assetUrl;
+        setStoryAssetFile(file);
+        setStoryAssetUrl(assetUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setNotice("Couldn’t build your Story image. Try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setStoryAssetLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [openedPublishedStrip, view]);
+
+  useEffect(
+    () => () => {
+      if (storyAssetObjectUrlRef.current) {
+        URL.revokeObjectURL(storyAssetObjectUrlRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -3739,7 +4081,7 @@ export default function Home() {
           const data = (await response.json()) as { strip: PublishedStripDetail };
           if (cancelled) return;
           setOpenedPublishedStrip(data.strip);
-          setView("published");
+          setView(route.kind === "share" ? "share" : "published");
           window.scrollTo({ top: 0, behavior: "auto" });
         } catch {
           if (cancelled) return;
@@ -3810,9 +4152,7 @@ export default function Home() {
       };
       setPublishedStrips((current) => [data.strip, ...current]);
       setOpenedPublishedStrip({
-        id: stripId,
-        title: stripTitle.trim(),
-        publishedAt,
+        ...data.strip,
         blocks,
       });
       if (currentDraftId) {
@@ -3840,8 +4180,8 @@ export default function Home() {
       setCustomCoverSrc(null);
       setCustomCoverColors([]);
       setCoverColorShape("square");
-      setBrowserPath(`/strip/${encodeURIComponent(stripId)}`);
-      await transitionToView("published", "forward", "top", false);
+      setBrowserPath(`/share/${encodeURIComponent(stripId)}`);
+      await transitionToView("share", "forward", "top", false);
     } catch {
       setNotice("Couldn’t publish this Strip. Try again.");
     } finally {
@@ -3856,6 +4196,51 @@ export default function Home() {
       setNotice("Link copied.");
     } catch {
       setNotice("Copy the address from your browser.");
+    }
+  };
+
+  const copyPublishedStripLink = async () => {
+    if (!openedPublishedStrip) return;
+    const stripUrl = `${window.location.origin}/strip/${encodeURIComponent(
+      openedPublishedStrip.id,
+    )}`;
+    try {
+      await navigator.clipboard.writeText(stripUrl);
+      setNotice("Strip link copied. Add it with Instagram’s link sticker.");
+    } catch {
+      setNotice("Copy the Strip link from its published page.");
+    }
+  };
+
+  const downloadStoryAsset = () => {
+    if (!storyAssetFile || !storyAssetUrl) return;
+    const link = document.createElement("a");
+    link.href = storyAssetUrl;
+    link.download = storyAssetFile.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setNotice("Story image saved. Add it to Instagram Stories.");
+  };
+
+  const shareStoryToInstagram = async () => {
+    if (!storyAssetFile) {
+      setNotice(storyAssetLoading ? "Finishing your Story image…" : "Try again.");
+      return;
+    }
+    const shareData: ShareData = { files: [storyAssetFile] };
+    const supportsFileSharing =
+      typeof navigator.share === "function" &&
+      (typeof navigator.canShare !== "function" || navigator.canShare(shareData));
+    if (!supportsFileSharing) {
+      downloadStoryAsset();
+      return;
+    }
+    try {
+      await navigator.share(shareData);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      downloadStoryAsset();
     }
   };
 
@@ -4458,6 +4843,80 @@ export default function Home() {
           >
             <Plus aria-hidden="true" />
           </button>
+          {notice ? <div className="notice">{notice}</div> : null}
+        </main>
+      </>
+    );
+  }
+
+  if (view === "share" && openedPublishedStrip) {
+    return (
+      <>
+        {legacyTransitionLayer}
+        <main className="app-shell share-mode">
+          <div
+            className={`top-safe-area-anchor ${legacyPageEnterClass}`}
+            style={{ backgroundColor: DEFAULT_BACKGROUND }}
+            aria-hidden="true"
+          />
+          <section
+            className={`share-shell ${legacyPageEnterClass}`}
+            aria-labelledby="share-heading"
+          >
+            <header className="share-heading">
+              <span>Published</span>
+              <h1 id="share-heading">Your Story is ready.</h1>
+              <p>Copy your link, then place its sticker in the empty space.</p>
+            </header>
+
+            <div className="story-asset-stage" aria-live="polite">
+              {storyAssetUrl ? (
+                <img
+                  className="story-asset-preview"
+                  src={storyAssetUrl}
+                  alt={`Instagram Story artwork for ${
+                    openedPublishedStrip.title || "Untitled"
+                  }`}
+                />
+              ) : (
+                <div className="story-asset-loading" aria-busy="true">
+                  <span />
+                  Building your Story…
+                </div>
+              )}
+            </div>
+
+            <button
+              className="share-link-button"
+              type="button"
+              onClick={() => void copyPublishedStripLink()}
+            >
+              <Link2 aria-hidden="true" />
+              <span>Copy Strip link</span>
+            </button>
+          </section>
+
+          <footer className="composer-dock share-dock publish-flow-dock">
+            <div className="dock-controls dock-controls-current">
+              <button
+                className="dock-icon-button publish-flow-button publish-flow-back-button"
+                type="button"
+                onClick={() => void returnToLibrary()}
+              >
+                Done
+              </button>
+              <button
+                className="dock-icon-button publish-icon-button publish-flow-button share-story-button"
+                type="button"
+                onClick={() => void shareStoryToInstagram()}
+                disabled={storyAssetLoading || !storyAssetFile}
+                aria-label="Share image to Instagram Story"
+              >
+                <Share2 aria-hidden="true" />
+                <span>{storyAssetLoading ? "Preparing…" : "Share to Story"}</span>
+              </button>
+            </div>
+          </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
