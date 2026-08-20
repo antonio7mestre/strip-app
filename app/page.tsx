@@ -590,6 +590,8 @@ function BlockControls({
   onRemove,
   onTextTool,
   activeTextTool,
+  onVideoAudio,
+  videoMuted,
   surfaceColor,
   imageSrc,
   stickerRotation,
@@ -600,18 +602,22 @@ function BlockControls({
   onRemove: () => void;
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
+  onVideoAudio?: () => void;
+  videoMuted?: boolean;
   surfaceColor?: string;
   imageSrc?: string;
   stickerRotation?: number;
 }) {
   const trayClass = onTextTool
     ? "is-text-tray"
-    : onMove
-      ? "is-media-tray"
-      : "is-single-action-tray";
+    : onVideoAudio
+      ? "is-video-tray"
+      : onMove
+        ? "is-media-tray"
+        : "is-single-action-tray";
   const edgeRef = useRef<SVGSVGElement>(null);
   const [edgeWidth, setEdgeWidth] = useState(0);
-  const trayWidth = onTextTool ? 336 : onMove ? 204 : 80;
+  const trayWidth = onTextTool ? 336 : onVideoAudio ? 248 : onMove ? 204 : 80;
   const edgeStart = Math.max(0, (edgeWidth - trayWidth) / 2);
   const edgeEnd = edgeStart + trayWidth;
   const edgePath = edgeWidth
@@ -716,6 +722,20 @@ function BlockControls({
               <Baseline className="block-glyph" aria-hidden="true" />
             </button>
           </>
+        ) : null}
+        {onVideoAudio ? (
+          <button
+            type="button"
+            onClick={onVideoAudio}
+            aria-label={videoMuted ? "Turn video sound on" : "Turn video sound off"}
+            aria-pressed={!videoMuted}
+          >
+            {videoMuted ? (
+              <VolumeX className="block-glyph" aria-hidden="true" />
+            ) : (
+              <Volume2 className="block-glyph" aria-hidden="true" />
+            )}
+          </button>
         ) : null}
         {onMove ? (
           <>
@@ -1073,6 +1093,8 @@ function StripVideoBlock({
   isEditing,
   isSelected,
   onSelect,
+  muted,
+  onToggleAudio,
   onFirstFrameColor,
   controls,
 }: {
@@ -1080,6 +1102,8 @@ function StripVideoBlock({
   isEditing: boolean;
   isSelected: boolean;
   onSelect: () => void;
+  muted: boolean;
+  onToggleAudio: () => void;
   onFirstFrameColor?: (color: string) => void;
   controls?: ReactNode;
 }) {
@@ -1090,8 +1114,6 @@ function StripVideoBlock({
     y: number;
     moved: boolean;
   } | null>(null);
-  const [muted, setMuted] = useState(true);
-
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -1115,15 +1137,6 @@ function StripVideoBlock({
     updatePlayback(bounds.bottom > 0 && bounds.top < window.innerHeight);
     return () => observer.disconnect();
   }, [block.src]);
-
-  const toggleAudio = () => {
-    const nextMuted = !muted;
-    if (videoRef.current) {
-      videoRef.current.muted = nextMuted;
-      if (!nextMuted) void videoRef.current.play().catch(() => {});
-    }
-    setMuted(nextMuted);
-  };
 
   return (
     <figure
@@ -1181,7 +1194,7 @@ function StripVideoBlock({
         type="button"
         onClick={(event) => {
           event.stopPropagation();
-          toggleAudio();
+          onToggleAudio();
         }}
         aria-label={muted ? "Turn video sound on" : "Turn video sound off"}
         aria-pressed={!muted}
@@ -1699,6 +1712,7 @@ function StripStickerBlock({
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
   const [imageTrayColors, setImageTrayColors] = useState<Record<string, string>>({});
+  const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
@@ -3575,6 +3589,34 @@ export default function Home() {
     }
   };
 
+  const toggleVideoAudio = (blockId: string) => {
+    const nextAudibleVideoId = audibleVideoId === blockId ? null : blockId;
+    const videos = Array.from(
+      document.querySelectorAll<HTMLVideoElement>(".video-block video"),
+    );
+
+    videos.forEach((video) => {
+      video.muted = true;
+    });
+
+    if (nextAudibleVideoId) {
+      const audibleVideo = videos.find(
+        (video) =>
+          video.closest<HTMLElement>(".video-block")?.dataset.blockId ===
+          nextAudibleVideoId,
+      );
+      if (audibleVideo) audibleVideo.muted = false;
+    }
+
+    videos.forEach((video) => {
+      const bounds = video.getBoundingClientRect();
+      if (bounds.bottom > 0 && bounds.top < window.innerHeight) {
+        void video.play().catch(() => {});
+      }
+    });
+    setAudibleVideoId(nextAudibleVideoId);
+  };
+
   const renderBlockControls = (block: StripBlock, index: number) => {
     if (selectedBlockId !== block.id) return null;
 
@@ -3598,6 +3640,10 @@ export default function Home() {
             : undefined
         }
         activeTextTool={activeTextTool}
+        onVideoAudio={
+          block.type === "video" ? () => toggleVideoAudio(block.id) : undefined
+        }
+        videoMuted={block.type === "video" ? audibleVideoId !== block.id : undefined}
         surfaceColor={
           block.type === "text"
             ? block.backgroundColor ?? DEFAULT_BACKGROUND
@@ -3832,6 +3878,8 @@ export default function Home() {
             block={block}
             isEditing={isEditing}
             isSelected={selectedBlockId === block.id}
+            muted={audibleVideoId !== block.id}
+            onToggleAudio={() => toggleVideoAudio(block.id)}
             onSelect={() => {
               if (!isEditing) return;
               if (selectedBlockId !== block.id) triggerSelectionHaptic();

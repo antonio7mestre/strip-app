@@ -634,19 +634,19 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   height: 32px;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.58);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #ffffff;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .video-audio-toggle svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.8;
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.34));
+  stroke-width: 2;
 }
 
 .video-audio-toggle:focus-visible {
@@ -1552,6 +1552,16 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   );
   clip-path: path(
     "M 0 0 H 336 C 329 0 324 5 324 12 V 30 C 324 44 312 56 298 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
+  );
+}
+
+.block-controls.is-video-tray {
+  width: 248px;
+  -webkit-clip-path: path(
+    "M 0 0 H 248 C 241 0 236 5 236 12 V 30 C 236 44 224 56 210 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
+  );
+  clip-path: path(
+    "M 0 0 H 248 C 241 0 236 5 236 12 V 30 C 236 44 224 56 210 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
 }
 
