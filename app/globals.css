@@ -1452,52 +1452,51 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .block-controls {
   position: absolute;
   z-index: 34;
-  top: calc(100% - 1px);
+  top: calc(100% - 0.5px);
   left: 50%;
   display: flex;
-  max-width: calc(100vw - 56px);
+  width: 184px;
+  height: 58px;
+  max-width: calc(100vw - 32px);
   align-items: center;
+  justify-content: center;
   gap: 2px;
   overflow: visible;
-  padding: 8px 12px 10px;
+  padding: 7px 18px 11px;
   transform: translateX(-50%);
   border: 0;
-  border-radius: 0 0 28px 28px;
   background: var(--white);
+  -webkit-clip-path: path(
+    "M 0 0 H 184 C 174 0 166 8 166 18 V 28 C 166 45 152 58 135 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+  );
+  clip-path: path(
+    "M 0 0 H 184 C 174 0 166 8 166 18 V 28 C 166 45 152 58 135 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+  );
   filter: drop-shadow(0 9px 14px rgba(0, 0, 0, 0.24));
-  isolation: isolate;
   scrollbar-width: none;
   transition:
     transform 180ms ease,
     opacity 140ms ease;
 }
 
-.block-controls::before,
-.block-controls::after {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  width: 18px;
-  height: 18px;
-  background: var(--white);
-  content: "";
-  pointer-events: none;
+.block-controls.is-text-tray {
+  width: 286px;
+  -webkit-clip-path: path(
+    "M 0 0 H 286 C 276 0 268 8 268 18 V 28 C 268 45 254 58 237 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+  );
+  clip-path: path(
+    "M 0 0 H 286 C 276 0 268 8 268 18 V 28 C 268 45 254 58 237 58 H 49 C 32 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+  );
 }
 
-.block-controls button,
-.block-controls-divider {
-  position: relative;
-  z-index: 1;
-}
-
-.block-controls::before {
-  right: 100%;
-  border-bottom-left-radius: 18px;
-}
-
-.block-controls::after {
-  left: 100%;
-  border-bottom-right-radius: 18px;
+.block-controls.is-single-action-tray {
+  width: 92px;
+  -webkit-clip-path: path(
+    "M 0 0 H 92 C 82 0 74 8 74 18 V 28 C 74 45 64 58 50 58 H 42 C 28 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+  );
+  clip-path: path(
+    "M 0 0 H 92 C 82 0 74 8 74 18 V 28 C 74 45 64 58 50 58 H 42 C 28 58 18 45 18 28 V 18 C 18 8 10 0 0 0 Z"
+  );
 }
 
 .keyboard-open .block-controls,

@@ -531,7 +531,9 @@ function BlockControls({
 }) {
   return (
     <div
-      className="block-controls"
+      className={`block-controls ${
+        onTextTool ? "is-text-tray" : onMove ? "is-media-tray" : "is-single-action-tray"
+      }`}
       aria-label="Block controls"
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
