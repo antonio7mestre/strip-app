@@ -1323,19 +1323,33 @@ function StripStickerBlock({
     canvasWidth: number;
     canvasHeight: number;
   } | null>(null);
+  const canvasTouchDragRef = useRef<{
+    touchId: number;
+    clientX: number;
+    clientY: number;
+    x: number;
+    y: number;
+    width: number;
+    rotation: number;
+    canvasWidth: number;
+    canvasHeight: number;
+  } | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
 
   useEffect(() => {
     if (
       activePointersRef.current.size === 0 &&
-      !canvasTouchTransformRef.current
+      !canvasTouchTransformRef.current &&
+      !canvasTouchDragRef.current
     ) {
       liveBlockRef.current = block;
     }
   }, [block]);
 
   const renderedBlock =
-    activePointersRef.current.size > 0 || canvasTouchTransformRef.current
+    activePointersRef.current.size > 0 ||
+    canvasTouchTransformRef.current ||
+    canvasTouchDragRef.current
       ? liveBlockRef.current
       : block;
 
@@ -1358,6 +1372,7 @@ function StripStickerBlock({
   useEffect(() => {
     if (!isEditing || !isSelected) {
       canvasTouchTransformRef.current = null;
+      canvasTouchDragRef.current = null;
       return;
     }
 
@@ -1389,6 +1404,7 @@ function StripStickerBlock({
         canvasWidth: Math.max(1, canvas.getBoundingClientRect().width),
         canvasHeight: Math.max(window.innerHeight, canvas.scrollHeight),
       };
+      canvasTouchDragRef.current = null;
       activePointersRef.current.clear();
       dragRef.current = null;
       transformRef.current = null;
@@ -1398,54 +1414,110 @@ function StripStickerBlock({
 
     const updateCanvasTransform = (event: TouchEvent) => {
       const transform = canvasTouchTransformRef.current;
-      if (!transform || event.touches.length < 2) return;
-      event.preventDefault();
+      if (transform && event.touches.length >= 2) {
+        event.preventDefault();
 
-      const [first, second] = [event.touches[0], event.touches[1]];
-      const distance = Math.max(
-        1,
-        Math.hypot(
-          second.clientX - first.clientX,
+        const [first, second] = [event.touches[0], event.touches[1]];
+        const distance = Math.max(
+          1,
+          Math.hypot(
+            second.clientX - first.clientX,
+            second.clientY - first.clientY,
+          ),
+        );
+        const angle = Math.atan2(
           second.clientY - first.clientY,
-        ),
-      );
-      const angle = Math.atan2(
-        second.clientY - first.clientY,
-        second.clientX - first.clientX,
-      );
-      const midpointX = (first.clientX + second.clientX) / 2;
-      const midpointY = (first.clientY + second.clientY) / 2;
-      const width = Math.min(
-        92,
-        Math.max(10, transform.width * (distance / transform.distance)),
-      );
-      const halfWidth = width / 2;
-      const rawRotation =
-        transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
-      const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
+          second.clientX - first.clientX,
+        );
+        const midpointX = (first.clientX + second.clientX) / 2;
+        const midpointY = (first.clientY + second.clientY) / 2;
+        const width = Math.min(
+          92,
+          Math.max(10, transform.width * (distance / transform.distance)),
+        );
+        const halfWidth = width / 2;
+        const rawRotation =
+          transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
+        const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
 
+        previewTransform({
+          x: Math.min(
+            100 - halfWidth,
+            Math.max(
+              halfWidth,
+              transform.x +
+                ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+            ),
+          ),
+          y: Math.min(
+            Math.max(36, transform.canvasHeight - 36),
+            Math.max(36, transform.y + midpointY - transform.midpointY),
+          ),
+          width,
+          rotation,
+        });
+        return;
+      }
+
+      const drag = canvasTouchDragRef.current;
+      if (!drag || event.touches.length === 0) return;
+      const touch = Array.from(event.touches).find(
+        (candidate) => candidate.identifier === drag.touchId,
+      );
+      if (!touch) return;
+      event.preventDefault();
+      const halfWidth = drag.width / 2;
       previewTransform({
         x: Math.min(
           100 - halfWidth,
           Math.max(
             halfWidth,
-            transform.x +
-              ((midpointX - transform.midpointX) / transform.canvasWidth) * 100,
+            drag.x + ((touch.clientX - drag.clientX) / drag.canvasWidth) * 100,
           ),
         ),
         y: Math.min(
-          Math.max(36, transform.canvasHeight - 36),
-          Math.max(36, transform.y + midpointY - transform.midpointY),
+          Math.max(36, drag.canvasHeight - 36),
+          Math.max(36, drag.y + touch.clientY - drag.clientY),
         ),
-        width,
-        rotation,
+        width: drag.width,
+        rotation: drag.rotation,
       });
     };
 
     const finishCanvasTransform = (event: TouchEvent) => {
-      if (!canvasTouchTransformRef.current || event.touches.length >= 2) return;
+      const transform = canvasTouchTransformRef.current;
+      const drag = canvasTouchDragRef.current;
+      if ((!transform && !drag) || event.touches.length >= 2) return;
       if (event.cancelable) event.preventDefault();
+
+      if (event.touches.length === 1) {
+        const remainingTouch = event.touches[0];
+        const current = liveBlockRef.current;
+        canvasTouchTransformRef.current = null;
+        canvasTouchDragRef.current = {
+          touchId: remainingTouch.identifier,
+          clientX: remainingTouch.clientX,
+          clientY: remainingTouch.clientY,
+          x: current.x,
+          y: current.y,
+          width: current.width,
+          rotation: current.rotation ?? 0,
+          canvasWidth:
+            transform?.canvasWidth ?? drag?.canvasWidth ?? window.innerWidth,
+          canvasHeight:
+            transform?.canvasHeight ??
+            drag?.canvasHeight ??
+            Math.max(window.innerHeight, document.documentElement.scrollHeight),
+        };
+        activePointersRef.current.clear();
+        dragRef.current = null;
+        transformRef.current = null;
+        setIsTransforming(true);
+        return;
+      }
+
       canvasTouchTransformRef.current = null;
+      canvasTouchDragRef.current = null;
       activePointersRef.current.clear();
       dragRef.current = null;
       transformRef.current = null;
