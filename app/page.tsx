@@ -872,6 +872,17 @@ function TextStyleSelector({
   );
 }
 
+function BlockSelectionTabs() {
+  return (
+    <span className="block-selection-tabs" aria-hidden="true">
+      <span className="is-top" />
+      <span className="is-right" />
+      <span className="is-bottom" />
+      <span className="is-left" />
+    </span>
+  );
+}
+
 function StripVideoBlock({
   block,
   isEditing,
@@ -942,6 +953,7 @@ function StripVideoBlock({
         preload="metadata"
         draggable={false}
       />
+      {isEditing && isSelected ? <BlockSelectionTabs /> : null}
       <button
         className="video-audio-toggle"
         type="button"
@@ -1042,6 +1054,7 @@ function StripStickerBlock({
       onContextMenu={(event) => event.preventDefault()}
       aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
     >
+      {isEditing && isSelected ? <BlockSelectionTabs /> : null}
       <img src={block.src} alt={block.alt} draggable={false} />
     </figure>
   );
@@ -2746,6 +2759,9 @@ export default function Home() {
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
               }}
             >
+              {isEditing && selectedBlockId === block.id ? (
+                <BlockSelectionTabs />
+              ) : null}
               {textIsBeingEdited ? (
                 <textarea
                   data-block-id={block.id}
@@ -2813,6 +2829,9 @@ export default function Home() {
               }}
             >
               {/* A Strip image is intentionally edge-to-edge. */}
+              {isEditing && selectedBlockId === block.id ? (
+                <BlockSelectionTabs />
+              ) : null}
               <img
                 src={block.src}
                 alt={block.alt}
