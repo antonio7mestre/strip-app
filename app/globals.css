@@ -1498,13 +1498,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: -1;
   inset: 0;
   content: "";
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.72) 0 0.5px, transparent 0.7px),
-    radial-gradient(circle, rgba(0, 0, 0, 0.68) 0 0.45px, transparent 0.68px);
-  background-position: 0 0, 1px 2px;
-  background-size: 3px 3px, 4px 4px;
-  opacity: 0.24;
-  mix-blend-mode: overlay;
+  background: url("/image-tab-grain.png") 0 0 / 128px 128px repeat;
+  opacity: 0.18;
+  mix-blend-mode: soft-light;
   pointer-events: none;
 }
 
