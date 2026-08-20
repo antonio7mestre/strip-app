@@ -1493,7 +1493,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background: linear-gradient(
     to right,
     transparent,
-    rgba(0, 0, 0, 0.18) 50%,
+    color-mix(
+      in srgb,
+      var(--block-controls-foreground, #000000) 22%,
+      transparent
+    ) 50%,
     transparent
   );
   content: "";
