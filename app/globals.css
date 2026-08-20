@@ -1483,6 +1483,53 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   width: 80px;
 }
 
+.sticker-delete-orbit {
+  position: absolute;
+  z-index: 36;
+  inset: 0;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+.sticker-delete-anchor {
+  position: absolute;
+  top: calc(100% + 32px);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.sticker-delete-control {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 50%;
+  background: #ffffff;
+  color: #000000;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: 50% 50%;
+}
+
+.sticker-delete-control:hover {
+  background: #f4f4f4;
+}
+
+.sticker-delete-control:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.sticker-delete-control .block-glyph {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.9;
+}
+
 .block-controls.is-text-tray {
   width: 336px;
   filter: none;

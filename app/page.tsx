@@ -527,6 +527,7 @@ function BlockControls({
   onTextTool,
   activeTextTool,
   surfaceColor,
+  stickerRotation,
 }: {
   index: number;
   count: number;
@@ -535,6 +536,7 @@ function BlockControls({
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
   surfaceColor?: string;
+  stickerRotation?: number;
 }) {
   const trayClass = onTextTool
     ? "is-text-tray"
@@ -561,6 +563,32 @@ function BlockControls({
         "--block-controls-foreground": contrastColor(surfaceColor),
       }
     : undefined;
+
+  if (stickerRotation !== undefined) {
+    return (
+      <div
+        className="sticker-delete-orbit"
+        style={{ transform: `rotate(${stickerRotation}deg)` }}
+        aria-label="Sticker controls"
+      >
+        <div className="sticker-delete-anchor">
+          <button
+            className="sticker-delete-control"
+            style={{ transform: `rotate(${-stickerRotation}deg)` }}
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemove();
+            }}
+            aria-label="Delete sticker"
+          >
+            <Trash2 className="block-glyph" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -3168,6 +3196,7 @@ export default function Home() {
         surfaceColor={
           block.type === "text" ? block.backgroundColor ?? DEFAULT_BACKGROUND : undefined
         }
+        stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
       />
     );
   };
