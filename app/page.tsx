@@ -872,15 +872,8 @@ function TextStyleSelector({
   );
 }
 
-function BlockSelectionTabs() {
-  return (
-    <span className="block-selection-tabs" aria-hidden="true">
-      <span className="is-top" />
-      <span className="is-right" />
-      <span className="is-bottom" />
-      <span className="is-left" />
-    </span>
-  );
+function BlockSelectionTab() {
+  return <span className="block-selection-tab" aria-hidden="true" />;
 }
 
 function StripVideoBlock({
@@ -953,7 +946,7 @@ function StripVideoBlock({
         preload="metadata"
         draggable={false}
       />
-      {isEditing && isSelected ? <BlockSelectionTabs /> : null}
+      {isEditing && isSelected ? <BlockSelectionTab /> : null}
       <button
         className="video-audio-toggle"
         type="button"
@@ -1054,7 +1047,7 @@ function StripStickerBlock({
       onContextMenu={(event) => event.preventDefault()}
       aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
     >
-      {isEditing && isSelected ? <BlockSelectionTabs /> : null}
+      {isEditing && isSelected ? <BlockSelectionTab /> : null}
       <img src={block.src} alt={block.alt} draggable={false} />
     </figure>
   );
@@ -2760,7 +2753,7 @@ export default function Home() {
               }}
             >
               {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTabs />
+                <BlockSelectionTab />
               ) : null}
               {textIsBeingEdited ? (
                 <textarea
@@ -2830,7 +2823,7 @@ export default function Home() {
             >
               {/* A Strip image is intentionally edge-to-edge. */}
               {isEditing && selectedBlockId === block.id ? (
-                <BlockSelectionTabs />
+                <BlockSelectionTab />
               ) : null}
               <img
                 src={block.src}
