@@ -479,8 +479,8 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   scroll-margin-block: 16px calc(148px + env(safe-area-inset-bottom));
 }
 
-.strip-block.is-selected {
-  z-index: 13;
+.strip-block.is-selected:not(.sticker-block) {
+  z-index: auto;
 }
 
 .text-block {
@@ -566,6 +566,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   transform: translate(-50%, -50%);
   isolation: isolate;
   pointer-events: none;
+  transition: opacity 150ms ease;
 }
 
 .sticker-block.is-editing {
@@ -580,6 +581,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .sticker-block.is-selected {
   z-index: 12;
+}
+
+.sticker-block.is-overlapping-selection {
+  opacity: 0.16;
 }
 
 .sticker-block img {
@@ -1477,6 +1482,22 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   transition:
     transform 180ms ease,
     opacity 140ms ease;
+}
+
+.block-controls::after {
+  position: absolute;
+  right: 20%;
+  bottom: 0;
+  left: 20%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(0, 0, 0, 0.18) 50%,
+    transparent
+  );
+  content: "";
+  pointer-events: none;
 }
 
 .block-controls.is-text-tray {

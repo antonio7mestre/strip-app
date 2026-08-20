@@ -1042,6 +1042,7 @@ function StripStickerBlock({
   block,
   isEditing,
   isSelected,
+  isOverlappingSelection,
   onSelect,
   onMove,
   controls,
@@ -1049,6 +1050,7 @@ function StripStickerBlock({
   block: StickerBlock;
   isEditing: boolean;
   isSelected: boolean;
+  isOverlappingSelection: boolean;
   onSelect: () => void;
   onMove: (position: Pick<StickerBlock, "x" | "y">) => void;
   controls?: ReactNode;
@@ -1075,7 +1077,7 @@ function StripStickerBlock({
     <figure
       className={`strip-block sticker-block ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
-      }`}
+      } ${isEditing && isOverlappingSelection ? "is-overlapping-selection" : ""}`}
       data-block-id={block.id}
       style={{
         left: `${block.x}%`,
@@ -1990,6 +1992,68 @@ export default function Home() {
   const hasContent = blocks.length > 0;
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
+  const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
+
+  useLayoutEffect(() => {
+    const selected = blocks.find((block) => block.id === selectedBlockId);
+    if (view !== "edit" || !selected || selected.type === "sticker") {
+      setOverlappingStickerIds((current) => (current.length === 0 ? current : []));
+      return;
+    }
+
+    let firstFrame = 0;
+    let secondFrame = 0;
+    const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
+    if (!canvas) return;
+
+    const updateOverlaps = () => {
+      const selectedElement = Array.from(
+        canvas.querySelectorAll<HTMLElement>(".strip-block"),
+      ).find((element) => element.dataset.blockId === selectedBlockId);
+      if (!selectedElement) return;
+
+      const selectedBounds = selectedElement.getBoundingClientRect();
+      const nextIds = Array.from(
+        canvas.querySelectorAll<HTMLElement>(".sticker-block"),
+      )
+        .filter((sticker) => {
+          const stickerBounds = sticker.getBoundingClientRect();
+          return (
+            stickerBounds.left < selectedBounds.right &&
+            stickerBounds.right > selectedBounds.left &&
+            stickerBounds.top < selectedBounds.bottom &&
+            stickerBounds.bottom > selectedBounds.top
+          );
+        })
+        .map((sticker) => sticker.dataset.blockId)
+        .filter((id): id is string => Boolean(id));
+
+      setOverlappingStickerIds((current) =>
+        current.length === nextIds.length &&
+        current.every((id, index) => id === nextIds[index])
+          ? current
+          : nextIds,
+      );
+    };
+
+    const resizeObserver = new ResizeObserver(updateOverlaps);
+    resizeObserver.observe(canvas);
+    canvas
+      .querySelectorAll<HTMLElement>(".strip-block")
+      .forEach((element) => resizeObserver.observe(element));
+    window.addEventListener("resize", updateOverlaps);
+    firstFrame = window.requestAnimationFrame(() => {
+      updateOverlaps();
+      secondFrame = window.requestAnimationFrame(updateOverlaps);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+      window.removeEventListener("resize", updateOverlaps);
+      resizeObserver.disconnect();
+    };
+  }, [blocks, selectedBlockId, view]);
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
   const imageCoverBlocks = blocks.filter(
     (block): block is ImageBlock => block.type === "image",
@@ -2998,6 +3062,7 @@ export default function Home() {
               block={block}
               isEditing={isEditing}
               isSelected={selectedBlockId === block.id}
+              isOverlappingSelection={overlappingStickerIds.includes(block.id)}
               onSelect={() => {
                 if (!isEditing) return;
                 if (selectedBlockId !== block.id) triggerSelectionHaptic();
