@@ -620,35 +620,63 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   outline-offset: 2px;
 }
 
-@keyframes strip-selection-tab-in {
+@keyframes strip-selection-chrome-in {
   from {
     opacity: 0;
-    transform: translate(100%, -50%);
+    filter: blur(3px) brightness(1.5);
   }
 
   to {
     opacity: 1;
-    transform: translate(0, -50%);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes strip-selection-chrome-shine {
+  from {
+    background-position: 180% 50%;
+  }
+
+  to {
+    background-position: -80% 50%;
   }
 }
 
 .strip-block.is-selected::after {
   position: absolute;
   z-index: 4;
-  top: 50%;
-  right: 0;
-  width: 6px;
-  height: min(34px, calc(100% - 12px));
-  min-height: 16px;
-  border-radius: 999px 0 0 999px;
-  background: #ffffff;
-  box-shadow:
-    -2px 0 9px rgba(0, 0, 0, 0.46),
-    -4px 0 18px rgba(0, 0, 0, 0.24);
+  inset: 2px;
+  box-sizing: border-box;
+  padding: 1.5px;
+  border-radius: 3px;
+  background: linear-gradient(
+    112deg,
+    #ffffff 0%,
+    #777b82 13%,
+    #f9fbff 27%,
+    #969ba3 41%,
+    #ffffff 55%,
+    #686c73 69%,
+    #f7faff 84%,
+    #8a8f98 100%
+  );
+  background-size: 260% 100%;
   content: "";
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 7px rgba(196, 218, 255, 0.66));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
   pointer-events: none;
-  animation: strip-selection-tab-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1)
-    both;
+  animation:
+    strip-selection-chrome-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    strip-selection-chrome-shine 2.8s linear 180ms infinite;
 }
 
 .empty-strip {
