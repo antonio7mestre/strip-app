@@ -3530,6 +3530,8 @@ export default function Home() {
             ? block.backgroundColor ?? DEFAULT_BACKGROUND
             : block.type === "image"
               ? imageTrayColors[block.id]
+              : block.type === "video"
+                ? "#000000"
               : undefined
         }
         imageSrc={block.type === "image" ? block.src : undefined}
