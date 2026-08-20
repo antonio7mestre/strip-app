@@ -1482,7 +1482,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .block-controls.has-image-surface::before {
   position: absolute;
-  z-index: -2;
+  z-index: -1;
   inset: -24px;
   content: "";
   background-image: var(--block-controls-image);
@@ -1491,17 +1491,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background-size: 118vw auto;
   filter: blur(18px);
   transform: scale(1.08);
-}
-
-.block-controls.has-image-surface::after {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  content: "";
-  background: url("/image-tab-grain.png") 0 0 / 128px 128px repeat;
-  opacity: 0.34;
-  mix-blend-mode: soft-light;
-  pointer-events: none;
 }
 
 .block-controls-under-edge {
