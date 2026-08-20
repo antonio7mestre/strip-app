@@ -876,21 +876,25 @@ function BlockSelectionTab() {
   return <span className="block-selection-tab" aria-hidden="true" />;
 }
 
-function SelectionHapticSurface({ onSelect }: { onSelect: () => void }) {
-  return (
-    <input
-      {...({ switch: "" } as Record<string, string>)}
-      className="selection-haptic-surface"
-      type="checkbox"
-      tabIndex={-1}
-      aria-hidden="true"
-      onClick={(event) => {
-        event.stopPropagation();
-        navigator.vibrate?.(10);
-        onSelect();
-      }}
-    />
-  );
+let safariHapticSwitch: HTMLInputElement | null = null;
+
+function triggerSelectionHaptic() {
+  if (navigator.vibrate) {
+    navigator.vibrate(10);
+    return;
+  }
+
+  if (!safariHapticSwitch) {
+    safariHapticSwitch = document.createElement("input");
+    safariHapticSwitch.type = "checkbox";
+    safariHapticSwitch.setAttribute("switch", "");
+    safariHapticSwitch.tabIndex = -1;
+    safariHapticSwitch.setAttribute("aria-hidden", "true");
+    safariHapticSwitch.className = "selection-haptic-proxy";
+    document.body.append(safariHapticSwitch);
+  }
+
+  safariHapticSwitch.click();
 }
 
 function StripVideoBlock({
@@ -964,9 +968,6 @@ function StripVideoBlock({
         draggable={false}
       />
       {isEditing && isSelected ? <BlockSelectionTab /> : null}
-      {isEditing && !isSelected ? (
-        <SelectionHapticSurface onSelect={onSelect} />
-      ) : null}
       <button
         className="video-audio-toggle"
         type="button"
@@ -1027,12 +1028,6 @@ function StripStickerBlock({
       }}
       onPointerDown={(event) => {
         if (!isEditing) return;
-        if (
-          event.target instanceof HTMLInputElement &&
-          event.target.classList.contains("selection-haptic-surface")
-        ) {
-          return;
-        }
         event.preventDefault();
         event.stopPropagation();
         onSelect();
@@ -1074,9 +1069,6 @@ function StripStickerBlock({
       aria-label={isEditing ? "Sticker. Drag to reposition." : block.alt || "Sticker"}
     >
       {isEditing && isSelected ? <BlockSelectionTab /> : null}
-      {isEditing && !isSelected ? (
-        <SelectionHapticSurface onSelect={onSelect} />
-      ) : null}
       <img src={block.src} alt={block.alt} draggable={false} />
     </figure>
   );
@@ -2772,6 +2764,7 @@ export default function Home() {
                   enterTextEditing(block.id, caretOffset);
                   return;
                 }
+                triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setActiveTextTool(null);
               }}
@@ -2783,14 +2776,6 @@ export default function Home() {
             >
               {isEditing && selectedBlockId === block.id ? (
                 <BlockSelectionTab />
-              ) : null}
-              {isEditing && selectedBlockId !== block.id ? (
-                <SelectionHapticSurface
-                  onSelect={() => {
-                    setSelectedBlockId(block.id);
-                    setActiveTextTool(null);
-                  }}
-                />
               ) : null}
               {textIsBeingEdited ? (
                 <textarea
@@ -2853,6 +2838,7 @@ export default function Home() {
               key={block.id}
               onClick={() => {
                 if (!isEditing) return;
+                if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
@@ -2861,15 +2847,6 @@ export default function Home() {
               {/* A Strip image is intentionally edge-to-edge. */}
               {isEditing && selectedBlockId === block.id ? (
                 <BlockSelectionTab />
-              ) : null}
-              {isEditing && selectedBlockId !== block.id ? (
-                <SelectionHapticSurface
-                  onSelect={() => {
-                    setSelectedBlockId(block.id);
-                    setEditingTextBlockId(null);
-                    setActiveTextTool(null);
-                  }}
-                />
               ) : null}
               <img
                 src={block.src}
@@ -2888,6 +2865,7 @@ export default function Home() {
               isSelected={selectedBlockId === block.id}
               onSelect={() => {
                 if (!isEditing) return;
+                if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
@@ -2913,6 +2891,7 @@ export default function Home() {
             isSelected={selectedBlockId === block.id}
             onSelect={() => {
               if (!isEditing) return;
+              if (selectedBlockId !== block.id) triggerSelectionHaptic();
               setSelectedBlockId(block.id);
               setEditingTextBlockId(null);
               setActiveTextTool(null);
