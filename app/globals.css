@@ -1458,6 +1458,24 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     opacity 140ms ease;
 }
 
+.block-controls.has-image-surface {
+  isolation: isolate;
+  background: var(--block-controls-surface, var(--white));
+}
+
+.block-controls.has-image-surface::before {
+  position: absolute;
+  z-index: -1;
+  inset: -12px;
+  content: "";
+  background-image: var(--block-controls-image);
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 100vw auto;
+  filter: blur(9px);
+  transform: scale(1.06);
+}
+
 .block-controls-under-edge {
   position: absolute;
   z-index: 35;

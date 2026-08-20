@@ -444,6 +444,7 @@ type CoverCardStyle = CSSProperties & {
 type BlockControlsStyle = CSSProperties & {
   "--block-controls-surface"?: string;
   "--block-controls-foreground"?: string;
+  "--block-controls-image"?: string;
 };
 
 function contrastColor(color: string) {
@@ -575,6 +576,7 @@ function BlockControls({
   onTextTool,
   activeTextTool,
   surfaceColor,
+  imageSrc,
   stickerRotation,
 }: {
   index: number;
@@ -584,6 +586,7 @@ function BlockControls({
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
   surfaceColor?: string;
+  imageSrc?: string;
   stickerRotation?: number;
 }) {
   const trayClass = onTextTool
@@ -607,12 +610,16 @@ function BlockControls({
         `H ${edgeWidth}`,
       ].join(" ")
     : "";
-  const style: BlockControlsStyle | undefined = surfaceColor
-    ? {
-        "--block-controls-surface": surfaceColor,
-        "--block-controls-foreground": contrastColor(surfaceColor),
-      }
-    : undefined;
+  const style: BlockControlsStyle | undefined =
+    surfaceColor || imageSrc
+      ? {
+          "--block-controls-surface": surfaceColor ?? "#ffffff",
+          "--block-controls-foreground": contrastColor(surfaceColor ?? "#ffffff"),
+          ...(imageSrc
+            ? { "--block-controls-image": `url(${JSON.stringify(imageSrc)})` }
+            : {}),
+        }
+      : undefined;
 
   useLayoutEffect(() => {
     const edge = edgeRef.current;
@@ -660,7 +667,7 @@ function BlockControls({
   return (
     <>
       <div
-        className={`block-controls ${trayClass}`}
+        className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
         style={style}
         aria-label="Block controls"
         onPointerDown={(event) => event.stopPropagation()}
@@ -3271,6 +3278,7 @@ export default function Home() {
               ? imageTrayColors[block.id]
               : undefined
         }
+        imageSrc={block.type === "image" ? block.src : undefined}
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
       />
     );
