@@ -11,6 +11,18 @@
   "observability": {
     "enabled": true
   },
+  "workers_dev": true,
+  "preview_urls": true,
+  "routes": [
+    {
+      "pattern": "striiip.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.striiip.com",
+      "custom_domain": true
+    }
+  ],
   "images": {
     "binding": "IMAGES"
   },
@@ -31,6 +43,7 @@
   "env": {
     "staging": {
       "name": "strip-app-staging",
+      "routes": [],
       "assets": {
         "binding": "ASSETS",
         "directory": "./dist/client"
