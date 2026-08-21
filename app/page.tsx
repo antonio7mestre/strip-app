@@ -4127,26 +4127,11 @@ export default function Home() {
     }
   };
 
-  const openPublishedStrip = async (strip: PublishedStripSummary) => {
+  const openPublishedStrip = (strip: PublishedStripSummary) => {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
     setOpeningStripId(strip.id);
     pageTransitionInFlightRef.current = true;
-    try {
-      const response = await fetch(
-        `/api/strips/${encodeURIComponent(strip.id)}`,
-        { cache: "no-store" },
-      );
-      if (!response.ok) throw new Error("Strip request failed");
-      const data = (await response.json()) as { strip: PublishedStripDetail };
-      setOpenedPublishedStrip(data.strip);
-      setBrowserPath(`/strip/${encodeURIComponent(data.strip.id)}`);
-      await transitionToViewStandard("published");
-    } catch {
-      setNotice("Couldn’t open this Strip. Try again.");
-    } finally {
-      setOpeningStripId(null);
-      pageTransitionInFlightRef.current = false;
-    }
+    window.location.assign(publicStripUrl(strip));
   };
 
   const returnToLibraryFromPublished = async () => {
@@ -5093,7 +5078,7 @@ export default function Home() {
           onClick={() =>
             isDraft
               ? void openDraft(strip)
-              : void openPublishedStrip(strip)
+              : openPublishedStrip(strip)
           }
           disabled={
             isDraft ? openingDraftId === strip.id : openingStripId === strip.id
