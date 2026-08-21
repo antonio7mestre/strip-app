@@ -2448,6 +2448,7 @@ export default function Home() {
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
   const hasLeadingImage = firstVisibleBlock?.type === "image";
+  const hasLeadingText = firstVisibleBlock?.type === "text";
 
   useEffect(() => {
     if (view === "edit") return;
@@ -5752,7 +5753,7 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            }`}
+            } ${hasLeadingText ? "has-leading-text" : ""}`}
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}

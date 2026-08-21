@@ -2456,6 +2456,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     padding-top: env(safe-area-inset-top);
   }
 
+  .published-mode.has-leading-text .strip-canvas {
+    margin-top: 0;
+    padding-top: env(safe-area-inset-top);
+  }
+
   .editor-mode.has-leading-image .strip-canvas,
   .preview-mode.has-leading-image .strip-canvas,
   .published-mode.has-leading-image .strip-canvas {
