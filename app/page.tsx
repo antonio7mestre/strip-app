@@ -2465,7 +2465,11 @@ export default function Home() {
           .reverse()
           .find((block) => block.type !== "sticker")
       : undefined;
-  const hasPublishedTrailingText = lastPublishedFlowBlock?.type === "text";
+  const publishedTrailingTextColor =
+    lastPublishedFlowBlock?.type === "text"
+      ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
+      : null;
+  const hasPublishedTrailingText = publishedTrailingTextColor !== null;
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2968,6 +2972,15 @@ export default function Home() {
     document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
     document.documentElement.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
+
+  useLayoutEffect(() => {
+    document.documentElement.style.setProperty(
+      "--bottom-safe-area-color",
+      view === "published" && publishedTrailingTextColor
+        ? publishedTrailingTextColor
+        : DEFAULT_BACKGROUND,
+    );
+  }, [publishedTrailingTextColor, view]);
 
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;

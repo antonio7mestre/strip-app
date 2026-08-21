@@ -4,6 +4,7 @@
   --black: #000000;
   --white: #ffffff;
   --top-safe-area-color: #000000;
+  --bottom-safe-area-color: #000000;
   --iphone-panel-radius: 44px;
   --muted: #8a8a8a;
   --line: rgba(255, 255, 255, 0.14);
@@ -40,11 +41,11 @@ html {
    * Safari exposes opposite ends of the root canvas during top and bottom
    * rubber-banding. Keep those ends independent without changing the live
    * top-safe-area color: the far end supplies the top color and the near end
-   * supplies black beneath the page.
+   * supplies the trailing surface beneath the page.
    */
   background-image: linear-gradient(
     to bottom,
-    var(--black) 0 50%,
+    var(--bottom-safe-area-color, var(--black)) 0 50%,
     var(--top-safe-area-color, var(--black)) 50% 100%
   );
   background-repeat: no-repeat;
