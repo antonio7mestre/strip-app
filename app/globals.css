@@ -45,11 +45,19 @@ html {
    */
   background-image: linear-gradient(
     to bottom,
-    var(--bottom-safe-area-color, var(--black)) 0 50%,
+    var(--black) 0 50%,
     var(--top-safe-area-color, var(--black)) 50% 100%
   );
   background-repeat: no-repeat;
   background-size: 100% 100%;
+}
+
+html.published-trailing-edge-active {
+  background-image: linear-gradient(
+    to bottom,
+    var(--bottom-safe-area-color, var(--black)) 0 50%,
+    var(--top-safe-area-color, var(--black)) 50% 100%
+  );
 }
 
 body {

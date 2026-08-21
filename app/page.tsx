@@ -2974,12 +2974,16 @@ export default function Home() {
   }, [topSafeAreaColor]);
 
   useLayoutEffect(() => {
-    document.documentElement.style.setProperty(
+    const root = document.documentElement;
+    const trailingEdgeIsActive =
+      view === "published" && publishedTrailingTextColor !== null;
+    root.style.setProperty(
       "--bottom-safe-area-color",
-      view === "published" && publishedTrailingTextColor
+      trailingEdgeIsActive && publishedTrailingTextColor
         ? publishedTrailingTextColor
         : DEFAULT_BACKGROUND,
     );
+    root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
   }, [publishedTrailingTextColor, view]);
 
   useEffect(() => {
