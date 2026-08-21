@@ -2445,8 +2445,8 @@ export default function Home() {
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
-  const hasLeadingImage = firstVisibleBlock?.type === "image";
-  const hasLeadingText = firstVisibleBlock?.type === "text";
+  const hasLeadingImage =
+    firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
 
   useEffect(() => {
     if (view === "edit") return;
@@ -3114,7 +3114,9 @@ export default function Home() {
     if (reorderTouchesTop) {
       const nextTopBlock = target === 0 ? blocks[index] : blocks[target];
       skipLeadingImagePlacementOnReorderRef.current =
-        blocks[0]?.type !== "image" && nextTopBlock?.type === "image";
+        blocks[0]?.type !== "image" &&
+        blocks[0]?.type !== "video" &&
+        (nextTopBlock?.type === "image" || nextTopBlock?.type === "video");
     }
 
     flushSync(() => {
@@ -5647,7 +5649,7 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            } ${hasLeadingText ? "has-leading-text" : ""}`}
+            }`}
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
