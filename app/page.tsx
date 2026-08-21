@@ -2706,6 +2706,9 @@ export default function Home() {
     let settleFrame: number | null = null;
     let settleTimer: number | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let lastScrollY = window.scrollY;
+    let lastScrollTime = performance.now();
+    let scrollVelocity = 0;
 
     const trailingText = document.querySelector<HTMLElement>(
       ".strip-canvas > .text-block.is-published-tail-text",
@@ -2766,25 +2769,45 @@ export default function Home() {
         return;
       }
 
-      const duration = Math.min(260, Math.max(170, Math.abs(distance) * 1.8));
-      let startedAt: number | null = null;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        window.scrollTo({ top: target, left: 0, behavior: "auto" });
+        bottomAnchorIsArmed = false;
+        return;
+      }
+
+      let position = start;
+      let velocity = Math.max(-380, Math.min(380, scrollVelocity * 1000));
+      let previousTime: number | null = null;
+      let elapsed = 0;
+      const stiffness = 210;
+      const damping = 25;
       const animate = (time: number) => {
         if (touchIsActive) {
           settleFrame = null;
           return;
         }
-        if (startedAt === null) startedAt = time;
-        const progress = Math.min(1, (time - startedAt) / duration);
-        const eased = 1 - Math.pow(1 - progress, 3);
+        if (previousTime === null) previousTime = time;
+        const frameSeconds = Math.min(1 / 30, (time - previousTime) / 1000);
+        previousTime = time;
+        elapsed += frameSeconds;
+
+        const displacement = position - target;
+        const acceleration = -stiffness * displacement - damping * velocity;
+        velocity += acceleration * frameSeconds;
+        position += velocity * frameSeconds;
         window.scrollTo({
-          top: start + distance * eased,
+          top: position,
           left: 0,
           behavior: "auto",
         });
-        if (progress < 1) {
+        if (
+          elapsed < 0.72 &&
+          (Math.abs(position - target) > 0.35 || Math.abs(velocity) > 3)
+        ) {
           settleFrame = window.requestAnimationFrame(animate);
           return;
         }
+        window.scrollTo({ top: target, left: 0, behavior: "auto" });
         settleFrame = null;
         bottomAnchorIsArmed = false;
       };
@@ -2804,6 +2827,9 @@ export default function Home() {
       touchIsActive = true;
       bottomAnchorIsArmed = isInBottomAnchorZone();
       clearPendingSettle();
+      lastScrollY = window.scrollY;
+      lastScrollTime = performance.now();
+      scrollVelocity = 0;
     };
 
     const handleTouchMove = () => {
@@ -2819,6 +2845,16 @@ export default function Home() {
     };
 
     const handleScroll = () => {
+      if (settleFrame === null) {
+        const now = performance.now();
+        const elapsed = now - lastScrollTime;
+        if (elapsed > 0) {
+          const instantaneousVelocity = (window.scrollY - lastScrollY) / elapsed;
+          scrollVelocity = scrollVelocity * 0.68 + instantaneousVelocity * 0.32;
+        }
+        lastScrollY = window.scrollY;
+        lastScrollTime = now;
+      }
       if (touchIsActive || settleFrame !== null) return;
       if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
         scheduleBottomSettle();
