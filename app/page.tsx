@@ -2758,182 +2758,6 @@ export default function Home() {
     };
   }, [hasPublishedTrailingText, view]);
 
-  useEffect(() => {
-    if (
-      !initialRouteReady ||
-      view !== "published" ||
-      !hasPublishedTrailingText
-    ) {
-      return;
-    }
-
-    let settleFrame: number | null = null;
-    let settleTimer: number | null = null;
-    let viewportFrame: number | null = null;
-    let touchIsActive = false;
-    let previousTouchY: number | null = null;
-    let lastKnownAnchor: number | null = null;
-
-    const clearPendingSettle = () => {
-      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
-      settleFrame = null;
-      settleTimer = null;
-      viewportFrame = null;
-    };
-
-    const getTrailingTextAnchor = () => {
-      const inset = trailingTextInsetRef.current;
-      if (inset <= 0) return null;
-      const scrollRoot = document.scrollingElement ?? document.documentElement;
-      const maximumScroll = Math.max(
-        0,
-        scrollRoot.scrollHeight - scrollRoot.clientHeight,
-      );
-      return Math.max(0, maximumScroll - inset);
-    };
-
-    lastKnownAnchor = getTrailingTextAnchor();
-
-    const enforceTrailingTextBoundary = () => {
-      const anchor = getTrailingTextAnchor();
-      if (anchor === null || window.scrollY <= anchor + 0.5) return false;
-      window.scrollTo({ top: anchor, left: 0, behavior: "auto" });
-      return true;
-    };
-
-    const settleTrailingTextAtAnchor = () => {
-      if (touchIsActive) return;
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleTimer = null;
-      settleFrame = window.requestAnimationFrame(() => {
-        settleFrame = null;
-        const inset = trailingTextInsetRef.current;
-        const trailingText = document.querySelector<HTMLElement>(
-          ".strip-canvas > .text-block.is-published-tail-text",
-        );
-        if (inset <= 0 || !trailingText) return;
-
-        const textBounds = trailingText.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-        const bottomEdgeIsInAnchorZone =
-          textBounds.bottom > 0 &&
-          textBounds.top < viewportHeight &&
-          textBounds.bottom <= viewportHeight + inset + 1;
-        if (!bottomEdgeIsInAnchorZone) return;
-
-        const anchor = getTrailingTextAnchor();
-        if (anchor === null) return;
-        if (Math.abs(window.scrollY - anchor) <= 0.5) return;
-        window.scrollTo({ top: anchor, left: 0, behavior: "smooth" });
-      });
-    };
-
-    const scheduleSettleFallback = (delay: number) => {
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(settleTrailingTextAtAnchor, delay);
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      touchIsActive = true;
-      previousTouchY =
-        event.touches.length === 1 ? event.touches[0].clientY : null;
-      clearPendingSettle();
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        previousTouchY = null;
-        return;
-      }
-
-      const currentTouchY = event.touches[0].clientY;
-      if (previousTouchY === null) {
-        previousTouchY = currentTouchY;
-        return;
-      }
-
-      const upwardFingerTravel = previousTouchY - currentTouchY;
-      previousTouchY = currentTouchY;
-      if (upwardFingerTravel <= 0) return;
-
-      const anchor = getTrailingTextAnchor();
-      if (
-        anchor === null ||
-        window.scrollY + upwardFingerTravel < anchor - 0.5
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      window.scrollTo({ top: anchor, left: 0, behavior: "auto" });
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length > 0) return;
-      touchIsActive = false;
-      previousTouchY = null;
-      scheduleSettleFallback(360);
-    };
-
-    const handleNativeReboundScroll = () => {
-      if (enforceTrailingTextBoundary()) return;
-      lastKnownAnchor = getTrailingTextAnchor();
-      if (touchIsActive) return;
-      scheduleSettleFallback(90);
-    };
-
-    const handleViewportResize = () => {
-      const previousAnchor = lastKnownAnchor;
-      const wasPinned =
-        previousAnchor !== null &&
-        Math.abs(window.scrollY - previousAnchor) <= 1;
-      if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
-      viewportFrame = window.requestAnimationFrame(() => {
-        viewportFrame = null;
-        const nextAnchor = getTrailingTextAnchor();
-        lastKnownAnchor = nextAnchor;
-        if (nextAnchor === null) return;
-        if (wasPinned || window.scrollY > nextAnchor + 0.5) {
-          window.scrollTo({ top: nextAnchor, left: 0, behavior: "auto" });
-        }
-      });
-    };
-
-    document.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-    });
-    document.addEventListener("touchmove", handleTouchMove, {
-      passive: false,
-    });
-    document.addEventListener("touchend", handleTouchEnd, {
-      passive: true,
-    });
-    document.addEventListener("touchcancel", handleTouchEnd, {
-      passive: true,
-    });
-    window.addEventListener("scroll", handleNativeReboundScroll, {
-      passive: true,
-    });
-    window.addEventListener("scrollend", settleTrailingTextAtAnchor);
-    window.visualViewport?.addEventListener("resize", handleViewportResize, {
-      passive: true,
-    });
-
-    return () => {
-      clearPendingSettle();
-      document.removeEventListener("touchstart", handleTouchStart);
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-      document.removeEventListener("touchcancel", handleTouchEnd);
-      window.removeEventListener("scroll", handleNativeReboundScroll);
-      window.removeEventListener("scrollend", settleTrailingTextAtAnchor);
-      window.visualViewport?.removeEventListener("resize", handleViewportResize);
-    };
-  }, [hasPublishedTrailingText, initialRouteReady, view]);
-
-
   useEffect(
     () => () => {
       if (dockTransitionTimerRef.current !== null) {
@@ -2985,6 +2809,96 @@ export default function Home() {
     );
     root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
   }, [publishedTrailingTextColor, view]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (
+      !initialRouteReady ||
+      view !== "published" ||
+      publishedTrailingTextColor === null
+    ) {
+      root.classList.remove("published-bottom-pocket-active");
+      return;
+    }
+
+    let syncFrame: number | null = null;
+    let pocketIsActive: boolean | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    const scrollRoot =
+      document.scrollingElement ?? document.documentElement;
+
+    const setThemeColor = (color: string) => {
+      const themeColor = document.querySelector<HTMLMetaElement>(
+        "#strip-theme-color",
+      );
+      if (!themeColor || themeColor.content === color) return;
+      themeColor.setAttribute("content", color);
+    };
+
+    const syncBottomPocket = () => {
+      syncFrame = null;
+      const maximumScroll = Math.max(
+        0,
+        scrollRoot.scrollHeight - scrollRoot.clientHeight,
+      );
+      const activationRange = Math.max(
+        96,
+        trailingTextInsetRef.current * 3,
+      );
+      const shouldActivate =
+        maximumScroll - window.scrollY <= activationRange;
+
+      if (shouldActivate === pocketIsActive) return;
+      pocketIsActive = shouldActivate;
+      root.classList.toggle(
+        "published-bottom-pocket-active",
+        shouldActivate,
+      );
+      setThemeColor(
+        shouldActivate ? publishedTrailingTextColor : topSafeAreaColor,
+      );
+    };
+
+    const scheduleBottomPocketSync = () => {
+      if (syncFrame !== null) return;
+      syncFrame = window.requestAnimationFrame(syncBottomPocket);
+    };
+
+    window.addEventListener("scroll", scheduleBottomPocketSync, {
+      passive: true,
+    });
+    window.addEventListener("scrollend", scheduleBottomPocketSync);
+    window.addEventListener("pageshow", scheduleBottomPocketSync);
+    window.visualViewport?.addEventListener(
+      "resize",
+      scheduleBottomPocketSync,
+      { passive: true },
+    );
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(scheduleBottomPocketSync);
+      resizeObserver.observe(scrollRoot);
+    }
+    syncBottomPocket();
+
+    return () => {
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("scroll", scheduleBottomPocketSync);
+      window.removeEventListener("scrollend", scheduleBottomPocketSync);
+      window.removeEventListener("pageshow", scheduleBottomPocketSync);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        scheduleBottomPocketSync,
+      );
+      root.classList.remove("published-bottom-pocket-active");
+      setThemeColor(topSafeAreaColor);
+    };
+  }, [
+    initialRouteReady,
+    publishedTrailingTextColor,
+    topSafeAreaColor,
+    view,
+  ]);
 
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;
@@ -6054,6 +5968,12 @@ export default function Home() {
             <article className={`published-strip ${legacyPageEnterClass}`}>
               {renderStrip(false, publishedBlocks)}
             </article>
+            {hasPublishedTrailingText ? (
+              <div
+                className="published-bottom-pocket-sampler"
+                aria-hidden="true"
+              />
+            ) : null}
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
         </>

@@ -60,6 +60,11 @@ html.published-trailing-edge-active {
   );
 }
 
+html.published-bottom-pocket-active,
+html.published-bottom-pocket-active body {
+  background-color: var(--bottom-safe-area-color, var(--black)) !important;
+}
+
 body {
   min-height: 100lvh;
   overflow-x: clip;
@@ -725,6 +730,22 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   > .text-block.is-published-tail-text {
   flex: 1 0 auto;
   padding-bottom: calc(16px + var(--published-bottom-anchor-inset));
+}
+
+.published-bottom-pocket-sampler {
+  display: none;
+  position: fixed;
+  z-index: 8;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 12px;
+  background: var(--bottom-safe-area-color, var(--black));
+  pointer-events: none;
+}
+
+html.published-bottom-pocket-active .published-bottom-pocket-sampler {
+  display: block;
 }
 
 .strip-block {
