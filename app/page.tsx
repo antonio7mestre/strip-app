@@ -2464,7 +2464,11 @@ export default function Home() {
           .reverse()
           .find((block) => block.type !== "sticker")
       : undefined;
-  const hasPublishedTrailingText = lastPublishedFlowBlock?.type === "text";
+  const publishedTrailingTextColor =
+    lastPublishedFlowBlock?.type === "text"
+      ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
+      : null;
+  const hasPublishedTrailingText = publishedTrailingTextColor !== null;
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2692,224 +2696,6 @@ export default function Home() {
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
-  useEffect(() => {
-    if (
-      !initialRouteReady ||
-      view !== "published" ||
-      !hasPublishedTrailingText
-    ) {
-      return;
-    }
-
-    let touchIsActive = false;
-    let bottomAnchorIsArmed = false;
-    let settleFrame: number | null = null;
-    let settleTimer: number | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-    let lastScrollY = window.scrollY;
-    let lastScrollTime = performance.now();
-    let scrollVelocity = 0;
-
-    const trailingText = document.querySelector<HTMLElement>(
-      ".strip-canvas > .text-block.is-published-tail-text",
-    );
-    if (!trailingText) return;
-
-    const viewportProbe = document.createElement("div");
-    viewportProbe.style.cssText =
-      "position:fixed;visibility:hidden;pointer-events:none;height:100lvh";
-    document.body.appendChild(viewportProbe);
-
-    const measureFullViewportHeight = () => {
-      const height = viewportProbe.getBoundingClientRect().height;
-      const isTallTouchDevice =
-        navigator.maxTouchPoints > 0 &&
-        window.screen.height / window.screen.width > 1.2;
-      return Math.max(
-        window.innerHeight,
-        height,
-        isTallTouchDevice ? window.screen.height : 0,
-      );
-    };
-
-    const isInBottomAnchorZone = () => {
-      const viewportHeight = measureFullViewportHeight();
-      const bounds = trailingText.getBoundingClientRect();
-      return (
-        bounds.bottom > 0 &&
-        bounds.top < viewportHeight &&
-        bounds.bottom <= viewportHeight + 1
-      );
-    };
-
-    const clearPendingSettle = () => {
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
-      settleTimer = null;
-      settleFrame = null;
-    };
-
-    const nativeRubberbandIsActive = () => {
-      const scrollRoot = document.scrollingElement ?? document.documentElement;
-      const maximumScroll = Math.max(
-        0,
-        scrollRoot.scrollHeight - scrollRoot.clientHeight,
-      );
-      return window.scrollY < -0.5 || window.scrollY > maximumScroll + 0.5;
-    };
-
-    const settleAtBottomAnchor = () => {
-      if (
-        touchIsActive ||
-        settleFrame !== null ||
-        (!bottomAnchorIsArmed && !isInBottomAnchorZone())
-      ) {
-        return;
-      }
-      if (nativeRubberbandIsActive()) {
-        scheduleBottomSettle(32);
-        return;
-      }
-      clearPendingSettle();
-
-      const fullViewportHeight = measureFullViewportHeight();
-      const bounds = trailingText.getBoundingClientRect();
-      const start = window.scrollY;
-      const target = Math.max(0, start + bounds.bottom - fullViewportHeight);
-      const distance = target - start;
-      if (Math.abs(distance) <= 0.5) {
-        bottomAnchorIsArmed = false;
-        return;
-      }
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        window.scrollTo({ top: target, left: 0, behavior: "auto" });
-        bottomAnchorIsArmed = false;
-        return;
-      }
-
-      let position = start;
-      let velocity = Math.max(-380, Math.min(380, scrollVelocity * 1000));
-      let previousTime: number | null = null;
-      let elapsed = 0;
-      const stiffness = 210;
-      const damping = 25;
-      const animate = (time: number) => {
-        if (touchIsActive) {
-          settleFrame = null;
-          return;
-        }
-        if (previousTime === null) previousTime = time;
-        const frameSeconds = Math.min(1 / 30, (time - previousTime) / 1000);
-        previousTime = time;
-        elapsed += frameSeconds;
-
-        const displacement = position - target;
-        const acceleration = -stiffness * displacement - damping * velocity;
-        velocity += acceleration * frameSeconds;
-        position += velocity * frameSeconds;
-        window.scrollTo({
-          top: position,
-          left: 0,
-          behavior: "auto",
-        });
-        if (
-          elapsed < 0.72 &&
-          (Math.abs(position - target) > 0.35 || Math.abs(velocity) > 3)
-        ) {
-          settleFrame = window.requestAnimationFrame(animate);
-          return;
-        }
-        window.scrollTo({ top: target, left: 0, behavior: "auto" });
-        settleFrame = null;
-        bottomAnchorIsArmed = false;
-      };
-      settleFrame = window.requestAnimationFrame(animate);
-    };
-
-    const scheduleBottomSettle = (delay = 72) => {
-      if (touchIsActive || settleFrame !== null) return;
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        settleTimer = null;
-        settleAtBottomAnchor();
-      }, delay);
-    };
-
-    const handleTouchStart = () => {
-      touchIsActive = true;
-      bottomAnchorIsArmed = isInBottomAnchorZone();
-      clearPendingSettle();
-      lastScrollY = window.scrollY;
-      lastScrollTime = performance.now();
-      scrollVelocity = 0;
-    };
-
-    const handleTouchMove = () => {
-      if (isInBottomAnchorZone()) bottomAnchorIsArmed = true;
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length > 0) return;
-      touchIsActive = false;
-      if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
-        scheduleBottomSettle(240);
-      }
-    };
-
-    const handleScroll = () => {
-      if (settleFrame === null) {
-        const now = performance.now();
-        const elapsed = now - lastScrollTime;
-        if (elapsed > 0) {
-          const instantaneousVelocity = (window.scrollY - lastScrollY) / elapsed;
-          scrollVelocity = scrollVelocity * 0.68 + instantaneousVelocity * 0.32;
-        }
-        lastScrollY = window.scrollY;
-        lastScrollTime = now;
-      }
-      if (touchIsActive || settleFrame !== null) return;
-      if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
-        scheduleBottomSettle();
-      }
-    };
-
-    const handleScrollEnd = () => {
-      if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
-        scheduleBottomSettle(32);
-      }
-    };
-
-    const handleViewportResize = () => {
-      if (isInBottomAnchorZone()) scheduleBottomSettle(0);
-    };
-
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(handleViewportResize);
-      resizeObserver.observe(trailingText);
-    }
-    document.addEventListener("touchstart", handleTouchStart, { passive: true });
-    document.addEventListener("touchmove", handleTouchMove, { passive: true });
-    document.addEventListener("touchend", handleTouchEnd, { passive: true });
-    document.addEventListener("touchcancel", handleTouchEnd, { passive: true });
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("scrollend", handleScrollEnd);
-    window.visualViewport?.addEventListener("resize", handleViewportResize);
-    scheduleBottomSettle(0);
-
-    return () => {
-      clearPendingSettle();
-      resizeObserver?.disconnect();
-      viewportProbe.remove();
-      document.removeEventListener("touchstart", handleTouchStart);
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-      document.removeEventListener("touchcancel", handleTouchEnd);
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("scrollend", handleScrollEnd);
-      window.visualViewport?.removeEventListener("resize", handleViewportResize);
-    };
-  }, [hasPublishedTrailingText, initialRouteReady, view]);
 
   useEffect(
     () => () => {
@@ -6008,6 +5794,13 @@ export default function Home() {
             } ${hasLeadingText ? "has-leading-text" : ""} ${
               hasPublishedTrailingText ? "has-trailing-text" : ""
             }`}
+            style={
+              publishedTrailingTextColor
+                ? ({
+                    "--published-trailing-text-color": publishedTrailingTextColor,
+                  } as CSSProperties)
+                : undefined
+            }
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}

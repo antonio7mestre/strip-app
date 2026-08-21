@@ -672,10 +672,26 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .published-mode.has-trailing-text .published-strip,
 .published-mode.has-trailing-text .strip-canvas {
   min-height: inherit;
+  background: transparent;
 }
 
 .published-mode.has-trailing-text {
   --published-bottom-anchor-inset: env(safe-area-inset-bottom);
+  isolation: isolate;
+}
+
+.published-mode.has-trailing-text::after {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  background: var(--published-trailing-text-color, var(--black));
+  content: "";
+  pointer-events: none;
+}
+
+.published-mode.has-trailing-text .image-block,
+.published-mode.has-trailing-text .video-block {
+  background: var(--black);
 }
 
 @supports (height: 100svh) and (height: 100lvh) {
