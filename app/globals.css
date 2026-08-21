@@ -242,10 +242,6 @@ textarea:focus-visible,
   background: var(--black);
 }
 
-.app-shell.has-leading-image {
-  min-height: calc(100lvh + var(--leading-image-inset));
-}
-
 html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: calc(100lvh + var(--text-first-scroll-release, 62px));
 }
@@ -2472,7 +2468,8 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   html.leading-image-inset-active .editor-mode.has-leading-image .strip-canvas,
   html.leading-image-inset-active .preview-mode.has-leading-image .strip-canvas,
   html.leading-image-inset-active .published-mode.has-leading-image .strip-canvas {
-    margin-top: 0;
+    /* Keep the same visual safe-area anchor at Safari's real scroll origin. */
+    margin-top: calc(-1 * var(--leading-image-inset));
   }
 
   .app-shell::after {
