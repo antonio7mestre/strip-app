@@ -1,0 +1,57 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "strip-app",
+  "main": "./dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "images": {
+    "binding": "IMAGES"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "strip-production",
+      "database_id": "806d94bc-ce1d-4f47-b0a3-cefbef9e4d64",
+      "migrations_dir": "./drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STRIP_MEDIA",
+      "bucket_name": "strip-media-production"
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "strip-app-staging",
+      "assets": {
+        "binding": "ASSETS",
+        "directory": "./dist/client"
+      },
+      "images": {
+        "binding": "IMAGES"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "strip-staging",
+          "database_id": "45fa8a8d-402c-4190-ba91-1c60f7613fdd",
+          "migrations_dir": "./drizzle"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "STRIP_MEDIA",
+          "bucket_name": "strip-media-staging"
+        }
+      ]
+    }
+  }
+}
