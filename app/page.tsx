@@ -2368,7 +2368,9 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const leadingImageInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
+  const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
   const blockReorderReleaseFrameRef = useRef<number | null>(null);
   const blockReorderOverflowAnchorRef = useRef<{
@@ -2447,6 +2449,7 @@ export default function Home() {
       : DEFAULT_BACKGROUND;
   const hasLeadingImage =
     firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
+  const hasLeadingText = firstVisibleBlock?.type === "text";
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2525,6 +2528,7 @@ export default function Home() {
     };
 
     const offset = calculateLeadingImageOffset();
+    leadingImageInsetRef.current = offset;
     root.style.setProperty("--leading-image-inset", `${offset}px`);
     root.classList.toggle("leading-image-inset-active", offset > 0);
     const ownsReloadScroll =
@@ -2535,29 +2539,141 @@ export default function Home() {
       skipLeadingImagePlacementOnReorderRef.current && !ownsReloadScroll;
     skipLeadingImagePlacementOnReorderRef.current = false;
 
-    let releaseFrame: number | null = null;
+    const placeLeadingImageAtAnchor = () => {
+      if (offset > 0) {
+        window.scrollTo({ top: offset, left: 0, behavior: "auto" });
+        return;
+      }
+      if (ownsReloadScroll) {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
+    };
 
-    if (offset > 0 && !skipInitialAnchor) {
-      window.scrollTo({ top: offset, left: 0, behavior: "auto" });
-    } else if (ownsReloadScroll) {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    let anchorFrame: number | null = null;
+    if (!skipInitialAnchor) {
+      placeLeadingImageAtAnchor();
+      anchorFrame = window.requestAnimationFrame(placeLeadingImageAtAnchor);
     }
+    let releaseFrame: number | null = null;
+    let releaseTimer: number | null = null;
 
     if (ownsReloadScroll) {
       releaseFrame = window.requestAnimationFrame(() => {
-        history.scrollRestoration = "auto";
-        delete root.dataset.stripReloadScroll;
+        placeLeadingImageAtAnchor();
+        releaseTimer = window.setTimeout(() => {
+          placeLeadingImageAtAnchor();
+          history.scrollRestoration = "auto";
+          delete root.dataset.stripReloadScroll;
+        }, 0);
       });
     }
 
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) placeLeadingImageAtAnchor();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+
     return () => {
+      if (anchorFrame !== null) window.cancelAnimationFrame(anchorFrame);
       if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
+      if (releaseTimer !== null) window.clearTimeout(releaseTimer);
+      window.removeEventListener("pageshow", handlePageShow);
       if (ownsReloadScroll && root.dataset.stripReloadScroll === "manual") {
         history.scrollRestoration = "auto";
         delete root.dataset.stripReloadScroll;
       }
+      leadingImageInsetRef.current = 0;
       root.classList.remove("leading-image-inset-active");
       root.style.removeProperty("--leading-image-inset");
+    };
+  }, [hasLeadingImage, initialRouteReady, view]);
+
+  useEffect(() => {
+    const stripIsVisible =
+      view === "edit" || view === "preview" || view === "published";
+    if (!initialRouteReady || !hasLeadingImage || !stripIsVisible) return;
+
+    let settleFrame: number | null = null;
+    let settleTimer: number | null = null;
+    let touchIsActive = false;
+    let settleIsArmed = !suppressLeadingImageSettleUntilTouchRef.current;
+    suppressLeadingImageSettleUntilTouchRef.current = false;
+
+    const clearPendingSettle = () => {
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleFrame = null;
+      settleTimer = null;
+    };
+
+    const settleLeadingImageAtAnchor = () => {
+      if (touchIsActive || !settleIsArmed) return;
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = null;
+      settleFrame = window.requestAnimationFrame(() => {
+        settleFrame = null;
+        const anchor = leadingImageInsetRef.current;
+        const leadingMedia = document.querySelector<HTMLElement>(
+          ".strip-canvas > .image-block, .strip-canvas > .video-block",
+        );
+        if (anchor <= 0 || !leadingMedia) return;
+
+        const mediaBounds = leadingMedia.getBoundingClientRect();
+        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+        const topEdgeIsInAnchorZone =
+          mediaBounds.bottom > 0 &&
+          mediaBounds.top < viewportHeight &&
+          mediaBounds.top >= -anchor - 1;
+        if (!topEdgeIsInAnchorZone || Math.abs(window.scrollY - anchor) <= 0.5) {
+          return;
+        }
+        window.scrollTo({ top: anchor, left: 0, behavior: "smooth" });
+      });
+    };
+
+    const scheduleSettleFallback = (delay: number) => {
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(settleLeadingImageAtAnchor, delay);
+    };
+
+    const handleTouchStart = () => {
+      settleIsArmed = true;
+      touchIsActive = true;
+      clearPendingSettle();
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length > 0) return;
+      touchIsActive = false;
+      scheduleSettleFallback(360);
+    };
+
+    const handleNativeReboundScroll = () => {
+      if (touchIsActive) return;
+      scheduleSettleFallback(90);
+    };
+
+    document.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    document.addEventListener("touchend", handleTouchEnd, {
+      passive: true,
+    });
+    document.addEventListener("touchcancel", handleTouchEnd, {
+      passive: true,
+    });
+    window.addEventListener("scroll", handleNativeReboundScroll, {
+      passive: true,
+    });
+    window.addEventListener("scrollend", settleLeadingImageAtAnchor);
+
+    return () => {
+      clearPendingSettle();
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("touchcancel", handleTouchEnd);
+      window.removeEventListener("scroll", handleNativeReboundScroll);
+      window.removeEventListener("scrollend", settleLeadingImageAtAnchor);
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
@@ -2581,7 +2697,6 @@ export default function Home() {
       if (blockReorderReleaseFrameRef.current !== null) {
         window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
       }
-      document.documentElement.classList.remove("leading-image-snap-suspended");
       const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
       if (originalOverflowAnchor) {
         document.documentElement.style.overflowAnchor = originalOverflowAnchor.root;
@@ -3104,19 +3219,14 @@ export default function Home() {
       window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
     }
 
-    const reorderTouchesTop = target === 0 || index === 0;
-    const suspendLeadingImageSnap =
-      reorderTouchesTop || root.classList.contains("leading-image-snap-suspended");
-    if (suspendLeadingImageSnap) {
-      root.classList.add("leading-image-snap-suspended");
-    }
-
-    if (reorderTouchesTop) {
+    if (target === 0 || index === 0) {
       const nextTopBlock = target === 0 ? blocks[index] : blocks[target];
-      skipLeadingImagePlacementOnReorderRef.current =
+      const mediaWillBecomeTop =
         blocks[0]?.type !== "image" &&
         blocks[0]?.type !== "video" &&
         (nextTopBlock?.type === "image" || nextTopBlock?.type === "video");
+      skipLeadingImagePlacementOnReorderRef.current = mediaWillBecomeTop;
+      suppressLeadingImageSettleUntilTouchRef.current = mediaWillBecomeTop;
     }
 
     flushSync(() => {
@@ -3140,9 +3250,6 @@ export default function Home() {
       blockReorderReleaseFrameRef.current = window.requestAnimationFrame(() => {
         blockReorderReleaseFrameRef.current = null;
         restoreViewport();
-        if (suspendLeadingImageSnap) {
-          root.classList.remove("leading-image-snap-suspended");
-        }
         const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
         if (!originalOverflowAnchor) return;
         root.style.overflowAnchor = originalOverflowAnchor.root;
@@ -5649,7 +5756,7 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            }`}
+            } ${hasLeadingText ? "has-leading-text" : ""}`}
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
