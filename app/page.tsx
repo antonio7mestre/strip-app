@@ -4741,10 +4741,16 @@ export default function Home() {
               <img
                 src={shouldLoadMedia(block.id) ? block.src : undefined}
                 alt={block.alt}
-                style={{
-                  visibility:
-                    mediaLoadStatus[block.id] === "loaded" ? "visible" : "hidden",
-                }}
+                style={
+                  view === "published"
+                    ? undefined
+                    : {
+                        visibility:
+                          mediaLoadStatus[block.id] === "loaded"
+                            ? "visible"
+                            : "hidden",
+                      }
+                }
                 onLoad={(event) => {
                   settleMediaLoad(block.id, true);
                   const sampledColor = sampleImageBottomColor(event.currentTarget);
