@@ -1532,6 +1532,8 @@ function StripVideoBlock({
   onFirstFrameColor,
   shouldLoad,
   isLoaded,
+  loadSettled,
+  animatePublishedLoad,
   reservedHeight,
   onLoadSettled,
   onHeight,
@@ -1548,6 +1550,8 @@ function StripVideoBlock({
   onFirstFrameColor?: (color: string) => void;
   shouldLoad: boolean;
   isLoaded: boolean;
+  loadSettled: boolean;
+  animatePublishedLoad: boolean;
   reservedHeight?: number;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
@@ -1599,6 +1603,8 @@ function StripVideoBlock({
     <figure
       className={`strip-block video-block ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
+      } ${animatePublishedLoad ? "published-media-load" : ""} ${
+        animatePublishedLoad && loadSettled ? "is-media-resolved" : ""
       }`}
       data-block-id={block.id}
       aria-busy={!isLoaded}
@@ -1642,7 +1648,9 @@ function StripVideoBlock({
         controlsList="nodownload nofullscreen noremoteplayback"
         preload={shouldLoad ? "metadata" : "none"}
         draggable={false}
-        style={{ visibility: isLoaded ? "visible" : "hidden" }}
+        style={{
+          visibility: animatePublishedLoad || isLoaded ? "visible" : "hidden",
+        }}
         onLoadedData={(event) => {
           onLoadSettled(true);
           const sampledColor = sampleVideoBottomColor(event.currentTarget);
@@ -4720,10 +4728,16 @@ export default function Home() {
         }
 
         if (block.type === "image") {
+          const animatePublishedLoad = !isEditing && view === "published";
+          const imageLoadSettled = mediaLoadStatus[block.id] !== undefined;
           return (
             <figure
               className={`strip-block image-block ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
+              } ${animatePublishedLoad ? "published-media-load" : ""} ${
+                animatePublishedLoad && imageLoadSettled
+                  ? "is-media-resolved"
+                  : ""
               }`}
               data-block-id={block.id}
               key={block.id}
@@ -4877,6 +4891,8 @@ export default function Home() {
             }}
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
+            loadSettled={mediaLoadStatus[block.id] !== undefined}
+            animatePublishedLoad={!isEditing && view === "published"}
             reservedHeight={block.height}
             onLoadSettled={(loadedSuccessfully) =>
               settleMediaLoad(block.id, loadedSuccessfully)
