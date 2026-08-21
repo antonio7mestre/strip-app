@@ -96,9 +96,10 @@ function imageCoverPath(stripId: string) {
   return `/api/strips/${encodeURIComponent(stripId)}/cover`;
 }
 
-function serializeRow(row: StoredStripRow) {
+function serializeRow(row: StoredStripRow, username: string | null) {
   return {
     id: row.id,
+    username,
     title: row.title,
     publishedAt: row.published_at,
     cover:
@@ -264,7 +265,9 @@ export async function GET(request: Request) {
     .all<StoredStripRow>();
 
   return Response.json({
-    strips: result.results.map((row: StoredStripRow) => serializeRow(row)),
+    strips: result.results.map((row: StoredStripRow) =>
+      serializeRow(row, auth.user.username),
+    ),
   });
 }
 
@@ -274,6 +277,12 @@ export async function POST(request: Request) {
   }
   const auth = await requireAuthUser(request);
   if (!auth.user) return auth.response;
+  if (!auth.user.username) {
+    return Response.json(
+      { error: "Pick a username before publishing." },
+      { status: 409 },
+    );
+  }
   let input: PublishRequest;
   try {
     input = (await request.json()) as PublishRequest;
@@ -405,5 +414,8 @@ export async function POST(request: Request) {
     cover_alt: coverAlt,
     published_at: publishedAt,
   };
-  return Response.json({ strip: serializeRow(row) }, { status: 201 });
+  return Response.json(
+    { strip: serializeRow(row, auth.user.username) },
+    { status: 201 },
+  );
 }

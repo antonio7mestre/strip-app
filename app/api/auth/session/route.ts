@@ -7,7 +7,11 @@ export async function GET(request: Request) {
   return Response.json(
     {
       user: user
-        ? { id: user.id, phoneLabel: user.phoneLabel }
+        ? {
+            id: user.id,
+            phoneLabel: user.phoneLabel,
+            username: user.username,
+          }
         : null,
     },
     { headers: { "Cache-Control": "no-store" } },

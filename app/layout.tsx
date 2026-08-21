@@ -25,7 +25,13 @@ const initialReloadScrollScript = `
       const isReload = navigationEntry
         ? navigationEntry.type === "reload"
         : performance.navigation?.type === 1;
-      const isStripRoute = /^\\/(?:edit|strip)\\//.test(window.location.pathname);
+      const hostname = window.location.hostname.toLowerCase();
+      const isVanityStripRoute =
+        /^[a-z0-9]+(?:-[a-z0-9]+)*\\.striiip\\.com$/.test(hostname) &&
+        /^\\/[a-zA-Z0-9_-]{8,128}\\/?$/.test(window.location.pathname);
+      const isStripRoute =
+        /^\\/(?:edit|strip)\\//.test(window.location.pathname) ||
+        isVanityStripRoute;
 
       if (isReload && isStripRoute && "scrollRestoration" in history) {
         history.scrollRestoration = "manual";

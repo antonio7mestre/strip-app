@@ -48,10 +48,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const userId = await upsertVerifiedUser(phone, input.legacyOwnerId);
-  const cookie = await createSession(userId, request);
+  const user = await upsertVerifiedUser(phone, input.legacyOwnerId);
+  const cookie = await createSession(user.id, request);
   return Response.json(
-    { user: { id: userId, phoneLabel: `••• ••• ${phone.slice(-4)}` } },
+    {
+      user: {
+        id: user.id,
+        phoneLabel: `••• ••• ${phone.slice(-4)}`,
+        username: user.username,
+      },
+    },
     { headers: { "Set-Cookie": cookie, "Cache-Control": "no-store" } },
   );
 }

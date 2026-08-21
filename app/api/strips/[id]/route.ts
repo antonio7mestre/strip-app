@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { usernameFromHostname } from "@/app/lib/username";
 
 export const dynamic = "force-dynamic";
 
@@ -65,10 +66,11 @@ export async function GET(
   }
 
   const row = await env.DB.prepare(
-      `SELECT id, owner_id, title, cover_kind, cover_color, cover_shape, cover_alt,
-        content_json, published_at
-       FROM strips
-       WHERE id = ?`,
+      `SELECT s.id, s.owner_id, s.title, s.cover_kind, s.cover_color,
+        s.cover_shape, s.cover_alt, s.content_json, s.published_at, u.username
+       FROM strips s
+       LEFT JOIN users u ON u.id = s.owner_id
+       WHERE s.id = ?`,
     )
       .bind(id)
       .first<{
@@ -81,8 +83,16 @@ export async function GET(
           cover_alt: string | null;
           content_json: string;
           published_at: number;
+          username: string | null;
       }>();
   if (!row) return new Response("Not found", { status: 404 });
+  const requestedUsername = usernameFromHostname(new URL(request.url).hostname);
+  if (
+    requestedUsername &&
+    row.username?.toLowerCase() !== requestedUsername
+  ) {
+    return new Response("Not found", { status: 404 });
+  }
 
   let storedBlocks: StoredBlock[] = [];
   try {
@@ -148,6 +158,7 @@ export async function GET(
   return Response.json({
     strip: {
       id: row.id,
+      username: row.username,
       title: row.title,
       cover:
         row.cover_kind === "image"

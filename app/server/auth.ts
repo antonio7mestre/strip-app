@@ -1,5 +1,8 @@
 import { env } from "cloudflare:workers";
 
+export { normalizeUsername, validateUsername } from "@/app/lib/username";
+export type { UsernameValidation } from "@/app/lib/username";
+
 export const SESSION_COOKIE = "strip_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_TOUCH_INTERVAL_MS = 12 * 60 * 60 * 1000;
@@ -9,6 +12,7 @@ export type AuthUser = {
   id: string;
   phoneE164: string;
   phoneLabel: string;
+  username: string | null;
 };
 
 type AuthEnvironment = {
@@ -89,13 +93,18 @@ export async function getAuthUser(request: Request): Promise<AuthUser | null> {
   const tokenHash = await sha256(token);
   const now = Date.now();
   const row = await env.DB.prepare(
-    `SELECT s.user_id, s.last_seen_at, u.phone_e164
+    `SELECT s.user_id, s.last_seen_at, u.phone_e164, u.username
      FROM auth_sessions s
      JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
   )
     .bind(tokenHash, now)
-    .first<{ user_id: string; last_seen_at: number; phone_e164: string }>();
+    .first<{
+      user_id: string;
+      last_seen_at: number;
+      phone_e164: string;
+      username: string | null;
+    }>();
   if (!row) return null;
 
   if (now - row.last_seen_at > SESSION_TOUCH_INTERVAL_MS) {
@@ -113,6 +122,7 @@ export async function getAuthUser(request: Request): Promise<AuthUser | null> {
     id: row.user_id,
     phoneE164: row.phone_e164,
     phoneLabel: phoneLabel(row.phone_e164),
+    username: row.username,
   };
 }
 
@@ -257,15 +267,15 @@ export async function upsertVerifiedUser(
 ) {
   const now = Date.now();
   const existing = await env.DB.prepare(
-    "SELECT id FROM users WHERE phone_e164 = ?",
+    "SELECT id, username FROM users WHERE phone_e164 = ?",
   )
     .bind(phoneE164)
-    .first<{ id: string }>();
+    .first<{ id: string; username: string | null }>();
   if (existing) {
     await env.DB.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?")
       .bind(now, existing.id)
       .run();
-    return existing.id;
+    return existing;
   }
 
   const requestedLegacyId = String(legacyOwnerId ?? "");
@@ -282,5 +292,5 @@ export async function upsertVerifiedUser(
   )
     .bind(id, phoneE164, now, now)
     .run();
-  return id;
+  return { id, username: null };
 }

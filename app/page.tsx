@@ -34,6 +34,10 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import {
+  PUBLIC_DOMAIN,
+  usernameFromHostname,
+} from "@/app/lib/username";
 
 type TextBlock = {
   id: string;
@@ -94,12 +98,14 @@ type PublishedCover =
   | { kind: "color"; color: string; shape: CoverColorShape };
 type PublishedStripSummary = {
   id: string;
+  username: string | null;
   title: string;
   cover: PublishedCover;
   publishedAt: number;
 };
 type PublishedStripDetail = {
   id: string;
+  username: string | null;
   title: string;
   cover: PublishedCover;
   publishedAt: number;
@@ -124,8 +130,8 @@ type AppRoute =
   | { kind: "drafts" }
   | { kind: "edit"; id: string }
   | { kind: "share"; id: string }
-  | { kind: "published"; id: string };
-type AuthUser = { id: string; phoneLabel: string };
+  | { kind: "published"; id: string; username?: string };
+type AuthUser = { id: string; phoneLabel: string; username: string | null };
 type AuthStatus = "loading" | "signed-out" | "signed-in";
 type AuthStep = "phone" | "code";
 type CoverChoice =
@@ -284,7 +290,7 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function routeFromPathname(pathname: string): AppRoute {
+function routeFromLocation(pathname: string, hostname: string): AppRoute {
   const editMatch = /^\/edit\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (editMatch) return { kind: "edit", id: editMatch[1] };
   const shareMatch = /^\/share\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
@@ -292,7 +298,22 @@ function routeFromPathname(pathname: string): AppRoute {
   const publishedMatch = /^\/strip\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (publishedMatch) return { kind: "published", id: publishedMatch[1] };
   if (/^\/drafts\/?$/.test(pathname)) return { kind: "drafts" };
+  const username = usernameFromHostname(hostname);
+  const rootPublishedMatch = /^\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
+  if (username && rootPublishedMatch) {
+    return { kind: "published", id: rootPublishedMatch[1], username };
+  }
   return { kind: "library" };
+}
+
+function publicStripUrl(strip: Pick<PublishedStripSummary, "id" | "username">) {
+  const id = encodeURIComponent(strip.id);
+  if (!strip.username) return `${window.location.origin}/strip/${id}`;
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `${window.location.origin}/strip/${id}`;
+  }
+  return `https://${strip.username}.${PUBLIC_DOMAIN}/${id}`;
 }
 
 function draftFallbackTitle(timestamp: number) {
@@ -2282,8 +2303,10 @@ export default function Home() {
   const [authStep, setAuthStep] = useState<AuthStep>("phone");
   const [authPhone, setAuthPhone] = useState("");
   const [authCode, setAuthCode] = useState("");
+  const [authUsername, setAuthUsername] = useState("");
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authUsernameError, setAuthUsernameError] = useState("");
   const [authDevelopmentCode, setAuthDevelopmentCode] = useState("");
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
@@ -3960,6 +3983,37 @@ export default function Home() {
     }
   };
 
+  const claimUsername = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (authPending) return;
+    const username = authUsername.trim().toLowerCase();
+    setAuthPending(true);
+    setAuthUsernameError("");
+    try {
+      const response = await fetch("/api/auth/username", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const data = (await response.json()) as { user?: AuthUser; error?: string };
+      if (!response.ok || !data.user) {
+        throw new Error(data.error || "Couldn’t save that username.");
+      }
+      const claimedUser = data.user;
+      setAuthUser(claimedUser);
+      setAuthUsername(claimedUser.username ?? username);
+      setPublishedStrips((current) =>
+        current.map((strip) => ({ ...strip, username: claimedUser.username })),
+      );
+    } catch (error) {
+      setAuthUsernameError(
+        error instanceof Error ? error.message : "Couldn’t save that username.",
+      );
+    } finally {
+      setAuthPending(false);
+    }
+  };
+
   const editSignInPhone = () => {
     setAuthStep("phone");
     setAuthCode("");
@@ -3977,6 +4031,8 @@ export default function Home() {
       setDraftStrips([]);
       setLibraryOwnerId("");
       setAuthUser(null);
+      setAuthUsername("");
+      setAuthUsernameError("");
       setAuthStatus("signed-out");
       setAuthenticationRequired(true);
       setBrowserPath("/", true);
@@ -4109,7 +4165,10 @@ export default function Home() {
 
     const applyRoute = async () => {
       try {
-        const route = routeFromPathname(window.location.pathname);
+        const route = routeFromLocation(
+          window.location.pathname,
+          window.location.hostname,
+        );
         if (route.kind === "published") {
           setAuthenticationRequired(false);
           try {
@@ -4118,6 +4177,12 @@ export default function Home() {
             });
             if (!response.ok) throw new Error("Published route request failed");
             const data = (await response.json()) as { strip: PublishedStripDetail };
+            if (
+              route.username &&
+              data.strip.username?.toLowerCase() !== route.username
+            ) {
+              throw new Error("Published route username mismatch");
+            }
             if (cancelled) return;
             setOpenedPublishedStrip(data.strip);
             setView("published");
@@ -4304,7 +4369,11 @@ export default function Home() {
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(
+        openedPublishedStrip
+          ? publicStripUrl(openedPublishedStrip)
+          : window.location.href,
+      );
       setNotice("Link copied.");
     } catch {
       setNotice("Copy the address from your browser.");
@@ -4313,9 +4382,7 @@ export default function Home() {
 
   const copyPublishedStripLink = async () => {
     if (!openedPublishedStrip) return;
-    const stripUrl = `${window.location.origin}/strip/${encodeURIComponent(
-      openedPublishedStrip.id,
-    )}`;
+    const stripUrl = publicStripUrl(openedPublishedStrip);
     try {
       await navigator.clipboard.writeText(stripUrl);
       setNotice("Strip link copied.");
@@ -4837,6 +4904,72 @@ export default function Home() {
   const currentDockControlsClass = `dock-controls dock-controls-current ${
     dockTransition ? "is-entering" : ""
   } ${dockTransitionStarted ? "is-transitioning" : ""}`;
+
+  if (authStatus === "signed-in" && authUser && !authUser.username) {
+    return (
+      <main className="app-shell auth-mode">
+        <div
+          className="top-safe-area-anchor"
+          style={{ backgroundColor: DEFAULT_BACKGROUND }}
+          aria-hidden="true"
+        />
+        <section className="auth-shell" aria-labelledby="username-heading">
+          <header className="auth-brand">STRIP</header>
+          <div className="auth-card">
+            <div className="auth-copy">
+              <p>One last thing.</p>
+              <h1 id="username-heading">Pick a username</h1>
+              <span>Your friends will find your Strips here.</span>
+            </div>
+            <form className="auth-form" onSubmit={claimUsername}>
+              <label htmlFor="auth-username">Username</label>
+              <input
+                id="auth-username"
+                type="text"
+                inputMode="text"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                minLength={3}
+                maxLength={24}
+                placeholder="yourname"
+                value={authUsername}
+                onChange={(event) => {
+                  setAuthUsername(
+                    event.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]/g, "")
+                      .slice(0, 24),
+                  );
+                  setAuthUsernameError("");
+                }}
+                disabled={authPending}
+                required
+              />
+              <p className="auth-username-url">
+                {authUsername || "you"}.{PUBLIC_DOMAIN}
+              </p>
+              <button
+                type="submit"
+                disabled={authPending || authUsername.length < 3}
+              >
+                {authPending ? "Saving…" : "Continue"}
+              </button>
+            </form>
+            {authUsernameError ? (
+              <p className="auth-error" role="alert">
+                {authUsernameError}
+              </p>
+            ) : null}
+          </div>
+          <p className="auth-terms">
+            Letters, numbers, and hyphens. 3–24 characters.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   if (!initialRouteReady) {
     return <main className="app-shell route-loading-mode" aria-busy="true" />;
@@ -5677,7 +5810,7 @@ export default function Home() {
                 A
               </div>
               <div>
-                <strong>Antonio</strong>
+                <strong>{openedPublishedStrip?.username ?? "STRIP"}</strong>
                 <span>just stripped</span>
               </div>
             </header>

@@ -384,6 +384,16 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   font-variant-numeric: tabular-nums;
 }
 
+.auth-username-url {
+  margin: 10px 0 0;
+  overflow: hidden;
+  color: #8f8f8f;
+  font-size: 13px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .auth-form > button[type="submit"] {
   width: 100%;
   min-height: 52px;

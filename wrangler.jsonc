@@ -21,6 +21,10 @@
     {
       "pattern": "www.striiip.com",
       "custom_domain": true
+    },
+    {
+      "pattern": "*.striiip.com/*",
+      "zone_name": "striiip.com"
     }
   ],
   "images": {
