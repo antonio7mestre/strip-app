@@ -2456,10 +2456,7 @@ export default function Home() {
           .reverse()
           .find((block) => block.type !== "sticker")
       : undefined;
-  const publishedTrailingTextColor =
-    lastPublishedFlowBlock?.type === "text"
-      ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
-      : null;
+  const hasPublishedTrailingText = lastPublishedFlowBlock?.type === "text";
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2722,14 +2719,9 @@ export default function Home() {
       "content",
       topSafeAreaColor,
     );
-    const root = document.documentElement;
-    root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    root.style.setProperty(
-      "--bottom-safe-area-color",
-      publishedTrailingTextColor ?? DEFAULT_BACKGROUND,
-    );
-    root.style.backgroundColor = topSafeAreaColor;
-  }, [publishedTrailingTextColor, topSafeAreaColor]);
+    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
+    document.documentElement.style.backgroundColor = topSafeAreaColor;
+  }, [topSafeAreaColor]);
 
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;
@@ -4594,11 +4586,23 @@ export default function Home() {
         block.type === "sticker" ? Math.max(floor, block.y + 180) : floor,
       0,
     );
+    const lastFlowBlock = [...sourceBlocks]
+      .reverse()
+      .find((block) => block.type !== "sticker");
+    const anchorsPublishedTextTail =
+      !isEditing && view === "published" && lastFlowBlock?.type === "text";
+    const canvasMinHeight = anchorsPublishedTextTail
+      ? `max(${stickerFloor}px, calc(100lvh + ${
+          hasLeadingImage ? "var(--leading-image-inset)" : "0px"
+        }))`
+      : stickerFloor > 0
+        ? `${stickerFloor}px`
+        : undefined;
 
     return (
       <div
         className="strip-canvas"
-        style={stickerFloor > 0 ? { minHeight: `${stickerFloor}px` } : undefined}
+        style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
         {sourceBlocks.length === 0 && isEditing ? (
           <div className="empty-strip">
@@ -4619,7 +4623,11 @@ export default function Home() {
             <section
               className={`strip-block text-block ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
-              } ${usesDarkText ? "uses-dark-text" : ""}`}
+              } ${usesDarkText ? "uses-dark-text" : ""} ${
+                anchorsPublishedTextTail && block.id === lastFlowBlock?.id
+                  ? "is-published-tail-text"
+                  : ""
+              }`}
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] !== "loaded"}
@@ -5763,15 +5771,8 @@ export default function Home() {
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
             } ${hasLeadingText ? "has-leading-text" : ""} ${
-              publishedTrailingTextColor ? "has-trailing-text" : ""
+              hasPublishedTrailingText ? "has-trailing-text" : ""
             }`}
-            style={
-              publishedTrailingTextColor
-                ? ({
-                    "--trailing-text-background": publishedTrailingTextColor,
-                  } as CSSProperties)
-                : undefined
-            }
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}

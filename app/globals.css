@@ -44,7 +44,7 @@ html {
    */
   background-image: linear-gradient(
     to bottom,
-    var(--bottom-safe-area-color, var(--black)) 0 50%,
+    var(--black) 0 50%,
     var(--top-safe-area-color, var(--black)) 50% 100%
   );
   background-repeat: no-repeat;
@@ -669,14 +669,27 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background: var(--black);
 }
 
-.published-mode.has-trailing-text,
 .published-mode.has-trailing-text .published-strip,
 .published-mode.has-trailing-text .strip-canvas {
-  background: var(--trailing-text-background, var(--black));
+  min-height: inherit;
 }
 
 .published-mode.has-trailing-text .strip-canvas {
-  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  flex-direction: column;
+}
+
+.published-mode.has-trailing-text
+  .strip-canvas
+  > .strip-block:not(.sticker-block) {
+  flex: 0 0 auto;
+}
+
+.published-mode.has-trailing-text
+  .strip-canvas
+  > .text-block.is-published-tail-text {
+  flex: 1 0 auto;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
 .strip-block {
