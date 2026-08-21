@@ -2719,32 +2719,23 @@ export default function Home() {
 
     const measureFullViewportHeight = () => {
       const height = viewportProbe.getBoundingClientRect().height;
-      return Math.max(window.innerHeight, height);
-    };
-
-    const bottomAnchorInset = () => {
-      const value = Number.parseFloat(
-        getComputedStyle(
-          trailingText.closest<HTMLElement>(".published-mode") ?? trailingText,
-        ).getPropertyValue("--published-bottom-anchor-inset"),
+      const isTallTouchDevice =
+        navigator.maxTouchPoints > 0 &&
+        window.screen.height / window.screen.width > 1.2;
+      return Math.max(
+        window.innerHeight,
+        height,
+        isTallTouchDevice ? window.screen.height : 0,
       );
-      return Number.isFinite(value) ? value : 0;
     };
 
     const isInBottomAnchorZone = () => {
       const viewportHeight = measureFullViewportHeight();
       const bounds = trailingText.getBoundingClientRect();
-      const documentBottomGap = Math.max(
-        0,
-        document.documentElement.scrollHeight -
-          (window.scrollY + window.innerHeight),
-      );
-      const anchorRange = Math.max(32, bottomAnchorInset() + 24);
       return (
         bounds.bottom > 0 &&
         bounds.top < viewportHeight &&
-        (bounds.bottom <= viewportHeight + anchorRange ||
-          documentBottomGap <= anchorRange)
+        bounds.bottom <= viewportHeight + 1
       );
     };
 
@@ -2759,7 +2750,7 @@ export default function Home() {
       if (
         touchIsActive ||
         settleFrame !== null ||
-        !isInBottomAnchorZone()
+        (!bottomAnchorIsArmed && !isInBottomAnchorZone())
       ) {
         return;
       }
@@ -2816,14 +2807,14 @@ export default function Home() {
     };
 
     const handleTouchMove = () => {
-      bottomAnchorIsArmed = isInBottomAnchorZone();
+      if (isInBottomAnchorZone()) bottomAnchorIsArmed = true;
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
       if (event.touches.length > 0) return;
       touchIsActive = false;
       if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
-        scheduleBottomSettle(90);
+        scheduleBottomSettle(16);
       }
     };
 
