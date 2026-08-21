@@ -2469,7 +2469,15 @@ export default function Home() {
     lastPublishedFlowBlock?.type === "text"
       ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : null;
+  const publishedTrailingImageColor =
+    lastPublishedFlowBlock?.type === "image"
+      ? (imageTrayColors[lastPublishedFlowBlock.id] ?? DEFAULT_BACKGROUND)
+      : null;
+  const publishedBottomSurfaceColor =
+    publishedTrailingTextColor ?? publishedTrailingImageColor;
   const hasPublishedTrailingText = publishedTrailingTextColor !== null;
+  const hasPublishedTrailingImage = publishedTrailingImageColor !== null;
+  const hasPublishedBottomSurface = publishedBottomSurfaceColor !== null;
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2800,22 +2808,22 @@ export default function Home() {
   useLayoutEffect(() => {
     const root = document.documentElement;
     const trailingEdgeIsActive =
-      view === "published" && publishedTrailingTextColor !== null;
+      view === "published" && publishedBottomSurfaceColor !== null;
     root.style.setProperty(
       "--bottom-safe-area-color",
-      trailingEdgeIsActive && publishedTrailingTextColor
-        ? publishedTrailingTextColor
+      trailingEdgeIsActive && publishedBottomSurfaceColor
+        ? publishedBottomSurfaceColor
         : DEFAULT_BACKGROUND,
     );
     root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
-  }, [publishedTrailingTextColor, view]);
+  }, [publishedBottomSurfaceColor, view]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (
       !initialRouteReady ||
       view !== "published" ||
-      publishedTrailingTextColor === null
+      publishedBottomSurfaceColor === null
     ) {
       root.classList.remove("published-bottom-pocket-active");
       return;
@@ -2847,15 +2855,20 @@ export default function Home() {
       );
       const shouldActivate =
         maximumScroll - window.scrollY <= activationRange;
+      const topAndBottomAreBothVisible =
+        maximumScroll <= 1 && window.scrollY <= 1;
 
-      if (shouldActivate === pocketIsActive) return;
-      pocketIsActive = shouldActivate;
-      root.classList.toggle(
-        "published-bottom-pocket-active",
-        shouldActivate,
-      );
+      if (shouldActivate !== pocketIsActive) {
+        pocketIsActive = shouldActivate;
+        root.classList.toggle(
+          "published-bottom-pocket-active",
+          shouldActivate,
+        );
+      }
       setThemeColor(
-        shouldActivate ? publishedTrailingTextColor : topSafeAreaColor,
+        shouldActivate && !topAndBottomAreBothVisible
+          ? publishedBottomSurfaceColor
+          : topSafeAreaColor,
       );
     };
 
@@ -2895,7 +2908,7 @@ export default function Home() {
     };
   }, [
     initialRouteReady,
-    publishedTrailingTextColor,
+    publishedBottomSurfaceColor,
     topSafeAreaColor,
     view,
   ]);
@@ -5957,6 +5970,8 @@ export default function Home() {
               hasLeadingImage ? "has-leading-image" : ""
             } ${hasLeadingText ? "has-leading-text" : ""} ${
               hasPublishedTrailingText ? "has-trailing-text" : ""
+            } ${
+              hasPublishedTrailingImage ? "has-trailing-image" : ""
             }`}
           >
             <div
@@ -5968,7 +5983,7 @@ export default function Home() {
             <article className={`published-strip ${legacyPageEnterClass}`}>
               {renderStrip(false, publishedBlocks)}
             </article>
-            {hasPublishedTrailingText ? (
+            {hasPublishedBottomSurface ? (
               <div
                 className="published-bottom-pocket-sampler"
                 aria-hidden="true"

@@ -719,6 +719,24 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   flex-direction: column;
 }
 
+.published-mode.has-trailing-image .strip-canvas {
+  display: flex;
+  flex-direction: column;
+}
+
+.published-mode.has-trailing-image
+  .strip-canvas
+  > .strip-block:not(.sticker-block) {
+  flex: 0 0 auto;
+}
+
+.published-mode.has-trailing-image .strip-canvas::after {
+  min-height: 0;
+  flex: 1 0 0;
+  background: var(--bottom-safe-area-color, var(--black));
+  content: "";
+}
+
 .published-mode.has-trailing-text
   .strip-canvas
   > .strip-block:not(.sticker-block) {
