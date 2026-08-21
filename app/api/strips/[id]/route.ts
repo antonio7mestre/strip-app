@@ -33,15 +33,14 @@ type StoredBlock =
       width: number;
     };
 
-const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
-function mediaPath(ownerId: string, stripId: string, blockId: string) {
-  return `/api/strips/${encodeURIComponent(stripId)}/media/${encodeURIComponent(blockId)}?ownerId=${encodeURIComponent(ownerId)}`;
+function mediaPath(stripId: string, blockId: string) {
+  return `/api/strips/${encodeURIComponent(stripId)}/media/${encodeURIComponent(blockId)}`;
 }
 
-function coverPath(ownerId: string, stripId: string) {
-  return `/api/strips/${encodeURIComponent(stripId)}/cover?ownerId=${encodeURIComponent(ownerId)}`;
+function coverPath(stripId: string) {
+  return `/api/strips/${encodeURIComponent(stripId)}/cover`;
 }
 
 function textColorForBackground(color: string) {
@@ -60,21 +59,19 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
   const { id } = await context.params;
-  if ((ownerId && !OWNER_PATTERN.test(ownerId)) || !ID_PATTERN.test(id)) {
+  if (!ID_PATTERN.test(id)) {
     return new Response("Not found", { status: 404 });
   }
 
-  const row = ownerId
-    ? await env.DB.prepare(
-        `SELECT id, owner_id, title, cover_kind, cover_color, cover_shape, cover_alt,
-          content_json, published_at
-         FROM strips
-         WHERE id = ? AND owner_id = ?`,
-      )
-        .bind(id, ownerId)
-        .first<{
+  const row = await env.DB.prepare(
+      `SELECT id, owner_id, title, cover_kind, cover_color, cover_shape, cover_alt,
+        content_json, published_at
+       FROM strips
+       WHERE id = ?`,
+    )
+      .bind(id)
+      .first<{
           id: string;
           owner_id: string;
           title: string;
@@ -84,25 +81,7 @@ export async function GET(
           cover_alt: string | null;
           content_json: string;
           published_at: number;
-        }>()
-    : await env.DB.prepare(
-        `SELECT id, owner_id, title, cover_kind, cover_color, cover_shape, cover_alt,
-          content_json, published_at
-         FROM strips
-         WHERE id = ?`,
-      )
-        .bind(id)
-        .first<{
-          id: string;
-          owner_id: string;
-          title: string;
-          cover_kind: "image" | "color";
-          cover_color: string | null;
-          cover_shape: "portrait" | "square" | "landscape" | null;
-          cover_alt: string | null;
-          content_json: string;
-          published_at: number;
-        }>();
+      }>();
   if (!row) return new Response("Not found", { status: 404 });
 
   let storedBlocks: StoredBlock[] = [];
@@ -125,7 +104,7 @@ export async function GET(
       {
         id: block.id,
         type: block.type,
-        src: mediaPath(row.owner_id, id, block.id),
+        src: mediaPath(id, block.id),
         alt: block.alt ?? "",
         ...(typeof block.height === "number" ? { height: block.height } : {}),
         ...(block.type === "video"
@@ -149,7 +128,7 @@ export async function GET(
             {
               id: `cover-${row.id}`,
               type: "image" as const,
-              src: coverPath(row.owner_id, id),
+              src: coverPath(id),
               alt: row.cover_alt ?? "Strip cover",
             },
           ]
@@ -174,7 +153,7 @@ export async function GET(
         row.cover_kind === "image"
           ? {
               kind: "image" as const,
-              src: coverPath(row.owner_id, id),
+              src: coverPath(id),
               alt: row.cover_alt ?? "Strip cover",
             }
           : {

@@ -1,5 +1,41 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    phoneE164: text("phone_e164").notNull().unique(),
+    createdAt: integer("created_at").notNull(),
+    lastSeenAt: integer("last_seen_at").notNull(),
+  },
+  (table) => [index("idx_users_phone").on(table.phoneE164)],
+);
+
+export const authSessions = sqliteTable(
+  "auth_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id").notNull(),
+    createdAt: integer("created_at").notNull(),
+    lastSeenAt: integer("last_seen_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (table) => [
+    index("idx_auth_sessions_user").on(table.userId),
+    index("idx_auth_sessions_expiry").on(table.expiresAt),
+  ],
+);
+
+export const authRateLimits = sqliteTable(
+  "auth_rate_limits",
+  {
+    key: text("rate_key").primaryKey(),
+    windowStartedAt: integer("window_started_at").notNull(),
+    count: integer("count").notNull(),
+  },
+  (table) => [index("idx_auth_rate_limits_window").on(table.windowStartedAt)],
+);
+
 export const strips = sqliteTable(
   "strips",
   {

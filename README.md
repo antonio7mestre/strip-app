@@ -16,6 +16,25 @@ npm run dev
 npm run build
 ```
 
+## Phone sign-in
+
+STRIP uses Twilio Verify for passwordless phone authentication. Production
+requires these runtime secrets:
+
+- `TWILIO_API_KEY`
+- `TWILIO_API_SECRET`
+- `TWILIO_VERIFY_SERVICE_SID`
+
+An Account SID and Auth Token can be used locally instead of an API key, but
+restricted API keys are preferred in production. When Twilio is not configured,
+localhost accepts `000000` for interface and API testing; hosted environments
+fail closed and never expose a development code.
+
+Verified accounts receive an opaque 30-day HTTP-only session cookie. Only a
+SHA-256 hash of each session token is stored in D1. Drafts and private library
+queries derive their owner from that server session, while `/strip/:id` and its
+published media remain public by design.
+
 This starter does not use `wrangler.jsonc`.
 
 ## Included Shape

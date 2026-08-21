@@ -5,6 +5,7 @@ import { flushSync } from "react-dom";
 import type {
   ChangeEvent,
   CSSProperties,
+  FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
@@ -21,6 +22,7 @@ import {
   House,
   ImagePlus,
   Link2,
+  LogOut,
   Minus,
   PaintBucket,
   Pencil,
@@ -123,6 +125,9 @@ type AppRoute =
   | { kind: "edit"; id: string }
   | { kind: "share"; id: string }
   | { kind: "published"; id: string };
+type AuthUser = { id: string; phoneLabel: string };
+type AuthStatus = "loading" | "signed-out" | "signed-in";
+type AuthStep = "phone" | "code";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -2272,6 +2277,15 @@ export default function Home() {
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
+  const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authStep, setAuthStep] = useState<AuthStep>("phone");
+  const [authPhone, setAuthPhone] = useState("");
+  const [authCode, setAuthCode] = useState("");
+  const [authPending, setAuthPending] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authDevelopmentCode, setAuthDevelopmentCode] = useState("");
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
@@ -2346,6 +2360,7 @@ export default function Home() {
   const publishFlowStartScrollRef = useRef(0);
   const inlinePreviewScrollRef = useRef<number | null>(null);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
+  const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSequenceRef = useRef(0);
@@ -2792,24 +2807,47 @@ export default function Home() {
         }
       }
       const savedOwnerId = window.localStorage.getItem(OWNER_STORAGE_KEY);
-      const ownerId =
+      legacyOwnerIdRef.current =
         savedOwnerId && /^[a-zA-Z0-9_-]{8,128}$/.test(savedOwnerId)
           ? savedOwnerId
-          : makeId();
-      window.localStorage.setItem(OWNER_STORAGE_KEY, ownerId);
-      setLibraryOwnerId(ownerId);
+          : "";
     } catch {
       // Broken local data should never block the app.
-      setLibraryOwnerId(makeId());
+      legacyOwnerIdRef.current = "";
     }
-    setLoaded(true);
+
+    const controller = new AbortController();
+    void fetch("/api/auth/session", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Session request failed");
+        const data = (await response.json()) as { user?: AuthUser | null };
+        if (data.user) {
+          setAuthUser(data.user);
+          setLibraryOwnerId(data.user.id);
+          setAuthStatus("signed-in");
+        } else {
+          setAuthStatus("signed-out");
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setAuthStatus("signed-out");
+        setAuthError("Couldn’t check your sign-in. Try again.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoaded(true);
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
     if (!libraryOwnerId) return;
     const controller = new AbortController();
     setLibraryLoading(true);
-    void fetch(`/api/strips?ownerId=${encodeURIComponent(libraryOwnerId)}`, {
+    void fetch("/api/strips", {
       cache: "no-store",
       signal: controller.signal,
     })
@@ -2834,7 +2872,7 @@ export default function Home() {
     if (!libraryOwnerId) return;
     const controller = new AbortController();
     setDraftsLoading(true);
-    void fetch(`/api/drafts?ownerId=${encodeURIComponent(libraryOwnerId)}`, {
+    void fetch("/api/drafts", {
       cache: "no-store",
       signal: controller.signal,
     })
@@ -2863,7 +2901,6 @@ export default function Home() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ownerId: libraryOwnerId,
         id,
         title: "",
         blocks: legacyBlocks,
@@ -2908,7 +2945,6 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ownerId: libraryOwnerId,
           id: currentDraftId,
           title: stripTitle,
           blocks,
@@ -3857,7 +3893,105 @@ export default function Home() {
     }
   };
 
+  const requestSignInCode = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (authPending) return;
+    setAuthPending(true);
+    setAuthError("");
+    setAuthDevelopmentCode("");
+    try {
+      const response = await fetch("/api/auth/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: authPhone }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        developmentCode?: string;
+      };
+      if (!response.ok) throw new Error(data.error || "Couldn’t send a code.");
+      setAuthDevelopmentCode(data.developmentCode ?? "");
+      setAuthStep("code");
+      setAuthCode("");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Couldn’t send a code.");
+    } finally {
+      setAuthPending(false);
+    }
+  };
+
+  const verifySignInCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (authPending) return;
+    setAuthPending(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: authPhone,
+          code: authCode,
+          legacyOwnerId: legacyOwnerIdRef.current || undefined,
+        }),
+      });
+      const data = (await response.json()) as { user?: AuthUser; error?: string };
+      if (!response.ok || !data.user) {
+        throw new Error(data.error || "That code isn’t right.");
+      }
+      try {
+        window.localStorage.removeItem(OWNER_STORAGE_KEY);
+      } catch {
+        // Storage cleanup should not interrupt a successful sign-in.
+      }
+      setAuthUser(data.user);
+      setLibraryOwnerId(data.user.id);
+      setAuthStatus("signed-in");
+      setAuthenticationRequired(false);
+      setAuthStep("phone");
+      setAuthCode("");
+      setAuthDevelopmentCode("");
+      initialRouteHandledRef.current = false;
+      setInitialRouteReady(false);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "That code isn’t right.");
+    } finally {
+      setAuthPending(false);
+    }
+  };
+
+  const editSignInPhone = () => {
+    setAuthStep("phone");
+    setAuthCode("");
+    setAuthError("");
+    setAuthDevelopmentCode("");
+  };
+
+  const signOut = async () => {
+    if (authPending) return;
+    setAuthPending(true);
+    try {
+      await fetch("/api/auth/signout", { method: "POST" });
+    } finally {
+      setPublishedStrips([]);
+      setDraftStrips([]);
+      setLibraryOwnerId("");
+      setAuthUser(null);
+      setAuthStatus("signed-out");
+      setAuthenticationRequired(true);
+      setBrowserPath("/", true);
+      setView("library");
+      initialRouteHandledRef.current = false;
+      setInitialRouteReady(false);
+      setAuthPending(false);
+    }
+  };
+
   const beginNewStrip = () => {
+    if (authStatus !== "signed-in") {
+      setAuthenticationRequired(true);
+      return;
+    }
     const draftId = makeId();
     setCurrentDraftId(draftId);
     setCurrentDraftCreatedAt(Date.now());
@@ -3883,7 +4017,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     try {
       const response = await fetch(
-        `/api/drafts/${encodeURIComponent(draft.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+        `/api/drafts/${encodeURIComponent(draft.id)}`,
         { cache: "no-store" },
       );
       if (!response.ok) throw new Error("Draft request failed");
@@ -3939,7 +4073,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     try {
       const response = await fetch(
-        `/api/strips/${encodeURIComponent(strip.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+        `/api/strips/${encodeURIComponent(strip.id)}`,
         { cache: "no-store" },
       );
       if (!response.ok) throw new Error("Strip request failed");
@@ -3962,19 +4096,50 @@ export default function Home() {
       setBrowserPath("/");
       await transitionToViewStandard("library");
       setOpenedPublishedStrip(null);
+      if (authStatus !== "signed-in") setAuthenticationRequired(true);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
   };
 
   useEffect(() => {
-    if (!libraryOwnerId || initialRouteHandledRef.current) return;
+    if (authStatus === "loading" || initialRouteHandledRef.current) return;
     initialRouteHandledRef.current = true;
     let cancelled = false;
 
     const applyRoute = async () => {
       try {
         const route = routeFromPathname(window.location.pathname);
+        if (route.kind === "published") {
+          setAuthenticationRequired(false);
+          try {
+            const response = await fetch(`/api/strips/${encodeURIComponent(route.id)}`, {
+              cache: "no-store",
+            });
+            if (!response.ok) throw new Error("Published route request failed");
+            const data = (await response.json()) as { strip: PublishedStripDetail };
+            if (cancelled) return;
+            setOpenedPublishedStrip(data.strip);
+            setView("published");
+            window.scrollTo({ top: 0, behavior: "auto" });
+          } catch {
+            if (cancelled) return;
+            setBrowserPath("/", true);
+            setView("library");
+            setAuthenticationRequired(authStatus !== "signed-in");
+            setNotice("Couldn’t open this Strip.");
+          }
+          return;
+        }
+
+        if (authStatus !== "signed-in" || !libraryOwnerId) {
+          setAuthenticationRequired(true);
+          setView("library");
+          setOpenedPublishedStrip(null);
+          window.scrollTo({ top: 0, behavior: "auto" });
+          return;
+        }
+        setAuthenticationRequired(false);
         if (route.kind === "library") {
           setView("library");
           setOpenedPublishedStrip(null);
@@ -3990,7 +4155,7 @@ export default function Home() {
         if (route.kind === "edit") {
           try {
             const response = await fetch(
-              `/api/drafts/${encodeURIComponent(route.id)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+              `/api/drafts/${encodeURIComponent(route.id)}`,
               { cache: "no-store" },
             );
             if (cancelled) return;
@@ -4029,7 +4194,7 @@ export default function Home() {
           const data = (await response.json()) as { strip: PublishedStripDetail };
           if (cancelled) return;
           setOpenedPublishedStrip(data.strip);
-          setView(route.kind === "share" ? "share" : "published");
+          setView("share");
           window.scrollTo({ top: 0, behavior: "auto" });
         } catch {
           if (cancelled) return;
@@ -4049,7 +4214,7 @@ export default function Home() {
       cancelled = true;
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [libraryOwnerId]);
+  }, [authStatus, libraryOwnerId]);
 
   const publish = async () => {
     if (!hasContent) {
@@ -4085,7 +4250,6 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ownerId: libraryOwnerId,
           id: stripId,
           draftId: currentDraftId,
           title: stripTitle.trim(),
@@ -4106,7 +4270,7 @@ export default function Home() {
       if (currentDraftId) {
         try {
           await fetch(
-            `/api/drafts/${encodeURIComponent(currentDraftId)}?ownerId=${encodeURIComponent(libraryOwnerId)}`,
+            `/api/drafts/${encodeURIComponent(currentDraftId)}`,
             { method: "DELETE" },
           );
         } catch {
@@ -4678,6 +4842,97 @@ export default function Home() {
     return <main className="app-shell route-loading-mode" aria-busy="true" />;
   }
 
+  if (authenticationRequired && authStatus !== "signed-in") {
+    return (
+      <main className="app-shell auth-mode">
+        <div
+          className="top-safe-area-anchor"
+          style={{ backgroundColor: DEFAULT_BACKGROUND }}
+          aria-hidden="true"
+        />
+        <section className="auth-shell" aria-labelledby="auth-heading">
+          <header className="auth-brand">STRIP</header>
+          <div className="auth-card">
+            <div className="auth-copy">
+              <p>{authStep === "phone" ? "Sign in to make a Strip." : "Almost there."}</p>
+              <h1 id="auth-heading">
+                {authStep === "phone" ? "Your number" : "Enter the code"}
+              </h1>
+              <span>
+                {authStep === "phone"
+                  ? "We’ll text you. No password."
+                  : `Sent to ${authPhone}`}
+              </span>
+            </div>
+
+            {authStep === "phone" ? (
+              <form className="auth-form" onSubmit={requestSignInCode}>
+                <label htmlFor="auth-phone">Phone number</label>
+                <input
+                  id="auth-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="(555) 555-5555"
+                  value={authPhone}
+                  onChange={(event) => setAuthPhone(event.target.value)}
+                  disabled={authPending}
+                />
+                <button type="submit" disabled={authPending || !authPhone.trim()}>
+                  {authPending ? "Sending…" : "Continue"}
+                </button>
+              </form>
+            ) : (
+              <form className="auth-form" onSubmit={verifySignInCode}>
+                <label htmlFor="auth-code">Verification code</label>
+                <input
+                  id="auth-code"
+                  className="auth-code-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  value={authCode}
+                  onChange={(event) =>
+                    setAuthCode(event.target.value.replace(/\D/g, "").slice(0, 10))
+                  }
+                  disabled={authPending}
+                />
+                <button type="submit" disabled={authPending || authCode.length < 4}>
+                  {authPending ? "Checking…" : "Continue"}
+                </button>
+                <div className="auth-secondary-actions">
+                  <button
+                    className="auth-text-button"
+                    type="button"
+                    onClick={() => void requestSignInCode()}
+                    disabled={authPending}
+                  >
+                    Send again
+                  </button>
+                  <button
+                    className="auth-text-button"
+                    type="button"
+                    onClick={editSignInPhone}
+                    disabled={authPending}
+                  >
+                    Change number
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {authDevelopmentCode ? (
+              <p className="auth-dev-note">Local code: {authDevelopmentCode}</p>
+            ) : null}
+            {authError ? <p className="auth-error" role="alert">{authError}</p> : null}
+          </div>
+          <p className="auth-terms">By continuing, you agree to receive a sign-in text.</p>
+        </section>
+      </main>
+    );
+  }
+
   if (view === "library" || view === "drafts") {
     const isDraftLibrary = view === "drafts";
     const libraryItems = isDraftLibrary ? draftStrips : publishedStrips;
@@ -4750,22 +5005,32 @@ export default function Home() {
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
               <h1>{isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
-              <button
-                className="library-header-action"
-                type="button"
-                onClick={() =>
-                  isDraftLibrary
-                    ? void returnToLibrary()
-                    : void openDraftLibrary()
-                }
-                aria-label={isDraftLibrary ? "Return to Strips" : "Open drafts"}
-              >
-                {isDraftLibrary ? (
-                  <House aria-hidden="true" />
-                ) : (
-                  <Files aria-hidden="true" />
-                )}
-              </button>
+              <div className="library-header-actions">
+                <button
+                  className="library-header-action"
+                  type="button"
+                  onClick={() =>
+                    isDraftLibrary
+                      ? void returnToLibrary()
+                      : void openDraftLibrary()
+                  }
+                  aria-label={isDraftLibrary ? "Return to Strips" : "Open drafts"}
+                >
+                  {isDraftLibrary ? (
+                    <House aria-hidden="true" />
+                  ) : (
+                    <Files aria-hidden="true" />
+                  )}
+                </button>
+                <button
+                  className="library-header-action"
+                  type="button"
+                  onClick={() => void signOut()}
+                  aria-label={`Sign out${authUser?.phoneLabel ? ` ${authUser.phoneLabel}` : ""}`}
+                >
+                  <LogOut aria-hidden="true" />
+                </button>
+              </div>
             </header>
             <div
               className="library-grid"

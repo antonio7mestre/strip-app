@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { requireAuthUser } from "@/app/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,17 +9,17 @@ type StoredMediaBlock = {
   objectKey: string;
 };
 
-const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string; blockId: string }> },
 ) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
+  const ownerId = auth.user.id;
   const { id, blockId } = await context.params;
   if (
-    !OWNER_PATTERN.test(ownerId) ||
     !ID_PATTERN.test(id) ||
     !ID_PATTERN.test(blockId)
   ) {

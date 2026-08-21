@@ -8,17 +8,14 @@ type StoredMediaBlock = {
   objectKey: string;
 };
 
-const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string; blockId: string }> },
 ) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
   const { id, blockId } = await context.params;
   if (
-    !OWNER_PATTERN.test(ownerId) ||
     !ID_PATTERN.test(id) ||
     !ID_PATTERN.test(blockId)
   ) {
@@ -28,9 +25,9 @@ export async function GET(
   const row = await env.DB.prepare(
     `SELECT content_json
      FROM strips
-     WHERE id = ? AND owner_id = ?`,
+     WHERE id = ?`,
   )
-    .bind(id, ownerId)
+    .bind(id)
     .first<{ content_json: string }>();
   if (!row) return new Response("Not found", { status: 404 });
 
@@ -54,7 +51,7 @@ export async function GET(
   if (!object) return new Response("Not found", { status: 404 });
 
   const headers = new Headers({
-    "Cache-Control": "private, max-age=31536000, immutable",
+    "Cache-Control": "public, max-age=31536000, immutable",
     ETag: object.httpEtag,
   });
   object.writeHttpMetadata(headers);

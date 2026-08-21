@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +34,10 @@ type StoredDraftBlock =
       width: number;
     };
 
-const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
-function mediaPath(ownerId: string, draftId: string, blockId: string) {
-  return `/api/drafts/${encodeURIComponent(draftId)}/media/${encodeURIComponent(blockId)}?ownerId=${encodeURIComponent(ownerId)}`;
+function mediaPath(draftId: string, blockId: string) {
+  return `/api/drafts/${encodeURIComponent(draftId)}/media/${encodeURIComponent(blockId)}`;
 }
 
 function readStoredBlocks(value: string) {
@@ -53,9 +53,11 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
+  const ownerId = auth.user.id;
   const { id } = await context.params;
-  if (!OWNER_PATTERN.test(ownerId) || !ID_PATTERN.test(id)) {
+  if (!ID_PATTERN.test(id)) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -86,7 +88,7 @@ export async function GET(
       {
         id: block.id,
         type: block.type,
-        src: mediaPath(ownerId, id, block.id),
+        src: mediaPath(id, block.id),
         alt: block.alt ?? "",
         ...(typeof block.height === "number" ? { height: block.height } : {}),
         ...(block.type === "video"
@@ -119,9 +121,14 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
+  if (!isSameOrigin(request)) {
+    return Response.json({ error: "Invalid request." }, { status: 403 });
+  }
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
+  const ownerId = auth.user.id;
   const { id } = await context.params;
-  if (!OWNER_PATTERN.test(ownerId) || !ID_PATTERN.test(id)) {
+  if (!ID_PATTERN.test(id)) {
     return new Response("Not found", { status: 404 });
   }
 

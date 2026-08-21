@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,6 @@ type StoredStripRow = {
 };
 
 type PublishRequest = {
-  ownerId?: string;
   id?: string;
   draftId?: string | null;
   title?: string;
@@ -81,7 +81,6 @@ type StoredContentBlock =
       width: number;
     };
 
-const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
 function finiteNumber(value: unknown, fallback: number) {
@@ -93,11 +92,11 @@ const MAX_COVER_BYTES = 20 * 1024 * 1024;
 const MAX_MEDIA_BYTES = 80 * 1024 * 1024;
 const MAX_BLOCKS = 100;
 
-function imageCoverPath(ownerId: string, stripId: string) {
-  return `/api/strips/${encodeURIComponent(stripId)}/cover?ownerId=${encodeURIComponent(ownerId)}`;
+function imageCoverPath(stripId: string) {
+  return `/api/strips/${encodeURIComponent(stripId)}/cover`;
 }
 
-function serializeRow(row: StoredStripRow, ownerId: string) {
+function serializeRow(row: StoredStripRow) {
   return {
     id: row.id,
     title: row.title,
@@ -106,7 +105,7 @@ function serializeRow(row: StoredStripRow, ownerId: string) {
       row.cover_kind === "image"
         ? {
             kind: "image" as const,
-            src: imageCoverPath(ownerId, row.id),
+            src: imageCoverPath(row.id),
             alt: row.cover_alt ?? "Strip cover",
           }
         : {
@@ -250,10 +249,9 @@ function imageExtension(contentType: string) {
 }
 
 export async function GET(request: Request) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
-  if (!OWNER_PATTERN.test(ownerId)) {
-    return Response.json({ error: "Invalid owner." }, { status: 400 });
-  }
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
+  const ownerId = auth.user.id;
 
   const result = await env.DB.prepare(
     `SELECT id, title, cover_kind, cover_color, cover_shape,
@@ -266,11 +264,16 @@ export async function GET(request: Request) {
     .all<StoredStripRow>();
 
   return Response.json({
-    strips: result.results.map((row: StoredStripRow) => serializeRow(row, ownerId)),
+    strips: result.results.map((row: StoredStripRow) => serializeRow(row)),
   });
 }
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) {
+    return Response.json({ error: "Invalid request." }, { status: 403 });
+  }
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
   let input: PublishRequest;
   try {
     input = (await request.json()) as PublishRequest;
@@ -278,7 +281,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const ownerId = input.ownerId ?? "";
+  const ownerId = auth.user.id;
   const id = input.id ?? "";
   const draftId = input.draftId ?? null;
   const title = (input.title ?? "").trim().slice(0, 80);
@@ -286,7 +289,6 @@ export async function POST(request: Request) {
     ? Math.round(input.publishedAt as number)
     : Date.now();
   if (
-    !OWNER_PATTERN.test(ownerId) ||
     !ID_PATTERN.test(id) ||
     (draftId !== null && !ID_PATTERN.test(draftId)) ||
     !input.cover
@@ -403,5 +405,5 @@ export async function POST(request: Request) {
     cover_alt: coverAlt,
     published_at: publishedAt,
   };
-  return Response.json({ strip: serializeRow(row, ownerId) }, { status: 201 });
+  return Response.json({ strip: serializeRow(row) }, { status: 201 });
 }

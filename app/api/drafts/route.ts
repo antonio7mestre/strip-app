@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,6 @@ type StoredDraftRow = {
 };
 
 type DraftRequest = {
-  ownerId?: string;
   id?: string;
   title?: string;
   createdAt?: number;
@@ -73,7 +73,6 @@ type DraftRequest = {
   blocks?: DraftBlock[];
 };
 
-const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
 function finiteNumber(value: unknown, fallback: number) {
@@ -83,11 +82,11 @@ function finiteNumber(value: unknown, fallback: number) {
 const MAX_MEDIA_BYTES = 80 * 1024 * 1024;
 const MAX_BLOCKS = 100;
 
-function draftMediaPath(ownerId: string, draftId: string, blockId: string) {
-  return `/api/drafts/${encodeURIComponent(draftId)}/media/${encodeURIComponent(blockId)}?ownerId=${encodeURIComponent(ownerId)}`;
+function draftMediaPath(draftId: string, blockId: string) {
+  return `/api/drafts/${encodeURIComponent(draftId)}/media/${encodeURIComponent(blockId)}`;
 }
 
-function serializeRow(row: StoredDraftRow, ownerId: string) {
+function serializeRow(row: StoredDraftRow) {
   return {
     id: row.id,
     title: row.title,
@@ -97,7 +96,7 @@ function serializeRow(row: StoredDraftRow, ownerId: string) {
       row.cover_kind === "image" && row.cover_block_id
         ? {
             kind: "image" as const,
-            src: draftMediaPath(ownerId, row.id, row.cover_block_id),
+            src: draftMediaPath(row.id, row.cover_block_id),
             alt: "Draft cover",
           }
         : {
@@ -241,10 +240,9 @@ function storedMediaObjectKeys(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const ownerId = new URL(request.url).searchParams.get("ownerId") ?? "";
-  if (!OWNER_PATTERN.test(ownerId)) {
-    return Response.json({ error: "Invalid owner." }, { status: 400 });
-  }
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
+  const ownerId = auth.user.id;
 
   const result = await env.DB.prepare(
     `SELECT id, title, cover_kind, cover_color, cover_block_id,
@@ -257,11 +255,16 @@ export async function GET(request: Request) {
     .all<StoredDraftRow>();
 
   return Response.json({
-    drafts: result.results.map((row: StoredDraftRow) => serializeRow(row, ownerId)),
+    drafts: result.results.map((row: StoredDraftRow) => serializeRow(row)),
   });
 }
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) {
+    return Response.json({ error: "Invalid request." }, { status: 403 });
+  }
+  const auth = await requireAuthUser(request);
+  if (!auth.user) return auth.response;
   let input: DraftRequest;
   try {
     input = (await request.json()) as DraftRequest;
@@ -269,9 +272,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const ownerId = input.ownerId ?? "";
+  const ownerId = auth.user.id;
   const id = input.id ?? "";
-  if (!OWNER_PATTERN.test(ownerId) || !ID_PATTERN.test(id)) {
+  if (!ID_PATTERN.test(id)) {
     return Response.json({ error: "Invalid draft." }, { status: 400 });
   }
   const inputBlocks = Array.isArray(input.blocks) ? input.blocks : [];
@@ -359,7 +362,6 @@ export async function POST(request: Request) {
         created_at: createdAt,
         updated_at: updatedAt,
       },
-      ownerId,
     ),
   });
 }
