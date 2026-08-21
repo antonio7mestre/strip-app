@@ -2765,13 +2765,38 @@ export default function Home() {
 
     let settleFrame: number | null = null;
     let settleTimer: number | null = null;
+    let viewportFrame: number | null = null;
     let touchIsActive = false;
+    let previousTouchY: number | null = null;
+    let lastKnownAnchor: number | null = null;
 
     const clearPendingSettle = () => {
       if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
       if (settleTimer !== null) window.clearTimeout(settleTimer);
+      if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
       settleFrame = null;
       settleTimer = null;
+      viewportFrame = null;
+    };
+
+    const getTrailingTextAnchor = () => {
+      const inset = trailingTextInsetRef.current;
+      if (inset <= 0) return null;
+      const scrollRoot = document.scrollingElement ?? document.documentElement;
+      const maximumScroll = Math.max(
+        0,
+        scrollRoot.scrollHeight - scrollRoot.clientHeight,
+      );
+      return Math.max(0, maximumScroll - inset);
+    };
+
+    lastKnownAnchor = getTrailingTextAnchor();
+
+    const enforceTrailingTextBoundary = () => {
+      const anchor = getTrailingTextAnchor();
+      if (anchor === null || window.scrollY <= anchor + 0.5) return false;
+      window.scrollTo({ top: anchor, left: 0, behavior: "auto" });
+      return true;
     };
 
     const settleTrailingTextAtAnchor = () => {
@@ -2794,12 +2819,8 @@ export default function Home() {
           textBounds.bottom <= viewportHeight + inset + 1;
         if (!bottomEdgeIsInAnchorZone) return;
 
-        const scrollRoot = document.scrollingElement ?? document.documentElement;
-        const maximumScroll = Math.max(
-          0,
-          scrollRoot.scrollHeight - scrollRoot.clientHeight,
-        );
-        const anchor = Math.max(0, maximumScroll - inset);
+        const anchor = getTrailingTextAnchor();
+        if (anchor === null) return;
         if (Math.abs(window.scrollY - anchor) <= 0.5) return;
         window.scrollTo({ top: anchor, left: 0, behavior: "smooth" });
       });
@@ -2810,24 +2831,77 @@ export default function Home() {
       settleTimer = window.setTimeout(settleTrailingTextAtAnchor, delay);
     };
 
-    const handleTouchStart = () => {
+    const handleTouchStart = (event: TouchEvent) => {
       touchIsActive = true;
+      previousTouchY =
+        event.touches.length === 1 ? event.touches[0].clientY : null;
       clearPendingSettle();
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        previousTouchY = null;
+        return;
+      }
+
+      const currentTouchY = event.touches[0].clientY;
+      if (previousTouchY === null) {
+        previousTouchY = currentTouchY;
+        return;
+      }
+
+      const upwardFingerTravel = previousTouchY - currentTouchY;
+      previousTouchY = currentTouchY;
+      if (upwardFingerTravel <= 0) return;
+
+      const anchor = getTrailingTextAnchor();
+      if (
+        anchor === null ||
+        window.scrollY + upwardFingerTravel < anchor - 0.5
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      window.scrollTo({ top: anchor, left: 0, behavior: "auto" });
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
       if (event.touches.length > 0) return;
       touchIsActive = false;
+      previousTouchY = null;
       scheduleSettleFallback(360);
     };
 
     const handleNativeReboundScroll = () => {
+      if (enforceTrailingTextBoundary()) return;
+      lastKnownAnchor = getTrailingTextAnchor();
       if (touchIsActive) return;
       scheduleSettleFallback(90);
     };
 
+    const handleViewportResize = () => {
+      const previousAnchor = lastKnownAnchor;
+      const wasPinned =
+        previousAnchor !== null &&
+        Math.abs(window.scrollY - previousAnchor) <= 1;
+      if (viewportFrame !== null) window.cancelAnimationFrame(viewportFrame);
+      viewportFrame = window.requestAnimationFrame(() => {
+        viewportFrame = null;
+        const nextAnchor = getTrailingTextAnchor();
+        lastKnownAnchor = nextAnchor;
+        if (nextAnchor === null) return;
+        if (wasPinned || window.scrollY > nextAnchor + 0.5) {
+          window.scrollTo({ top: nextAnchor, left: 0, behavior: "auto" });
+        }
+      });
+    };
+
     document.addEventListener("touchstart", handleTouchStart, {
       passive: true,
+    });
+    document.addEventListener("touchmove", handleTouchMove, {
+      passive: false,
     });
     document.addEventListener("touchend", handleTouchEnd, {
       passive: true,
@@ -2839,14 +2913,19 @@ export default function Home() {
       passive: true,
     });
     window.addEventListener("scrollend", settleTrailingTextAtAnchor);
+    window.visualViewport?.addEventListener("resize", handleViewportResize, {
+      passive: true,
+    });
 
     return () => {
       clearPendingSettle();
       document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", handleTouchEnd);
       document.removeEventListener("touchcancel", handleTouchEnd);
       window.removeEventListener("scroll", handleNativeReboundScroll);
       window.removeEventListener("scrollend", settleTrailingTextAtAnchor);
+      window.visualViewport?.removeEventListener("resize", handleViewportResize);
     };
   }, [hasPublishedTrailingText, initialRouteReady, view]);
 
