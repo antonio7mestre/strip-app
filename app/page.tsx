@@ -4602,7 +4602,7 @@ export default function Home() {
     const canvasMinHeight = anchorsPublishedTextTail
       ? `max(${stickerFloor}px, calc(100lvh + ${
           hasLeadingImage ? "var(--leading-image-inset)" : "0px"
-        }))`
+        } + var(--published-bottom-anchor-inset, env(safe-area-inset-bottom))))`
       : stickerFloor > 0
         ? `${stickerFloor}px`
         : undefined;

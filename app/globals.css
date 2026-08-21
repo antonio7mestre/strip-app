@@ -674,6 +674,19 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: inherit;
 }
 
+.published-mode.has-trailing-text {
+  --published-bottom-anchor-inset: env(safe-area-inset-bottom);
+}
+
+@supports (height: 100svh) and (height: 100lvh) {
+  .published-mode.has-trailing-text {
+    --published-bottom-anchor-inset: max(
+      env(safe-area-inset-bottom),
+      calc(100lvh - 100svh)
+    );
+  }
+}
+
 .published-mode.has-trailing-text .strip-canvas {
   display: flex;
   flex-direction: column;
@@ -689,7 +702,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   .strip-canvas
   > .text-block.is-published-tail-text {
   flex: 1 0 auto;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  padding-bottom: calc(16px + var(--published-bottom-anchor-inset));
 }
 
 .strip-block {
