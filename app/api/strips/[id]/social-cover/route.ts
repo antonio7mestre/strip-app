@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { imageSize } from "image-size";
 import { createElement } from "react";
 import { ImageResponse } from "next/og";
+import { applyPublicMediaSecurityHeaders } from "@/app/server/media-security";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,7 @@ export async function GET(
         ...dimensions,
         headers: {
           "Cache-Control": "public, max-age=31536000, immutable",
+          "Content-Security-Policy": "sandbox; default-src 'none'",
           ETag: `"social-color-v1-${color.slice(1).toLowerCase()}-${row.cover_shape ?? "square"}"`,
           "X-Content-Type-Options": "nosniff",
         },
@@ -113,14 +115,12 @@ export async function GET(
       "ETag",
       `"social-v1-${object.httpEtag.replace(/^"|"$/g, "")}"`,
     );
-    headers.set("X-Content-Type-Options", "nosniff");
+    applyPublicMediaSecurityHeaders(headers);
     return new Response(response.body, { status: response.status, headers });
   } catch {
-    const headers = new Headers({
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-    });
+    const headers = new Headers({ "Cache-Control": "no-store" });
     object.writeHttpMetadata(headers);
+    applyPublicMediaSecurityHeaders(headers);
     return new Response(source, { headers });
   }
 }

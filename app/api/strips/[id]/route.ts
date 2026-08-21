@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { usernameFromHostname } from "@/app/lib/username";
+import { readStripContent } from "@/app/lib/strip-ending";
+import { getAuthUser } from "@/app/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -93,44 +95,46 @@ export async function GET(
   ) {
     return new Response("Not found", { status: 404 });
   }
+  const viewer = await getAuthUser(request);
 
-  let storedBlocks: StoredBlock[] = [];
-  try {
-    const parsed = JSON.parse(row.content_json) as unknown;
-    if (Array.isArray(parsed)) storedBlocks = parsed as StoredBlock[];
-  } catch {
-    storedBlocks = [];
-  }
+  const storedContent = readStripContent(row.content_json);
+  const storedBlocks = storedContent.blocks as StoredBlock[];
 
-  let blocks = storedBlocks.flatMap((block) => {
-    if (!block || !ID_PATTERN.test(block.id)) return [];
-    if (block.type === "text") return [block];
+  let blocks: unknown[] = [];
+  for (const block of storedBlocks) {
+    if (!block || !ID_PATTERN.test(block.id)) continue;
+    if (block.type === "text") {
+      blocks.push(block);
+      continue;
+    }
     if (
       block.type !== "image" &&
       block.type !== "video" &&
       block.type !== "sticker"
-    ) return [];
-    return [
-      {
-        id: block.id,
-        type: block.type,
-        src: mediaPath(id, block.id),
-        alt: block.alt ?? "",
-        ...(typeof block.height === "number" ? { height: block.height } : {}),
-        ...(block.type === "video"
-          ? {
-              audioEnabled: block.audioEnabled !== false,
-              ...(typeof block.hasAudio === "boolean"
-                ? { hasAudio: block.hasAudio }
-                : {}),
-            }
-          : {}),
-        ...(block.type === "sticker"
-          ? { x: block.x, y: block.y, width: block.width }
-          : {}),
-      },
-    ];
-  });
+    ) {
+      continue;
+    }
+    blocks.push({
+      id: block.id,
+      type: block.type,
+      src: mediaPath(id, block.id),
+      alt: block.alt ?? "",
+      ...("height" in block && typeof block.height === "number"
+        ? { height: block.height }
+        : {}),
+      ...(block.type === "video"
+        ? {
+            audioEnabled: block.audioEnabled !== false,
+            ...(typeof block.hasAudio === "boolean"
+              ? { hasAudio: block.hasAudio }
+              : {}),
+          }
+        : {}),
+      ...(block.type === "sticker"
+        ? { x: block.x, y: block.y, width: block.width }
+        : {}),
+    });
+  }
   if (blocks.length === 0) {
     blocks =
       row.cover_kind === "image"
@@ -159,6 +163,7 @@ export async function GET(
     strip: {
       id: row.id,
       username: row.username,
+      viewerIsOwner: viewer?.id === row.owner_id,
       title: row.title,
       cover:
         row.cover_kind === "image"
@@ -177,6 +182,7 @@ export async function GET(
             },
       publishedAt: row.published_at,
       blocks,
+      endingStyle: storedContent.endingStyle,
     },
   });
 }

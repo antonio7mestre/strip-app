@@ -38,6 +38,10 @@ import {
   PUBLIC_DOMAIN,
   usernameFromHostname,
 } from "@/app/lib/username";
+import {
+  DEFAULT_STRIP_ENDING_STYLE,
+  type StripEndingStyle,
+} from "@/app/lib/strip-ending";
 
 type TextBlock = {
   id: string;
@@ -92,6 +96,7 @@ type View =
   | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
+type EndingTool = "background" | "button";
 type CoverColorShape = "portrait" | "square" | "landscape";
 type PublishedCover =
   | { kind: "image"; src: string; alt: string }
@@ -110,6 +115,8 @@ type PublishedStripDetail = {
   cover: PublishedCover;
   publishedAt: number;
   blocks: StripBlock[];
+  endingStyle: StripEndingStyle;
+  viewerIsOwner: boolean;
 };
 type DraftStripSummary = {
   id: string;
@@ -122,6 +129,7 @@ type DraftStripDetail = {
   id: string;
   title: string;
   blocks: StripBlock[];
+  endingStyle: StripEndingStyle;
   createdAt: number;
   updatedAt: number;
 };
@@ -164,6 +172,7 @@ const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 180;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const STICKER_MIN_VISIBLE_PX = 44;
+const STRIP_ENDING_BLOCK_ID = "strip-ending";
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -314,6 +323,19 @@ function publicStripUrl(strip: Pick<PublishedStripSummary, "id" | "username">) {
     return `${window.location.origin}/strip/${id}`;
   }
   return `https://${strip.username}.${PUBLIC_DOMAIN}/${id}`;
+}
+
+function mainAppOrigin() {
+  const hostname = window.location.hostname.toLowerCase();
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.endsWith(".workers.dev") ||
+    hostname.endsWith(".chatgpt.site")
+  ) {
+    return window.location.origin;
+  }
+  return `https://${PUBLIC_DOMAIN}`;
 }
 
 function draftFallbackTitle(timestamp: number) {
@@ -881,6 +903,8 @@ function BlockControls({
   onRemove,
   onTextTool,
   activeTextTool,
+  onEndingTool,
+  activeEndingTool,
   onVideoAudio,
   videoMuted,
   surfaceColor,
@@ -891,9 +915,11 @@ function BlockControls({
   index: number;
   count: number;
   onMove?: (direction: -1 | 1) => void;
-  onRemove: () => void;
+  onRemove?: () => void;
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
+  onEndingTool?: (tool: EndingTool) => void;
+  activeEndingTool?: EndingTool | null;
   onVideoAudio?: () => void;
   videoMuted?: boolean;
   surfaceColor?: string;
@@ -901,7 +927,9 @@ function BlockControls({
   stickerRotation?: number;
   showTopEdge?: boolean;
 }) {
-  const trayClass = onTextTool
+  const trayClass = onEndingTool
+    ? "is-ending-tray"
+    : onTextTool
     ? "is-text-tray"
     : onVideoAudio
       ? "is-video-tray"
@@ -910,7 +938,15 @@ function BlockControls({
         : "is-single-action-tray";
   const edgeRef = useRef<SVGSVGElement>(null);
   const [edgeWidth, setEdgeWidth] = useState(0);
-  const trayWidth = onTextTool ? 336 : onVideoAudio ? 248 : onMove ? 204 : 80;
+  const trayWidth = onEndingTool
+    ? 160
+    : onTextTool
+      ? 336
+      : onVideoAudio
+        ? 248
+        : onMove
+          ? 204
+          : 80;
   const edgeStart = Math.max(0, (edgeWidth - trayWidth) / 2);
   const edgeEnd = edgeStart + trayWidth;
   const edgePath = edgeWidth
@@ -965,7 +1001,7 @@ function BlockControls({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              onRemove();
+              onRemove?.();
             }}
             aria-label="Delete sticker"
           >
@@ -1023,6 +1059,28 @@ function BlockControls({
             </button>
           </>
         ) : null}
+        {onEndingTool ? (
+          <>
+            <button
+              type="button"
+              className={activeEndingTool === "background" ? "is-active" : ""}
+              onClick={() => onEndingTool("background")}
+              aria-label="Choose ending background color"
+              aria-pressed={activeEndingTool === "background"}
+            >
+              <PaintBucket className="block-glyph" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={activeEndingTool === "button" ? "is-active" : ""}
+              onClick={() => onEndingTool("button")}
+              aria-label="Choose ending button color"
+              aria-pressed={activeEndingTool === "button"}
+            >
+              <Link2 className="block-glyph" aria-hidden="true" />
+            </button>
+          </>
+        ) : null}
         {onVideoAudio ? (
           <button
             type="button"
@@ -1057,9 +1115,11 @@ function BlockControls({
             </button>
           </>
         ) : null}
-        <button type="button" onClick={onRemove} aria-label="Delete block">
-          <Trash2 className="block-glyph" aria-hidden="true" />
-        </button>
+        {onRemove ? (
+          <button type="button" onClick={onRemove} aria-label="Delete block">
+            <Trash2 className="block-glyph" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
       <svg
         ref={edgeRef}
@@ -2295,6 +2355,9 @@ function StripStickerBlock({
 
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
+  const [endingStyle, setEndingStyle] = useState<StripEndingStyle>(
+    DEFAULT_STRIP_ENDING_STYLE,
+  );
   const [imageTrayColors, setImageTrayColors] = useState<Record<string, string>>({});
   const [videoAudioPresence, setVideoAudioPresence] = useState<Record<string, boolean>>(
     {},
@@ -2343,6 +2406,7 @@ export default function Home() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
+  const [activeEndingTool, setActiveEndingTool] = useState<EndingTool | null>(null);
   const [lastTextTool, setLastTextTool] = useState<TextTool>("font");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [stripTitle, setStripTitle] = useState("");
@@ -2459,31 +2523,28 @@ export default function Home() {
   const hasLeadingImage =
     firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
   const hasLeadingText = firstVisibleBlock?.type === "text";
-  const lastPublishedFlowBlock =
+  const visibleEndingStyle =
     view === "published" && openedPublishedStrip
-      ? [...openedPublishedStrip.blocks]
-          .reverse()
-          .find((block) => block.type !== "sticker")
-      : undefined;
-  const publishedTrailingTextColor =
-    lastPublishedFlowBlock?.type === "text"
-      ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
-      : null;
-  const publishedTrailingImageColor =
-    lastPublishedFlowBlock?.type === "image"
-      ? (imageTrayColors[lastPublishedFlowBlock.id] ?? DEFAULT_BACKGROUND)
-      : null;
-  const publishedBottomSurfaceColor =
-    publishedTrailingTextColor ?? publishedTrailingImageColor;
-  const hasPublishedTrailingText = publishedTrailingTextColor !== null;
-  const hasPublishedTrailingImage = publishedTrailingImageColor !== null;
+      ? openedPublishedStrip.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE
+      : endingStyle;
+  const hasPublishedEndingCard = view === "published" && openedPublishedStrip !== null;
+  const publishedBottomSurfaceColor = hasPublishedEndingCard
+    ? visibleEndingStyle.backgroundColor
+    : null;
   const hasPublishedBottomSurface = publishedBottomSurfaceColor !== null;
 
   useEffect(() => {
     if (view === "edit") return;
     setInlinePreview(false);
+    setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
   }, [view]);
+
+  useEffect(() => {
+    if (selectedBlockId !== STRIP_ENDING_BLOCK_ID) {
+      setActiveEndingTool(null);
+    }
+  }, [selectedBlockId]);
 
   useEffect(() => {
     if (view !== "edit") return;
@@ -2715,7 +2776,7 @@ export default function Home() {
 
       if (
         view !== "published" ||
-        !hasPublishedTrailingText ||
+        !hasPublishedEndingCard ||
         !isIOS ||
         window.screen.height / window.screen.width <= 2
       ) {
@@ -2764,7 +2825,7 @@ export default function Home() {
       root.classList.remove("trailing-text-inset-active");
       root.style.removeProperty("--trailing-text-inset");
     };
-  }, [hasPublishedTrailingText, view]);
+  }, [hasPublishedEndingCard, view]);
 
   useEffect(
     () => () => {
@@ -3126,6 +3187,7 @@ export default function Home() {
         id,
         title: "",
         blocks: legacyBlocks,
+        endingStyle: DEFAULT_STRIP_ENDING_STYLE,
         createdAt,
         updatedAt: createdAt,
       }),
@@ -3170,6 +3232,7 @@ export default function Home() {
           id: currentDraftId,
           title: stripTitle,
           blocks,
+          endingStyle,
           createdAt,
           updatedAt,
         }),
@@ -3200,6 +3263,7 @@ export default function Home() {
     blocks,
     currentDraftCreatedAt,
     currentDraftId,
+    endingStyle,
     libraryOwnerId,
     loaded,
     stripTitle,
@@ -3459,10 +3523,16 @@ export default function Home() {
   const hasContent = blocks.length > 0;
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
+  const endingIsSelected = selectedBlockId === STRIP_ENDING_BLOCK_ID;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
   useLayoutEffect(() => {
     const selected = blocks.find((block) => block.id === selectedBlockId);
-    if (view !== "edit" || !selected || selected.type === "sticker") {
+    const selectedIsEnding = selectedBlockId === STRIP_ENDING_BLOCK_ID;
+    if (
+      view !== "edit" ||
+      (!selected && !selectedIsEnding) ||
+      selected?.type === "sticker"
+    ) {
       setOverlappingStickerIds((current) => (current.length === 0 ? current : []));
       return;
     }
@@ -3484,7 +3554,7 @@ export default function Home() {
         ...(activeTools && !textIsBeingTypedIn
           ? [activeTools.getBoundingClientRect()]
           : []),
-        ...(selectedElement && selectedIsText
+        ...(selectedElement && (selectedIsText || selectedIsEnding)
           ? [selectedElement.getBoundingClientRect()]
           : []),
       ];
@@ -3871,6 +3941,7 @@ export default function Home() {
     inlinePreviewScrollRef.current = window.scrollY;
     flushSync(() => {
       setActiveTextTool(null);
+      setActiveEndingTool(null);
       setEditingTextBlockId(null);
       setInlinePreview((current) => !current);
     });
@@ -3896,6 +3967,7 @@ export default function Home() {
       setSelectedBlockId(blockId);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
+      setActiveEndingTool(null);
     });
     triggerSelectionHaptic();
 
@@ -3933,6 +4005,7 @@ export default function Home() {
     setCoverColorPickerOpen(false);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
+    setActiveEndingTool(null);
     setInlinePreview(false);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
     publishFlowStartScrollRef.current = window.scrollY;
@@ -4253,6 +4326,7 @@ export default function Home() {
     setCurrentDraftId(draftId);
     setCurrentDraftCreatedAt(Date.now());
     setBlocks([]);
+    setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
     setStripTitle("");
     setSelectedCover("");
     setActiveCoverKey("");
@@ -4262,6 +4336,7 @@ export default function Home() {
     setSelectedBlockId(null);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
+    setActiveEndingTool(null);
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
     showEditorDockEntry();
@@ -4282,10 +4357,12 @@ export default function Home() {
       setCurrentDraftId(data.draft.id);
       setCurrentDraftCreatedAt(data.draft.createdAt);
       setBlocks(data.draft.blocks);
+      setEndingStyle(data.draft.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE);
       setStripTitle(data.draft.title);
       setSelectedBlockId(null);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
+      setActiveEndingTool(null);
       setSelectedCover("");
       setActiveCoverKey("");
       setCustomCoverSrc(null);
@@ -4324,10 +4401,15 @@ export default function Home() {
     }
   };
 
-  const openPublishedStrip = (strip: PublishedStripSummary) => {
+  const openPublishedStrip = async (strip: PublishedStripSummary) => {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
     setOpeningStripId(strip.id);
     pageTransitionInFlightRef.current = true;
+    try {
+      await fetch("/api/auth/session", { cache: "no-store" });
+    } catch {
+      // The published Strip remains public if session promotion is unavailable.
+    }
     window.location.assign(publicStripUrl(strip));
   };
 
@@ -4414,6 +4496,7 @@ export default function Home() {
               setCurrentDraftId(route.id);
               setCurrentDraftCreatedAt(Date.now());
               setBlocks([]);
+              setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
               setStripTitle("");
             } else {
               if (!response.ok) throw new Error("Draft route request failed");
@@ -4422,11 +4505,15 @@ export default function Home() {
               setCurrentDraftId(data.draft.id);
               setCurrentDraftCreatedAt(data.draft.createdAt);
               setBlocks(data.draft.blocks);
+              setEndingStyle(
+                data.draft.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE,
+              );
               setStripTitle(data.draft.title);
             }
             setSelectedBlockId(null);
             setEditingTextBlockId(null);
             setActiveTextTool(null);
+            setActiveEndingTool(null);
             setOpenedPublishedStrip(null);
             showEditorDockEntry();
             setView("edit");
@@ -4507,6 +4594,7 @@ export default function Home() {
           publishedAt,
           cover: publishedCover,
           blocks,
+          endingStyle,
         }),
       });
       if (!response.ok) throw new Error("Publish request failed");
@@ -4517,6 +4605,8 @@ export default function Home() {
       setOpenedPublishedStrip({
         ...data.strip,
         blocks,
+        endingStyle,
+        viewerIsOwner: true,
       });
       if (currentDraftId) {
         try {
@@ -4535,8 +4625,10 @@ export default function Home() {
       setCurrentDraftCreatedAt(0);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
+      setActiveEndingTool(null);
       setSelectedBlockId(null);
       setBlocks([]);
+      setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
       setStripTitle("");
       setSelectedCover("");
       setActiveCoverKey("");
@@ -4575,6 +4667,18 @@ export default function Home() {
     } catch {
       setNotice("Copy the Strip link from its published page.");
     }
+  };
+
+  const activateStripEnding = () => {
+    if (!openedPublishedStrip || view !== "published") return;
+    const origin = mainAppOrigin();
+    if (openedPublishedStrip.viewerIsOwner) {
+      window.location.assign(
+        `${origin}/share/${encodeURIComponent(openedPublishedStrip.id)}`,
+      );
+      return;
+    }
+    window.location.assign(`${origin}/edit/${encodeURIComponent(makeId())}`);
   };
 
   const downloadStoryAsset = () => {
@@ -4755,9 +4859,34 @@ export default function Home() {
     );
   };
 
+  const renderEndingControls = () => {
+    if (!endingIsSelected) return null;
+    return (
+      <BlockControls
+        index={0}
+        count={1}
+        onEndingTool={(tool) => {
+          setEditingTextBlockId(null);
+          setActiveTextTool(null);
+          setActiveEndingTool(tool);
+        }}
+        activeEndingTool={activeEndingTool}
+        surfaceColor={endingStyle.backgroundColor}
+      />
+    );
+  };
+
+  const selectEndingBlock = () => {
+    if (!endingIsSelected) triggerSelectionHaptic();
+    setSelectedBlockId(STRIP_ENDING_BLOCK_ID);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+  };
+
   const renderStrip = (
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
+    sourceEndingStyle: StripEndingStyle = visibleEndingStyle,
   ) => {
     const mediaBlockIds = sourceBlocks.flatMap((block) =>
       block.type === "image" || block.type === "video" ? [block.id] : [],
@@ -4776,12 +4905,8 @@ export default function Home() {
         block.type === "sticker" ? Math.max(floor, block.y + 180) : floor,
       0,
     );
-    const lastFlowBlock = [...sourceBlocks]
-      .reverse()
-      .find((block) => block.type !== "sticker");
-    const anchorsPublishedTextTail =
-      !isEditing && view === "published" && lastFlowBlock?.type === "text";
-    const canvasMinHeight = anchorsPublishedTextTail
+    const anchorsPublishedEnding = !isEditing && view === "published";
+    const canvasMinHeight = anchorsPublishedEnding
       ? `max(${stickerFloor}px, calc(100lvh + ${
           hasLeadingImage ? "var(--leading-image-inset)" : "0px"
         } + var(--published-bottom-anchor-inset, env(safe-area-inset-bottom))))`
@@ -4791,7 +4916,7 @@ export default function Home() {
 
     return (
       <div
-        className="strip-canvas"
+        className="strip-canvas has-ending-card"
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
         {sourceBlocks.length === 0 && isEditing ? (
@@ -4813,11 +4938,7 @@ export default function Home() {
             <section
               className={`strip-block text-block ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
-              } ${usesDarkText ? "uses-dark-text" : ""} ${
-                anchorsPublishedTextTail && block.id === lastFlowBlock?.id
-                  ? "is-published-tail-text"
-                  : ""
-              }`}
+              } ${usesDarkText ? "uses-dark-text" : ""}`}
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] !== "loaded"}
@@ -5084,6 +5205,72 @@ export default function Home() {
           />
         );
         })}
+        <section
+          className={`strip-block strip-ending-card ${
+            isEditing ? "is-editing" : ""
+          } ${isEditing && endingIsSelected ? "is-selected" : ""} ${
+            anchorsPublishedEnding ? "is-published-ending" : ""
+          }`}
+          data-block-id={STRIP_ENDING_BLOCK_ID}
+          role={isEditing && !endingIsSelected ? "button" : undefined}
+          tabIndex={isEditing && !endingIsSelected ? 0 : undefined}
+          style={
+            {
+              "--ending-background": sourceEndingStyle.backgroundColor,
+              "--ending-foreground": contrastColor(
+                sourceEndingStyle.backgroundColor,
+              ),
+              "--ending-button": sourceEndingStyle.buttonColor,
+              "--ending-button-foreground": contrastColor(
+                sourceEndingStyle.buttonColor,
+              ),
+            } as CSSProperties
+          }
+          onPointerDown={(event) =>
+            beginBlockTapGesture(event, STRIP_ENDING_BLOCK_ID)
+          }
+          onPointerMove={trackBlockTapGesture}
+          onPointerCancel={cancelBlockTapGesture}
+          onClick={() => {
+            if (!isEditing) return;
+            if (!completeBlockTapGesture(STRIP_ENDING_BLOCK_ID)) return;
+            selectEndingBlock();
+          }}
+          onKeyDown={(event) => {
+            if (
+              !isEditing ||
+              event.target !== event.currentTarget ||
+              (event.key !== "Enter" && event.key !== " ")
+            ) {
+              return;
+            }
+            event.preventDefault();
+            selectEndingBlock();
+          }}
+        >
+          {isEditing ? renderEndingControls() : null}
+          <div className="strip-ending-card-inner">
+            <span className="strip-ending-wordmark">STRIP</span>
+            {view === "published" ? (
+              <button
+                className="strip-ending-action"
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  activateStripEnding();
+                }}
+              >
+                {openedPublishedStrip?.viewerIsOwner
+                  ? "Share your Strip"
+                  : "Make your own Strip"}
+              </button>
+            ) : (
+              <span className="strip-ending-action" aria-disabled="true">
+                Share your Strip
+              </span>
+            )}
+          </div>
+        </section>
       </div>
     );
   };
@@ -5969,9 +6156,7 @@ export default function Home() {
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
             } ${hasLeadingText ? "has-leading-text" : ""} ${
-              hasPublishedTrailingText ? "has-trailing-text" : ""
-            } ${
-              hasPublishedTrailingImage ? "has-trailing-image" : ""
+              hasPublishedEndingCard ? "has-trailing-text" : ""
             }`}
           >
             <div
@@ -5981,7 +6166,7 @@ export default function Home() {
             />
 
             <article className={`published-strip ${legacyPageEnterClass}`}>
-              {renderStrip(false, publishedBlocks)}
+              {renderStrip(false, publishedBlocks, visibleEndingStyle)}
             </article>
             {hasPublishedBottomSurface ? (
               <div
@@ -6090,7 +6275,7 @@ export default function Home() {
       {legacyTransitionLayer}
       <main
         className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview" : ""} ${
-          selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
+          selectedBlockIndex >= 0 || endingIsSelected ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
         }`}
@@ -6127,11 +6312,33 @@ export default function Home() {
         />
       ) : null}
 
+      {!inlinePreview && endingIsSelected ? (
+        <TextStyleSelector
+          block={{
+            id: STRIP_ENDING_BLOCK_ID,
+            type: "text",
+            content: "Strip ending",
+            backgroundColor: endingStyle.backgroundColor,
+            textColor: endingStyle.buttonColor,
+          }}
+          tool={activeEndingTool === "button" ? "color" : "background"}
+          visible={activeEndingTool !== null}
+          onChange={(change) => {
+            setEndingStyle((current) => ({
+              backgroundColor:
+                change.backgroundColor ?? current.backgroundColor,
+              buttonColor: change.textColor ?? current.buttonColor,
+            }));
+          }}
+          onBack={() => setActiveEndingTool(null)}
+        />
+      ) : null}
+
       <footer
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
           editorDockEntering ? "is-entering-editor" : ""
-        } ${activeTextTool ? "is-shifted" : ""} ${
+        } ${activeTextTool || activeEndingTool ? "is-shifted" : ""} ${
           inlinePreview ? "is-inline-preview" : ""
         }`}
       >

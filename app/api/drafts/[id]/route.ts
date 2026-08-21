@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { readStripContent } from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 
 export const dynamic = "force-dynamic";
@@ -40,15 +41,6 @@ function mediaPath(draftId: string, blockId: string) {
   return `/api/drafts/${encodeURIComponent(draftId)}/media/${encodeURIComponent(blockId)}`;
 }
 
-function readStoredBlocks(value: string) {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? (parsed as StoredDraftBlock[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -76,41 +68,49 @@ export async function GET(
     }>();
   if (!row) return new Response("Not found", { status: 404 });
 
-  const blocks = readStoredBlocks(row.content_json).flatMap((block) => {
-    if (!block || !ID_PATTERN.test(block.id)) return [];
-    if (block.type === "text") return [block];
+  const storedContent = readStripContent(row.content_json);
+  const blocks: unknown[] = [];
+  for (const block of storedContent.blocks as StoredDraftBlock[]) {
+    if (!block || !ID_PATTERN.test(block.id)) continue;
+    if (block.type === "text") {
+      blocks.push(block);
+      continue;
+    }
     if (
       block.type !== "image" &&
       block.type !== "video" &&
       block.type !== "sticker"
-    ) return [];
-    return [
-      {
-        id: block.id,
-        type: block.type,
-        src: mediaPath(id, block.id),
-        alt: block.alt ?? "",
-        ...(typeof block.height === "number" ? { height: block.height } : {}),
-        ...(block.type === "video"
-          ? {
-              audioEnabled: block.audioEnabled !== false,
-              ...(typeof block.hasAudio === "boolean"
-                ? { hasAudio: block.hasAudio }
-                : {}),
-            }
-          : {}),
-        ...(block.type === "sticker"
-          ? { x: block.x, y: block.y, width: block.width }
-          : {}),
-      },
-    ];
-  });
+    ) {
+      continue;
+    }
+    blocks.push({
+      id: block.id,
+      type: block.type,
+      src: mediaPath(id, block.id),
+      alt: block.alt ?? "",
+      ...("height" in block && typeof block.height === "number"
+        ? { height: block.height }
+        : {}),
+      ...(block.type === "video"
+        ? {
+            audioEnabled: block.audioEnabled !== false,
+            ...(typeof block.hasAudio === "boolean"
+              ? { hasAudio: block.hasAudio }
+              : {}),
+          }
+        : {}),
+      ...(block.type === "sticker"
+        ? { x: block.x, y: block.y, width: block.width }
+        : {}),
+    });
+  }
 
   return Response.json({
     draft: {
       id: row.id,
       title: row.title,
       blocks,
+      endingStyle: storedContent.endingStyle,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     },
@@ -141,7 +141,9 @@ export async function DELETE(
     .first<{ content_json: string }>();
   if (!row) return new Response(null, { status: 204 });
 
-  const objectKeys = readStoredBlocks(row.content_json).flatMap((block) =>
+  const objectKeys = (
+    readStripContent(row.content_json).blocks as StoredDraftBlock[]
+  ).flatMap((block) =>
     block &&
     (block.type === "image" ||
       block.type === "video" ||

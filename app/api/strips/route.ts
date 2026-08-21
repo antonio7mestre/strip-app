@@ -1,5 +1,10 @@
 import { env } from "cloudflare:workers";
+import {
+  writeStripContent,
+  type StripEndingStyle,
+} from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
+import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +32,7 @@ type PublishRequest = {
         shape: "portrait" | "square" | "landscape";
       };
   blocks?: PublishBlock[];
+  endingStyle?: StripEndingStyle;
 };
 
 type PublishBlock =
@@ -127,7 +133,7 @@ function decodeMediaDataUrl(
   const match = /^data:([^;,]+);base64,([a-zA-Z0-9+/=\s]+)$/.exec(value);
   if (!match) return null;
   const contentType = match[1].toLowerCase();
-  if (!contentType.startsWith(`${expectedType}/`)) return null;
+  if (!isAllowedStoredMediaContentType(contentType, expectedType)) return null;
 
   let binary: string;
   try {
@@ -167,7 +173,11 @@ function prepareContentBlocks(
     bytes: Uint8Array;
     contentType: string;
   }> = [];
-  const copies: Array<{ sourceObjectKey: string; objectKey: string }> = [];
+  const copies: Array<{
+    sourceObjectKey: string;
+    objectKey: string;
+    expectedType: "image" | "video";
+  }> = [];
   const storedBlocks: StoredContentBlock[] = [];
 
   for (const block of inputBlocks) {
@@ -205,6 +215,7 @@ function prepareContentBlocks(
       copies.push({
         sourceObjectKey: `drafts/${ownerId}/${draftId}/media/${block.id}`,
         objectKey,
+        expectedType: block.type === "video" ? "video" : "image",
       });
     }
     if (block.type === "sticker") {
@@ -313,6 +324,10 @@ export async function POST(request: Request) {
   if (!preparedContent) {
     return Response.json({ error: "Invalid Strip content." }, { status: 400 });
   }
+  const contentJson = writeStripContent(
+    preparedContent.storedBlocks,
+    input.endingStyle,
+  );
 
   let coverColor: string | null = null;
   let coverShape: string | null = null;
@@ -355,7 +370,13 @@ export async function POST(request: Request) {
         });
       } else if (coverCopySourceKey) {
         const source = await env.STRIP_MEDIA.get(coverCopySourceKey);
-        if (!source?.httpMetadata?.contentType?.startsWith("image/")) {
+        if (
+          !source ||
+          !isAllowedStoredMediaContentType(
+            source.httpMetadata?.contentType,
+            "image",
+          )
+        ) {
           throw new Error("Missing draft cover image.");
         }
         await env.STRIP_MEDIA.put(coverObjectKey, source.body, {
@@ -372,7 +393,15 @@ export async function POST(request: Request) {
     }
     for (const copy of preparedContent.copies) {
       const source = await env.STRIP_MEDIA.get(copy.sourceObjectKey);
-      if (!source) throw new Error("Missing draft media.");
+      if (
+        !source ||
+        !isAllowedStoredMediaContentType(
+          source.httpMetadata?.contentType,
+          copy.expectedType,
+        )
+      ) {
+        throw new Error("Missing draft media.");
+      }
       await env.STRIP_MEDIA.put(copy.objectKey, source.body, {
         httpMetadata: source.httpMetadata,
       });
@@ -393,7 +422,7 @@ export async function POST(request: Request) {
         coverShape,
         coverObjectKey,
         coverAlt,
-        JSON.stringify(preparedContent.storedBlocks),
+        contentJson,
         publishedAt,
       )
       .run();

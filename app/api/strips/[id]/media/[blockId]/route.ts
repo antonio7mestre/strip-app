@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { readStripContent } from "@/app/lib/strip-ending";
+import { applyPublicMediaSecurityHeaders } from "@/app/server/media-security";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +35,10 @@ export async function GET(
 
   let mediaBlock: StoredMediaBlock | undefined;
   try {
-    const blocks = JSON.parse(row.content_json) as StoredMediaBlock[];
-    mediaBlock = blocks.find(
+    const { blocks } = readStripContent(row.content_json);
+    mediaBlock = (blocks as StoredMediaBlock[]).find(
       (block) =>
+        block &&
         block.id === blockId &&
         (block.type === "image" ||
           block.type === "video" ||
@@ -55,5 +58,6 @@ export async function GET(
     ETag: object.httpEtag,
   });
   object.writeHttpMetadata(headers);
+  applyPublicMediaSecurityHeaders(headers);
   return new Response(object.body, { headers });
 }

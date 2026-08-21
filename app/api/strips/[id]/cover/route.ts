@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createElement } from "react";
 import { ImageResponse } from "next/og";
+import { applyPublicMediaSecurityHeaders } from "@/app/server/media-security";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ export async function GET(
         ...dimensions,
         headers: {
           "Cache-Control": "public, max-age=31536000, immutable",
+          "Content-Security-Policy": "sandbox; default-src 'none'",
           ETag: `"color-${color.slice(1).toLowerCase()}-${row.cover_shape ?? "square"}"`,
           "X-Content-Type-Options": "nosniff",
         },
@@ -73,5 +75,6 @@ export async function GET(
     ETag: object.httpEtag,
   });
   object.writeHttpMetadata(headers);
+  applyPublicMediaSecurityHeaders(headers);
   return new Response(object.body, { headers });
 }

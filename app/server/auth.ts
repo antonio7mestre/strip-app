@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { PUBLIC_DOMAIN } from "@/app/lib/username";
 
 export { normalizeUsername, validateUsername } from "@/app/lib/username";
 export type { UsernameValidation } from "@/app/lib/username";
@@ -6,6 +7,7 @@ export type { UsernameValidation } from "@/app/lib/username";
 export const SESSION_COOKIE = "strip_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_TOUCH_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const MAX_SESSION_COOKIE_CANDIDATES = 4;
 const OWNER_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
 export type AuthUser = {
@@ -21,6 +23,12 @@ type AuthEnvironment = {
   TWILIO_ACCOUNT_SID?: string;
   TWILIO_AUTH_TOKEN?: string;
   TWILIO_VERIFY_SERVICE_SID?: string;
+};
+
+type AuthSession = {
+  user: AuthUser;
+  token: string;
+  expiresAt: number;
 };
 
 function authEnvironment() {
@@ -44,16 +52,67 @@ async function sha256(value: string) {
   ).join("");
 }
 
-function cookiesFromRequest(request: Request) {
-  const values = new Map<string, string>();
+function cookieValuesFromRequest(request: Request, name: string) {
+  const values: string[] = [];
   for (const part of (request.headers.get("cookie") ?? "").split(";")) {
     const separator = part.indexOf("=");
     if (separator < 0) continue;
     const key = part.slice(0, separator).trim();
-    const value = part.slice(separator + 1).trim();
-    if (key) values.set(key, decodeURIComponent(value));
+    if (key !== name) continue;
+    try {
+      values.push(decodeURIComponent(part.slice(separator + 1).trim()));
+    } catch {
+      // A malformed cookie must not prevent a different valid session cookie
+      // from being used during the host-only to shared-domain migration.
+    }
   }
-  return values;
+  return Array.from(new Set(values))
+    .filter((value) => value.length >= 32 && value.length <= 256)
+    .slice(-MAX_SESSION_COOKIE_CANDIDATES)
+    .reverse();
+}
+
+function sharedCookieDomain(request: Request) {
+  const hostname = new URL(request.url).hostname
+    .toLowerCase()
+    .replace(/\.$/, "");
+  if (hostname === PUBLIC_DOMAIN) return `.${PUBLIC_DOMAIN}`;
+
+  const labels = hostname.split(".");
+  return labels.length === 3 && labels.slice(1).join(".") === PUBLIC_DOMAIN
+    ? `.${PUBLIC_DOMAIN}`
+    : null;
+}
+
+function serializeSessionCookie(
+  token: string,
+  request: Request,
+  maxAgeSeconds: number,
+  domain: string | null,
+) {
+  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
+  const domainAttribute = domain ? `; Domain=${domain}` : "";
+  return `${SESSION_COOKIE}=${encodeURIComponent(
+    token,
+  )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.max(
+    0,
+    Math.floor(maxAgeSeconds),
+  )}${domainAttribute}${secure}`;
+}
+
+function refreshedSessionCookies(request: Request, session: AuthSession) {
+  const remainingSeconds = Math.max(
+    1,
+    Math.ceil((session.expiresAt - Date.now()) / 1000),
+  );
+  return [
+    serializeSessionCookie(
+      session.token,
+      request,
+      remainingSeconds,
+      sharedCookieDomain(request),
+    ),
+  ];
 }
 
 export function phoneLabel(phoneE164: string) {
@@ -87,42 +146,64 @@ export function isSameOrigin(request: Request) {
   }
 }
 
-export async function getAuthUser(request: Request): Promise<AuthUser | null> {
-  const token = cookiesFromRequest(request).get(SESSION_COOKIE);
-  if (!token || token.length < 32) return null;
-  const tokenHash = await sha256(token);
+async function readAuthSession(request: Request): Promise<AuthSession | null> {
+  const tokens = cookieValuesFromRequest(request, SESSION_COOKIE);
+  if (tokens.length === 0) return null;
   const now = Date.now();
-  const row = await env.DB.prepare(
-    `SELECT s.user_id, s.last_seen_at, u.phone_e164, u.username
-     FROM auth_sessions s
-     JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND s.expires_at > ?`,
-  )
-    .bind(tokenHash, now)
-    .first<{
-      user_id: string;
-      last_seen_at: number;
-      phone_e164: string;
-      username: string | null;
-    }>();
-  if (!row) return null;
 
-  if (now - row.last_seen_at > SESSION_TOUCH_INTERVAL_MS) {
-    await env.DB.batch([
-      env.DB.prepare(
-        "UPDATE auth_sessions SET last_seen_at = ? WHERE token_hash = ?",
-      ).bind(now, tokenHash),
-      env.DB.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?").bind(
-        now,
-        row.user_id,
-      ),
-    ]);
+  for (const token of tokens) {
+    const tokenHash = await sha256(token);
+    const row = await env.DB.prepare(
+      `SELECT s.user_id, s.last_seen_at, s.expires_at, u.phone_e164, u.username
+       FROM auth_sessions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.token_hash = ? AND s.expires_at > ?`,
+    )
+      .bind(tokenHash, now)
+      .first<{
+        user_id: string;
+        last_seen_at: number;
+        expires_at: number;
+        phone_e164: string;
+        username: string | null;
+      }>();
+    if (!row) continue;
+
+    if (now - row.last_seen_at > SESSION_TOUCH_INTERVAL_MS) {
+      await env.DB.batch([
+        env.DB.prepare(
+          "UPDATE auth_sessions SET last_seen_at = ? WHERE token_hash = ?",
+        ).bind(now, tokenHash),
+        env.DB.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?").bind(
+          now,
+          row.user_id,
+        ),
+      ]);
+    }
+    return {
+      user: {
+        id: row.user_id,
+        phoneE164: row.phone_e164,
+        phoneLabel: phoneLabel(row.phone_e164),
+        username: row.username,
+      },
+      token,
+      expiresAt: row.expires_at,
+    };
   }
+
+  return null;
+}
+
+export async function getAuthUser(request: Request): Promise<AuthUser | null> {
+  return (await readAuthSession(request))?.user ?? null;
+}
+
+export async function getAuthUserWithSessionRefresh(request: Request) {
+  const session = await readAuthSession(request);
   return {
-    id: row.user_id,
-    phoneE164: row.phone_e164,
-    phoneLabel: phoneLabel(row.phone_e164),
-    username: row.username,
+    user: session?.user ?? null,
+    cookies: session ? refreshedSessionCookies(request, session) : [],
   };
 }
 
@@ -151,23 +232,38 @@ export async function createSession(userId: string, request: Request) {
     ).bind(tokenHash, userId, now, now, now + SESSION_TTL_MS),
     env.DB.prepare("DELETE FROM auth_sessions WHERE expires_at <= ?").bind(now),
   ]);
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
+  return serializeSessionCookie(
+    token,
+    request,
     SESSION_TTL_MS / 1000,
-  )}${secure}`;
+    sharedCookieDomain(request),
+  );
 }
 
-export function clearSessionCookie(request: Request) {
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+export function clearSessionCookies(request: Request) {
+  const sharedDomain = sharedCookieDomain(request);
+  return Array.from(
+    new Set([
+      serializeSessionCookie("", request, 0, null),
+      ...(sharedDomain
+        ? [serializeSessionCookie("", request, 0, sharedDomain)]
+        : []),
+    ]),
+  );
 }
 
 export async function deleteCurrentSession(request: Request) {
-  const token = cookiesFromRequest(request).get(SESSION_COOKIE);
-  if (!token) return;
-  await env.DB.prepare("DELETE FROM auth_sessions WHERE token_hash = ?")
-    .bind(await sha256(token))
-    .run();
+  const tokens = cookieValuesFromRequest(request, SESSION_COOKIE);
+  if (tokens.length === 0) return;
+  await env.DB.batch(
+    await Promise.all(
+      tokens.map(async (token) =>
+        env.DB.prepare("DELETE FROM auth_sessions WHERE token_hash = ?").bind(
+          await sha256(token),
+        ),
+      ),
+    ),
+  );
 }
 
 export async function consumeRateLimit(

@@ -1,5 +1,11 @@
 import { env } from "cloudflare:workers";
+import {
+  readStripContent,
+  writeStripContent,
+  type StripEndingStyle,
+} from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
+import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +77,7 @@ type DraftRequest = {
   createdAt?: number;
   updatedAt?: number;
   blocks?: DraftBlock[];
+  endingStyle?: StripEndingStyle;
 };
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
@@ -114,7 +121,7 @@ function decodeMediaDataUrl(
   const match = /^data:([^;,]+);base64,([a-zA-Z0-9+/=\s]+)$/.exec(value);
   if (!match) return null;
   const contentType = match[1].toLowerCase();
-  if (!contentType.startsWith(`${expectedType}/`)) return null;
+  if (!isAllowedStoredMediaContentType(contentType, expectedType)) return null;
 
   let binary: string;
   try {
@@ -224,19 +231,22 @@ function prepareDraftBlocks(
 
 function storedMediaObjectKeys(value: string | null) {
   if (!value) return [];
-  try {
-    const blocks = JSON.parse(value) as StoredDraftBlock[];
-    return blocks.flatMap((block) =>
-      block &&
-      (block.type === "image" ||
-        block.type === "video" ||
-        block.type === "sticker")
-        ? [block.objectKey]
-        : [],
-    );
-  } catch {
-    return [];
-  }
+  const { blocks } = readStripContent(value);
+  return blocks.flatMap((block) => {
+    if (
+      !block ||
+      typeof block !== "object" ||
+      !("type" in block) ||
+      !("objectKey" in block) ||
+      (block.type !== "image" &&
+        block.type !== "video" &&
+        block.type !== "sticker") ||
+      typeof block.objectKey !== "string"
+    ) {
+      return [];
+    }
+    return [block.objectKey];
+  });
 }
 
 export async function GET(request: Request) {
@@ -310,6 +320,13 @@ export async function POST(request: Request) {
   const coverBlockId = coverImage?.id ?? null;
   const coverColor =
     firstText?.type === "text" ? firstText.backgroundColor ?? "#202020" : "#202020";
+  const existingEndingStyle = existing
+    ? readStripContent(existing.content_json).endingStyle
+    : undefined;
+  const contentJson = writeStripContent(
+    prepared.storedBlocks,
+    input.endingStyle ?? existingEndingStyle,
+  );
 
   for (const upload of prepared.uploads) {
     await env.STRIP_MEDIA.put(upload.objectKey, upload.bytes, {
@@ -339,13 +356,13 @@ export async function POST(request: Request) {
       coverKind,
       coverColor,
       coverBlockId,
-      JSON.stringify(prepared.storedBlocks),
+      contentJson,
       createdAt,
       updatedAt,
     )
     .run();
 
-  const retainedKeys = new Set(storedMediaObjectKeys(JSON.stringify(prepared.storedBlocks)));
+  const retainedKeys = new Set(storedMediaObjectKeys(contentJson));
   const removedKeys = storedMediaObjectKeys(existing?.content_json ?? null).filter(
     (objectKey) => !retainedKeys.has(objectKey),
   );
