@@ -2692,6 +2692,185 @@ export default function Home() {
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
+  useEffect(() => {
+    if (
+      !initialRouteReady ||
+      view !== "published" ||
+      !hasPublishedTrailingText
+    ) {
+      return;
+    }
+
+    let touchIsActive = false;
+    let bottomAnchorIsArmed = false;
+    let settleFrame: number | null = null;
+    let settleTimer: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const trailingText = document.querySelector<HTMLElement>(
+      ".strip-canvas > .text-block.is-published-tail-text",
+    );
+    if (!trailingText) return;
+
+    const viewportProbe = document.createElement("div");
+    viewportProbe.style.cssText =
+      "position:fixed;visibility:hidden;pointer-events:none;height:100lvh";
+    document.body.appendChild(viewportProbe);
+
+    const measureFullViewportHeight = () => {
+      const height = viewportProbe.getBoundingClientRect().height;
+      return Math.max(window.innerHeight, height);
+    };
+
+    const bottomAnchorInset = () => {
+      const value = Number.parseFloat(
+        getComputedStyle(
+          trailingText.closest<HTMLElement>(".published-mode") ?? trailingText,
+        ).getPropertyValue("--published-bottom-anchor-inset"),
+      );
+      return Number.isFinite(value) ? value : 0;
+    };
+
+    const isInBottomAnchorZone = () => {
+      const viewportHeight = measureFullViewportHeight();
+      const bounds = trailingText.getBoundingClientRect();
+      const documentBottomGap = Math.max(
+        0,
+        document.documentElement.scrollHeight -
+          (window.scrollY + window.innerHeight),
+      );
+      const anchorRange = Math.max(32, bottomAnchorInset() + 24);
+      return (
+        bounds.bottom > 0 &&
+        bounds.top < viewportHeight &&
+        (bounds.bottom <= viewportHeight + anchorRange ||
+          documentBottomGap <= anchorRange)
+      );
+    };
+
+    const clearPendingSettle = () => {
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      settleTimer = null;
+      settleFrame = null;
+    };
+
+    const settleAtBottomAnchor = () => {
+      if (
+        touchIsActive ||
+        settleFrame !== null ||
+        !isInBottomAnchorZone()
+      ) {
+        return;
+      }
+      clearPendingSettle();
+
+      const fullViewportHeight = measureFullViewportHeight();
+      const bounds = trailingText.getBoundingClientRect();
+      const start = window.scrollY;
+      const target = Math.max(0, start + bounds.bottom - fullViewportHeight);
+      const distance = target - start;
+      if (Math.abs(distance) <= 0.5) {
+        bottomAnchorIsArmed = false;
+        return;
+      }
+
+      const duration = Math.min(260, Math.max(170, Math.abs(distance) * 1.8));
+      let startedAt: number | null = null;
+      const animate = (time: number) => {
+        if (touchIsActive) {
+          settleFrame = null;
+          return;
+        }
+        if (startedAt === null) startedAt = time;
+        const progress = Math.min(1, (time - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        window.scrollTo({
+          top: start + distance * eased,
+          left: 0,
+          behavior: "auto",
+        });
+        if (progress < 1) {
+          settleFrame = window.requestAnimationFrame(animate);
+          return;
+        }
+        settleFrame = null;
+        bottomAnchorIsArmed = false;
+      };
+      settleFrame = window.requestAnimationFrame(animate);
+    };
+
+    const scheduleBottomSettle = (delay = 72) => {
+      if (touchIsActive || settleFrame !== null) return;
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        settleTimer = null;
+        settleAtBottomAnchor();
+      }, delay);
+    };
+
+    const handleTouchStart = () => {
+      touchIsActive = true;
+      bottomAnchorIsArmed = isInBottomAnchorZone();
+      clearPendingSettle();
+    };
+
+    const handleTouchMove = () => {
+      bottomAnchorIsArmed = isInBottomAnchorZone();
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length > 0) return;
+      touchIsActive = false;
+      if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
+        scheduleBottomSettle(90);
+      }
+    };
+
+    const handleScroll = () => {
+      if (touchIsActive || settleFrame !== null) return;
+      if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
+        scheduleBottomSettle();
+      }
+    };
+
+    const handleScrollEnd = () => {
+      if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
+        scheduleBottomSettle(32);
+      }
+    };
+
+    const handleViewportResize = () => {
+      if (isInBottomAnchorZone()) scheduleBottomSettle(0);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(handleViewportResize);
+      resizeObserver.observe(trailingText);
+    }
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd, { passive: true });
+    document.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scrollend", handleScrollEnd);
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
+    scheduleBottomSettle(0);
+
+    return () => {
+      clearPendingSettle();
+      resizeObserver?.disconnect();
+      viewportProbe.remove();
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("touchcancel", handleTouchEnd);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scrollend", handleScrollEnd);
+      window.visualViewport?.removeEventListener("resize", handleViewportResize);
+    };
+  }, [hasPublishedTrailingText, initialRouteReady, view]);
+
   useEffect(
     () => () => {
       if (dockTransitionTimerRef.current !== null) {
