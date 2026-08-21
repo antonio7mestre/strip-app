@@ -44,7 +44,7 @@ html {
    */
   background-image: linear-gradient(
     to bottom,
-    var(--black) 0 50%,
+    var(--bottom-safe-area-color, var(--black)) 0 50%,
     var(--top-safe-area-color, var(--black)) 50% 100%
   );
   background-repeat: no-repeat;
@@ -667,6 +667,16 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .published-mode .published-strip {
   min-height: 100lvh;
   background: var(--black);
+}
+
+.published-mode.has-trailing-text,
+.published-mode.has-trailing-text .published-strip,
+.published-mode.has-trailing-text .strip-canvas {
+  background: var(--trailing-text-background, var(--black));
+}
+
+.published-mode.has-trailing-text .strip-canvas {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .strip-block {

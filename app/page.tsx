@@ -2450,6 +2450,16 @@ export default function Home() {
   const hasLeadingImage =
     firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
   const hasLeadingText = firstVisibleBlock?.type === "text";
+  const lastPublishedFlowBlock =
+    view === "published" && openedPublishedStrip
+      ? [...openedPublishedStrip.blocks]
+          .reverse()
+          .find((block) => block.type !== "sticker")
+      : undefined;
+  const publishedTrailingTextColor =
+    lastPublishedFlowBlock?.type === "text"
+      ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
+      : null;
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2712,9 +2722,14 @@ export default function Home() {
       "content",
       topSafeAreaColor,
     );
-    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
-  }, [topSafeAreaColor]);
+    const root = document.documentElement;
+    root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
+    root.style.setProperty(
+      "--bottom-safe-area-color",
+      publishedTrailingTextColor ?? DEFAULT_BACKGROUND,
+    );
+    root.style.backgroundColor = topSafeAreaColor;
+  }, [publishedTrailingTextColor, topSafeAreaColor]);
 
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;
@@ -5741,7 +5756,16 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            } ${hasLeadingText ? "has-leading-text" : ""}`}
+            } ${hasLeadingText ? "has-leading-text" : ""} ${
+              publishedTrailingTextColor ? "has-trailing-text" : ""
+            }`}
+            style={
+              publishedTrailingTextColor
+                ? ({
+                    "--trailing-text-background": publishedTrailingTextColor,
+                  } as CSSProperties)
+                : undefined
+            }
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
