@@ -123,6 +123,15 @@ html.leading-image-inset-active .strip-canvas {
   overflow-anchor: none;
 }
 
+html.trailing-text-inset-active,
+html.trailing-text-inset-active body,
+html.trailing-text-inset-active .published-mode.has-trailing-text,
+html.trailing-text-inset-active
+  .published-mode.has-trailing-text
+  .strip-canvas {
+  overflow-anchor: none;
+}
+
 .legacy-page-transition-overlay {
   position: fixed;
   z-index: 2147483646;
@@ -244,6 +253,16 @@ textarea:focus-visible,
 
 .app-shell.has-leading-image {
   min-height: calc(100lvh + var(--leading-image-inset));
+}
+
+.app-shell.has-trailing-text {
+  min-height: calc(100lvh + var(--trailing-text-inset, 0px));
+}
+
+.app-shell.has-leading-image.has-trailing-text {
+  min-height: calc(
+    100lvh + var(--leading-image-inset) + var(--trailing-text-inset, 0px)
+  );
 }
 
 html.is-releasing-leading-image-scroll .app-shell.editor-mode {
@@ -672,35 +691,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .published-mode.has-trailing-text .published-strip,
 .published-mode.has-trailing-text .strip-canvas {
   min-height: inherit;
-  background: transparent;
 }
 
 .published-mode.has-trailing-text {
-  --published-bottom-anchor-inset: env(safe-area-inset-bottom);
-  isolation: isolate;
-}
-
-.published-mode.has-trailing-text::after {
-  position: fixed;
-  z-index: 0;
-  inset: 0;
-  background: var(--published-trailing-text-color, var(--black));
-  content: "";
-  pointer-events: none;
-}
-
-.published-mode.has-trailing-text .image-block,
-.published-mode.has-trailing-text .video-block {
-  background: var(--black);
-}
-
-@supports (height: 100svh) and (height: 100lvh) {
-  .published-mode.has-trailing-text {
-    --published-bottom-anchor-inset: max(
-      env(safe-area-inset-bottom),
-      calc(100lvh - 100svh)
-    );
-  }
+  --published-bottom-anchor-inset: max(
+    env(safe-area-inset-bottom),
+    var(--trailing-text-inset, 0px)
+  );
 }
 
 .published-mode.has-trailing-text .strip-canvas {

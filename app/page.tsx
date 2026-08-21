@@ -2377,6 +2377,7 @@ export default function Home() {
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
   const leadingImageInsetRef = useRef(0);
+  const trailingTextInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
@@ -2464,11 +2465,7 @@ export default function Home() {
           .reverse()
           .find((block) => block.type !== "sticker")
       : undefined;
-  const publishedTrailingTextColor =
-    lastPublishedFlowBlock?.type === "text"
-      ? (lastPublishedFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND)
-      : null;
-  const hasPublishedTrailingText = publishedTrailingTextColor !== null;
+  const hasPublishedTrailingText = lastPublishedFlowBlock?.type === "text";
 
   useEffect(() => {
     if (view === "edit") return;
@@ -2695,6 +2692,163 @@ export default function Home() {
       window.removeEventListener("scrollend", settleLeadingImageAtAnchor);
     };
   }, [hasLeadingImage, initialRouteReady, view]);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+
+    const calculateTrailingTextOffset = () => {
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      if (
+        view !== "published" ||
+        !hasPublishedTrailingText ||
+        !isIOS ||
+        window.screen.height / window.screen.width <= 2
+      ) {
+        return 0;
+      }
+
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom);height:100lvh";
+      const smallViewportProbe = document.createElement("div");
+      smallViewportProbe.style.cssText =
+        "position:fixed;visibility:hidden;height:100svh";
+      document.body.append(probe, smallViewportProbe);
+      const reportedSafeBottom = Number.parseFloat(
+        window.getComputedStyle(probe).paddingBottom,
+      );
+      const largeViewportHeight = probe.getBoundingClientRect().height;
+      const smallViewportHeight = smallViewportProbe.getBoundingClientRect().height;
+      probe.remove();
+      smallViewportProbe.remove();
+
+      const fallbackSafeBottom = Math.min(
+        62,
+        Math.max(47, window.screen.width * 0.154),
+      );
+      const browserChromeRange = Math.max(
+        0,
+        largeViewportHeight - smallViewportHeight,
+      );
+      return Math.round(
+        Math.max(
+          fallbackSafeBottom,
+          Number.isFinite(reportedSafeBottom) ? reportedSafeBottom : 0,
+          browserChromeRange,
+        ),
+      );
+    };
+
+    const offset = calculateTrailingTextOffset();
+    trailingTextInsetRef.current = offset;
+    root.style.setProperty("--trailing-text-inset", `${offset}px`);
+    root.classList.toggle("trailing-text-inset-active", offset > 0);
+
+    return () => {
+      trailingTextInsetRef.current = 0;
+      root.classList.remove("trailing-text-inset-active");
+      root.style.removeProperty("--trailing-text-inset");
+    };
+  }, [hasPublishedTrailingText, view]);
+
+  useEffect(() => {
+    if (
+      !initialRouteReady ||
+      view !== "published" ||
+      !hasPublishedTrailingText
+    ) {
+      return;
+    }
+
+    let settleFrame: number | null = null;
+    let settleTimer: number | null = null;
+    let touchIsActive = false;
+
+    const clearPendingSettle = () => {
+      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleFrame = null;
+      settleTimer = null;
+    };
+
+    const settleTrailingTextAtAnchor = () => {
+      if (touchIsActive) return;
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = null;
+      settleFrame = window.requestAnimationFrame(() => {
+        settleFrame = null;
+        const inset = trailingTextInsetRef.current;
+        const trailingText = document.querySelector<HTMLElement>(
+          ".strip-canvas > .text-block.is-published-tail-text",
+        );
+        if (inset <= 0 || !trailingText) return;
+
+        const textBounds = trailingText.getBoundingClientRect();
+        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+        const bottomEdgeIsInAnchorZone =
+          textBounds.bottom > 0 &&
+          textBounds.top < viewportHeight &&
+          textBounds.bottom <= viewportHeight + inset + 1;
+        if (!bottomEdgeIsInAnchorZone) return;
+
+        const scrollRoot = document.scrollingElement ?? document.documentElement;
+        const maximumScroll = Math.max(
+          0,
+          scrollRoot.scrollHeight - scrollRoot.clientHeight,
+        );
+        const anchor = Math.max(0, maximumScroll - inset);
+        if (Math.abs(window.scrollY - anchor) <= 0.5) return;
+        window.scrollTo({ top: anchor, left: 0, behavior: "smooth" });
+      });
+    };
+
+    const scheduleSettleFallback = (delay: number) => {
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(settleTrailingTextAtAnchor, delay);
+    };
+
+    const handleTouchStart = () => {
+      touchIsActive = true;
+      clearPendingSettle();
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length > 0) return;
+      touchIsActive = false;
+      scheduleSettleFallback(360);
+    };
+
+    const handleNativeReboundScroll = () => {
+      if (touchIsActive) return;
+      scheduleSettleFallback(90);
+    };
+
+    document.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    document.addEventListener("touchend", handleTouchEnd, {
+      passive: true,
+    });
+    document.addEventListener("touchcancel", handleTouchEnd, {
+      passive: true,
+    });
+    window.addEventListener("scroll", handleNativeReboundScroll, {
+      passive: true,
+    });
+    window.addEventListener("scrollend", settleTrailingTextAtAnchor);
+
+    return () => {
+      clearPendingSettle();
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("touchcancel", handleTouchEnd);
+      window.removeEventListener("scroll", handleNativeReboundScroll);
+      window.removeEventListener("scrollend", settleTrailingTextAtAnchor);
+    };
+  }, [hasPublishedTrailingText, initialRouteReady, view]);
 
 
   useEffect(
@@ -5794,13 +5948,6 @@ export default function Home() {
             } ${hasLeadingText ? "has-leading-text" : ""} ${
               hasPublishedTrailingText ? "has-trailing-text" : ""
             }`}
-            style={
-              publishedTrailingTextColor
-                ? ({
-                    "--published-trailing-text-color": publishedTrailingTextColor,
-                  } as CSSProperties)
-                : undefined
-            }
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
