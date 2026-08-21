@@ -2749,12 +2749,25 @@ export default function Home() {
       settleFrame = null;
     };
 
+    const nativeRubberbandIsActive = () => {
+      const scrollRoot = document.scrollingElement ?? document.documentElement;
+      const maximumScroll = Math.max(
+        0,
+        scrollRoot.scrollHeight - scrollRoot.clientHeight,
+      );
+      return window.scrollY < -0.5 || window.scrollY > maximumScroll + 0.5;
+    };
+
     const settleAtBottomAnchor = () => {
       if (
         touchIsActive ||
         settleFrame !== null ||
         (!bottomAnchorIsArmed && !isInBottomAnchorZone())
       ) {
+        return;
+      }
+      if (nativeRubberbandIsActive()) {
+        scheduleBottomSettle(32);
         return;
       }
       clearPendingSettle();
@@ -2840,7 +2853,7 @@ export default function Home() {
       if (event.touches.length > 0) return;
       touchIsActive = false;
       if (bottomAnchorIsArmed || isInBottomAnchorZone()) {
-        scheduleBottomSettle(16);
+        scheduleBottomSettle(240);
       }
     };
 
