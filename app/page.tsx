@@ -2581,6 +2581,7 @@ export default function Home() {
       if (blockReorderReleaseFrameRef.current !== null) {
         window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
       }
+      document.documentElement.classList.remove("leading-image-snap-suspended");
       const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
       if (originalOverflowAnchor) {
         document.documentElement.style.overflowAnchor = originalOverflowAnchor.root;
@@ -3103,7 +3104,14 @@ export default function Home() {
       window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
     }
 
-    if (target === 0 || index === 0) {
+    const reorderTouchesTop = target === 0 || index === 0;
+    const suspendLeadingImageSnap =
+      reorderTouchesTop || root.classList.contains("leading-image-snap-suspended");
+    if (suspendLeadingImageSnap) {
+      root.classList.add("leading-image-snap-suspended");
+    }
+
+    if (reorderTouchesTop) {
       const nextTopBlock = target === 0 ? blocks[index] : blocks[target];
       skipLeadingImagePlacementOnReorderRef.current =
         blocks[0]?.type !== "image" && nextTopBlock?.type === "image";
@@ -3130,6 +3138,9 @@ export default function Home() {
       blockReorderReleaseFrameRef.current = window.requestAnimationFrame(() => {
         blockReorderReleaseFrameRef.current = null;
         restoreViewport();
+        if (suspendLeadingImageSnap) {
+          root.classList.remove("leading-image-snap-suspended");
+        }
         const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
         if (!originalOverflowAnchor) return;
         root.style.overflowAnchor = originalOverflowAnchor.root;
