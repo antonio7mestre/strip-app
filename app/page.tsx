@@ -2368,6 +2368,7 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
   const blockReorderReleaseFrameRef = useRef<number | null>(null);
   const blockReorderOverflowAnchorRef = useRef<{
@@ -2530,11 +2531,19 @@ export default function Home() {
       initialRouteReady &&
       stripIsVisible &&
       root.dataset.stripReloadScroll === "manual";
+    const skipInitialAnchor =
+      skipLeadingImagePlacementOnReorderRef.current && !ownsReloadScroll;
+    skipLeadingImagePlacementOnReorderRef.current = false;
 
     let releaseFrame: number | null = null;
 
-    if (ownsReloadScroll) {
+    if (offset > 0 && !skipInitialAnchor) {
+      window.scrollTo({ top: offset, left: 0, behavior: "auto" });
+    } else if (ownsReloadScroll) {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+
+    if (ownsReloadScroll) {
       releaseFrame = window.requestAnimationFrame(() => {
         history.scrollRestoration = "auto";
         delete root.dataset.stripReloadScroll;
@@ -3092,6 +3101,12 @@ export default function Home() {
     }
     if (blockReorderReleaseFrameRef.current !== null) {
       window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
+    }
+
+    if (target === 0 || index === 0) {
+      const nextTopBlock = target === 0 ? blocks[index] : blocks[target];
+      skipLeadingImagePlacementOnReorderRef.current =
+        blocks[0]?.type !== "image" && nextTopBlock?.type === "image";
     }
 
     flushSync(() => {
