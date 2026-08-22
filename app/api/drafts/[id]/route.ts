@@ -54,9 +54,13 @@ export async function GET(
   }
 
   const row = await env.DB.prepare(
-    `SELECT id, title, content_json, created_at, updated_at
-     FROM drafts
-     WHERE id = ? AND owner_id = ?`,
+    `SELECT d.id, d.title, d.content_json, d.created_at, d.updated_at,
+       EXISTS(
+         SELECT 1 FROM strips s
+         WHERE s.id = d.id AND s.owner_id = d.owner_id
+       ) AS updates_published_strip
+     FROM drafts d
+     WHERE d.id = ? AND d.owner_id = ?`,
   )
     .bind(id, ownerId)
     .first<{
@@ -65,6 +69,7 @@ export async function GET(
       content_json: string;
       created_at: number;
       updated_at: number;
+      updates_published_strip: number;
     }>();
   if (!row) return new Response("Not found", { status: 404 });
 
@@ -111,6 +116,7 @@ export async function GET(
       title: row.title,
       blocks,
       endingStyle: storedContent.endingStyle,
+      publishedStripId: row.updates_published_strip ? row.id : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     },

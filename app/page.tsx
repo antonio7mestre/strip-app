@@ -130,6 +130,7 @@ type DraftStripDetail = {
   title: string;
   blocks: StripBlock[];
   endingStyle: StripEndingStyle;
+  publishedStripId: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -2388,6 +2389,10 @@ export default function Home() {
     useState<PublishedStripDetail | null>(null);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [currentDraftCreatedAt, setCurrentDraftCreatedAt] = useState(0);
+  const [editingPublishedStripId, setEditingPublishedStripId] = useState<
+    string | null
+  >(null);
+  const [openingPublishedEditor, setOpeningPublishedEditor] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [storyAssetFile, setStoryAssetFile] = useState<File | null>(null);
   const [storyAssetUrl, setStoryAssetUrl] = useState("");
@@ -4325,6 +4330,7 @@ export default function Home() {
     const draftId = makeId();
     setCurrentDraftId(draftId);
     setCurrentDraftCreatedAt(Date.now());
+    setEditingPublishedStripId(null);
     setBlocks([]);
     setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
     setStripTitle("");
@@ -4356,6 +4362,7 @@ export default function Home() {
       const data = (await response.json()) as { draft: DraftStripDetail };
       setCurrentDraftId(data.draft.id);
       setCurrentDraftCreatedAt(data.draft.createdAt);
+      setEditingPublishedStripId(data.draft.publishedStripId ?? null);
       setBlocks(data.draft.blocks);
       setEndingStyle(data.draft.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE);
       setStripTitle(data.draft.title);
@@ -4495,6 +4502,7 @@ export default function Home() {
             if (response.status === 404) {
               setCurrentDraftId(route.id);
               setCurrentDraftCreatedAt(Date.now());
+              setEditingPublishedStripId(null);
               setBlocks([]);
               setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
               setStripTitle("");
@@ -4504,6 +4512,7 @@ export default function Home() {
               if (cancelled) return;
               setCurrentDraftId(data.draft.id);
               setCurrentDraftCreatedAt(data.draft.createdAt);
+              setEditingPublishedStripId(data.draft.publishedStripId ?? null);
               setBlocks(data.draft.blocks);
               setEndingStyle(
                 data.draft.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE,
@@ -4579,7 +4588,7 @@ export default function Home() {
             color: coverChoice.color,
             shape: coverColorShape,
           };
-    const stripId = makeId();
+    const stripId = editingPublishedStripId ?? makeId();
     const publishedAt = Date.now();
     pageTransitionInFlightRef.current = true;
     setPublishing(true);
@@ -4601,7 +4610,10 @@ export default function Home() {
       const data = (await response.json()) as {
         strip: PublishedStripSummary;
       };
-      setPublishedStrips((current) => [data.strip, ...current]);
+      setPublishedStrips((current) => [
+        data.strip,
+        ...current.filter((strip) => strip.id !== data.strip.id),
+      ]);
       setOpenedPublishedStrip({
         ...data.strip,
         blocks,
@@ -4623,6 +4635,7 @@ export default function Home() {
       }
       setCurrentDraftId(null);
       setCurrentDraftCreatedAt(0);
+      setEditingPublishedStripId(null);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
       setActiveEndingTool(null);
@@ -4671,14 +4684,40 @@ export default function Home() {
 
   const activateStripEnding = () => {
     if (!openedPublishedStrip || view !== "published") return;
-    const origin = mainAppOrigin();
-    if (openedPublishedStrip.viewerIsOwner) {
-      window.location.assign(
-        `${origin}/share/${encodeURIComponent(openedPublishedStrip.id)}`,
-      );
+    window.location.assign(
+      `${mainAppOrigin()}/edit/${encodeURIComponent(makeId())}`,
+    );
+  };
+
+  const editPublishedStrip = async () => {
+    if (
+      !openedPublishedStrip?.viewerIsOwner ||
+      view !== "published" ||
+      openingPublishedEditor
+    ) {
       return;
     }
-    window.location.assign(`${origin}/edit/${encodeURIComponent(makeId())}`);
+    setOpeningPublishedEditor(true);
+    try {
+      const response = await fetch(
+        `/api/strips/${encodeURIComponent(openedPublishedStrip.id)}/draft`,
+        { method: "POST" },
+      );
+      if (!response.ok) throw new Error("Couldn’t prepare this Strip.");
+      window.location.assign(
+        `${mainAppOrigin()}/edit/${encodeURIComponent(openedPublishedStrip.id)}`,
+      );
+    } catch {
+      setNotice("Couldn’t open this Strip for editing. Try again.");
+      setOpeningPublishedEditor(false);
+    }
+  };
+
+  const sharePublishedStrip = () => {
+    if (!openedPublishedStrip?.viewerIsOwner || view !== "published") return;
+    window.location.assign(
+      `${mainAppOrigin()}/share/${encodeURIComponent(openedPublishedStrip.id)}`,
+    );
   };
 
   const downloadStoryAsset = () => {
@@ -5252,22 +5291,52 @@ export default function Home() {
           <div className="strip-ending-card-inner">
             <span className="strip-ending-wordmark">STRIP</span>
             {view === "published" ? (
-              <button
-                className="strip-ending-action"
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  activateStripEnding();
-                }}
-              >
-                {openedPublishedStrip?.viewerIsOwner
-                  ? "Share your Strip"
-                  : "Make your own Strip"}
-              </button>
+              openedPublishedStrip?.viewerIsOwner ? (
+                <div className="strip-ending-actions">
+                  <button
+                    className="strip-ending-action"
+                    type="button"
+                    aria-busy={openingPublishedEditor}
+                    disabled={openingPublishedEditor}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void editPublishedStrip();
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="strip-ending-action"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      sharePublishedStrip();
+                    }}
+                  >
+                    Share
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="strip-ending-action"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    activateStripEnding();
+                  }}
+                >
+                  Make your own Strip
+                </button>
+              )
             ) : (
-              <span className="strip-ending-action" aria-disabled="true">
-                Share your Strip
-              </span>
+              <div className="strip-ending-actions">
+                <span className="strip-ending-action" aria-disabled="true">
+                  Edit
+                </span>
+                <span className="strip-ending-action" aria-disabled="true">
+                  Share
+                </span>
+              </div>
             )}
           </div>
         </section>

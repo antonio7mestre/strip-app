@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import {
+  readStripContent,
   writeStripContent,
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
@@ -260,6 +261,25 @@ function imageExtension(contentType: string) {
   return "jpg";
 }
 
+function storedMediaObjectKeys(value: string | null) {
+  if (!value) return [];
+  return readStripContent(value).blocks.flatMap((block) => {
+    if (
+      !block ||
+      typeof block !== "object" ||
+      !("type" in block) ||
+      !("objectKey" in block) ||
+      (block.type !== "image" &&
+        block.type !== "video" &&
+        block.type !== "sticker") ||
+      typeof block.objectKey !== "string"
+    ) {
+      return [];
+    }
+    return [block.objectKey];
+  });
+}
+
 export async function GET(request: Request) {
   const auth = await requireAuthUser(request);
   if (!auth.user) return auth.response;
@@ -315,6 +335,20 @@ export async function POST(request: Request) {
   ) {
     return Response.json({ error: "Invalid Strip." }, { status: 400 });
   }
+  const existing = await env.DB.prepare(
+    `SELECT owner_id, cover_object_key, content_json
+     FROM strips
+     WHERE id = ?`,
+  )
+    .bind(id)
+    .first<{
+      owner_id: string;
+      cover_object_key: string | null;
+      content_json: string;
+    }>();
+  if (existing && existing.owner_id !== ownerId) {
+    return Response.json({ error: "Strip already exists." }, { status: 409 });
+  }
   const preparedContent = prepareContentBlocks(
     ownerId,
     id,
@@ -335,6 +369,10 @@ export async function POST(request: Request) {
   let coverCopySourceKey: string | null = null;
   let coverAlt: string | null = null;
   const uploadedObjectKeys: string[] = [];
+  const previousObjectKeys = new Set([
+    ...(existing?.cover_object_key ? [existing.cover_object_key] : []),
+    ...storedMediaObjectKeys(existing?.content_json ?? null),
+  ]);
 
   if (input.cover.kind === "image") {
     const image = decodeMediaDataUrl(input.cover.src, "image", MAX_COVER_BYTES);
@@ -411,7 +449,17 @@ export async function POST(request: Request) {
       `INSERT INTO strips (
         id, owner_id, title, cover_kind, cover_color, cover_shape,
         cover_object_key, cover_alt, content_json, published_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        cover_kind = excluded.cover_kind,
+        cover_color = excluded.cover_color,
+        cover_shape = excluded.cover_shape,
+        cover_object_key = excluded.cover_object_key,
+        cover_alt = excluded.cover_alt,
+        content_json = excluded.content_json,
+        published_at = excluded.published_at
+      WHERE strips.owner_id = excluded.owner_id`,
     )
       .bind(
         id,
@@ -428,10 +476,22 @@ export async function POST(request: Request) {
       .run();
   } catch (error) {
     await Promise.all(
-      uploadedObjectKeys.map((objectKey) => env.STRIP_MEDIA.delete(objectKey)),
+      uploadedObjectKeys
+        .filter((objectKey) => !previousObjectKeys.has(objectKey))
+        .map((objectKey) => env.STRIP_MEDIA.delete(objectKey)),
     );
     throw error;
   }
+
+  const currentObjectKeys = new Set([
+    ...(coverObjectKey ? [coverObjectKey] : []),
+    ...storedMediaObjectKeys(contentJson),
+  ]);
+  await Promise.all(
+    Array.from(previousObjectKeys)
+      .filter((objectKey) => !currentObjectKeys.has(objectKey))
+      .map((objectKey) => env.STRIP_MEDIA.delete(objectKey)),
+  );
 
   const row: StoredStripRow = {
     id,
@@ -445,6 +505,6 @@ export async function POST(request: Request) {
   };
   return Response.json(
     { strip: serializeRow(row, auth.user.username) },
-    { status: 201 },
+    { status: existing ? 200 : 201 },
   );
 }

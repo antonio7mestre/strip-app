@@ -871,6 +871,14 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   letter-spacing: 0.18em;
 }
 
+.strip-ending-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(280px, calc(100vw - 48px));
+  gap: 10px;
+  justify-self: center;
+}
+
 .strip-ending-action {
   display: inline-flex;
   align-items: center;
@@ -889,6 +897,12 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   letter-spacing: -0.018em;
   cursor: pointer;
   transition: transform 140ms ease;
+}
+
+.strip-ending-actions .strip-ending-action {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 16px;
 }
 
 .strip-ending-action:active {
