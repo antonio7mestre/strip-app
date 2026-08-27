@@ -624,10 +624,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .library-add-button {
+  --library-browser-bar-inset: max(0px, calc(100lvh - 100dvh));
   position: fixed;
   z-index: 35;
   right: max(18px, env(safe-area-inset-right));
-  bottom: calc(62px + env(safe-area-inset-bottom));
+  bottom: calc(
+    18px + env(safe-area-inset-bottom) + var(--library-browser-bar-inset)
+  );
   display: grid;
   width: 56px;
   height: 56px;
@@ -635,7 +638,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #ffffff;
+  background: #f2183d;
   color: #000000;
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.38);
   cursor: pointer;
