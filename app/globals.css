@@ -2222,20 +2222,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   );
 }
 
-.keyboard-open .block-controls,
-.editor-mode.is-typing .block-controls,
-.keyboard-open .block-controls-under-edge,
-.editor-mode.is-typing .block-controls-under-edge {
-  transform: translate(-50%, 125%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.keyboard-open .block-controls-top-edge,
-.editor-mode.is-typing .block-controls-top-edge {
-  opacity: 0;
-}
-
 .block-controls::-webkit-scrollbar {
   display: none;
 }
