@@ -1274,12 +1274,6 @@ function TextStyleSelector({
   const pageColorPointRef = useRef<typeof pageColorPoint>(pageColorPoint);
   pageColorPointRef.current = pageColorPoint;
   fontSizeRef.current = fontSize;
-  const backgroundIsCustom = !backgroundOptions.some(
-    (option) => option.value.toUpperCase() === background.toUpperCase(),
-  );
-  const textIsCustom = !textColorOptions.some(
-    (option) => option.value.toUpperCase() === textColor.toUpperCase(),
-  );
   const activeColor = tool === "background" ? background : textColor;
   const decodedGradientPosition = hexToHsl(activeColor);
   const [gradientHue, setGradientHue] = useState(decodedGradientPosition.hue);
@@ -1717,7 +1711,7 @@ function TextStyleSelector({
                 <button
                   key={option.value}
                   type="button"
-                  className={`selector-option color-selector-option ${selected ? "is-selected" : ""}`}
+                  className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
                   style={swatchStyle(option.value)}
                   onClick={() => {
                     setPageColorMode(null);
@@ -1742,9 +1736,7 @@ function TextStyleSelector({
           <>
             <button
               type="button"
-              className={`selector-option color-selector-option gradient-trigger ${
-                backgroundIsCustom ? "is-selected" : ""
-              }`}
+              className="selector-option color-selector-option gradient-trigger"
               style={swatchStyle(background)}
               onClick={() => {
                 setPageColorMode(null);
@@ -1752,7 +1744,6 @@ function TextStyleSelector({
               }}
               tabIndex={visible ? 0 : -1}
               aria-label="Open the background color wheel"
-              aria-pressed={backgroundIsCustom}
             >
               <Palette aria-hidden="true" />
             </button>
@@ -1777,7 +1768,7 @@ function TextStyleSelector({
                 <button
                   key={option.value}
                   type="button"
-                  className={`selector-option color-selector-option ${selected ? "is-selected" : ""}`}
+                  className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
                   style={swatchStyle(option.value)}
                   onClick={() => {
                     setPageColorMode(null);
@@ -1797,9 +1788,7 @@ function TextStyleSelector({
           <>
             <button
               type="button"
-              className={`selector-option color-selector-option gradient-trigger ${
-                textIsCustom ? "is-selected" : ""
-              }`}
+              className="selector-option color-selector-option gradient-trigger"
               style={swatchStyle(textColor)}
               onClick={() => {
                 setPageColorMode(null);
@@ -1807,7 +1796,6 @@ function TextStyleSelector({
               }}
               tabIndex={visible ? 0 : -1}
               aria-label="Open the text color wheel"
-              aria-pressed={textIsCustom}
             >
               <Palette aria-hidden="true" />
             </button>
