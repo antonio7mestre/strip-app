@@ -3148,14 +3148,14 @@ export default function Home() {
     const handleFocusOut = () => window.requestAnimationFrame(updateKeyboardInset);
 
     updateKeyboardInset();
+    // Our smooth correction moves the visual viewport. Listening for that scroll
+    // here would schedule the same correction again and create a feedback loop.
     viewport?.addEventListener("resize", updateKeyboardInset);
-    viewport?.addEventListener("scroll", updateKeyboardInset);
     window.addEventListener("focusin", handleFocusIn);
     window.addEventListener("focusout", handleFocusOut);
 
     return () => {
       viewport?.removeEventListener("resize", updateKeyboardInset);
-      viewport?.removeEventListener("scroll", updateKeyboardInset);
       window.removeEventListener("focusin", handleFocusIn);
       window.removeEventListener("focusout", handleFocusOut);
       if (visibilityTimer !== null) {
