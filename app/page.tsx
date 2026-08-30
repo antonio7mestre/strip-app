@@ -1002,6 +1002,63 @@ function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "smooth") {
   }
 }
 
+function focusSelectedBlockWithToolbar(
+  blockId: string,
+  behavior: ScrollBehavior = "smooth",
+) {
+  const element = document.querySelector<HTMLElement>(
+    `.editor-mode .strip-block[data-block-id="${blockId}"]`,
+  );
+  if (!element || element.querySelector("textarea:focus")) return;
+
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportHeight = viewport?.height ?? window.innerHeight;
+  const viewportBottom = viewportTop + viewportHeight;
+  const bounds = element.getBoundingClientRect();
+  const toolbarReveal = element.querySelector<HTMLElement>(
+    ".block-controls-reveal",
+  );
+  const stickerControl = element.querySelector<HTMLElement>(
+    ".sticker-delete-control",
+  );
+  const stickerControlBounds = stickerControl?.getBoundingClientRect();
+  const toolbarTop = toolbarReveal
+    ? bounds.top + toolbarReveal.offsetTop
+    : stickerControlBounds?.top ?? bounds.bottom;
+  const toolbarBottom = toolbarReveal
+    ? bounds.top + toolbarReveal.offsetTop + toolbarReveal.offsetHeight
+    : stickerControlBounds?.bottom ?? bounds.bottom;
+
+  const dock = document.querySelector<HTMLElement>(".main-composer-dock");
+  const dockBounds = dock?.getBoundingClientRect();
+  const dockIsVisible = Boolean(
+    dockBounds && dockBounds.top < viewportBottom && dockBounds.bottom > viewportTop,
+  );
+  const availableBottom = Math.min(
+    viewportBottom - 20,
+    dockIsVisible && dockBounds ? dockBounds.top - 16 : viewportBottom - 20,
+  );
+  const toolbarIsFullyVisible =
+    toolbarTop >= viewportTop + 12 && toolbarBottom <= availableBottom;
+  if (toolbarIsFullyVisible) return;
+
+  const centeredDelta =
+    bounds.top + bounds.height / 2 - (viewportTop + viewportHeight / 2);
+  const centeredToolbarBottom = toolbarBottom - centeredDelta;
+  const scrollDelta =
+    centeredToolbarBottom <= availableBottom
+      ? centeredDelta
+      : toolbarBottom - availableBottom;
+
+  if (Math.abs(scrollDelta) < 1) return;
+  window.scrollTo({
+    top: Math.max(0, window.scrollY + scrollDelta),
+    left: 0,
+    behavior,
+  });
+}
+
 function caretOffsetAtPoint(
   container: HTMLElement,
   clientX: number,
@@ -3743,23 +3800,6 @@ export default function Home() {
     };
   }, [pendingDeleteId]);
 
-  const revealAddedBlock = (id: string, focusText = false) => {
-    window.requestAnimationFrame(() => {
-      const element = document.querySelector<HTMLElement>(
-        `.strip-block[data-block-id="${id}"]`,
-      );
-      if (!element) return;
-      if (focusText) {
-        element.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
-      }
-      const bounds = element.getBoundingClientRect();
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      const centeredTop =
-        window.scrollY + bounds.top - Math.max(0, (viewportHeight - bounds.height) / 2);
-      const targetTop = Math.max(0, centeredTop);
-      window.scrollTo({ top: targetTop, behavior: "smooth" });
-    });
-  };
 
   const enterTextEditing = (id: string, caretOffset?: number) => {
     flushSync(() => {
@@ -3801,7 +3841,6 @@ export default function Home() {
     setSelectedBlockId(id);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
-    revealAddedBlock(id);
   };
 
   const addMedia = (event: ChangeEvent<HTMLInputElement>) => {
@@ -3835,8 +3874,7 @@ export default function Home() {
       setSelectedBlockId(id);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
-      revealAddedBlock(id);
-    };
+      };
     reader.readAsDataURL(file);
     event.target.value = "";
   };
@@ -3977,6 +4015,22 @@ export default function Home() {
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
   const endingIsSelected = selectedBlockId === STRIP_ENDING_BLOCK_ID;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
+  useLayoutEffect(() => {
+    if (view !== "edit" || !selectedBlockId) return;
+
+    let firstFrame = 0;
+    let secondFrame = 0;
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        focusSelectedBlockWithToolbar(selectedBlockId);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [selectedBlockId, view]);
   useLayoutEffect(() => {
     const selected = blocks.find((block) => block.id === selectedBlockId);
     const selectedIsEnding = selectedBlockId === STRIP_ENDING_BLOCK_ID;
@@ -5563,6 +5617,11 @@ export default function Home() {
                 }
                 onLoad={(event) => {
                   settleMediaLoad(block.id, true);
+                  if (selectedBlockId === block.id) {
+                    window.requestAnimationFrame(() =>
+                      focusSelectedBlockWithToolbar(block.id),
+                    );
+                  }
                   const sampledColor = sampleImageBottomColor(event.currentTarget);
                   if (!sampledColor) return;
                   setImageTrayColors((current) =>
@@ -5682,9 +5741,14 @@ export default function Home() {
             loadSettled={mediaLoadStatus[block.id] !== undefined}
             animatePublishedLoad={!isEditing && view === "published"}
             reservedHeight={block.height}
-            onLoadSettled={(loadedSuccessfully) =>
-              settleMediaLoad(block.id, loadedSuccessfully)
-            }
+            onLoadSettled={(loadedSuccessfully) => {
+              settleMediaLoad(block.id, loadedSuccessfully);
+              if (loadedSuccessfully && selectedBlockId === block.id) {
+                window.requestAnimationFrame(() =>
+                  focusSelectedBlockWithToolbar(block.id),
+                );
+              }
+            }}
             onHeight={isEditing ? recordBlockHeight : undefined}
             controls={isEditing ? renderBlockControls(block, index) : null}
           />
