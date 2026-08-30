@@ -1737,7 +1737,6 @@ function TextStyleSelector({
             <button
               type="button"
               className="selector-option color-selector-option gradient-trigger"
-              style={swatchStyle(background)}
               onClick={() => {
                 setPageColorMode(null);
                 setGradientMode("background");
@@ -1789,7 +1788,6 @@ function TextStyleSelector({
             <button
               type="button"
               className="selector-option color-selector-option gradient-trigger"
-              style={swatchStyle(textColor)}
               onClick={() => {
                 setPageColorMode(null);
                 setGradientMode("color");
