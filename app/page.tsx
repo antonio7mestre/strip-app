@@ -4952,7 +4952,6 @@ export default function Home() {
         onTextTool={
           block.type === "text"
             ? (tool) => {
-                setEditingTextBlockId(null);
                 setLastTextTool(tool);
                 setActiveTextTool(tool);
               }
