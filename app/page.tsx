@@ -519,16 +519,56 @@ function cssColorToHex(color: string) {
   return pixelToHex(channels[0], channels[1], channels[2]);
 }
 
+const pageColorVideoFrames = new WeakMap<HTMLVideoElement, HTMLCanvasElement>();
+
+function cachePageColorVideoFrame(video: HTMLVideoElement) {
+  if (
+    pageColorVideoFrames.has(video) ||
+    video.readyState < 2 ||
+    !video.videoWidth ||
+    !video.videoHeight
+  ) {
+    return;
+  }
+
+  const maximumDimension = 1024;
+  const scale = Math.min(
+    1,
+    maximumDimension / Math.max(video.videoWidth, video.videoHeight),
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return;
+
+  try {
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    pageColorVideoFrames.set(video, canvas);
+  } catch {
+    pageColorVideoFrames.delete(video);
+  }
+}
+
 function sampleMediaColorAtPoint(
   media: HTMLImageElement | HTMLVideoElement,
   clientX: number,
   clientY: number,
 ) {
   const bounds = media.getBoundingClientRect();
-  const sourceWidth =
-    media instanceof HTMLImageElement ? media.naturalWidth : media.videoWidth;
-  const sourceHeight =
-    media instanceof HTMLImageElement ? media.naturalHeight : media.videoHeight;
+  const frozenFrame =
+    media instanceof HTMLVideoElement ? pageColorVideoFrames.get(media) : null;
+  const source = frozenFrame ?? media;
+  const sourceWidth = frozenFrame
+    ? frozenFrame.width
+    : media instanceof HTMLImageElement
+      ? media.naturalWidth
+      : media.videoWidth;
+  const sourceHeight = frozenFrame
+    ? frozenFrame.height
+    : media instanceof HTMLImageElement
+      ? media.naturalHeight
+      : media.videoHeight;
   if (!sourceWidth || !sourceHeight || !bounds.width || !bounds.height) return null;
 
   const sourceX = Math.min(
@@ -546,7 +586,7 @@ function sampleMediaColorAtPoint(
   if (!context) return null;
 
   try {
-    context.drawImage(media, sourceX, sourceY, 1, 1, 0, 0, 1, 1);
+    context.drawImage(source, sourceX, sourceY, 1, 1, 0, 0, 1, 1);
     const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
     return alpha > 8 ? pixelToHex(red, green, blue) : null;
   } catch {
@@ -560,10 +600,17 @@ function samplePageColorAtPoint(clientX: number, clientY: number) {
       !element.closest(".selector-dock") &&
       !element.closest(".page-color-picker-indicator"),
   );
+  const sampledMedia = new Set<HTMLImageElement | HTMLVideoElement>();
 
   for (const element of elements) {
-    if (element instanceof HTMLImageElement || element instanceof HTMLVideoElement) {
-      const sampledColor = sampleMediaColorAtPoint(element, clientX, clientY);
+    const media =
+      element instanceof HTMLImageElement || element instanceof HTMLVideoElement
+        ? element
+        : element.closest(".video-block")?.querySelector<HTMLVideoElement>("video") ??
+          element.closest(".image-block")?.querySelector<HTMLImageElement>("img");
+    if (media && !sampledMedia.has(media)) {
+      sampledMedia.add(media);
+      const sampledColor = sampleMediaColorAtPoint(media, clientX, clientY);
       if (sampledColor) return sampledColor;
     }
   }
@@ -1302,7 +1349,10 @@ function TextStyleSelector({
     const pausedVideos = Array.from(document.querySelectorAll<HTMLVideoElement>("video")).map(
       (video) => ({ video, wasPlaying: !video.paused }),
     );
-    pausedVideos.forEach(({ video }) => video.pause());
+    pausedVideos.forEach(({ video }) => {
+      cachePageColorVideoFrame(video);
+      video.pause();
+    });
     root.classList.add("page-color-picking");
     const focusedTextField = document.activeElement;
     if (
@@ -1435,6 +1485,7 @@ function TextStyleSelector({
       pageColorPointerIdRef.current = null;
       root.classList.remove("page-color-picking");
       pausedVideos.forEach(({ video, wasPlaying }) => {
+        pageColorVideoFrames.delete(video);
         if (wasPlaying) void video.play().catch(() => {});
       });
     };
@@ -1561,6 +1612,9 @@ function TextStyleSelector({
 
   const pageColorPickerActive = pageColorMode === tool && tool !== "font";
   const startPageColorPicker = (nextTool: TextTool) => {
+    document
+      .querySelectorAll<HTMLVideoElement>("video")
+      .forEach(cachePageColorVideoFrame);
     const viewport = window.visualViewport;
     const viewportLeft = viewport?.offsetLeft ?? 0;
     const viewportTop = viewport?.offsetTop ?? 0;
