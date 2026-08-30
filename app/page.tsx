@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type {
   ChangeEvent,
   CSSProperties,
@@ -24,6 +24,7 @@ import {
   Link2,
   LogOut,
   Minus,
+  Palette,
   PaintBucket,
   Pencil,
   Pipette,
@@ -499,7 +500,87 @@ function hexToHsl(hex: string) {
   return { hue, saturation: saturation * 100, lightness: lightness * 100 };
 }
 
+function pixelToHex(red: number, green: number, blue: number) {
+  return `#${[red, green, blue]
+    .map((channel) => Math.round(channel).toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+}
+
+function cssColorToHex(color: string) {
+  const match = color.match(/^rgba?\(([^)]+)\)$/i);
+  if (!match) return null;
+  const channels = match[1]
+    .replace("/", " ")
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(Number);
+  if (channels.length < 3 || channels.slice(0, 3).some(Number.isNaN)) return null;
+  if (channels.length > 3 && channels[3] <= 0.01) return null;
+  return pixelToHex(channels[0], channels[1], channels[2]);
+}
+
+function sampleMediaColorAtPoint(
+  media: HTMLImageElement | HTMLVideoElement,
+  clientX: number,
+  clientY: number,
+) {
+  const bounds = media.getBoundingClientRect();
+  const sourceWidth =
+    media instanceof HTMLImageElement ? media.naturalWidth : media.videoWidth;
+  const sourceHeight =
+    media instanceof HTMLImageElement ? media.naturalHeight : media.videoHeight;
+  if (!sourceWidth || !sourceHeight || !bounds.width || !bounds.height) return null;
+
+  const sourceX = Math.min(
+    sourceWidth - 1,
+    Math.max(0, ((clientX - bounds.left) / bounds.width) * sourceWidth),
+  );
+  const sourceY = Math.min(
+    sourceHeight - 1,
+    Math.max(0, ((clientY - bounds.top) / bounds.height) * sourceHeight),
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+
+  try {
+    context.drawImage(media, sourceX, sourceY, 1, 1, 0, 0, 1, 1);
+    const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+    return alpha > 8 ? pixelToHex(red, green, blue) : null;
+  } catch {
+    return null;
+  }
+}
+
+function samplePageColorAtPoint(clientX: number, clientY: number) {
+  const elements = document.elementsFromPoint(clientX, clientY).filter(
+    (element) =>
+      !element.closest(".selector-dock") &&
+      !element.closest(".page-color-picker-indicator"),
+  );
+
+  for (const element of elements) {
+    if (element instanceof HTMLImageElement || element instanceof HTMLVideoElement) {
+      const sampledColor = sampleMediaColorAtPoint(element, clientX, clientY);
+      if (sampledColor) return sampledColor;
+    }
+  }
+
+  for (const element of elements) {
+    const backgroundColor = cssColorToHex(getComputedStyle(element).backgroundColor);
+    if (backgroundColor) return backgroundColor;
+  }
+
+  return null;
+}
+
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
+type PageColorPickerStyle = CSSProperties & {
+  "--page-picker-color": string;
+  "--page-picker-foreground": string;
+};
 type CoverCardStyle = CSSProperties & {
   "--cover-dim": number;
 };
@@ -1184,7 +1265,15 @@ function TextStyleSelector({
   const fontSizeRepeatDelayRef = useRef<number | null>(null);
   const fontSizeRepeatIntervalRef = useRef<number | null>(null);
   const fontSizeDidRepeatRef = useRef(false);
+  const pageColorPointerIdRef = useRef<number | null>(null);
+  const onChangeRef = useRef(onChange);
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
+  const [pageColorMode, setPageColorMode] = useState<TextTool | null>(null);
+  const [pageColorPoint, setPageColorPoint] = useState<{
+    x: number;
+    y: number;
+    color: string;
+  } | null>(null);
   fontSizeRef.current = fontSize;
   const backgroundIsCustom = !backgroundOptions.some(
     (option) => option.value.toUpperCase() === background.toUpperCase(),
@@ -1203,9 +1292,95 @@ function TextStyleSelector({
         : gradientHue,
   };
 
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
   useEffect(() => {
     setGradientMode(startInGradientMode && tool !== "font" ? tool : null);
+    setPageColorMode(null);
+    setPageColorPoint(null);
   }, [startInGradientMode, tool, visible]);
+
+  useEffect(() => {
+    if (!visible || pageColorMode !== tool || tool === "font") return;
+    const root = document.documentElement;
+    const pausedVideos = Array.from(document.querySelectorAll<HTMLVideoElement>("video")).map(
+      (video) => ({ video, wasPlaying: !video.paused }),
+    );
+    pausedVideos.forEach(({ video }) => video.pause());
+    root.classList.add("page-color-picking");
+
+    const targetIsSelector = (event: Event) =>
+      event.target instanceof Element && Boolean(event.target.closest(".selector-dock"));
+    const sampleAtPointer = (event: PointerEvent) => {
+      const color = samplePageColorAtPoint(event.clientX, event.clientY);
+      if (!color) return;
+      setPageColorPoint({ x: event.clientX, y: event.clientY, color });
+      onChangeRef.current(
+        tool === "background" ? { backgroundColor: color } : { textColor: color },
+      );
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (targetIsSelector(event)) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      pageColorPointerIdRef.current = event.pointerId;
+      sampleAtPointer(event);
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      if (pageColorPointerIdRef.current !== event.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      sampleAtPointer(event);
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      if (pageColorPointerIdRef.current !== event.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      sampleAtPointer(event);
+      pageColorPointerIdRef.current = null;
+    };
+    const handlePointerCancel = (event: PointerEvent) => {
+      if (pageColorPointerIdRef.current === event.pointerId) {
+        pageColorPointerIdRef.current = null;
+      }
+    };
+    const preventPickerClick = (event: MouseEvent) => {
+      if (targetIsSelector(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("pointermove", handlePointerMove, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("pointerup", handlePointerUp, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("pointercancel", handlePointerCancel, true);
+    document.addEventListener("click", preventPickerClick, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("pointermove", handlePointerMove, true);
+      document.removeEventListener("pointerup", handlePointerUp, true);
+      document.removeEventListener("pointercancel", handlePointerCancel, true);
+      document.removeEventListener("click", preventPickerClick, true);
+      pageColorPointerIdRef.current = null;
+      root.classList.remove("page-color-picking");
+      pausedVideos.forEach(({ video, wasPlaying }) => {
+        if (wasPlaying) void video.play().catch(() => {});
+      });
+    };
+  }, [pageColorMode, tool, visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -1326,11 +1501,35 @@ function TextStyleSelector({
     changeFontSize(direction);
   };
 
+  const pageColorPickerActive = pageColorMode === tool && tool !== "font";
+  const pageColorPickerStyle: PageColorPickerStyle | undefined = pageColorPickerActive
+    ? {
+        "--page-picker-color": activeColor,
+        "--page-picker-foreground": contrastColor(activeColor),
+        backgroundColor: activeColor,
+      }
+    : undefined;
+  const startPageColorPicker = (nextTool: TextTool) => {
+    setGradientMode(null);
+    setPageColorPoint(null);
+    setPageColorMode(nextTool);
+  };
+  const finishStyleSelection = () => {
+    setGradientMode(null);
+    setPageColorMode(null);
+    setPageColorPoint(null);
+    onBack();
+  };
+
   return (
-    <footer
+    <>
+      <footer
       className={`composer-dock selector-dock ${
         gradientMode === tool ? "is-gradient-picker" : ""
-      } ${visible ? "is-visible" : ""}`}
+      } ${pageColorPickerActive ? "is-page-color-picker" : ""} ${
+        visible ? "is-visible" : ""
+      }`}
+      style={pageColorPickerStyle}
       aria-label={
         tool === "font"
           ? "Typeface selector"
@@ -1342,7 +1541,9 @@ function TextStyleSelector({
     >
       <div
         ref={selectorScrollRef}
-        className={`selector-scroll ${gradientMode === tool ? "is-gradient-mode" : ""}`}
+        className={`selector-scroll ${gradientMode === tool ? "is-gradient-mode" : ""} ${
+          pageColorPickerActive ? "is-page-color-mode" : ""
+        }`}
         role="group"
         aria-label={
           tool === "font"
@@ -1352,6 +1553,12 @@ function TextStyleSelector({
               : "Text color choices"
         }
       >
+        {pageColorPickerActive ? (
+          <div className="page-color-picker-fill" aria-live="polite">
+            <span className="visually-hidden">Selected color {activeColor}</span>
+          </div>
+        ) : null}
+
         {gradientMode === tool && tool !== "font" ? (
           <div
             className="full-gradient-picker"
@@ -1385,7 +1592,7 @@ function TextStyleSelector({
           </div>
         ) : null}
 
-        {gradientMode !== tool && tool === "font"
+        {gradientMode !== tool && !pageColorPickerActive && tool === "font"
           ? [
               <div className="font-size-stepper" role="group" aria-label="Font size" key="font-size">
                 <button
@@ -1441,7 +1648,7 @@ function TextStyleSelector({
             ]
           : null}
 
-        {gradientMode !== tool && tool === "background"
+        {gradientMode !== tool && !pageColorPickerActive && tool === "background"
           ? backgroundOptions.map((option) => {
               const selected = background.toUpperCase() === option.value.toUpperCase();
               return (
@@ -1468,23 +1675,38 @@ function TextStyleSelector({
             })
           : null}
 
-        {gradientMode !== tool && tool === "background" ? (
-          <button
-            type="button"
-            className={`selector-option color-selector-option gradient-trigger ${
-              backgroundIsCustom ? "is-selected" : ""
-            }`}
-            style={swatchStyle(background)}
-            onClick={() => setGradientMode("background")}
-            tabIndex={visible ? 0 : -1}
-            aria-label="Choose any background color"
-            aria-pressed={backgroundIsCustom}
-          >
-            <Pipette aria-hidden="true" />
-          </button>
+        {gradientMode !== tool && !pageColorPickerActive && tool === "background" ? (
+          <>
+            <button
+              type="button"
+              className="selector-option color-selector-option page-color-trigger"
+              style={swatchStyle(background)}
+              onClick={() => startPageColorPicker("background")}
+              tabIndex={visible ? 0 : -1}
+              aria-label="Match a background color from the page"
+            >
+              <Pipette aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={`selector-option color-selector-option gradient-trigger ${
+                backgroundIsCustom ? "is-selected" : ""
+              }`}
+              style={swatchStyle(background)}
+              onClick={() => {
+                setPageColorMode(null);
+                setGradientMode("background");
+              }}
+              tabIndex={visible ? 0 : -1}
+              aria-label="Open the background color wheel"
+              aria-pressed={backgroundIsCustom}
+            >
+              <Palette aria-hidden="true" />
+            </button>
+          </>
         ) : null}
 
-        {gradientMode !== tool && tool === "color"
+        {gradientMode !== tool && !pageColorPickerActive && tool === "color"
           ? textColorOptions.map((option) => {
               const selected = textColor.toUpperCase() === option.value.toUpperCase();
               return (
@@ -1504,27 +1726,42 @@ function TextStyleSelector({
             })
           : null}
 
-        {gradientMode !== tool && tool === "color" ? (
-          <button
-            type="button"
-            className={`selector-option color-selector-option gradient-trigger ${
-              textIsCustom ? "is-selected" : ""
-            }`}
-            style={swatchStyle(textColor)}
-            onClick={() => setGradientMode("color")}
-            tabIndex={visible ? 0 : -1}
-            aria-label="Choose any text color"
-            aria-pressed={textIsCustom}
-          >
-            <Pipette aria-hidden="true" />
-          </button>
+        {gradientMode !== tool && !pageColorPickerActive && tool === "color" ? (
+          <>
+            <button
+              type="button"
+              className="selector-option color-selector-option page-color-trigger"
+              style={swatchStyle(textColor)}
+              onClick={() => startPageColorPicker("color")}
+              tabIndex={visible ? 0 : -1}
+              aria-label="Match a text color from the page"
+            >
+              <Pipette aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={`selector-option color-selector-option gradient-trigger ${
+                textIsCustom ? "is-selected" : ""
+              }`}
+              style={swatchStyle(textColor)}
+              onClick={() => {
+                setPageColorMode(null);
+                setGradientMode("color");
+              }}
+              tabIndex={visible ? 0 : -1}
+              aria-label="Open the text color wheel"
+              aria-pressed={textIsCustom}
+            >
+              <Palette aria-hidden="true" />
+            </button>
+          </>
         ) : null}
       </div>
       <div className="selector-leading">
         <button
           className="dock-icon-button selector-back-button"
           type="button"
-          onClick={onBack}
+          onClick={finishStyleSelection}
           disabled={doneDisabled}
           tabIndex={visible ? 0 : -1}
           aria-label="Done choosing styles"
@@ -1532,7 +1769,22 @@ function TextStyleSelector({
           <Check className="dock-glyph" aria-hidden="true" />
         </button>
       </div>
-    </footer>
+      </footer>
+      {pageColorPickerActive && pageColorPoint && typeof document !== "undefined"
+        ? createPortal(
+            <span
+              className="page-color-picker-indicator"
+              style={{
+                left: `${pageColorPoint.x}px`,
+                top: `${pageColorPoint.y}px`,
+                backgroundColor: pageColorPoint.color,
+              }}
+              aria-hidden="true"
+            />,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 
