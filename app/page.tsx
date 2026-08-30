@@ -1270,6 +1270,8 @@ function TextStyleSelector({
     y: number;
     color: string;
   } | null>(null);
+  const pageColorPointRef = useRef<typeof pageColorPoint>(pageColorPoint);
+  pageColorPointRef.current = pageColorPoint;
   fontSizeRef.current = fontSize;
   const backgroundIsCustom = !backgroundOptions.some(
     (option) => option.value.toUpperCase() === background.toUpperCase(),
@@ -1309,23 +1311,39 @@ function TextStyleSelector({
 
     const targetIsSelector = (event: Event) =>
       event.target instanceof Element && Boolean(event.target.closest(".selector-dock"));
-    const targetIsPickerIndicator = (event: Event) =>
-      event.target instanceof Element &&
-      Boolean(event.target.closest(".page-color-picker-indicator"));
-    const sampleAtPointer = (event: PointerEvent) => {
-      const color = samplePageColorAtPoint(event.clientX, event.clientY);
+    const pickerIndicatorForEvent = (event: Event) =>
+      event.target instanceof Element
+        ? event.target.closest<HTMLElement>(".page-color-picker-indicator")
+        : null;
+    const sampleAtPoint = (x: number, y: number) => {
+      const color = samplePageColorAtPoint(x, y);
       if (!color) return;
-      setPageColorPoint({ x: event.clientX, y: event.clientY, color });
+      const currentPoint = pageColorPointRef.current;
+      if (
+        currentPoint?.x === x &&
+        currentPoint.y === y &&
+        currentPoint.color === color
+      ) {
+        return;
+      }
+      const nextPoint = { x, y, color };
+      pageColorPointRef.current = nextPoint;
+      setPageColorPoint(nextPoint);
       onChangeRef.current(
         tool === "background" ? { backgroundColor: color } : { textColor: color },
       );
     };
+    const sampleAtPointer = (event: PointerEvent) => {
+      sampleAtPoint(event.clientX, event.clientY);
+    };
     const handlePointerDown = (event: PointerEvent) => {
       if (targetIsSelector(event)) return;
-      if (!targetIsPickerIndicator(event)) return;
+      const pickerIndicator = pickerIndicatorForEvent(event);
+      if (!pickerIndicator) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
+      pickerIndicator.setPointerCapture(event.pointerId);
       pageColorPointerIdRef.current = event.pointerId;
       sampleAtPointer(event);
     };
@@ -1352,6 +1370,15 @@ function TextStyleSelector({
       event.preventDefault();
       event.stopPropagation();
     };
+    let scrollFrame: number | null = null;
+    const handlePageScroll = () => {
+      if (scrollFrame !== null) return;
+      scrollFrame = window.requestAnimationFrame(() => {
+        scrollFrame = null;
+        const point = pageColorPointRef.current;
+        if (point) sampleAtPoint(point.x, point.y);
+      });
+    };
 
     document.addEventListener("pointerdown", handlePointerDown, {
       capture: true,
@@ -1367,6 +1394,11 @@ function TextStyleSelector({
     });
     document.addEventListener("pointercancel", handlePointerCancel, true);
     document.addEventListener("click", preventPickerClick, true);
+    document.addEventListener("scroll", handlePageScroll, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("scroll", handlePageScroll, { passive: true });
 
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
@@ -1374,6 +1406,9 @@ function TextStyleSelector({
       document.removeEventListener("pointerup", handlePointerUp, true);
       document.removeEventListener("pointercancel", handlePointerCancel, true);
       document.removeEventListener("click", preventPickerClick, true);
+      document.removeEventListener("scroll", handlePageScroll, true);
+      window.removeEventListener("scroll", handlePageScroll);
+      if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
       pageColorPointerIdRef.current = null;
       root.classList.remove("page-color-picking");
       pausedVideos.forEach(({ video, wasPlaying }) => {
@@ -1513,9 +1548,11 @@ function TextStyleSelector({
     const x = viewportLeft + viewportWidth / 2;
     const y = viewportTop + Math.max(72, dockTop - viewportTop) / 2;
     const color = samplePageColorAtPoint(x, y) ?? activeColor;
+    const nextPoint = { x, y, color };
     setGradientMode(null);
     setPageColorMode(nextTool);
-    setPageColorPoint({ x, y, color });
+    pageColorPointRef.current = nextPoint;
+    setPageColorPoint(nextPoint);
     onChangeRef.current(
       nextTool === "background" ? { backgroundColor: color } : { textColor: color },
     );
