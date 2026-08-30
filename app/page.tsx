@@ -1840,7 +1840,21 @@ function TextStyleSelector({
               aria-hidden="true"
             >
               <span className="page-color-picker-indicator-core" />
-              <span className="page-color-picker-thumb-preview" />
+              <svg
+                className="page-color-picker-thumb-preview"
+                viewBox="0 0 36 36"
+                aria-hidden="true"
+              >
+                <path
+                  d="M 26 31 L 5 31 A 26 26 0 0 1 31 5 L 31 26 Q 31 31 26 31 Z"
+                  fill="currentColor"
+                  stroke="#ffffff"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
             </span>,
             document.body,
           )
