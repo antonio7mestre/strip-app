@@ -2585,15 +2585,15 @@ html.page-color-picking body {
 .page-color-picker-thumb-preview {
   position: absolute;
   z-index: -1;
-  right: calc(100% - 10px);
-  bottom: calc(100% - 10px);
-  width: 36px;
-  height: 36px;
+  right: calc(100% - 16px);
+  bottom: calc(100% - 16px);
+  width: 48px;
+  height: 48px;
   overflow: visible;
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3));
   opacity: 0;
   transform: scale(0.56);
-  transform-origin: 31px 31px;
+  transform-origin: 42px 42px;
   transition:
     opacity 90ms ease-out,
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
