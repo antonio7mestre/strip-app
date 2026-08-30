@@ -2486,7 +2486,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   overflow: hidden;
 }
 
-.gradient-trigger svg {
+.gradient-trigger svg,
+.page-color-trigger svg {
   width: 18px;
   height: 18px;
 }
@@ -2517,6 +2518,58 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: relative;
   z-index: 2;
   margin-left: auto;
+}
+
+html.page-color-picking {
+  overscroll-behavior: none;
+}
+
+html.page-color-picking body {
+  touch-action: none;
+}
+
+.selector-dock.is-page-color-picker {
+  border-top-color: rgba(255, 255, 255, 0.5);
+  background: var(--page-picker-color);
+  color: var(--page-picker-foreground);
+}
+
+.selector-scroll.is-page-color-mode {
+  height: 48px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.page-color-picker-fill {
+  width: 100%;
+  height: 48px;
+  flex: 1 1 auto;
+  background: var(--page-picker-color);
+}
+
+.selector-dock.is-page-color-picker .selector-leading {
+  position: relative;
+  z-index: 2;
+  margin-left: auto;
+}
+
+.selector-dock.is-page-color-picker .selector-back-button {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--page-picker-foreground);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.page-color-picker-indicator {
+  position: fixed;
+  z-index: 80;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 .selector-back-button .dock-glyph {
