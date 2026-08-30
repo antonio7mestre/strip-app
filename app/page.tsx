@@ -1309,6 +1309,9 @@ function TextStyleSelector({
 
     const targetIsSelector = (event: Event) =>
       event.target instanceof Element && Boolean(event.target.closest(".selector-dock"));
+    const targetIsPickerIndicator = (event: Event) =>
+      event.target instanceof Element &&
+      Boolean(event.target.closest(".page-color-picker-indicator"));
     const sampleAtPointer = (event: PointerEvent) => {
       const color = samplePageColorAtPoint(event.clientX, event.clientY);
       if (!color) return;
@@ -1319,6 +1322,7 @@ function TextStyleSelector({
     };
     const handlePointerDown = (event: PointerEvent) => {
       if (targetIsSelector(event)) return;
+      if (!targetIsPickerIndicator(event)) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
