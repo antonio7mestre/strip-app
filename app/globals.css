@@ -2292,27 +2292,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   color: var(--block-controls-foreground, rgba(0, 0, 0, 0.88));
   cursor: pointer;
   animation: block-controls-action-rise 330ms cubic-bezier(0.16, 1, 0.3, 1)
-    var(--block-control-delay, 90ms) both;
-}
-
-.block-controls button:nth-child(2) {
-  --block-control-delay: 110ms;
-}
-
-.block-controls button:nth-child(3) {
-  --block-control-delay: 130ms;
-}
-
-.block-controls button:nth-child(4) {
-  --block-control-delay: 150ms;
-}
-
-.block-controls button:nth-child(5) {
-  --block-control-delay: 170ms;
-}
-
-.block-controls button:nth-child(6) {
-  --block-control-delay: 190ms;
+    100ms both;
 }
 
 .block-controls button:focus-visible {
