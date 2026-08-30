@@ -2527,7 +2527,7 @@ html.page-color-picking {
 }
 
 html.page-color-picking body {
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .selector-dock.is-page-color-picker {
@@ -2561,7 +2561,9 @@ html.page-color-picking body {
   border: 3px solid #ffffff;
   border-radius: 50%;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 .selector-back-button .dock-glyph {
