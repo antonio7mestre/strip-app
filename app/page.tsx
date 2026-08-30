@@ -172,6 +172,8 @@ const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 180;
 const DOCK_TRANSITION_DURATION_MS = 300;
+const KEYBOARD_SCROLL_SETTLE_MS = 90;
+const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
 
@@ -848,7 +850,7 @@ function swatchStyle(color: string): SwatchStyle {
   };
 }
 
-function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "auto") {
+function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "smooth") {
   const viewport = window.visualViewport;
   const textarea =
     document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
@@ -3038,27 +3040,72 @@ export default function Home() {
     const viewport = window.visualViewport;
     const root = document.documentElement;
     let layoutHeight = window.innerHeight;
-    let visibilityFrame: number | null = null;
+    let visibilityTimer: number | null = null;
+    let keyboardReturnTimer: number | null = null;
+    let keyboardReleaseTimer: number | null = null;
+    let keyboardWasOpen = false;
+    let keyboardReturnInProgress = false;
+    let scrollTopBeforeKeyboard: number | null = null;
+
+    const textEntryIsFocused = () =>
+      document.activeElement instanceof HTMLTextAreaElement ||
+      (document.activeElement instanceof HTMLInputElement &&
+        document.activeElement.type === "text");
+
+    const cancelKeyboardReturn = () => {
+      if (keyboardReturnTimer !== null) {
+        window.clearTimeout(keyboardReturnTimer);
+        keyboardReturnTimer = null;
+      }
+      if (keyboardReleaseTimer !== null) {
+        window.clearTimeout(keyboardReleaseTimer);
+        keyboardReleaseTimer = null;
+      }
+      keyboardReturnInProgress = false;
+      root.classList.remove("keyboard-settling");
+    };
 
     const queueFocusedTextBlockVisibility = () => {
-      if (visibilityFrame !== null) {
-        window.cancelAnimationFrame(visibilityFrame);
+      if (visibilityTimer !== null) {
+        window.clearTimeout(visibilityTimer);
       }
-      visibilityFrame = window.requestAnimationFrame(() => {
-        visibilityFrame = null;
-        keepFocusedTextBlockVisible("auto");
-      });
+      visibilityTimer = window.setTimeout(() => {
+        visibilityTimer = null;
+        keepFocusedTextBlockVisible("smooth");
+      }, KEYBOARD_SCROLL_SETTLE_MS);
+    };
+
+    const queueKeyboardReturn = () => {
+      if (scrollTopBeforeKeyboard === null || keyboardReturnInProgress) return;
+      if (keyboardReturnTimer !== null) {
+        window.clearTimeout(keyboardReturnTimer);
+      }
+      keyboardReturnTimer = window.setTimeout(() => {
+        keyboardReturnTimer = null;
+        keyboardReturnInProgress = true;
+        window.scrollTo({
+          top: scrollTopBeforeKeyboard ?? window.scrollY,
+          left: 0,
+          behavior: "smooth",
+        });
+        keyboardReleaseTimer = window.setTimeout(() => {
+          keyboardReleaseTimer = null;
+          keyboardReturnInProgress = false;
+          scrollTopBeforeKeyboard = null;
+          root.classList.remove("keyboard-settling");
+        }, KEYBOARD_SCROLL_RELEASE_MS);
+      }, KEYBOARD_SCROLL_SETTLE_MS);
     };
 
     const updateKeyboardInset = () => {
-      const textIsFocused =
-        document.activeElement instanceof HTMLTextAreaElement ||
-        (document.activeElement instanceof HTMLInputElement &&
-          document.activeElement.type === "text");
+      const textIsFocused = textEntryIsFocused();
       if (!textIsFocused) layoutHeight = window.innerHeight;
       if (!viewport) {
         root.style.setProperty("--keyboard-inset", "0px");
         root.classList.remove("keyboard-open");
+        cancelKeyboardReturn();
+        keyboardWasOpen = false;
+        scrollTopBeforeKeyboard = null;
         return;
       }
       const obscuredHeight = Math.max(
@@ -3066,30 +3113,58 @@ export default function Home() {
         layoutHeight - (viewport.height + viewport.offsetTop),
       );
       const keyboardInset = textIsFocused && obscuredHeight > 80 ? obscuredHeight : 0;
+      const keyboardIsOpen = keyboardInset > 0;
       root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
-      root.classList.toggle("keyboard-open", keyboardInset > 0);
-      if (keyboardInset > 0) {
+      root.classList.toggle("keyboard-open", keyboardIsOpen);
+      if (keyboardIsOpen) {
+        keyboardWasOpen = true;
+        cancelKeyboardReturn();
         queueFocusedTextBlockVisibility();
+      } else if (keyboardWasOpen) {
+        keyboardWasOpen = false;
+        if (visibilityTimer !== null) {
+          window.clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
+        if (scrollTopBeforeKeyboard !== null) {
+          root.classList.add("keyboard-settling");
+          queueKeyboardReturn();
+        }
+      } else if (
+        root.classList.contains("keyboard-settling") &&
+        !keyboardReturnInProgress
+      ) {
+        queueKeyboardReturn();
+      } else if (!textIsFocused && !keyboardReturnInProgress) {
+        scrollTopBeforeKeyboard = null;
       }
     };
-    const handleFocusChange = () => window.requestAnimationFrame(updateKeyboardInset);
+    const handleFocusIn = () => {
+      if (textEntryIsFocused() && scrollTopBeforeKeyboard === null) {
+        scrollTopBeforeKeyboard = window.scrollY;
+      }
+      window.requestAnimationFrame(updateKeyboardInset);
+    };
+    const handleFocusOut = () => window.requestAnimationFrame(updateKeyboardInset);
 
     updateKeyboardInset();
     viewport?.addEventListener("resize", updateKeyboardInset);
     viewport?.addEventListener("scroll", updateKeyboardInset);
-    window.addEventListener("focusin", handleFocusChange);
-    window.addEventListener("focusout", handleFocusChange);
+    window.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("focusout", handleFocusOut);
 
     return () => {
       viewport?.removeEventListener("resize", updateKeyboardInset);
       viewport?.removeEventListener("scroll", updateKeyboardInset);
-      window.removeEventListener("focusin", handleFocusChange);
-      window.removeEventListener("focusout", handleFocusChange);
-      if (visibilityFrame !== null) {
-        window.cancelAnimationFrame(visibilityFrame);
+      window.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("focusout", handleFocusOut);
+      if (visibilityTimer !== null) {
+        window.clearTimeout(visibilityTimer);
       }
+      cancelKeyboardReturn();
       root.style.removeProperty("--keyboard-inset");
       root.classList.remove("keyboard-open");
+      root.classList.remove("keyboard-settling");
     };
   }, []);
 
@@ -5029,7 +5104,7 @@ export default function Home() {
                   onChange={(event) => updateText(block.id, event.target.value)}
                   onFocus={() => {
                     setSelectedBlockId(block.id);
-                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("auto"));
+                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
                   }}
                   onBlur={() => {
                     window.setTimeout(() => {
@@ -5042,7 +5117,7 @@ export default function Home() {
                     const target = event.currentTarget;
                     target.style.height = "0px";
                     target.style.height = `${target.scrollHeight}px`;
-                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("auto"));
+                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
                   }}
                   placeholder="tap me to write"
                   aria-label={`Text block ${index + 1}`}
