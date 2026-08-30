@@ -1842,11 +1842,11 @@ function TextStyleSelector({
               <span className="page-color-picker-indicator-core" />
               <svg
                 className="page-color-picker-thumb-preview"
-                viewBox="0 0 36 36"
+                viewBox="0 0 48 48"
                 aria-hidden="true"
               >
                 <path
-                  d="M 26 31 L 5 31 A 26 26 0 0 1 31 5 L 31 26 Q 31 31 26 31 Z"
+                  d="M 30 42 L 6 42 A 36 36 0 0 1 42 6 L 42 30 A 12 12 0 0 0 30 42 Z"
                   fill="currentColor"
                   stroke="#ffffff"
                   strokeWidth="3"
