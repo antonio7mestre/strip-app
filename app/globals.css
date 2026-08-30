@@ -2555,15 +2555,60 @@ html.page-color-picking body {
 .page-color-picker-indicator {
   position: fixed;
   z-index: 80;
-  width: 36px;
-  height: 36px;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
   transform: translate(-50%, -50%);
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  contain: layout style;
+  isolation: isolate;
+  will-change: left, top;
   cursor: grab;
   pointer-events: auto;
   touch-action: none;
+}
+
+.page-color-picker-indicator.is-dragging {
+  cursor: grabbing;
+}
+
+.page-color-picker-indicator-core {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.page-color-picker-thumb-preview {
+  position: absolute;
+  z-index: -1;
+  left: calc(100% - 1px);
+  bottom: calc(100% - 1px);
+  width: 24px;
+  height: 24px;
+  background: radial-gradient(
+    circle at 0 100%,
+    currentColor 0 66%,
+    #ffffff 68% 80%,
+    transparent 82%
+  );
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3));
+  opacity: 0;
+  transform: scale(0.56);
+  transform-origin: 0 100%;
+  transition:
+    opacity 90ms ease-out,
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+  pointer-events: none;
+}
+
+.page-color-picker-indicator.is-dragging .page-color-picker-thumb-preview {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .selector-back-button .dock-glyph {
@@ -2832,7 +2877,8 @@ html.page-color-picking body {
 
   .composer-dock,
   .dock-icon-button,
-  .selector-option {
+  .selector-option,
+  .page-color-picker-thumb-preview {
     animation: none;
     transition: none;
   }
