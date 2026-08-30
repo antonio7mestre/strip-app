@@ -577,10 +577,6 @@ function samplePageColorAtPoint(clientX: number, clientY: number) {
 }
 
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
-type PageColorPickerStyle = CSSProperties & {
-  "--page-picker-color": string;
-  "--page-picker-foreground": string;
-};
 type CoverCardStyle = CSSProperties & {
   "--cover-dim": number;
 };
@@ -1502,17 +1498,23 @@ function TextStyleSelector({
   };
 
   const pageColorPickerActive = pageColorMode === tool && tool !== "font";
-  const pageColorPickerStyle: PageColorPickerStyle | undefined = pageColorPickerActive
-    ? {
-        "--page-picker-color": activeColor,
-        "--page-picker-foreground": contrastColor(activeColor),
-        backgroundColor: activeColor,
-      }
-    : undefined;
   const startPageColorPicker = (nextTool: TextTool) => {
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const dockTop =
+      document.querySelector<HTMLElement>(".selector-dock")?.getBoundingClientRect().top ??
+      viewportTop + (viewport?.height ?? window.innerHeight);
+    const x = viewportLeft + viewportWidth / 2;
+    const y = viewportTop + Math.max(72, dockTop - viewportTop) / 2;
+    const color = samplePageColorAtPoint(x, y) ?? activeColor;
     setGradientMode(null);
-    setPageColorPoint(null);
     setPageColorMode(nextTool);
+    setPageColorPoint({ x, y, color });
+    onChangeRef.current(
+      nextTool === "background" ? { backgroundColor: color } : { textColor: color },
+    );
   };
   const finishStyleSelection = () => {
     setGradientMode(null);
@@ -1529,7 +1531,6 @@ function TextStyleSelector({
       } ${pageColorPickerActive ? "is-page-color-picker" : ""} ${
         visible ? "is-visible" : ""
       }`}
-      style={pageColorPickerStyle}
       aria-label={
         tool === "font"
           ? "Typeface selector"
@@ -1554,8 +1555,8 @@ function TextStyleSelector({
         }
       >
         {pageColorPickerActive ? (
-          <div className="page-color-picker-fill" aria-live="polite">
-            <span className="visually-hidden">Selected color {activeColor}</span>
+          <div className="page-color-picker-instruction" aria-live="polite">
+            Drag the circle to match a color
           </div>
         ) : null}
 
