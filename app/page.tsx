@@ -1310,9 +1310,23 @@ function TextStyleSelector({
     );
     pausedVideos.forEach(({ video }) => video.pause());
     root.classList.add("page-color-picking");
+    const focusedTextField = document.activeElement;
+    if (
+      (focusedTextField instanceof HTMLInputElement ||
+        focusedTextField instanceof HTMLTextAreaElement) &&
+      focusedTextField.selectionEnd !== null
+    ) {
+      focusedTextField.setSelectionRange(
+        focusedTextField.selectionEnd,
+        focusedTextField.selectionEnd,
+      );
+    }
+    window.getSelection()?.removeAllRanges();
 
-    const targetIsSelector = (event: Event) =>
-      event.target instanceof Element && Boolean(event.target.closest(".selector-dock"));
+    const targetIsPickerControl = (event: Event) =>
+      event.target instanceof Element &&
+      Boolean(event.target.closest(".selector-dock, .block-controls"));
+    const preventTextSelection = (event: Event) => event.preventDefault();
     const pickerIndicatorForEvent = (event: Event) =>
       event.target instanceof Element
         ? event.target.closest<HTMLElement>(".page-color-picker-indicator")
@@ -1339,7 +1353,7 @@ function TextStyleSelector({
       sampleAtPoint(event.clientX, event.clientY);
     };
     const handlePointerDown = (event: PointerEvent) => {
-      if (targetIsSelector(event)) return;
+      if (targetIsPickerControl(event)) return;
       const pickerIndicator = pickerIndicatorForEvent(event);
       if (!pickerIndicator) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -1377,7 +1391,7 @@ function TextStyleSelector({
       }
     };
     const preventPickerClick = (event: MouseEvent) => {
-      if (targetIsSelector(event)) return;
+      if (targetIsPickerControl(event)) return;
       event.preventDefault();
       event.stopPropagation();
     };
@@ -1406,6 +1420,7 @@ function TextStyleSelector({
     document.addEventListener("pointercancel", handlePointerCancel, true);
     document.addEventListener("lostpointercapture", handleLostPointerCapture, true);
     document.addEventListener("click", preventPickerClick, true);
+    document.addEventListener("selectstart", preventTextSelection, true);
     document.addEventListener("scroll", handlePageScroll, {
       capture: true,
       passive: true,
@@ -1419,6 +1434,7 @@ function TextStyleSelector({
       document.removeEventListener("pointercancel", handlePointerCancel, true);
       document.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
       document.removeEventListener("click", preventPickerClick, true);
+      document.removeEventListener("selectstart", preventTextSelection, true);
       document.removeEventListener("scroll", handlePageScroll, true);
       window.removeEventListener("scroll", handlePageScroll);
       if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
