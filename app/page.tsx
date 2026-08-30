@@ -1156,13 +1156,13 @@ function BlockControls({
           aria-hidden="true"
         />
       ) : null}
-      <div
-        className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
-        style={style}
-        aria-label="Block controls"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className="block-controls-reveal" style={style}>
+        <div
+          className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
+          aria-label="Block controls"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
         {onTextTool ? (
           <>
             <button
@@ -1250,31 +1250,31 @@ function BlockControls({
             </button>
           </>
         ) : null}
-        {onRemove ? (
-          <button type="button" onClick={onRemove} aria-label="Delete block">
-            <Trash2 className="block-glyph" aria-hidden="true" />
-          </button>
-        ) : null}
+          {onRemove ? (
+            <button type="button" onClick={onRemove} aria-label="Delete block">
+              <Trash2 className="block-glyph" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+        <svg
+          ref={edgeRef}
+          className={`block-controls-under-edge ${trayClass}`}
+          viewBox={`0 0 ${edgeWidth || 1} 58`}
+          preserveAspectRatio="none"
+          shapeRendering="geometricPrecision"
+          aria-hidden="true"
+        >
+          <path
+            d={edgePath}
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
       </div>
-      <svg
-        ref={edgeRef}
-        className={`block-controls-under-edge ${trayClass}`}
-        style={style}
-        viewBox={`0 0 ${edgeWidth || 1} 58`}
-        preserveAspectRatio="none"
-        shapeRendering="geometricPrecision"
-        aria-hidden="true"
-      >
-        <path
-          d={edgePath}
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
     </>
   );
 }
