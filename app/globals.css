@@ -691,7 +691,8 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   background: var(--black);
 }
 
-.editor-mode.is-typing .strip-canvas {
+.editor-mode.is-typing .strip-canvas,
+.keyboard-settling .editor-mode .strip-canvas {
   padding-bottom: calc(
     100dvh + var(--keyboard-inset, 0px) + env(safe-area-inset-bottom) + 32px
   );
