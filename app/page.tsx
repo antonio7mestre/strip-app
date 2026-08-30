@@ -1583,9 +1583,7 @@ function TextStyleSelector({
       <footer
       className={`composer-dock selector-dock ${
         gradientMode === tool ? "is-gradient-picker" : ""
-      } ${pageColorPickerActive ? "is-page-color-picker" : ""} ${
-        visible ? "is-visible" : ""
-      }`}
+      } ${visible ? "is-visible" : ""}`}
       aria-label={
         tool === "font"
           ? "Typeface selector"
@@ -1597,9 +1595,7 @@ function TextStyleSelector({
     >
       <div
         ref={selectorScrollRef}
-        className={`selector-scroll ${gradientMode === tool ? "is-gradient-mode" : ""} ${
-          pageColorPickerActive ? "is-page-color-mode" : ""
-        }`}
+        className={`selector-scroll ${gradientMode === tool ? "is-gradient-mode" : ""}`}
         role="group"
         aria-label={
           tool === "font"
@@ -1609,12 +1605,6 @@ function TextStyleSelector({
               : "Text color choices"
         }
       >
-        {pageColorPickerActive ? (
-          <div className="page-color-picker-instruction" aria-live="polite">
-            Drag the circle to match a color
-          </div>
-        ) : null}
-
         {gradientMode === tool && tool !== "font" ? (
           <div
             className="full-gradient-picker"
@@ -1704,7 +1694,7 @@ function TextStyleSelector({
             ]
           : null}
 
-        {gradientMode !== tool && !pageColorPickerActive && tool === "background"
+        {gradientMode !== tool && tool === "background"
           ? backgroundOptions.map((option) => {
               const selected = background.toUpperCase() === option.value.toUpperCase();
               return (
@@ -1713,14 +1703,15 @@ function TextStyleSelector({
                   type="button"
                   className={`selector-option color-selector-option ${selected ? "is-selected" : ""}`}
                   style={swatchStyle(option.value)}
-                  onClick={() =>
+                  onClick={() => {
+                    setPageColorMode(null);
                     onChange({
                       backgroundColor: option.value,
                       ...(block.content.length === 0
                         ? { textColor: contrastColor(option.value) }
                         : {}),
-                    })
-                  }
+                    });
+                  }}
                   tabIndex={visible ? 0 : -1}
                   aria-label={`${option.label} background`}
                   aria-pressed={selected}
@@ -1731,18 +1722,8 @@ function TextStyleSelector({
             })
           : null}
 
-        {gradientMode !== tool && !pageColorPickerActive && tool === "background" ? (
+        {gradientMode !== tool && tool === "background" ? (
           <>
-            <button
-              type="button"
-              className="selector-option color-selector-option page-color-trigger"
-              style={swatchStyle(background)}
-              onClick={() => startPageColorPicker("background")}
-              tabIndex={visible ? 0 : -1}
-              aria-label="Match a background color from the page"
-            >
-              <Pipette aria-hidden="true" />
-            </button>
             <button
               type="button"
               className={`selector-option color-selector-option gradient-trigger ${
@@ -1759,10 +1740,21 @@ function TextStyleSelector({
             >
               <Palette aria-hidden="true" />
             </button>
+            <button
+              type="button"
+              className="selector-option color-selector-option page-color-trigger"
+              style={swatchStyle(background)}
+              onClick={() => startPageColorPicker("background")}
+              tabIndex={visible ? 0 : -1}
+              aria-label="Match a background color from the page"
+              aria-pressed={pageColorPickerActive}
+            >
+              <Pipette aria-hidden="true" />
+            </button>
           </>
         ) : null}
 
-        {gradientMode !== tool && !pageColorPickerActive && tool === "color"
+        {gradientMode !== tool && tool === "color"
           ? textColorOptions.map((option) => {
               const selected = textColor.toUpperCase() === option.value.toUpperCase();
               return (
@@ -1771,7 +1763,10 @@ function TextStyleSelector({
                   type="button"
                   className={`selector-option color-selector-option ${selected ? "is-selected" : ""}`}
                   style={swatchStyle(option.value)}
-                  onClick={() => onChange({ textColor: option.value })}
+                  onClick={() => {
+                    setPageColorMode(null);
+                    onChange({ textColor: option.value });
+                  }}
                   tabIndex={visible ? 0 : -1}
                   aria-label={`${option.label} text`}
                   aria-pressed={selected}
@@ -1782,18 +1777,8 @@ function TextStyleSelector({
             })
           : null}
 
-        {gradientMode !== tool && !pageColorPickerActive && tool === "color" ? (
+        {gradientMode !== tool && tool === "color" ? (
           <>
-            <button
-              type="button"
-              className="selector-option color-selector-option page-color-trigger"
-              style={swatchStyle(textColor)}
-              onClick={() => startPageColorPicker("color")}
-              tabIndex={visible ? 0 : -1}
-              aria-label="Match a text color from the page"
-            >
-              <Pipette aria-hidden="true" />
-            </button>
             <button
               type="button"
               className={`selector-option color-selector-option gradient-trigger ${
@@ -1809,6 +1794,17 @@ function TextStyleSelector({
               aria-pressed={textIsCustom}
             >
               <Palette aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="selector-option color-selector-option page-color-trigger"
+              style={swatchStyle(textColor)}
+              onClick={() => startPageColorPicker("color")}
+              tabIndex={visible ? 0 : -1}
+              aria-label="Match a text color from the page"
+              aria-pressed={pageColorPickerActive}
+            >
+              <Pipette aria-hidden="true" />
             </button>
           </>
         ) : null}
@@ -1840,21 +1836,6 @@ function TextStyleSelector({
               aria-hidden="true"
             >
               <span className="page-color-picker-indicator-core" />
-              <svg
-                className="page-color-picker-thumb-preview"
-                viewBox="0 0 48 48"
-                aria-hidden="true"
-              >
-                <path
-                  d="M 30 42 L 6 42 A 36 36 0 0 1 42 6 L 42 30 A 12 12 0 0 0 30 42 Z"
-                  fill="currentColor"
-                  stroke="#ffffff"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              </svg>
             </span>,
             document.body,
           )
