@@ -2049,30 +2049,9 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   pointer-events: none;
 }
 
-@keyframes block-controls-fluid-reveal {
+@keyframes block-controls-shape-reveal {
   0% {
-    transform: translate3d(-50%, -4px, 0) scaleY(0.04);
-    opacity: 0;
-  }
-
-  58% {
-    transform: translate3d(-50%, 0, 0) scaleY(1.055);
-    opacity: 1;
-  }
-
-  78% {
-    transform: translate3d(-50%, 0, 0) scaleY(0.985);
-  }
-
-  100% {
-    transform: translate3d(-50%, 0, 0) scaleY(1);
-    opacity: 1;
-  }
-}
-
-@keyframes block-controls-outline-bend {
-  0% {
-    transform: scaleY(0.02);
+    transform: scaleY(0.04);
     opacity: 0.55;
   }
 
@@ -2104,10 +2083,26 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   }
 }
 
+.block-controls-reveal {
+  position: absolute;
+  z-index: 34;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 58px;
+  overflow: visible;
+  transform-origin: 50% 0;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  pointer-events: none;
+  animation: block-controls-shape-reveal 460ms cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+}
+
 .block-controls {
   position: absolute;
   z-index: 34;
-  top: calc(100% - 1px);
+  top: -1px;
   left: 50%;
   display: flex;
   width: 204px;
@@ -2129,11 +2124,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   );
   filter: none;
   scrollbar-width: none;
-  transform-origin: 50% 0;
-  backface-visibility: hidden;
-  will-change: transform, opacity;
-  animation: block-controls-fluid-reveal 460ms cubic-bezier(0.16, 1, 0.3, 1)
-    both;
+  pointer-events: auto;
   transition:
     transform 180ms ease,
     opacity 140ms ease;
@@ -2160,7 +2151,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .block-controls-under-edge {
   position: absolute;
   z-index: 35;
-  top: 100%;
+  top: 0;
   left: 50%;
   display: block;
   width: 100%;
@@ -2175,13 +2166,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
     opacity 140ms ease;
 }
 
-.block-controls-under-edge path {
-  transform-box: view-box;
-  transform-origin: 50% 0;
-  will-change: transform, opacity;
-  animation: block-controls-outline-bend 460ms cubic-bezier(0.16, 1, 0.3, 1)
-    both;
-}
 
 .block-controls-top-edge {
   position: absolute;
@@ -2250,7 +2234,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .block-controls.is-text-tray {
-  top: 100%;
+  top: 0;
   width: 336px;
   filter: none;
   -webkit-clip-path: path(
