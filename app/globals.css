@@ -2332,7 +2332,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   display: none;
 }
 
-.selector-scroll:not(.is-gradient-mode) {
+.selector-scroll:not(.is-gradient-mode):not(.is-page-color-mode) {
   height: 48px;
   border-radius: 24px;
   clip-path: inset(0 round 24px);
@@ -2499,7 +2499,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   stroke-width: 2.4;
 }
 
-.selector-scroll.is-gradient-mode {
+.selector-scroll.is-gradient-mode,
+.selector-scroll.is-page-color-mode {
   position: absolute;
   z-index: 0;
   top: 0;
@@ -2514,7 +2515,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   border-radius: var(--iphone-panel-radius) 0 0 0;
 }
 
-.selector-dock.is-gradient-picker .selector-leading {
+.selector-dock.is-gradient-picker .selector-leading,
+.selector-dock.is-page-color-picker .selector-leading {
   position: relative;
   z-index: 2;
   margin-left: auto;
@@ -2529,35 +2531,25 @@ html.page-color-picking body {
 }
 
 .selector-dock.is-page-color-picker {
-  border-top-color: rgba(255, 255, 255, 0.5);
-  background: var(--page-picker-color);
-  color: var(--page-picker-foreground);
+  border-top-color: rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  color: #0a0a0a;
 }
 
-.selector-scroll.is-page-color-mode {
-  height: 48px;
-  overflow: hidden;
-  padding: 0;
-}
-
-.page-color-picker-fill {
+.page-color-picker-instruction {
+  display: flex;
   width: 100%;
-  height: 48px;
+  height: 100%;
   flex: 1 1 auto;
-  background: var(--page-picker-color);
-}
-
-.selector-dock.is-page-color-picker .selector-leading {
-  position: relative;
-  z-index: 2;
-  margin-left: auto;
-}
-
-.selector-dock.is-page-color-picker .selector-back-button {
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: rgba(0, 0, 0, 0.16);
-  color: var(--page-picker-foreground);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px 0 22px;
+  color: rgba(0, 0, 0, 0.72);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: center;
 }
 
 .page-color-picker-indicator {
