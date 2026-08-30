@@ -2919,10 +2919,7 @@ html.page-color-picking * {
 
   .composer-dock,
   .dock-icon-button,
-  .selector-option,
-  .block-controls,
-  .block-controls-under-edge path,
-  .block-controls button {
+  .selector-option {
     animation: none;
     transition: none;
   }
