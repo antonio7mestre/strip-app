@@ -861,8 +861,16 @@ function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "auto") {
 
   const block = textarea.closest<HTMLElement>(".strip-block");
   if (!block) return;
+  const visibleSelectionBottom = Array.from(
+    block.querySelectorAll<HTMLElement>(
+      ".block-controls, .block-controls-under-edge",
+    ),
+  ).reduce(
+    (bottom, element) => Math.max(bottom, element.getBoundingClientRect().bottom),
+    block.getBoundingClientRect().bottom,
+  );
   const availableBottom = viewport.offsetTop + viewport.height - 16;
-  const overflow = block.getBoundingClientRect().bottom - availableBottom;
+  const overflow = visibleSelectionBottom - availableBottom;
   if (overflow > 0) {
     window.scrollBy({ top: overflow + 12, left: 0, behavior });
   }
