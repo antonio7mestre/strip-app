@@ -2585,20 +2585,15 @@ html.page-color-picking body {
 .page-color-picker-thumb-preview {
   position: absolute;
   z-index: -1;
-  left: calc(100% - 1px);
-  bottom: calc(100% - 1px);
-  width: 24px;
-  height: 24px;
-  background: radial-gradient(
-    circle at 0 100%,
-    currentColor 0 66%,
-    #ffffff 68% 80%,
-    transparent 82%
-  );
+  right: calc(100% - 10px);
+  bottom: calc(100% - 10px);
+  width: 36px;
+  height: 36px;
+  overflow: visible;
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3));
   opacity: 0;
   transform: scale(0.56);
-  transform-origin: 0 100%;
+  transform-origin: 31px 31px;
   transition:
     opacity 90ms ease-out,
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
