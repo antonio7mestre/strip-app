@@ -2055,15 +2055,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
     opacity: 0.55;
   }
 
-  58% {
-    transform: scaleY(1.055);
-    opacity: 1;
-  }
-
-  78% {
-    transform: scaleY(0.985);
-  }
-
   100% {
     transform: scaleY(1);
     opacity: 1;
