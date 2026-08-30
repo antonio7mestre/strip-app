@@ -2049,6 +2049,61 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   pointer-events: none;
 }
 
+@keyframes block-controls-fluid-reveal {
+  0% {
+    transform: translate3d(-50%, -4px, 0) scaleY(0.04);
+    opacity: 0;
+  }
+
+  58% {
+    transform: translate3d(-50%, 0, 0) scaleY(1.055);
+    opacity: 1;
+  }
+
+  78% {
+    transform: translate3d(-50%, 0, 0) scaleY(0.985);
+  }
+
+  100% {
+    transform: translate3d(-50%, 0, 0) scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes block-controls-outline-bend {
+  0% {
+    transform: scaleY(0.02);
+    opacity: 0.55;
+  }
+
+  58% {
+    transform: scaleY(1.055);
+    opacity: 1;
+  }
+
+  78% {
+    transform: scaleY(0.985);
+  }
+
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes block-controls-action-rise {
+  0%,
+  24% {
+    transform: translate3d(0, -7px, 0) scale(0.9);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
 .block-controls {
   position: absolute;
   z-index: 34;
@@ -2074,6 +2129,11 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   );
   filter: none;
   scrollbar-width: none;
+  transform-origin: 50% 0;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  animation: block-controls-fluid-reveal 460ms cubic-bezier(0.16, 1, 0.3, 1)
+    both;
   transition:
     transform 180ms ease,
     opacity 140ms ease;
@@ -2113,6 +2173,14 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   transition:
     transform 180ms ease,
     opacity 140ms ease;
+}
+
+.block-controls-under-edge path {
+  transform-box: view-box;
+  transform-origin: 50% 0;
+  will-change: transform, opacity;
+  animation: block-controls-outline-bend 460ms cubic-bezier(0.16, 1, 0.3, 1)
+    both;
 }
 
 .block-controls-top-edge {
@@ -2239,6 +2307,28 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   background: transparent;
   color: var(--block-controls-foreground, rgba(0, 0, 0, 0.88));
   cursor: pointer;
+  animation: block-controls-action-rise 330ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--block-control-delay, 90ms) both;
+}
+
+.block-controls button:nth-child(2) {
+  --block-control-delay: 110ms;
+}
+
+.block-controls button:nth-child(3) {
+  --block-control-delay: 130ms;
+}
+
+.block-controls button:nth-child(4) {
+  --block-control-delay: 150ms;
+}
+
+.block-controls button:nth-child(5) {
+  --block-control-delay: 170ms;
+}
+
+.block-controls button:nth-child(6) {
+  --block-control-delay: 190ms;
 }
 
 .block-controls button:focus-visible {
@@ -2829,7 +2919,10 @@ html.page-color-picking * {
 
   .composer-dock,
   .dock-icon-button,
-  .selector-option {
+  .selector-option,
+  .block-controls,
+  .block-controls-under-edge path,
+  .block-controls button {
     animation: none;
     transition: none;
   }
