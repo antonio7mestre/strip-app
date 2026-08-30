@@ -1265,6 +1265,7 @@ function TextStyleSelector({
   const onChangeRef = useRef(onChange);
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
   const [pageColorMode, setPageColorMode] = useState<TextTool | null>(null);
+  const [pageColorDragging, setPageColorDragging] = useState(false);
   const [pageColorPoint, setPageColorPoint] = useState<{
     x: number;
     y: number;
@@ -1297,6 +1298,7 @@ function TextStyleSelector({
   useEffect(() => {
     setGradientMode(startInGradientMode && tool !== "font" ? tool : null);
     setPageColorMode(null);
+    setPageColorDragging(false);
     setPageColorPoint(null);
   }, [startInGradientMode, tool, visible]);
 
@@ -1345,6 +1347,7 @@ function TextStyleSelector({
       event.stopPropagation();
       pickerIndicator.setPointerCapture(event.pointerId);
       pageColorPointerIdRef.current = event.pointerId;
+      setPageColorDragging(true);
       sampleAtPointer(event);
     };
     const handlePointerMove = (event: PointerEvent) => {
@@ -1359,10 +1362,18 @@ function TextStyleSelector({
       event.stopPropagation();
       sampleAtPointer(event);
       pageColorPointerIdRef.current = null;
+      setPageColorDragging(false);
     };
     const handlePointerCancel = (event: PointerEvent) => {
       if (pageColorPointerIdRef.current === event.pointerId) {
         pageColorPointerIdRef.current = null;
+        setPageColorDragging(false);
+      }
+    };
+    const handleLostPointerCapture = (event: PointerEvent) => {
+      if (pageColorPointerIdRef.current === event.pointerId) {
+        pageColorPointerIdRef.current = null;
+        setPageColorDragging(false);
       }
     };
     const preventPickerClick = (event: MouseEvent) => {
@@ -1393,6 +1404,7 @@ function TextStyleSelector({
       passive: false,
     });
     document.addEventListener("pointercancel", handlePointerCancel, true);
+    document.addEventListener("lostpointercapture", handleLostPointerCapture, true);
     document.addEventListener("click", preventPickerClick, true);
     document.addEventListener("scroll", handlePageScroll, {
       capture: true,
@@ -1405,6 +1417,7 @@ function TextStyleSelector({
       document.removeEventListener("pointermove", handlePointerMove, true);
       document.removeEventListener("pointerup", handlePointerUp, true);
       document.removeEventListener("pointercancel", handlePointerCancel, true);
+      document.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
       document.removeEventListener("click", preventPickerClick, true);
       document.removeEventListener("scroll", handlePageScroll, true);
       window.removeEventListener("scroll", handlePageScroll);
@@ -1560,6 +1573,7 @@ function TextStyleSelector({
   const finishStyleSelection = () => {
     setGradientMode(null);
     setPageColorMode(null);
+    setPageColorDragging(false);
     setPageColorPoint(null);
     onBack();
   };
@@ -1815,14 +1829,19 @@ function TextStyleSelector({
       {pageColorPickerActive && pageColorPoint && typeof document !== "undefined"
         ? createPortal(
             <span
-              className="page-color-picker-indicator"
+              className={`page-color-picker-indicator ${
+                pageColorDragging ? "is-dragging" : ""
+              }`}
               style={{
                 left: `${pageColorPoint.x}px`,
                 top: `${pageColorPoint.y}px`,
-                backgroundColor: pageColorPoint.color,
+                color: pageColorPoint.color,
               }}
               aria-hidden="true"
-            />,
+            >
+              <span className="page-color-picker-indicator-core" />
+              <span className="page-color-picker-thumb-preview" />
+            </span>,
             document.body,
           )
         : null}
