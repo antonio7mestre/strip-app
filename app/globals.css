@@ -2800,7 +2800,7 @@ html.page-color-picking * {
 }
 
 .page-color-picker-indicator {
-  position: fixed;
+  position: absolute;
   z-index: 80;
   display: grid;
   width: 48px;
