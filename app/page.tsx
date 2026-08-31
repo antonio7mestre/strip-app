@@ -6283,12 +6283,15 @@ export default function Home() {
           aria-hidden="true"
         />
         <section className="auth-shell" aria-labelledby="username-heading">
-          <header className="auth-brand">STRIP</header>
+          <header className="auth-header">
+            <span className="auth-brand">STRIP</span>
+            <span className="auth-location">Set up your profile</span>
+          </header>
           <div className="auth-card">
             <div className="auth-copy">
-              <p>One last thing.</p>
-              <h1 id="username-heading">Pick a username</h1>
-              <span>Your friends will find your Strips here.</span>
+              <p>Your profile</p>
+              <h1 id="username-heading">Choose a username</h1>
+              <span>Give your friends one simple place to find your Strips.</span>
             </div>
             <form className="auth-form" onSubmit={claimUsername}>
               <label htmlFor="auth-username">Username</label>
@@ -6353,17 +6356,22 @@ export default function Home() {
           aria-hidden="true"
         />
         <section className="auth-shell" aria-labelledby="auth-heading">
-          <header className="auth-brand">STRIP</header>
+          <header className="auth-header">
+            <span className="auth-brand">STRIP</span>
+            <span className="auth-location">
+              {authStep === "phone" ? "Sign in" : "Verify"}
+            </span>
+          </header>
           <div className="auth-card">
             <div className="auth-copy">
-              <p>{authStep === "phone" ? "Sign in to make a Strip." : "Almost there."}</p>
+              <p>{authStep === "phone" ? "Welcome back" : "One more step"}</p>
               <h1 id="auth-heading">
-                {authStep === "phone" ? "Your number" : "Enter the code"}
+                {authStep === "phone" ? "Sign in" : "Check your texts"}
               </h1>
               <span>
                 {authStep === "phone"
-                  ? "We’ll text you. No password."
-                  : `Sent to ${authPhone}`}
+                  ? "Use your phone number. We’ll text you a code—no password."
+                  : `Enter the code sent to ${authPhone}.`}
               </span>
             </div>
 
@@ -6506,8 +6514,30 @@ export default function Home() {
 
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
-              <h1>{isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
+              <div className="library-heading">
+                <span className="library-kicker">
+                  {isDraftLibrary
+                    ? "Workspace"
+                    : authUser?.username
+                      ? `@${authUser.username}`
+                      : "Your library"}
+                </span>
+                <div className="library-title-line">
+                  <h1>{isDraftLibrary ? "Drafts" : "Strips"}</h1>
+                  <span className="library-count" aria-label={`${libraryItems.length} items`}>
+                    {libraryItems.length}
+                  </span>
+                </div>
+              </div>
               <div className="library-header-actions">
+                <button
+                  className="library-header-action is-primary"
+                  type="button"
+                  onClick={beginNewStrip}
+                  aria-label="Create a new Strip"
+                >
+                  <Plus aria-hidden="true" />
+                </button>
                 <button
                   className="library-header-action"
                   type="button"
@@ -6549,15 +6579,6 @@ export default function Home() {
               ))}
             </div>
           </section>
-
-          <button
-            className="library-add-button"
-            type="button"
-            onClick={beginNewStrip}
-            aria-label="Create a new Strip"
-          >
-            <Plus aria-hidden="true" />
-          </button>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
@@ -7244,13 +7265,36 @@ export default function Home() {
           selectedBlockIndex >= 0 || endingIsSelected ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
-        } ${heightCropSession ? "is-height-cropping" : ""}`}
+        } ${heightCropSession ? "is-height-cropping" : ""} ${
+          blocks.length === 0 ? "is-empty-editor" : ""
+        }`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
+      {!inlinePreview ? (
+        <header className="editor-page-header">
+          <button
+            className="editor-page-back"
+            type="button"
+            onClick={() => void returnToLibrary()}
+            aria-label="Back to your Strips"
+          >
+            <House aria-hidden="true" />
+          </button>
+          <div className="editor-page-title">
+            <span>
+              {currentDraftCreatedAt
+                ? `Draft · ${draftFallbackTitle(currentDraftCreatedAt)}`
+                : "New draft"}
+            </span>
+            <h1>{stripTitle.trim() || "Untitled Strip"}</h1>
+          </div>
+          <span className="editor-page-state">Editing</span>
+        </header>
+      ) : null}
       <div
         className={`editor-canvas ${legacyPageEnterClass}`}
         onClickCapture={(event) => {
