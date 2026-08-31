@@ -16,9 +16,11 @@ import {
   Baseline,
   CaseUpper,
   Check,
+  Crop,
   Eye,
   EyeOff,
   Files,
+  GripHorizontal,
   House,
   ImagePlus,
   Link2,
@@ -49,6 +51,8 @@ type TextBlock = {
   type: "text";
   content: string;
   height?: number;
+  cropTop?: number;
+  cropBottom?: number;
   backgroundColor?: string;
   textColor?: string;
   fontStyle?: FontStyle;
@@ -62,6 +66,8 @@ type ImageBlock = {
   src: string;
   alt: string;
   height?: number;
+  cropTop?: number;
+  cropBottom?: number;
 };
 
 type VideoBlock = {
@@ -70,6 +76,8 @@ type VideoBlock = {
   src: string;
   alt: string;
   height?: number;
+  cropTop?: number;
+  cropBottom?: number;
   audioEnabled?: boolean;
   hasAudio?: boolean;
 };
@@ -161,6 +169,14 @@ type DockTransitionSnapshot = {
   id: string;
   markup: string;
 };
+type HeightCropSession = {
+  blockId: string;
+  sourceHeight: number;
+  initialTop: number;
+  initialBottom: number;
+  top: number;
+  bottom: number;
+};
 
 const STORAGE_KEY = "strip-draft-v1";
 const OWNER_STORAGE_KEY = "strip-owner-v1";
@@ -176,6 +192,7 @@ const DOCK_TRANSITION_DURATION_MS = 300;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
+const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
@@ -1002,6 +1019,32 @@ function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "smooth") {
   }
 }
 
+function resolveBlockHeightCrop(
+  block: TextBlock | ImageBlock | VideoBlock,
+  session: HeightCropSession | null,
+) {
+  const activeSession = session?.blockId === block.id ? session : null;
+  const sourceHeight = Math.max(0, activeSession?.sourceHeight ?? block.height ?? 0);
+  const maxCrop = Math.max(0, sourceHeight - MIN_CROPPED_BLOCK_HEIGHT);
+  const top = Math.min(
+    maxCrop,
+    Math.max(0, activeSession?.top ?? block.cropTop ?? 0),
+  );
+  const bottom = Math.min(
+    Math.max(0, maxCrop - top),
+    Math.max(0, activeSession?.bottom ?? block.cropBottom ?? 0),
+  );
+  const isActive = Boolean(activeSession) || top > 0 || bottom > 0;
+
+  return {
+    top,
+    bottom,
+    height: isActive && sourceHeight > 0 ? sourceHeight - top - bottom : undefined,
+    isActive,
+    isEditing: Boolean(activeSession),
+  };
+}
+
 function focusSelectedBlockWithToolbar(
   blockId: string,
   behavior: ScrollBehavior = "smooth",
@@ -1009,7 +1052,13 @@ function focusSelectedBlockWithToolbar(
   const element = document.querySelector<HTMLElement>(
     `.editor-mode .strip-block[data-block-id="${blockId}"]`,
   );
-  if (!element || element.querySelector("textarea:focus")) return;
+  if (
+    !element ||
+    element.matches(".is-height-cropping") ||
+    element.querySelector("textarea:focus")
+  ) {
+    return;
+  }
 
   const viewport = window.visualViewport;
   const viewportTop = viewport?.offsetTop ?? 0;
@@ -1095,6 +1144,7 @@ function BlockControls({
   onRemove,
   onTextTool,
   activeTextTool,
+  onHeightCrop,
   onEndingTool,
   activeEndingTool,
   onVideoAudio,
@@ -1103,6 +1153,7 @@ function BlockControls({
   imageSrc,
   stickerRotation,
   showTopEdge = true,
+  closing = false,
 }: {
   index: number;
   count: number;
@@ -1110,6 +1161,7 @@ function BlockControls({
   onRemove?: () => void;
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
+  onHeightCrop?: () => void;
   onEndingTool?: (tool: EndingTool) => void;
   activeEndingTool?: EndingTool | null;
   onVideoAudio?: () => void;
@@ -1118,6 +1170,7 @@ function BlockControls({
   imageSrc?: string;
   stickerRotation?: number;
   showTopEdge?: boolean;
+  closing?: boolean;
 }) {
   const trayClass = onEndingTool
     ? "is-ending-tray"
@@ -1135,9 +1188,9 @@ function BlockControls({
     : onTextTool
       ? 336
       : onVideoAudio
-        ? 248
+        ? 264
         : onMove
-          ? 204
+          ? 220
           : 80;
   const edgeStart = Math.max(0, (edgeWidth - trayWidth) / 2);
   const edgeEnd = edgeStart + trayWidth;
@@ -1213,7 +1266,10 @@ function BlockControls({
           aria-hidden="true"
         />
       ) : null}
-      <div className="block-controls-reveal" style={style}>
+      <div
+        className={`block-controls-reveal ${closing ? "is-closing" : ""}`}
+        style={style}
+      >
         <div
           className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
           aria-label="Block controls"
@@ -1285,6 +1341,15 @@ function BlockControls({
             ) : (
               <Volume2 className="block-glyph" aria-hidden="true" />
             )}
+          </button>
+        ) : null}
+        {onHeightCrop ? (
+          <button
+            type="button"
+            onClick={onHeightCrop}
+            aria-label="Crop block height"
+          >
+            <Crop className="block-glyph" aria-hidden="true" />
           </button>
         ) : null}
         {onMove ? (
@@ -2030,6 +2095,9 @@ function StripVideoBlock({
   onLoadSettled,
   onHeight,
   controls,
+  cropTop = 0,
+  croppedHeight,
+  heightCropHandles,
 }: {
   block: VideoBlock;
   isEditing: boolean;
@@ -2048,6 +2116,9 @@ function StripVideoBlock({
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
+  cropTop?: number;
+  croppedHeight?: number;
+  heightCropHandles?: ReactNode;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const tapGestureRef = useRef<{
@@ -2095,12 +2166,18 @@ function StripVideoBlock({
     <figure
       className={`strip-block video-block ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
+      } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
+        heightCropHandles ? "is-height-cropping" : ""
       } ${animatePublishedLoad ? "published-media-load" : ""} ${
         animatePublishedLoad && loadSettled ? "is-media-resolved" : ""
       }`}
       data-block-id={block.id}
       aria-busy={!isLoaded}
-      style={!isLoaded && reservedHeight ? { minHeight: reservedHeight } : undefined}
+      style={
+        !isLoaded && reservedHeight && croppedHeight === undefined
+          ? { minHeight: reservedHeight }
+          : undefined
+      }
       onPointerDown={(event) => {
         tapGestureRef.current = {
           pointerId: event.pointerId,
@@ -2127,35 +2204,48 @@ function StripVideoBlock({
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <video
-        ref={videoRef}
-        src={shouldLoad ? block.src : undefined}
-        aria-label={block.alt ? `Video: ${block.alt}` : "Strip video"}
-        autoPlay
-        muted={muted}
-        loop
-        playsInline
-        controls={false}
-        disablePictureInPicture
-        controlsList="nodownload nofullscreen noremoteplayback"
-        preload={shouldLoad ? "metadata" : "none"}
-        draggable={false}
-        style={{
-          visibility: animatePublishedLoad || isLoaded ? "visible" : "hidden",
-        }}
-        onLoadedData={(event) => {
-          onLoadSettled(true);
-          const sampledColor = sampleVideoBottomColor(event.currentTarget);
-          if (sampledColor) onFirstFrameColor?.(sampledColor);
-          reportAudioPresence(event.currentTarget);
-        }}
-        onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
-        onCanPlay={(event) => reportAudioPresence(event.currentTarget)}
-        onTimeUpdate={(event) => reportAudioPresence(event.currentTarget)}
-        onError={() => onLoadSettled(false)}
-      />
-      {onHeight ? <BlockHeightReporter blockId={block.id} onHeight={onHeight} /> : null}
+      <div
+        className="block-crop-viewport"
+        style={
+          croppedHeight !== undefined ? { height: `${croppedHeight}px` } : undefined
+        }
+      >
+        <div
+          className="block-crop-content"
+          style={cropTop ? { transform: `translateY(${-cropTop}px)` } : undefined}
+        >
+          <video
+            ref={videoRef}
+            src={shouldLoad ? block.src : undefined}
+            aria-label={block.alt ? `Video: ${block.alt}` : "Strip video"}
+            autoPlay
+            muted={muted}
+            loop
+            playsInline
+            controls={false}
+            disablePictureInPicture
+            controlsList="nodownload nofullscreen noremoteplayback"
+            preload={shouldLoad ? "metadata" : "none"}
+            draggable={false}
+            style={{
+              visibility: animatePublishedLoad || isLoaded ? "visible" : "hidden",
+            }}
+            onLoadedData={(event) => {
+              onLoadSettled(true);
+              const sampledColor = sampleVideoBottomColor(event.currentTarget);
+              if (sampledColor) onFirstFrameColor?.(sampledColor);
+              reportAudioPresence(event.currentTarget);
+            }}
+            onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
+            onCanPlay={(event) => reportAudioPresence(event.currentTarget)}
+            onTimeUpdate={(event) => reportAudioPresence(event.currentTarget)}
+            onError={() => onLoadSettled(false)}
+          />
+          {onHeight ? <BlockHeightReporter blockId={block.id} onHeight={onHeight} /> : null}
+        </div>
+      </div>
       {controls}
+      {heightCropHandles}
       {showAudioToggle ? (
         <button
           className="video-audio-toggle"
@@ -2844,6 +2934,8 @@ export default function Home() {
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
   const [activeEndingTool, setActiveEndingTool] = useState<EndingTool | null>(null);
   const [lastTextTool, setLastTextTool] = useState<TextTool>("font");
+  const [heightCropSession, setHeightCropSession] =
+    useState<HeightCropSession | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [stripTitle, setStripTitle] = useState("");
   const [selectedCover, setSelectedCover] = useState("");
@@ -2904,6 +2996,15 @@ export default function Home() {
     x: number;
     y: number;
     moved: boolean;
+  } | null>(null);
+  const heightCropDragRef = useRef<{
+    blockId: string;
+    edge: "top" | "bottom";
+    pointerId: number;
+    startY: number;
+    startTop: number;
+    startBottom: number;
+    sourceHeight: number;
   } | null>(null);
 
   const mediaLoadKey = currentDraftId ?? openedPublishedStrip?.id ?? "none";
@@ -2972,6 +3073,8 @@ export default function Home() {
   useEffect(() => {
     if (view === "edit") return;
     setInlinePreview(false);
+    setHeightCropSession(null);
+    heightCropDragRef.current = null;
     setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
   }, [view]);
@@ -5351,6 +5454,191 @@ export default function Home() {
     });
   };
 
+  const focusAfterHeightCrop = (blockId: string) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        focusSelectedBlockWithToolbar(blockId);
+      });
+    });
+  };
+
+  const startHeightCrop = (block: TextBlock | ImageBlock | VideoBlock) => {
+    const content = document.querySelector<HTMLElement>(
+      `.editor-mode .strip-block[data-block-id="${block.id}"] .block-crop-content`,
+    );
+    const measuredHeight = content?.getBoundingClientRect().height ?? 0;
+    const sourceHeight = Math.max(
+      MIN_CROPPED_BLOCK_HEIGHT,
+      block.height ?? 0,
+      measuredHeight,
+    );
+    const maxCrop = Math.max(0, sourceHeight - MIN_CROPPED_BLOCK_HEIGHT);
+    const initialTop = Math.min(maxCrop, Math.max(0, block.cropTop ?? 0));
+    const initialBottom = Math.min(
+      Math.max(0, maxCrop - initialTop),
+      Math.max(0, block.cropBottom ?? 0),
+    );
+
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+    setHeightCropSession({
+      blockId: block.id,
+      sourceHeight,
+      initialTop,
+      initialBottom,
+      top: initialTop,
+      bottom: initialBottom,
+    });
+  };
+
+  const finishHeightCrop = (commit: boolean) => {
+    const session = heightCropSession;
+    if (!session) return;
+
+    if (commit) {
+      const maxCrop = Math.max(
+        0,
+        session.sourceHeight - MIN_CROPPED_BLOCK_HEIGHT,
+      );
+      const cropTop = Math.round(
+        Math.min(maxCrop, Math.max(0, session.top)),
+      );
+      const cropBottom = Math.round(
+        Math.min(
+          Math.max(0, maxCrop - cropTop),
+          Math.max(0, session.bottom),
+        ),
+      );
+      setBlocks((current) =>
+        current.map((block) =>
+          block.id === session.blockId && block.type !== "sticker"
+            ? {
+                ...block,
+                cropTop: cropTop || undefined,
+                cropBottom: cropBottom || undefined,
+              }
+            : block,
+        ),
+      );
+    }
+
+    heightCropDragRef.current = null;
+    setHeightCropSession(null);
+    focusAfterHeightCrop(session.blockId);
+  };
+
+  const beginHeightCropDrag = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    edge: "top" | "bottom",
+  ) => {
+    const session = heightCropSession;
+    if (!session) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    heightCropDragRef.current = {
+      blockId: session.blockId,
+      edge,
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startTop: session.top,
+      startBottom: session.bottom,
+      sourceHeight: session.sourceHeight,
+    };
+  };
+
+  const updateHeightCropDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = heightCropDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const delta = event.clientY - drag.startY;
+    const maxCrop = Math.max(
+      0,
+      drag.sourceHeight - MIN_CROPPED_BLOCK_HEIGHT,
+    );
+    const top =
+      drag.edge === "top"
+        ? Math.min(
+            Math.max(0, maxCrop - drag.startBottom),
+            Math.max(0, drag.startTop + delta),
+          )
+        : drag.startTop;
+    const bottom =
+      drag.edge === "bottom"
+        ? Math.min(
+            Math.max(0, maxCrop - drag.startTop),
+            Math.max(0, drag.startBottom - delta),
+          )
+        : drag.startBottom;
+
+    setHeightCropSession((current) =>
+      current?.blockId === drag.blockId ? { ...current, top, bottom } : current,
+    );
+  };
+
+  const endHeightCropDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = heightCropDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    heightCropDragRef.current = null;
+  };
+
+  const renderHeightCropHandles = (
+    block: TextBlock | ImageBlock | VideoBlock,
+    crop: ReturnType<typeof resolveBlockHeightCrop>,
+  ) => {
+    if (!crop.isEditing) return null;
+    const handleColor =
+      block.type === "text"
+        ? contrastColor(block.backgroundColor ?? DEFAULT_BACKGROUND)
+        : "#FFFFFF";
+
+    return (
+      <div
+        className={`height-crop-handles ${
+          block.type === "text" ? "is-text" : "is-media"
+        }`}
+        style={{ color: handleColor }}
+        role="group"
+        aria-label="Crop block height"
+      >
+        <span className="height-crop-frame" aria-hidden="true" />
+        {(["top", "bottom"] as const).map((edge) => (
+          <button
+            className={`height-crop-handle is-${edge}`}
+            type="button"
+            key={edge}
+            onPointerDown={(event) => beginHeightCropDrag(event, edge)}
+            onPointerMove={updateHeightCropDrag}
+            onPointerUp={endHeightCropDrag}
+            onPointerCancel={endHeightCropDrag}
+            onLostPointerCapture={() => {
+              heightCropDragRef.current = null;
+            }}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Drag ${edge} edge to crop`}
+          >
+            <span
+              className="height-crop-grip"
+              style={{
+                backgroundColor: handleColor,
+                color: contrastColor(handleColor),
+              }}
+              aria-hidden="true"
+            >
+              <GripHorizontal />
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   const renderBlockControls = (block: StripBlock, index: number) => {
     if (selectedBlockId !== block.id) return null;
     const firstFlowBlockIndex = blocks.findIndex(
@@ -5376,6 +5664,9 @@ export default function Home() {
             : undefined
         }
         activeTextTool={activeTextTool}
+        onHeightCrop={
+          block.type === "sticker" ? undefined : () => startHeightCrop(block)
+        }
         onVideoAudio={
           block.type === "video"
             ? () => toggleVideoAudioSetting(block.id)
@@ -5394,6 +5685,7 @@ export default function Home() {
         imageSrc={block.type === "image" ? block.src : undefined}
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
         showTopEdge={!(block.type === "text" && index === firstFlowBlockIndex)}
+        closing={heightCropSession?.blockId === block.id}
       />
     );
   };
@@ -5466,6 +5758,10 @@ export default function Home() {
         ) : null}
 
         {sourceBlocks.map((block, index) => {
+        const heightCrop =
+          block.type === "sticker"
+            ? null
+            : resolveBlockHeightCrop(block, heightCropSession);
         if (block.type === "text") {
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
           const textIsEmpty = block.content.length === 0;
@@ -5477,15 +5773,20 @@ export default function Home() {
             <section
               className={`strip-block text-block ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
-              } ${usesDarkText ? "uses-dark-text" : ""}`}
+              } ${usesDarkText ? "uses-dark-text" : ""} ${
+                heightCrop?.isActive ? "is-height-cropped" : ""
+              } ${heightCrop?.isEditing ? "is-height-cropping" : ""}`}
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] !== "loaded"}
-              onPointerDown={(event) => beginBlockTapGesture(event, block.id)}
+              onPointerDown={(event) => {
+                if (heightCropSession) return;
+                beginBlockTapGesture(event, block.id);
+              }}
               onPointerMove={trackBlockTapGesture}
               onPointerCancel={cancelBlockTapGesture}
               onClick={(event) => {
-                if (!isEditing || textIsBeingEdited) return;
+                if (!isEditing || textIsBeingEdited || heightCropSession) return;
                 if (!completeBlockTapGesture(block.id)) return;
                 if (selectedBlockId === block.id) {
                   const caretOffset = caretOffsetAtPoint(
@@ -5508,63 +5809,85 @@ export default function Home() {
               }}
             >
               {isEditing ? renderBlockControls(block, index) : null}
-              {textIsBeingEdited ? (
-                <textarea
-                  data-block-id={block.id}
-                  ref={(element) => {
-                    if (!element) return;
-                    element.style.height = "0px";
-                    element.style.height = `${element.scrollHeight}px`;
-                  }}
-                  value={block.content}
-                  style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
-                  onChange={(event) => updateText(block.id, event.target.value)}
-                  onFocus={() => {
-                    setSelectedBlockId(block.id);
-                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
-                  }}
-                  onBlur={() => {
-                    window.setTimeout(() => {
-                      setEditingTextBlockId((current) =>
-                        current === block.id ? null : current,
-                      );
-                    }, 180);
-                  }}
-                  onInput={(event) => {
-                    const target = event.currentTarget;
-                    target.style.height = "0px";
-                    target.style.height = `${target.scrollHeight}px`;
-                    window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
-                  }}
-                  placeholder="tap me to write"
-                  aria-label={`Text block ${index + 1}`}
-                  rows={1}
-                />
-              ) : (
-                <p
-                  className={
-                    isEditing && textIsEmpty
-                      ? "is-placeholder"
-                      : textIsEmpty
-                        ? "is-blank"
-                        : undefined
+              <div
+                className="block-crop-viewport"
+                style={
+                  heightCrop?.height !== undefined
+                    ? { height: `${heightCrop.height}px` }
+                    : undefined
+                }
+              >
+                <div
+                  className="block-crop-content text-block-content"
+                  style={
+                    heightCrop?.top
+                      ? { transform: `translateY(${-heightCrop.top}px)` }
+                      : undefined
                   }
-                  style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
-                  aria-hidden={textIsVisuallyBlank || undefined}
+
                 >
-                  {textIsEmpty
-                    ? isEditing
-                      ? "tap me to write"
-                      : ""
-                    : `${block.content}\u200B`}
-                </p>
-              )}
-              {isEditing ? (
-                <BlockHeightReporter
-                  blockId={block.id}
-                  onHeight={recordBlockHeight}
-                />
-              ) : null}
+                  {textIsBeingEdited ? (
+                    <textarea
+                      data-block-id={block.id}
+                      ref={(element) => {
+                        if (!element) return;
+                        element.style.height = "0px";
+                        element.style.height = `${element.scrollHeight}px`;
+                      }}
+                      value={block.content}
+                      style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
+                      onChange={(event) => updateText(block.id, event.target.value)}
+                      onFocus={() => {
+                        setSelectedBlockId(block.id);
+                        window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
+                      }}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setEditingTextBlockId((current) =>
+                            current === block.id ? null : current,
+                          );
+                        }, 180);
+                      }}
+                      onInput={(event) => {
+                        const target = event.currentTarget;
+                        target.style.height = "0px";
+                        target.style.height = `${target.scrollHeight}px`;
+                        window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
+                      }}
+                      placeholder="tap me to write"
+                      aria-label={`Text block ${index + 1}`}
+                      rows={1}
+                    />
+                  ) : (
+                    <p
+                      className={
+                        isEditing && textIsEmpty
+                          ? "is-placeholder"
+                          : textIsEmpty
+                            ? "is-blank"
+                            : undefined
+                      }
+                      style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
+                      aria-hidden={textIsVisuallyBlank || undefined}
+                    >
+                      {textIsEmpty
+                        ? isEditing
+                          ? "tap me to write"
+                          : ""
+                        : `${block.content}\u200B`}
+                    </p>
+                  )}
+                  {isEditing ? (
+                    <BlockHeightReporter
+                      blockId={block.id}
+                      onHeight={recordBlockHeight}
+                    />
+                  ) : null}
+                </div>
+              </div>
+              {isEditing && heightCrop
+                ? renderHeightCropHandles(block, heightCrop)
+                : null}
             </section>
           );
         }
@@ -5576,6 +5899,8 @@ export default function Home() {
             <figure
               className={`strip-block image-block ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
+              } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
+                heightCrop?.isEditing ? "is-height-cropping" : ""
               } ${animatePublishedLoad ? "published-media-load" : ""} ${
                 animatePublishedLoad && imageLoadSettled
                   ? "is-media-resolved"
@@ -5584,15 +5909,20 @@ export default function Home() {
               data-block-id={block.id}
               key={block.id}
               style={
-                mediaLoadStatus[block.id] !== "loaded" && block.height
+                mediaLoadStatus[block.id] !== "loaded" &&
+                block.height &&
+                heightCrop?.height === undefined
                   ? { minHeight: block.height }
                   : undefined
               }
-              onPointerDown={(event) => beginBlockTapGesture(event, block.id)}
+              onPointerDown={(event) => {
+                if (heightCropSession) return;
+                beginBlockTapGesture(event, block.id);
+              }}
               onPointerMove={trackBlockTapGesture}
               onPointerCancel={cancelBlockTapGesture}
               onClick={() => {
-                if (!isEditing) return;
+                if (!isEditing || heightCropSession) return;
                 if (!completeBlockTapGesture(block.id)) return;
                 if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
@@ -5602,42 +5932,63 @@ export default function Home() {
             >
               {/* A Strip image is intentionally edge-to-edge. */}
               {isEditing ? renderBlockControls(block, index) : null}
-              <img
-                src={shouldLoadMedia(block.id) ? block.src : undefined}
-                alt={block.alt}
+              <div
+                className="block-crop-viewport"
                 style={
-                  view === "published"
-                    ? undefined
-                    : {
-                        visibility:
-                          mediaLoadStatus[block.id] === "loaded"
-                            ? "visible"
-                            : "hidden",
-                      }
+                  heightCrop?.height !== undefined
+                    ? { height: `${heightCrop.height}px` }
+                    : undefined
                 }
-                onLoad={(event) => {
-                  settleMediaLoad(block.id, true);
-                  if (selectedBlockId === block.id) {
-                    window.requestAnimationFrame(() =>
-                      focusSelectedBlockWithToolbar(block.id),
-                    );
+              >
+                <div
+                  className="block-crop-content"
+                  style={
+                    heightCrop?.top
+                      ? { transform: `translateY(${-heightCrop.top}px)` }
+                      : undefined
                   }
-                  const sampledColor = sampleImageBottomColor(event.currentTarget);
-                  if (!sampledColor) return;
-                  setImageTrayColors((current) =>
-                    current[block.id] === sampledColor
-                      ? current
-                      : { ...current, [block.id]: sampledColor },
-                  );
-                }}
-                onError={() => settleMediaLoad(block.id, false)}
-              />
-              {isEditing ? (
-                <BlockHeightReporter
-                  blockId={block.id}
-                  onHeight={recordBlockHeight}
-                />
-              ) : null}
+                >
+                  <img
+                    src={shouldLoadMedia(block.id) ? block.src : undefined}
+                    alt={block.alt}
+                    style={
+                      view === "published"
+                        ? undefined
+                        : {
+                            visibility:
+                              mediaLoadStatus[block.id] === "loaded"
+                                ? "visible"
+                                : "hidden",
+                          }
+                    }
+                    onLoad={(event) => {
+                      settleMediaLoad(block.id, true);
+                      if (selectedBlockId === block.id) {
+                        window.requestAnimationFrame(() =>
+                          focusSelectedBlockWithToolbar(block.id),
+                        );
+                      }
+                      const sampledColor = sampleImageBottomColor(event.currentTarget);
+                      if (!sampledColor) return;
+                      setImageTrayColors((current) =>
+                        current[block.id] === sampledColor
+                          ? current
+                          : { ...current, [block.id]: sampledColor },
+                      );
+                    }}
+                    onError={() => settleMediaLoad(block.id, false)}
+                  />
+                  {isEditing ? (
+                    <BlockHeightReporter
+                      blockId={block.id}
+                      onHeight={recordBlockHeight}
+                    />
+                  ) : null}
+                </div>
+              </div>
+              {isEditing && heightCrop
+                ? renderHeightCropHandles(block, heightCrop)
+                : null}
             </figure>
           );
         }
@@ -5651,7 +6002,13 @@ export default function Home() {
               isSelected={selectedBlockId === block.id}
               isOverlappingSelection={overlappingStickerIds.includes(block.id)}
               onTapSelectedText={(clientX, clientY, stickerElement) => {
-                if (!isEditing || selectedBlock?.type !== "text") return false;
+                if (
+                  !isEditing ||
+                  heightCropSession ||
+                  selectedBlock?.type !== "text"
+                ) {
+                  return false;
+                }
                 const selectedTextElement = Array.from(
                   document.querySelectorAll<HTMLElement>(
                     ".editor-mode .text-block",
@@ -5682,7 +6039,7 @@ export default function Home() {
                 return true;
               }}
               onSelect={() => {
-                if (!isEditing) return;
+                if (!isEditing || heightCropSession) return;
                 if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
@@ -5723,7 +6080,7 @@ export default function Home() {
               recordVideoAudioPresence(block.id, hasAudio)
             }
             onSelect={() => {
-              if (!isEditing) return;
+              if (!isEditing || heightCropSession) return;
               if (selectedBlockId !== block.id) triggerSelectionHaptic();
               setSelectedBlockId(block.id);
               setEditingTextBlockId(null);
@@ -5741,6 +6098,8 @@ export default function Home() {
             loadSettled={mediaLoadStatus[block.id] !== undefined}
             animatePublishedLoad={!isEditing && view === "published"}
             reservedHeight={block.height}
+            cropTop={heightCrop?.top}
+            croppedHeight={heightCrop?.height}
             onLoadSettled={(loadedSuccessfully) => {
               settleMediaLoad(block.id, loadedSuccessfully);
               if (loadedSuccessfully && selectedBlockId === block.id) {
@@ -5751,6 +6110,11 @@ export default function Home() {
             }}
             onHeight={isEditing ? recordBlockHeight : undefined}
             controls={isEditing ? renderBlockControls(block, index) : null}
+            heightCropHandles={
+              isEditing && heightCrop
+                ? renderHeightCropHandles(block, heightCrop)
+                : null
+            }
           />
         );
         })}
@@ -6857,7 +7221,7 @@ export default function Home() {
           selectedBlockIndex >= 0 || endingIsSelected ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
-        }`}
+        } ${heightCropSession ? "is-height-cropping" : ""}`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -6881,7 +7245,7 @@ export default function Home() {
         {renderStrip(!inlinePreview)}
       </div>
 
-      {!inlinePreview && selectedBlock?.type === "text" ? (
+      {!inlinePreview && !heightCropSession && selectedBlock?.type === "text" ? (
         <TextStyleSelector
           block={selectedBlock}
           tool={activeTextTool ?? lastTextTool}
@@ -6919,9 +7283,31 @@ export default function Home() {
           editorDockEntering ? "is-entering-editor" : ""
         } ${activeTextTool || activeEndingTool ? "is-shifted" : ""} ${
           inlinePreview ? "is-inline-preview" : ""
-        }`}
+        } ${heightCropSession ? "is-height-cropping" : ""}`}
       >
         {dockTransitionLayer}
+        {heightCropSession ? (
+          <div
+            className={`${currentDockControlsClass} height-crop-dock-controls`}
+            key="height-crop-controls"
+          >
+            <button
+              className="height-crop-action height-crop-cancel"
+              type="button"
+              onClick={() => finishHeightCrop(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="height-crop-action height-crop-confirm"
+              type="button"
+              onClick={() => finishHeightCrop(true)}
+            >
+              <Check aria-hidden="true" />
+              Crop
+            </button>
+          </div>
+        ) : (
         <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
           <button
             className="dock-icon-button dock-tool-button"
@@ -6990,6 +7376,7 @@ export default function Home() {
             Continue
           </button>
         </div>
+        )}
       </footer>
       {pendingDeleteBlock ? (
         <div className="modal-backdrop" onClick={() => setPendingDeleteId(null)}>
