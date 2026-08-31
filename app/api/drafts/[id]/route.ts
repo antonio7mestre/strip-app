@@ -10,6 +10,8 @@ type StoredDraftBlock =
       type: "text";
       content: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       backgroundColor?: string;
       textColor?: string;
       fontStyle?: string;
@@ -22,6 +24,8 @@ type StoredDraftBlock =
       objectKey: string;
       alt: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -95,6 +99,12 @@ export async function GET(
       alt: block.alt ?? "",
       ...("height" in block && typeof block.height === "number"
         ? { height: block.height }
+        : {}),
+      ...("cropTop" in block && typeof block.cropTop === "number"
+        ? { cropTop: block.cropTop }
+        : {}),
+      ...("cropBottom" in block && typeof block.cropBottom === "number"
+        ? { cropBottom: block.cropBottom }
         : {}),
       ...(block.type === "video"
         ? {
