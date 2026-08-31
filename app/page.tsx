@@ -3563,6 +3563,8 @@ export default function Home() {
     let keyboardWasOpen = false;
     let keyboardReturnInProgress = false;
     let scrollTopBeforeKeyboard: number | null = null;
+    let textSessionAnchorQueued = false;
+    let textSessionAnchored = false;
 
     const textEntryIsFocused = () =>
       document.activeElement instanceof HTMLTextAreaElement ||
@@ -3583,12 +3585,14 @@ export default function Home() {
     };
 
     const queueFocusedTextBlockVisibility = () => {
-      if (visibilityTimer !== null) {
-        window.clearTimeout(visibilityTimer);
-      }
+      if (textSessionAnchorQueued || textSessionAnchored) return;
+      textSessionAnchorQueued = true;
       visibilityTimer = window.setTimeout(() => {
         visibilityTimer = null;
+        textSessionAnchorQueued = false;
+        if (!textEntryIsFocused() || !root.classList.contains("keyboard-open")) return;
         keepFocusedTextBlockVisible("smooth");
+        textSessionAnchored = true;
       }, KEYBOARD_SCROLL_SETTLE_MS);
     };
 
@@ -3642,6 +3646,7 @@ export default function Home() {
         if (visibilityTimer !== null) {
           window.clearTimeout(visibilityTimer);
           visibilityTimer = null;
+          textSessionAnchorQueued = false;
         }
         if (scrollTopBeforeKeyboard !== null) {
           root.classList.add("keyboard-settling");
@@ -3657,12 +3662,23 @@ export default function Home() {
       }
     };
     const handleFocusIn = () => {
-      if (textEntryIsFocused() && scrollTopBeforeKeyboard === null) {
-        scrollTopBeforeKeyboard = window.scrollY;
+      if (textEntryIsFocused()) {
+        textSessionAnchorQueued = false;
+        textSessionAnchored = false;
+        if (scrollTopBeforeKeyboard === null) {
+          scrollTopBeforeKeyboard = window.scrollY;
+        }
       }
       window.requestAnimationFrame(updateKeyboardInset);
     };
-    const handleFocusOut = () => window.requestAnimationFrame(updateKeyboardInset);
+    const handleFocusOut = () =>
+      window.requestAnimationFrame(() => {
+        if (!textEntryIsFocused()) {
+          textSessionAnchorQueued = false;
+          textSessionAnchored = false;
+        }
+        updateKeyboardInset();
+      });
 
     updateKeyboardInset();
     // Our smooth correction moves the visual viewport. Listening for that scroll
@@ -5838,7 +5854,6 @@ export default function Home() {
                       onChange={(event) => updateText(block.id, event.target.value)}
                       onFocus={() => {
                         setSelectedBlockId(block.id);
-                        window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
                       }}
                       onBlur={() => {
                         window.setTimeout(() => {
@@ -5851,7 +5866,6 @@ export default function Home() {
                         const target = event.currentTarget;
                         target.style.height = "0px";
                         target.style.height = `${target.scrollHeight}px`;
-                        window.requestAnimationFrame(() => keepFocusedTextBlockVisible("smooth"));
                       }}
                       placeholder="tap me to write"
                       aria-label={`Text block ${index + 1}`}
