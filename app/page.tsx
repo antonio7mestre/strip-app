@@ -1498,9 +1498,11 @@ function TextStyleSelector({
       event.target instanceof Element
         ? event.target.closest<HTMLElement>(".page-color-picker-indicator")
         : null;
-    const sampleAtPoint = (x: number, y: number) => {
-      const color = samplePageColorAtPoint(x, y);
+    const sampleAtPoint = (clientX: number, clientY: number) => {
+      const color = samplePageColorAtPoint(clientX, clientY);
       if (!color) return;
+      const x = clientX + window.scrollX;
+      const y = clientY + window.scrollY;
       const currentPoint = pageColorPointRef.current;
       if (
         currentPoint?.x === x &&
@@ -1562,16 +1564,6 @@ function TextStyleSelector({
       event.preventDefault();
       event.stopPropagation();
     };
-    let scrollFrame: number | null = null;
-    const handlePageScroll = () => {
-      if (scrollFrame !== null) return;
-      scrollFrame = window.requestAnimationFrame(() => {
-        scrollFrame = null;
-        const point = pageColorPointRef.current;
-        if (point) sampleAtPoint(point.x, point.y);
-      });
-    };
-
     document.addEventListener("pointerdown", handlePointerDown, {
       capture: true,
       passive: false,
@@ -1588,12 +1580,6 @@ function TextStyleSelector({
     document.addEventListener("lostpointercapture", handleLostPointerCapture, true);
     document.addEventListener("click", preventPickerClick, true);
     document.addEventListener("selectstart", preventTextSelection, true);
-    document.addEventListener("scroll", handlePageScroll, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("scroll", handlePageScroll, { passive: true });
-
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("pointermove", handlePointerMove, true);
@@ -1602,9 +1588,6 @@ function TextStyleSelector({
       document.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
       document.removeEventListener("click", preventPickerClick, true);
       document.removeEventListener("selectstart", preventTextSelection, true);
-      document.removeEventListener("scroll", handlePageScroll, true);
-      window.removeEventListener("scroll", handlePageScroll);
-      if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame);
       pageColorPointerIdRef.current = null;
       root.classList.remove("page-color-picking");
       pausedVideos.forEach(({ video, wasPlaying }) => {
@@ -1748,7 +1731,11 @@ function TextStyleSelector({
     const x = viewportLeft + viewportWidth / 2;
     const y = viewportTop + Math.max(72, dockTop - viewportTop) / 2;
     const color = samplePageColorAtPoint(x, y) ?? activeColor;
-    const nextPoint = { x, y, color };
+    const nextPoint = {
+      x: x + window.scrollX,
+      y: y + window.scrollY,
+      color,
+    };
     setGradientMode(null);
     setPageColorMode(nextTool);
     pageColorPointRef.current = nextPoint;
