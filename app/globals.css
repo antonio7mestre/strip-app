@@ -949,11 +949,17 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .block-crop-viewport {
   position: relative;
   overflow: visible;
+  transition: height 340ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .block-crop-content {
   position: relative;
   transform: translateY(0);
+  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.image-block {
+  transition: margin-top 340ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .strip-block.is-height-cropped .block-crop-viewport {
@@ -2300,6 +2306,24 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .strip-block.is-height-cropping {
   z-index: 41;
   overflow: visible;
+}
+
+.height-crop-shade {
+  position: absolute;
+  z-index: 41;
+  right: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.58);
+  pointer-events: none;
+  animation: height-crop-handles-reveal 180ms ease-out 70ms both;
+}
+
+.height-crop-shade.is-top {
+  top: 0;
+}
+
+.height-crop-shade.is-bottom {
+  bottom: 0;
 }
 
 .height-crop-handles {
