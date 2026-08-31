@@ -2246,9 +2246,9 @@ function StripVideoBlock({
           />
           {onHeight ? <BlockHeightReporter blockId={block.id} onHeight={onHeight} /> : null}
         </div>
-        {heightCropHandles}
       </div>
       {controls}
+      {heightCropHandles}
       {showAudioToggle ? (
         <button
           className="video-audio-toggle"
@@ -5606,7 +5606,11 @@ export default function Home() {
         className={`height-crop-handles ${
           block.type === "text" ? "is-text" : "is-media"
         }`}
-        style={{ color: handleColor }}
+        style={{
+          color: handleColor,
+          top: `${crop.top}px`,
+          ...(crop.height !== undefined ? { height: `${crop.height}px` } : {}),
+        }}
         role="group"
         aria-label="Crop block height"
       >
@@ -5740,11 +5744,6 @@ export default function Home() {
       0,
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
-    const firstImageCropNeedsClearance = Boolean(
-      isEditing &&
-        firstFlowBlock?.type === "image" &&
-        heightCropSession?.blockId === firstFlowBlock.id,
-    );
     const anchorsPublishedEnding = !isEditing && view === "published";
     const canvasMinHeight = anchorsPublishedEnding
       ? `max(${stickerFloor}px, calc(100lvh + ${
@@ -5756,9 +5755,7 @@ export default function Home() {
 
     return (
       <div
-        className={`strip-canvas has-ending-card ${
-          firstImageCropNeedsClearance ? "has-first-image-crop-clearance" : ""
-        }`}
+        className="strip-canvas has-ending-card"
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
         {sourceBlocks.length === 0 && isEditing ? (
@@ -5898,10 +5895,10 @@ export default function Home() {
                     />
                   ) : null}
                 </div>
-                {isEditing && heightCrop
-                  ? renderHeightCropHandles(block, heightCrop)
-                  : null}
               </div>
+              {isEditing && heightCrop
+                ? renderHeightCropHandles(block, heightCrop)
+                : null}
             </section>
           );
         }
@@ -5915,6 +5912,10 @@ export default function Home() {
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
+              } ${
+                heightCrop?.isEditing && firstFlowBlock?.id === block.id
+                  ? "has-top-crop-clearance"
+                  : ""
               } ${animatePublishedLoad ? "published-media-load" : ""} ${
                 animatePublishedLoad && imageLoadSettled
                   ? "is-media-resolved"
@@ -6002,10 +6003,10 @@ export default function Home() {
                     />
                   ) : null}
                 </div>
-                {isEditing && heightCrop
-                  ? renderHeightCropHandles(block, heightCrop)
-                  : null}
               </div>
+              {isEditing && heightCrop
+                ? renderHeightCropHandles(block, heightCrop)
+                : null}
             </figure>
           );
         }
