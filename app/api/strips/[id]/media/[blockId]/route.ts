@@ -50,14 +50,38 @@ export async function GET(
   }
   if (!mediaBlock) return new Response("Not found", { status: 404 });
 
-  const object = await env.STRIP_MEDIA.get(mediaBlock.objectKey);
+  const object = await env.STRIP_MEDIA.get(mediaBlock.objectKey, {
+    range: request.headers,
+  });
   if (!object) return new Response("Not found", { status: 404 });
 
   const headers = new Headers({
+    "Accept-Ranges": "bytes",
     "Cache-Control": "public, max-age=31536000, immutable",
     ETag: object.httpEtag,
   });
   object.writeHttpMetadata(headers);
   applyPublicMediaSecurityHeaders(headers);
-  return new Response(object.body, { headers });
+  if (object.range) {
+    const range = object.range as {
+      offset?: number;
+      length?: number;
+      suffix?: number;
+    };
+    const length = Math.min(
+      object.size,
+      range.suffix ?? range.length ?? object.size,
+    );
+    const offset = range.suffix
+      ? Math.max(0, object.size - length)
+      : Math.max(0, range.offset ?? 0);
+    headers.set("Content-Length", String(length));
+    headers.set(
+      "Content-Range",
+      `bytes ${offset}-${offset + length - 1}/${object.size}`,
+    );
+    return new Response(object.body, { status: 206, headers });
+  }
+  headers.set("Content-Length", String(object.size));
+  return new Response(object.body, { status: 200, headers });
 }
