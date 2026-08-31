@@ -2206,9 +2206,12 @@ function StripVideoBlock({
     >
       <div
         className="block-crop-viewport"
-        style={
-          croppedHeight !== undefined ? { height: `${croppedHeight}px` } : undefined
-        }
+        style={{
+          ...(croppedHeight !== undefined
+            ? { height: `${croppedHeight}px` }
+            : {}),
+          ...(heightCropHandles && cropTop ? { marginTop: `${cropTop}px` } : {}),
+        }}
       >
         <div
           className="block-crop-content"
@@ -2243,9 +2246,9 @@ function StripVideoBlock({
           />
           {onHeight ? <BlockHeightReporter blockId={block.id} onHeight={onHeight} /> : null}
         </div>
+        {heightCropHandles}
       </div>
       {controls}
-      {heightCropHandles}
       {showAudioToggle ? (
         <button
           className="video-audio-toggle"
@@ -5736,6 +5739,12 @@ export default function Home() {
         block.type === "sticker" ? Math.max(floor, block.y + 180) : floor,
       0,
     );
+    const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
+    const firstImageCropNeedsClearance = Boolean(
+      isEditing &&
+        firstFlowBlock?.type === "image" &&
+        heightCropSession?.blockId === firstFlowBlock.id,
+    );
     const anchorsPublishedEnding = !isEditing && view === "published";
     const canvasMinHeight = anchorsPublishedEnding
       ? `max(${stickerFloor}px, calc(100lvh + ${
@@ -5747,7 +5756,9 @@ export default function Home() {
 
     return (
       <div
-        className="strip-canvas has-ending-card"
+        className={`strip-canvas has-ending-card ${
+          firstImageCropNeedsClearance ? "has-first-image-crop-clearance" : ""
+        }`}
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
         {sourceBlocks.length === 0 && isEditing ? (
@@ -5811,11 +5822,14 @@ export default function Home() {
               {isEditing ? renderBlockControls(block, index) : null}
               <div
                 className="block-crop-viewport"
-                style={
-                  heightCrop?.height !== undefined
+                style={{
+                  ...(heightCrop?.height !== undefined
                     ? { height: `${heightCrop.height}px` }
-                    : undefined
-                }
+                    : {}),
+                  ...(heightCrop?.isEditing && heightCrop.top
+                    ? { marginTop: `${heightCrop.top}px` }
+                    : {}),
+                }}
               >
                 <div
                   className="block-crop-content text-block-content"
@@ -5884,10 +5898,10 @@ export default function Home() {
                     />
                   ) : null}
                 </div>
+                {isEditing && heightCrop
+                  ? renderHeightCropHandles(block, heightCrop)
+                  : null}
               </div>
-              {isEditing && heightCrop
-                ? renderHeightCropHandles(block, heightCrop)
-                : null}
             </section>
           );
         }
@@ -5934,11 +5948,14 @@ export default function Home() {
               {isEditing ? renderBlockControls(block, index) : null}
               <div
                 className="block-crop-viewport"
-                style={
-                  heightCrop?.height !== undefined
+                style={{
+                  ...(heightCrop?.height !== undefined
                     ? { height: `${heightCrop.height}px` }
-                    : undefined
-                }
+                    : {}),
+                  ...(heightCrop?.isEditing && heightCrop.top
+                    ? { marginTop: `${heightCrop.top}px` }
+                    : {}),
+                }}
               >
                 <div
                   className="block-crop-content"
@@ -5985,10 +6002,10 @@ export default function Home() {
                     />
                   ) : null}
                 </div>
+                {isEditing && heightCrop
+                  ? renderHeightCropHandles(block, heightCrop)
+                  : null}
               </div>
-              {isEditing && heightCrop
-                ? renderHeightCropHandles(block, heightCrop)
-                : null}
             </figure>
           );
         }
