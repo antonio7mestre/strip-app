@@ -15,6 +15,8 @@ type DraftBlock =
       type: "text";
       content: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       backgroundColor?: string;
       textColor?: string;
       fontStyle?: string;
@@ -27,6 +29,8 @@ type DraftBlock =
       src: string;
       alt: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -48,6 +52,8 @@ type StoredDraftBlock =
       objectKey: string;
       alt: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -176,6 +182,12 @@ function prepareDraftBlocks(
         ...(finiteNumber(block.height, 0) > 0
           ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
           : {}),
+        ...(finiteNumber(block.cropTop, 0) > 0
+          ? { cropTop: Math.min(20_000, finiteNumber(block.cropTop, 0)) }
+          : {}),
+        ...(finiteNumber(block.cropBottom, 0) > 0
+          ? { cropBottom: Math.min(20_000, finiteNumber(block.cropBottom, 0)) }
+          : {}),
         backgroundColor: block.backgroundColor,
         textColor: block.textColor,
         fontStyle: block.fontStyle,
@@ -213,6 +225,12 @@ function prepareDraftBlocks(
         alt: String(block.alt ?? "").slice(0, 160),
         ...(finiteNumber(block.height, 0) > 0
           ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
+          : {}),
+        ...(finiteNumber(block.cropTop, 0) > 0
+          ? { cropTop: Math.min(20_000, finiteNumber(block.cropTop, 0)) }
+          : {}),
+        ...(finiteNumber(block.cropBottom, 0) > 0
+          ? { cropBottom: Math.min(20_000, finiteNumber(block.cropBottom, 0)) }
           : {}),
         ...(block.type === "video"
           ? {
