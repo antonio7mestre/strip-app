@@ -681,15 +681,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .editor-mode .strip-canvas {
-  padding-top: 0;
   padding-bottom: calc(148px + env(safe-area-inset-bottom));
   background: var(--black);
   touch-action: pan-y;
-  transition: padding-top 180ms cubic-bezier(0.2, 0.78, 0.22, 1);
 }
 
-.editor-mode .strip-canvas.has-first-image-crop-clearance {
-  padding-top: 32px;
+.image-block.is-height-cropping.has-top-crop-clearance {
+  margin-top: 32px;
 }
 
 .route-loading-mode {
@@ -2299,10 +2297,17 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   opacity: 0;
 }
 
+.strip-block.is-height-cropping {
+  z-index: 41;
+  overflow: visible;
+}
+
 .height-crop-handles {
   position: absolute;
   z-index: 42;
-  inset: 0;
+  right: 0;
+  left: 0;
+  height: 100%;
   pointer-events: none;
   animation: height-crop-handles-reveal 180ms ease-out 110ms both;
 }
