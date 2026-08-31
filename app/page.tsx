@@ -1039,7 +1039,7 @@ function resolveBlockHeightCrop(
   return {
     top,
     bottom,
-    topDragOffset: activeSession ? top - activeSession.initialTop : 0,
+    sourceHeight,
     height: isActive && sourceHeight > 0 ? sourceHeight - top - bottom : undefined,
     isActive,
     isEditing: Boolean(activeSession),
@@ -2097,7 +2097,8 @@ function StripVideoBlock({
   onHeight,
   controls,
   cropTop = 0,
-  cropTopDragOffset = 0,
+  cropSourceHeight,
+  cropEditing = false,
   croppedHeight,
   heightCropHandles,
 }: {
@@ -2119,10 +2120,12 @@ function StripVideoBlock({
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
   cropTop?: number;
-  cropTopDragOffset?: number;
+  cropSourceHeight?: number;
+  cropEditing?: boolean;
   croppedHeight?: number;
   heightCropHandles?: ReactNode;
 }) {
+  const cropViewportHeight = cropEditing ? cropSourceHeight : croppedHeight;
   const videoRef = useRef<HTMLVideoElement>(null);
   const tapGestureRef = useRef<{
     pointerId: number;
@@ -2209,18 +2212,19 @@ function StripVideoBlock({
     >
       <div
         className="block-crop-viewport"
-        style={{
-          ...(croppedHeight !== undefined
-            ? { height: `${croppedHeight}px` }
-            : {}),
-          ...(heightCropHandles && cropTopDragOffset
-            ? { marginTop: `${cropTopDragOffset}px` }
-            : {}),
-        }}
+        style={
+          cropViewportHeight !== undefined
+            ? { height: `${cropViewportHeight}px` }
+            : undefined
+        }
       >
         <div
           className="block-crop-content"
-          style={cropTop ? { transform: `translateY(${-cropTop}px)` } : undefined}
+          style={
+            !cropEditing && cropTop
+              ? { transform: `translateY(${-cropTop}px)` }
+              : undefined
+          }
         >
           <video
             ref={videoRef}
@@ -5618,7 +5622,7 @@ export default function Home() {
         }`}
         style={{
           color: handleColor,
-          top: `${crop.topDragOffset}px`
+          top: `${crop.top}px`,
           ...(crop.height !== undefined ? { height: `${crop.height}px` } : {}),
         }}
         role="group"
@@ -5787,6 +5791,9 @@ export default function Home() {
           const backgroundColor = block.backgroundColor ?? DEFAULT_BACKGROUND;
           const textColor = block.textColor ?? contrastColor(backgroundColor);
           const usesDarkText = contrastColor(textColor) === "#FFFFFF";
+          const cropViewportHeight = heightCrop?.isEditing
+            ? heightCrop.sourceHeight
+            : heightCrop?.height;
           return (
             <section
               className={`strip-block text-block ${isEditing ? "is-editing" : ""} ${
@@ -5829,19 +5836,16 @@ export default function Home() {
               {isEditing ? renderBlockControls(block, index) : null}
               <div
                 className="block-crop-viewport"
-                style={{
-                  ...(heightCrop?.height !== undefined
-                    ? { height: `${heightCrop.height}px` }
-                    : {}),
-                  ...(heightCrop?.isEditing && heightCrop.topDragOffset
-                    ? { marginTop: `${heightCrop.topDragOffset}px` }
-                    : {}),
-                }}
+                style={
+                  cropViewportHeight !== undefined
+                    ? { height: `${cropViewportHeight}px` }
+                    : undefined
+                }
               >
                 <div
                   className="block-crop-content text-block-content"
                   style={
-                    heightCrop?.top
+                    !heightCrop?.isEditing && heightCrop?.top
                       ? { transform: `translateY(${-heightCrop.top}px)` }
                       : undefined
                   }
@@ -5916,6 +5920,9 @@ export default function Home() {
         if (block.type === "image") {
           const animatePublishedLoad = !isEditing && view === "published";
           const imageLoadSettled = mediaLoadStatus[block.id] !== undefined;
+          const cropViewportHeight = heightCrop?.isEditing
+            ? heightCrop.sourceHeight
+            : heightCrop?.height;
           return (
             <figure
               className={`strip-block image-block ${isEditing ? "is-editing" : ""} ${
@@ -5959,19 +5966,16 @@ export default function Home() {
               {isEditing ? renderBlockControls(block, index) : null}
               <div
                 className="block-crop-viewport"
-                style={{
-                  ...(heightCrop?.height !== undefined
-                    ? { height: `${heightCrop.height}px` }
-                    : {}),
-                  ...(heightCrop?.isEditing && heightCrop.topDragOffset
-                    ? { marginTop: `${heightCrop.topDragOffset}px` }
-                    : {}),
-                }}
+                style={
+                  cropViewportHeight !== undefined
+                    ? { height: `${cropViewportHeight}px` }
+                    : undefined
+                }
               >
                 <div
                   className="block-crop-content"
                   style={
-                    heightCrop?.top
+                    !heightCrop?.isEditing && heightCrop?.top
                       ? { transform: `translateY(${-heightCrop.top}px)` }
                       : undefined
                   }
@@ -6127,7 +6131,8 @@ export default function Home() {
             animatePublishedLoad={!isEditing && view === "published"}
             reservedHeight={block.height}
             cropTop={heightCrop?.top}
-            cropTopDragOffset={heightCrop?.topDragOffset}
+            cropSourceHeight={heightCrop?.sourceHeight}
+            cropEditing={heightCrop?.isEditing}
             croppedHeight={heightCrop?.height}
             onLoadSettled={(loadedSuccessfully) => {
               settleMediaLoad(block.id, loadedSuccessfully);
