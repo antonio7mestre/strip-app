@@ -11,6 +11,8 @@
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
   --leading-image-inset: 0px;
+  --height-crop-motion-duration: 520ms;
+  --height-crop-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -687,7 +689,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .image-block.is-height-cropping.has-top-crop-clearance {
-  margin-top: calc(var(--leading-image-inset, 0px) + 32px);
+  margin-top: calc(
+    var(--leading-image-inset, 0px) + var(--leading-image-inset, 0px) + 32px
+  );
 }
 
 .route-loading-mode {
@@ -949,17 +953,20 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .block-crop-viewport {
   position: relative;
   overflow: visible;
-  transition: height 520ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: height var(--height-crop-motion-duration)
+    var(--height-crop-motion-easing);
 }
 
 .block-crop-content {
   position: relative;
   transform: translateY(0);
-  transition: transform 520ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--height-crop-motion-duration)
+    var(--height-crop-motion-easing);
 }
 
 .image-block {
-  transition: margin-top 520ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: margin-top var(--height-crop-motion-duration)
+    var(--height-crop-motion-easing);
 }
 
 .strip-block.is-height-cropped .block-crop-viewport {
@@ -2192,6 +2199,16 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   }
 }
 
+@keyframes height-crop-shade-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 .block-controls-reveal {
   position: absolute;
   z-index: 34;
@@ -2316,7 +2333,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   left: 0;
   background: rgba(0, 0, 0, 0.58);
   pointer-events: none;
-  animation: height-crop-handles-reveal 180ms ease-out 70ms both;
+  animation: height-crop-shade-reveal 180ms ease-out
+    var(--height-crop-motion-duration) both;
 }
 
 .height-crop-shade.is-top {
