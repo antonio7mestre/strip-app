@@ -687,7 +687,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .image-block.is-height-cropping.has-top-crop-clearance {
-  margin-top: 32px;
+  margin-top: calc(var(--leading-image-inset, 0px) + 32px);
 }
 
 .route-loading-mode {
