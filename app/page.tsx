@@ -193,7 +193,6 @@ const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
-const HEIGHT_CROP_TRANSITION_MS = 340;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
@@ -5468,18 +5467,6 @@ export default function Home() {
     });
   };
 
-  const focusAfterHeightCrop = (blockId: string) => {
-    window.setTimeout(() => {
-      window.requestAnimationFrame(() => {
-        const block = document.querySelector<HTMLElement>(
-          `.editor-mode .strip-block[data-block-id="${blockId}"]`,
-        );
-        if (!block?.classList.contains("is-selected")) return;
-        focusSelectedBlockWithToolbar(blockId);
-      });
-    }, HEIGHT_CROP_TRANSITION_MS);
-  };
-
   const startHeightCrop = (block: ImageBlock | VideoBlock) => {
     const content = document.querySelector<HTMLElement>(
       `.editor-mode .strip-block[data-block-id="${block.id}"] .block-crop-content`,
@@ -5548,7 +5535,6 @@ export default function Home() {
 
     heightCropDragRef.current = null;
     setHeightCropSession(null);
-    focusAfterHeightCrop(session.blockId);
   };
 
   const beginHeightCropDrag = (
