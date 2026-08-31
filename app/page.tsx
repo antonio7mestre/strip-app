@@ -2178,9 +2178,9 @@ function StripVideoBlock({
         animatePublishedLoad && loadSettled ? "is-media-resolved" : ""
       }`}
       data-block-id={block.id}
-      aria-busy={!isLoaded}
+      aria-busy={!loadSettled}
       style={
-        !isLoaded && reservedHeight && croppedHeight === undefined
+        !loadSettled && reservedHeight && croppedHeight === undefined
           ? { minHeight: reservedHeight }
           : undefined
       }
@@ -2240,6 +2240,7 @@ function StripVideoBlock({
             preload={shouldLoad ? "metadata" : "none"}
             draggable={false}
             style={{
+              display: loadSettled && !isLoaded ? "none" : undefined,
               visibility: animatePublishedLoad || isLoaded ? "visible" : "hidden",
             }}
             onLoadedData={(event) => {
@@ -5940,8 +5941,9 @@ export default function Home() {
               }`}
               data-block-id={block.id}
               key={block.id}
+              aria-busy={mediaLoadStatus[block.id] === undefined}
               style={
-                mediaLoadStatus[block.id] !== "loaded" &&
+                mediaLoadStatus[block.id] === undefined &&
                 block.height &&
                 heightCrop?.height === undefined
                   ? { minHeight: block.height }
@@ -5984,14 +5986,16 @@ export default function Home() {
                     src={shouldLoadMedia(block.id) ? block.src : undefined}
                     alt={block.alt}
                     style={
-                      view === "published"
-                        ? undefined
-                        : {
-                            visibility:
-                              mediaLoadStatus[block.id] === "loaded"
-                                ? "visible"
-                                : "hidden",
-                          }
+                      mediaLoadStatus[block.id] === "error"
+                        ? { display: "none" }
+                        : view === "published"
+                          ? undefined
+                          : {
+                              visibility:
+                                mediaLoadStatus[block.id] === "loaded"
+                                  ? "visible"
+                                  : "hidden",
+                            }
                     }
                     onLoad={(event) => {
                       settleMediaLoad(block.id, true);
