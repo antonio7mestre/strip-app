@@ -1039,6 +1039,7 @@ function resolveBlockHeightCrop(
   return {
     top,
     bottom,
+    topDragOffset: activeSession ? top - activeSession.initialTop : 0,
     height: isActive && sourceHeight > 0 ? sourceHeight - top - bottom : undefined,
     isActive,
     isEditing: Boolean(activeSession),
@@ -2096,6 +2097,7 @@ function StripVideoBlock({
   onHeight,
   controls,
   cropTop = 0,
+  cropTopDragOffset = 0,
   croppedHeight,
   heightCropHandles,
 }: {
@@ -2117,6 +2119,7 @@ function StripVideoBlock({
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
   cropTop?: number;
+  cropTopDragOffset?: number;
   croppedHeight?: number;
   heightCropHandles?: ReactNode;
 }) {
@@ -2210,7 +2213,9 @@ function StripVideoBlock({
           ...(croppedHeight !== undefined
             ? { height: `${croppedHeight}px` }
             : {}),
-          ...(heightCropHandles && cropTop ? { marginTop: `${cropTop}px` } : {}),
+          ...(heightCropHandles && cropTopDragOffset
+            ? { marginTop: `${cropTopDragOffset}px` }
+            : {}),
         }}
       >
         <div
@@ -5492,6 +5497,11 @@ export default function Home() {
       top: initialTop,
       bottom: initialBottom,
     });
+    if (hasLeadingImage && firstVisibleBlock?.id === block.id) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      });
+    }
   };
 
   const finishHeightCrop = (commit: boolean) => {
@@ -5608,7 +5618,7 @@ export default function Home() {
         }`}
         style={{
           color: handleColor,
-          top: `${crop.top}px`,
+          top: `${crop.topDragOffset}px`
           ...(crop.height !== undefined ? { height: `${crop.height}px` } : {}),
         }}
         role="group"
@@ -5823,8 +5833,8 @@ export default function Home() {
                   ...(heightCrop?.height !== undefined
                     ? { height: `${heightCrop.height}px` }
                     : {}),
-                  ...(heightCrop?.isEditing && heightCrop.top
-                    ? { marginTop: `${heightCrop.top}px` }
+                  ...(heightCrop?.isEditing && heightCrop.topDragOffset
+                    ? { marginTop: `${heightCrop.topDragOffset}px` }
                     : {}),
                 }}
               >
@@ -5953,8 +5963,8 @@ export default function Home() {
                   ...(heightCrop?.height !== undefined
                     ? { height: `${heightCrop.height}px` }
                     : {}),
-                  ...(heightCrop?.isEditing && heightCrop.top
-                    ? { marginTop: `${heightCrop.top}px` }
+                  ...(heightCrop?.isEditing && heightCrop.topDragOffset
+                    ? { marginTop: `${heightCrop.topDragOffset}px` }
                     : {}),
                 }}
               >
@@ -6117,6 +6127,7 @@ export default function Home() {
             animatePublishedLoad={!isEditing && view === "published"}
             reservedHeight={block.height}
             cropTop={heightCrop?.top}
+            cropTopDragOffset={heightCrop?.topDragOffset}
             croppedHeight={heightCrop?.height}
             onLoadSettled={(loadedSuccessfully) => {
               settleMediaLoad(block.id, loadedSuccessfully);
