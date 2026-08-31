@@ -1559,11 +1559,6 @@ function TextStyleSelector({
         setPageColorDragging(false);
       }
     };
-    const preventPickerClick = (event: MouseEvent) => {
-      if (targetIsPickerControl(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
     document.addEventListener("pointerdown", handlePointerDown, {
       capture: true,
       passive: false,
@@ -1578,7 +1573,6 @@ function TextStyleSelector({
     });
     document.addEventListener("pointercancel", handlePointerCancel, true);
     document.addEventListener("lostpointercapture", handleLostPointerCapture, true);
-    document.addEventListener("click", preventPickerClick, true);
     document.addEventListener("selectstart", preventTextSelection, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
@@ -1586,7 +1580,6 @@ function TextStyleSelector({
       document.removeEventListener("pointerup", handlePointerUp, true);
       document.removeEventListener("pointercancel", handlePointerCancel, true);
       document.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
-      document.removeEventListener("click", preventPickerClick, true);
       document.removeEventListener("selectstart", preventTextSelection, true);
       pageColorPointerIdRef.current = null;
       root.classList.remove("page-color-picking");
@@ -5524,6 +5517,13 @@ export default function Home() {
     setHeightCropSession(null);
   };
 
+  const releaseHeightCropForSelection = (blockId: string) => {
+    if (!heightCropSession) return true;
+    if (heightCropSession.blockId === blockId) return false;
+    finishHeightCrop(true);
+    return true;
+  };
+
   const beginHeightCropDrag = (
     event: ReactPointerEvent<HTMLButtonElement>,
     edge: "top" | "bottom",
@@ -5789,14 +5789,21 @@ export default function Home() {
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] !== "loaded"}
               onPointerDown={(event) => {
-                if (heightCropSession) return;
+                if (heightCropSession?.blockId === block.id) return;
                 beginBlockTapGesture(event, block.id);
               }}
               onPointerMove={trackBlockTapGesture}
               onPointerCancel={cancelBlockTapGesture}
               onClick={(event) => {
-                if (!isEditing || textIsBeingEdited || heightCropSession) return;
+                if (
+                  !isEditing ||
+                  textIsBeingEdited ||
+                  heightCropSession?.blockId === block.id
+                ) {
+                  return;
+                }
                 if (!completeBlockTapGesture(block.id)) return;
+                if (!releaseHeightCropForSelection(block.id)) return;
                 if (selectedBlockId === block.id) {
                   const caretOffset = caretOffsetAtPoint(
                     event.currentTarget,
@@ -5915,14 +5922,15 @@ export default function Home() {
                   : undefined
               }
               onPointerDown={(event) => {
-                if (heightCropSession) return;
+                if (heightCropSession?.blockId === block.id) return;
                 beginBlockTapGesture(event, block.id);
               }}
               onPointerMove={trackBlockTapGesture}
               onPointerCancel={cancelBlockTapGesture}
               onClick={() => {
-                if (!isEditing || heightCropSession) return;
+                if (!isEditing || heightCropSession?.blockId === block.id) return;
                 if (!completeBlockTapGesture(block.id)) return;
+                if (!releaseHeightCropForSelection(block.id)) return;
                 if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
@@ -6040,7 +6048,7 @@ export default function Home() {
                 return true;
               }}
               onSelect={() => {
-                if (!isEditing || heightCropSession) return;
+                if (!isEditing || !releaseHeightCropForSelection(block.id)) return;
                 if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
@@ -6081,7 +6089,7 @@ export default function Home() {
               recordVideoAudioPresence(block.id, hasAudio)
             }
             onSelect={() => {
-              if (!isEditing || heightCropSession) return;
+              if (!isEditing || !releaseHeightCropForSelection(block.id)) return;
               if (selectedBlockId !== block.id) triggerSelectionHaptic();
               setSelectedBlockId(block.id);
               setEditingTextBlockId(null);
