@@ -42,6 +42,8 @@ type PublishBlock =
       type: "text";
       content: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       backgroundColor?: string;
       textColor?: string;
       fontStyle?: string;
@@ -54,6 +56,8 @@ type PublishBlock =
       src: string;
       alt: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -75,6 +79,8 @@ type StoredContentBlock =
       objectKey: string;
       alt: string;
       height?: number;
+      cropTop?: number;
+      cropBottom?: number;
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
@@ -191,6 +197,12 @@ function prepareContentBlocks(
         ...(finiteNumber(block.height, 0) > 0
           ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
           : {}),
+        ...(finiteNumber(block.cropTop, 0) > 0
+          ? { cropTop: Math.min(20_000, finiteNumber(block.cropTop, 0)) }
+          : {}),
+        ...(finiteNumber(block.cropBottom, 0) > 0
+          ? { cropBottom: Math.min(20_000, finiteNumber(block.cropBottom, 0)) }
+          : {}),
         backgroundColor: block.backgroundColor,
         textColor: block.textColor,
         fontStyle: block.fontStyle,
@@ -237,6 +249,12 @@ function prepareContentBlocks(
         alt: String(block.alt ?? "").slice(0, 160),
         ...(finiteNumber(block.height, 0) > 0
           ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
+          : {}),
+        ...(finiteNumber(block.cropTop, 0) > 0
+          ? { cropTop: Math.min(20_000, finiteNumber(block.cropTop, 0)) }
+          : {}),
+        ...(finiteNumber(block.cropBottom, 0) > 0
+          ? { cropBottom: Math.min(20_000, finiteNumber(block.cropBottom, 0)) }
           : {}),
         ...(block.type === "video"
           ? {
