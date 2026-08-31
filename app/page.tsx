@@ -5474,11 +5474,6 @@ export default function Home() {
       top: initialTop,
       bottom: initialBottom,
     });
-    if (hasLeadingImage && firstVisibleBlock?.id === block.id) {
-      window.requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      });
-    }
   };
 
   const finishHeightCrop = (commit: boolean) => {
