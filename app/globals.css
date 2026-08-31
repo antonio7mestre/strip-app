@@ -2333,16 +2333,12 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   left: 0;
   background: rgba(0, 0, 0, 0.58);
   pointer-events: none;
-  animation: height-crop-shade-reveal 180ms ease-out
-    var(--height-crop-motion-duration) both;
+  animation: height-crop-shade-reveal var(--height-crop-motion-duration)
+    var(--height-crop-motion-easing) both;
 }
 
 .height-crop-shade.is-top {
   top: 0;
-}
-
-.height-crop-shade.is-bottom {
-  bottom: 0;
 }
 
 .height-crop-handles {
