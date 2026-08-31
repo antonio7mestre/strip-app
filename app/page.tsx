@@ -5596,7 +5596,10 @@ export default function Home() {
         />
         <span
           className="height-crop-shade is-bottom"
-          style={{ height: `${crop.bottom}px` }}
+          style={{
+            top: `${Math.max(0, crop.sourceHeight - crop.bottom)}px`,
+            height: `${crop.bottom}px`,
+          }}
           aria-hidden="true"
         />
         <div
