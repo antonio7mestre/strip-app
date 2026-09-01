@@ -601,13 +601,17 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .auth-step-landing .auth-action-button {
-  border-color: #0047ab;
-  background: #0047ab;
+  border-color: #1557ff;
+  background: #1557ff;
   color: #ffffff;
 }
 
 .auth-step-landing .auth-action-button:active {
-  background: #003b8f;
+  background: #0b43d9;
+}
+
+.auth-step-landing .auth-action-controls.dock-controls {
+  width: min(calc(100% - 24px), 536px);
 }
 
 .auth-flow-header {
