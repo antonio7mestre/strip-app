@@ -6525,8 +6525,7 @@ export default function Home() {
                     Log in or sign up
                   </button>
                   <p className="auth-action-terms">
-                    By continuing, you agree to the Terms of Service and Privacy
-                    Policy.
+                    By continuing, you agree to our Terms &amp; Privacy Policy.
                   </p>
                 </>
               ) : (
