@@ -12,6 +12,7 @@ import type {
 } from "react";
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   Baseline,
   CaseUpper,
@@ -151,7 +152,7 @@ type AppRoute =
   | { kind: "published"; id: string; username?: string };
 type AuthUser = { id: string; phoneLabel: string; username: string | null };
 type AuthStatus = "loading" | "signed-out" | "signed-in";
-type AuthStep = "phone" | "code";
+type AuthStep = "landing" | "phone" | "code";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -194,6 +195,7 @@ const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
+const AUTH_CODE_LENGTH = 6;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
   { label: "Sans", value: "sans" },
@@ -2886,9 +2888,10 @@ export default function Home() {
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [authStep, setAuthStep] = useState<AuthStep>("phone");
+  const [authStep, setAuthStep] = useState<AuthStep>("landing");
   const [authPhone, setAuthPhone] = useState("");
   const [authCode, setAuthCode] = useState("");
+  const [authResendSeconds, setAuthResendSeconds] = useState(0);
   const [authUsername, setAuthUsername] = useState("");
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -3569,7 +3572,8 @@ export default function Home() {
     const textEntryIsFocused = () =>
       document.activeElement instanceof HTMLTextAreaElement ||
       (document.activeElement instanceof HTMLInputElement &&
-        document.activeElement.type === "text");
+        (document.activeElement.type === "text" ||
+          document.activeElement.type === "tel"));
 
     const cancelKeyboardReturn = () => {
       if (keyboardReturnTimer !== null) {
@@ -3746,6 +3750,15 @@ export default function Home() {
       });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (authStep !== "code" || authResendSeconds <= 0) return;
+    const timer = window.setTimeout(
+      () => setAuthResendSeconds((seconds) => Math.max(0, seconds - 1)),
+      1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [authResendSeconds, authStep]);
 
   useEffect(() => {
     if (!libraryOwnerId) return;
@@ -4828,6 +4841,7 @@ export default function Home() {
       setAuthDevelopmentCode(data.developmentCode ?? "");
       setAuthStep("code");
       setAuthCode("");
+      setAuthResendSeconds(30);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Couldn’t send a code.");
     } finally {
@@ -4863,8 +4877,9 @@ export default function Home() {
       setLibraryOwnerId(data.user.id);
       setAuthStatus("signed-in");
       setAuthenticationRequired(false);
-      setAuthStep("phone");
+      setAuthStep("landing");
       setAuthCode("");
+      setAuthResendSeconds(0);
       setAuthDevelopmentCode("");
       initialRouteHandledRef.current = false;
       setInitialRouteReady(false);
@@ -4909,6 +4924,22 @@ export default function Home() {
   const editSignInPhone = () => {
     setAuthStep("phone");
     setAuthCode("");
+    setAuthResendSeconds(0);
+    setAuthError("");
+    setAuthDevelopmentCode("");
+  };
+
+  const beginSignIn = () => {
+    setAuthStep("phone");
+    setAuthError("");
+    setAuthDevelopmentCode("");
+  };
+
+  const returnToAuthLanding = () => {
+    setAuthStep("landing");
+    setAuthPhone("");
+    setAuthCode("");
+    setAuthResendSeconds(0);
     setAuthError("");
     setAuthDevelopmentCode("");
   };
@@ -4927,6 +4958,10 @@ export default function Home() {
       setAuthUsernameError("");
       setAuthStatus("signed-out");
       setAuthenticationRequired(true);
+      setAuthStep("landing");
+      setAuthPhone("");
+      setAuthCode("");
+      setAuthResendSeconds(0);
       setBrowserPath("/", true);
       setView("library");
       initialRouteHandledRef.current = false;
@@ -6283,12 +6318,15 @@ export default function Home() {
           aria-hidden="true"
         />
         <section className="auth-shell" aria-labelledby="username-heading">
-          <header className="auth-brand">STRIP</header>
+          <header className="auth-header">
+            <span className="auth-brand">STRIP</span>
+            <span className="auth-location">Set up your profile</span>
+          </header>
           <div className="auth-card">
             <div className="auth-copy">
-              <p>One last thing.</p>
-              <h1 id="username-heading">Pick a username</h1>
-              <span>Your friends will find your Strips here.</span>
+              <p>Your profile</p>
+              <h1 id="username-heading">Choose a username</h1>
+              <span>Give your friends one simple place to find your Strips.</span>
             </div>
             <form className="auth-form" onSubmit={claimUsername}>
               <label htmlFor="auth-username">Username</label>
@@ -6352,84 +6390,145 @@ export default function Home() {
           style={{ backgroundColor: DEFAULT_BACKGROUND }}
           aria-hidden="true"
         />
-        <section className="auth-shell" aria-labelledby="auth-heading">
-          <header className="auth-brand">STRIP</header>
-          <div className="auth-card">
-            <div className="auth-copy">
-              <p>{authStep === "phone" ? "Sign in to make a Strip." : "Almost there."}</p>
-              <h1 id="auth-heading">
-                {authStep === "phone" ? "Your number" : "Enter the code"}
-              </h1>
-              <span>
-                {authStep === "phone"
-                  ? "We’ll text you. No password."
-                  : `Sent to ${authPhone}`}
-              </span>
+        <section
+          className={`auth-shell auth-step-${authStep}`}
+          aria-labelledby="auth-heading"
+        >
+          {authStep === "landing" ? (
+            <div className="auth-landing">
+              <div className="auth-landing-copy">
+                <span className="auth-landing-brand">STRIP</span>
+                <h1 id="auth-heading">Make something for your friends.</h1>
+              </div>
+              <div className="auth-landing-action">
+                <button className="auth-primary-button" type="button" onClick={beginSignIn}>
+                  Log in or sign up
+                </button>
+                <p>One account for your Strips, drafts, and profile.</p>
+              </div>
             </div>
+          ) : (
+            <>
+              <header className="auth-flow-header">
+                <button
+                  className="auth-back-button"
+                  type="button"
+                  onClick={authStep === "code" ? editSignInPhone : returnToAuthLanding}
+                  aria-label={authStep === "code" ? "Change phone number" : "Back"}
+                  disabled={authPending}
+                >
+                  <ArrowLeft aria-hidden="true" strokeWidth={2.8} />
+                </button>
+                <span className="auth-flow-brand">STRIP</span>
+              </header>
 
-            {authStep === "phone" ? (
-              <form className="auth-form" onSubmit={requestSignInCode}>
-                <label htmlFor="auth-phone">Phone number</label>
-                <input
-                  id="auth-phone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="(555) 555-5555"
-                  value={authPhone}
-                  onChange={(event) => setAuthPhone(event.target.value)}
-                  disabled={authPending}
-                />
-                <button type="submit" disabled={authPending || !authPhone.trim()}>
-                  {authPending ? "Sending…" : "Continue"}
-                </button>
-              </form>
-            ) : (
-              <form className="auth-form" onSubmit={verifySignInCode}>
-                <label htmlFor="auth-code">Verification code</label>
-                <input
-                  id="auth-code"
-                  className="auth-code-input"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder="000000"
-                  value={authCode}
-                  onChange={(event) =>
-                    setAuthCode(event.target.value.replace(/\D/g, "").slice(0, 10))
-                  }
-                  disabled={authPending}
-                />
-                <button type="submit" disabled={authPending || authCode.length < 4}>
-                  {authPending ? "Checking…" : "Continue"}
-                </button>
-                <div className="auth-secondary-actions">
-                  <button
-                    className="auth-text-button"
-                    type="button"
-                    onClick={() => void requestSignInCode()}
-                    disabled={authPending}
-                  >
-                    Send again
-                  </button>
-                  <button
-                    className="auth-text-button"
-                    type="button"
-                    onClick={editSignInPhone}
-                    disabled={authPending}
-                  >
-                    Change number
-                  </button>
+              <div className="auth-flow-stage">
+                <div className="auth-flow-copy">
+                  <h1 id="auth-heading">
+                    {authStep === "phone" ? "Phone number" : "Confirmation"}
+                  </h1>
+                  <p>
+                    {authStep === "phone"
+                      ? "Enter your phone number"
+                      : `Enter the 6-digit code sent to ${authPhone.trim()}.`}
+                  </p>
                 </div>
-              </form>
-            )}
 
-            {authDevelopmentCode ? (
-              <p className="auth-dev-note">Local code: {authDevelopmentCode}</p>
-            ) : null}
-            {authError ? <p className="auth-error" role="alert">{authError}</p> : null}
-          </div>
-          <p className="auth-terms">By continuing, you agree to receive a sign-in text.</p>
+                {authStep === "phone" ? (
+                  <form
+                    className="auth-form auth-flow-form"
+                    onSubmit={requestSignInCode}
+                  >
+                    <label htmlFor="auth-phone">Phone number</label>
+                    <input
+                      id="auth-phone"
+                      className="auth-phone-input"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="Phone number"
+                      value={authPhone}
+                      onChange={(event) => {
+                        setAuthPhone(event.target.value.slice(0, 24));
+                        setAuthError("");
+                      }}
+                      disabled={authPending}
+                    />
+                    {authError ? (
+                      <p className="auth-error" role="alert">{authError}</p>
+                    ) : null}
+                    <button type="submit" disabled={authPending || !authPhone.trim()}>
+                      {authPending ? "Sending…" : "Continue"}
+                    </button>
+                  </form>
+                ) : (
+                  <form
+                    className="auth-form auth-flow-form auth-confirmation-form"
+                    onSubmit={verifySignInCode}
+                  >
+                    <label htmlFor="auth-code">Verification code</label>
+                    <div className="auth-code-field">
+                      <div className="auth-code-cells" aria-hidden="true">
+                        {Array.from({ length: AUTH_CODE_LENGTH }, (_, index) => {
+                          const value = authCode[index] ?? "";
+                          const activeIndex = Math.min(authCode.length, AUTH_CODE_LENGTH - 1);
+                          return (
+                            <span
+                              className={`auth-code-cell ${value ? "has-value" : ""} ${
+                                !authPending && index === activeIndex ? "is-active" : ""
+                              }`}
+                              key={index}
+                            >
+                              {value}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <input
+                        id="auth-code"
+                        className="auth-code-native"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        value={authCode}
+                        onChange={(event) => {
+                          setAuthCode(
+                            event.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, AUTH_CODE_LENGTH),
+                          );
+                          setAuthError("");
+                        }}
+                        disabled={authPending}
+                      />
+                    </div>
+                    {authError ? (
+                      <p className="auth-error" role="alert">{authError}</p>
+                    ) : null}
+                    {authDevelopmentCode ? (
+                      <p className="auth-dev-note">Local code: {authDevelopmentCode}</p>
+                    ) : null}
+                    <button
+                      className="auth-resend-button"
+                      type="button"
+                      onClick={() => void requestSignInCode()}
+                      disabled={authPending || authResendSeconds > 0}
+                    >
+                      {authResendSeconds > 0
+                        ? `Resend code in 0:${String(authResendSeconds).padStart(2, "0")}`
+                        : "Resend code"}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={authPending || authCode.length !== AUTH_CODE_LENGTH}
+                    >
+                      {authPending ? "Checking…" : "Continue"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </>
+          )}
         </section>
       </main>
     );
@@ -6506,8 +6605,30 @@ export default function Home() {
 
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
-              <h1>{isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
+              <div className="library-heading">
+                <span className="library-kicker">
+                  {isDraftLibrary
+                    ? "Workspace"
+                    : authUser?.username
+                      ? `@${authUser.username}`
+                      : "Your library"}
+                </span>
+                <div className="library-title-line">
+                  <h1>{isDraftLibrary ? "Drafts" : "Strips"}</h1>
+                  <span className="library-count" aria-label={`${libraryItems.length} items`}>
+                    {libraryItems.length}
+                  </span>
+                </div>
+              </div>
               <div className="library-header-actions">
+                <button
+                  className="library-header-action is-primary"
+                  type="button"
+                  onClick={beginNewStrip}
+                  aria-label="Create a new Strip"
+                >
+                  <Plus aria-hidden="true" />
+                </button>
                 <button
                   className="library-header-action"
                   type="button"
@@ -6549,15 +6670,6 @@ export default function Home() {
               ))}
             </div>
           </section>
-
-          <button
-            className="library-add-button"
-            type="button"
-            onClick={beginNewStrip}
-            aria-label="Create a new Strip"
-          >
-            <Plus aria-hidden="true" />
-          </button>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
@@ -7244,13 +7356,36 @@ export default function Home() {
           selectedBlockIndex >= 0 || endingIsSelected ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
-        } ${heightCropSession ? "is-height-cropping" : ""}`}
+        } ${heightCropSession ? "is-height-cropping" : ""} ${
+          blocks.length === 0 ? "is-empty-editor" : ""
+        }`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
+      {!inlinePreview ? (
+        <header className="editor-page-header">
+          <button
+            className="editor-page-back"
+            type="button"
+            onClick={() => void returnToLibrary()}
+            aria-label="Back to your Strips"
+          >
+            <House aria-hidden="true" />
+          </button>
+          <div className="editor-page-title">
+            <span>
+              {currentDraftCreatedAt
+                ? `Draft · ${draftFallbackTitle(currentDraftCreatedAt)}`
+                : "New draft"}
+            </span>
+            <h1>{stripTitle.trim() || "Untitled Strip"}</h1>
+          </div>
+          <span className="editor-page-state">Editing</span>
+        </header>
+      ) : null}
       <div
         className={`editor-canvas ${legacyPageEnterClass}`}
         onClickCapture={(event) => {
