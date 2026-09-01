@@ -556,7 +556,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .auth-action-dock.composer-dock {
+  --auth-device-curve: clamp(44px, 13vw, 54px);
   z-index: 40;
+  border-radius: var(--auth-device-curve) var(--auth-device-curve) 0 0;
+  corner-shape: squircle;
 }
 
 .auth-action-controls.dock-controls {
@@ -564,7 +567,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .auth-action-button {
-  width: 100%;
+  width: min(100%, 220px);
   min-height: 48px;
   padding: 0 22px;
   border: 1px solid #000000;
