@@ -611,7 +611,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .auth-step-landing .auth-action-controls.dock-controls {
-  width: min(calc(100% - 24px), 536px);
+  width: min(calc(100% - 36px), 536px);
 }
 
 .auth-flow-header {
