@@ -6,6 +6,7 @@
   --top-safe-area-color: #000000;
   --bottom-safe-area-color: #000000;
   --iphone-panel-radius: 44px;
+  --bottom-action-tray-max-width: 212px;
   --muted: #8a8a8a;
   --line: rgba(255, 255, 255, 0.14);
   --glass: rgba(19, 19, 19, 0.76);
@@ -563,11 +564,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .auth-action-controls.dock-controls {
-  width: min(calc(100% - 24px), 536px);
+  width: min(calc(100% - 24px), var(--bottom-action-tray-max-width));
 }
 
 .auth-action-button {
-  width: min(100%, 220px);
+  width: 100%;
   min-height: 48px;
   padding: 0 22px;
   border: 1px solid #000000;
@@ -1735,7 +1736,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .main-composer-dock .height-crop-dock-controls {
-  width: 100%;
+  width: min(100%, var(--bottom-action-tray-max-width));
   justify-content: stretch;
   gap: 8px;
   padding-inline: 12px;
@@ -2003,7 +2004,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .share-dock .dock-controls-current {
-  width: min(100%, 560px);
+  width: min(100%, var(--bottom-action-tray-max-width));
 }
 
 .share-story-button {
@@ -2427,9 +2428,13 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .publish-flow-dock .dock-controls-current {
-  width: 100%;
+  width: min(100%, var(--bottom-action-tray-max-width));
   gap: 8px;
   padding-inline: 12px;
+}
+
+.preview-dock .dock-controls-current {
+  width: min(100%, var(--bottom-action-tray-max-width));
 }
 
 .publish-flow-dock .publish-flow-button {
