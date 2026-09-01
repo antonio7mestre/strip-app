@@ -6397,12 +6397,6 @@ export default function Home() {
                 <span className="auth-landing-brand">STRIP</span>
                 <h1 id="auth-heading">Make something for your friends.</h1>
               </div>
-              <div className="auth-landing-action">
-                <button className="auth-primary-button" type="button" onClick={beginSignIn}>
-                  Log in or sign up
-                </button>
-                <p>One account for your Strips, drafts, and profile.</p>
-              </div>
             </div>
           ) : (
             <>
@@ -6433,6 +6427,7 @@ export default function Home() {
 
                 {authStep === "phone" ? (
                   <form
+                    id="auth-phone-form"
                     className="auth-form auth-flow-form"
                     onSubmit={requestSignInCode}
                   >
@@ -6454,12 +6449,10 @@ export default function Home() {
                     {authError ? (
                       <p className="auth-error" role="alert">{authError}</p>
                     ) : null}
-                    <button type="submit" disabled={authPending || !authPhone.trim()}>
-                      {authPending ? "Sending…" : "Continue"}
-                    </button>
                   </form>
                 ) : (
                   <form
+                    id="auth-code-form"
                     className="auth-form auth-flow-form auth-confirmation-form"
                     onSubmit={verifySignInCode}
                   >
@@ -6515,17 +6508,42 @@ export default function Home() {
                         ? `Resend code in 0:${String(authResendSeconds).padStart(2, "0")}`
                         : "Resend code"}
                     </button>
-                    <button
-                      type="submit"
-                      disabled={authPending || authCode.length !== AUTH_CODE_LENGTH}
-                    >
-                      {authPending ? "Checking…" : "Continue"}
-                    </button>
                   </form>
                 )}
               </div>
             </>
           )}
+          <footer className="composer-dock auth-action-dock">
+            <div className="dock-controls dock-controls-current auth-action-controls">
+              {authStep === "landing" ? (
+                <button
+                  className="auth-action-button"
+                  type="button"
+                  onClick={beginSignIn}
+                >
+                  Log in or sign up
+                </button>
+              ) : (
+                <button
+                  className="auth-action-button"
+                  type="submit"
+                  form={authStep === "phone" ? "auth-phone-form" : "auth-code-form"}
+                  disabled={
+                    authPending ||
+                    (authStep === "phone"
+                      ? !authPhone.trim()
+                      : authCode.length !== AUTH_CODE_LENGTH)
+                  }
+                >
+                  {authPending
+                    ? authStep === "phone"
+                      ? "Sending…"
+                      : "Checking…"
+                    : "Continue"}
+                </button>
+              )}
+            </div>
+          </footer>
         </section>
       </main>
     );

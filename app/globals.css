@@ -328,7 +328,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   overflow: hidden;
   overscroll-behavior: none;
   padding: calc(env(safe-area-inset-top) + 18px) 20px
-    calc(env(safe-area-inset-bottom) + 20px);
+    calc(env(safe-area-inset-bottom) + 88px);
 }
 
 .auth-brand {
@@ -521,7 +521,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  justify-content: space-between;
   padding-top: clamp(42px, 9vh, 86px);
   animation: auth-screen-enter 180ms ease-out both;
 }
@@ -556,18 +555,22 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   letter-spacing: -0.07em;
 }
 
-.auth-landing-action {
-  padding-bottom: 2px;
+.auth-action-dock.composer-dock {
+  z-index: 40;
 }
 
-.auth-primary-button,
-.auth-flow-form > button[type="submit"] {
+.auth-action-controls.dock-controls {
+  width: min(calc(100% - 24px), 536px);
+}
+
+.auth-action-button {
   width: 100%;
-  min-height: 56px;
-  border: 0;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #000000;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid #000000;
+  border-radius: 999px;
+  background: #080808;
+  color: #ffffff;
   font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   font-weight: 900;
@@ -577,17 +580,20 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   transition: transform 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
-.auth-primary-button:active,
-.auth-flow-form > button[type="submit"]:not(:disabled):active {
+.auth-action-button:active {
   transform: scale(0.985);
 }
 
-.auth-landing-action p {
-  margin: 13px 0 0;
-  color: #5f5f5f;
-  font-size: 11px;
-  line-height: 1.35;
-  text-align: center;
+.auth-action-button:focus-visible {
+  outline: 2px solid #000000;
+  outline-offset: 2px;
+}
+
+.auth-action-button:disabled {
+  border-color: transparent;
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.42);
+  cursor: default;
 }
 
 .auth-flow-header {
@@ -689,16 +695,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-.auth-flow-form > button[type="submit"] {
-  margin-top: auto;
-}
-
-.auth-flow-form > button[type="submit"]:disabled {
-  background: #2a2a2a;
-  color: #6d6d6d;
-  cursor: default;
-}
-
 .auth-code-field {
   position: relative;
   width: 100%;
@@ -768,14 +764,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   cursor: default;
 }
 
-.auth-confirmation-form > button[type="submit"] {
-  margin-top: 0;
-}
-
 .keyboard-open .auth-shell {
   height: calc(100dvh - var(--keyboard-inset, 0px));
   min-height: 0;
-  padding-bottom: 12px;
+  padding-bottom: 76px;
 }
 
 .keyboard-open .auth-flow-stage {
@@ -811,8 +803,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     animation: none;
   }
 
-  .auth-primary-button,
-  .auth-flow-form > button[type="submit"] {
+  .auth-action-button {
     transition: none;
   }
 }
