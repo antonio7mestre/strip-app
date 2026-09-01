@@ -600,6 +600,16 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   cursor: default;
 }
 
+.auth-step-landing .auth-action-button {
+  border-color: #0047ab;
+  background: #0047ab;
+  color: #ffffff;
+}
+
+.auth-step-landing .auth-action-button:active {
+  background: #003b8f;
+}
+
 .auth-flow-header {
   display: flex;
   min-height: 44px;
