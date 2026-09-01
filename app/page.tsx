@@ -2958,6 +2958,7 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const authPhoneInputRef = useRef<HTMLInputElement>(null);
   const coverStageRef = useRef<HTMLDivElement>(null);
   const coverInstructionRef = useRef<HTMLParagraphElement>(null);
   const coverSwipeStartYRef = useRef<number | null>(null);
@@ -3569,11 +3570,15 @@ export default function Home() {
     let textSessionAnchorQueued = false;
     let textSessionAnchored = false;
 
-    const textEntryIsFocused = () =>
-      document.activeElement instanceof HTMLTextAreaElement ||
-      (document.activeElement instanceof HTMLInputElement &&
-        (document.activeElement.type === "text" ||
-          document.activeElement.type === "tel"));
+    const textEntryIsFocused = () => {
+      const activeElement = document.activeElement;
+      if (activeElement?.closest(".auth-shell")) return false;
+      return (
+        activeElement instanceof HTMLTextAreaElement ||
+        (activeElement instanceof HTMLInputElement &&
+          (activeElement.type === "text" || activeElement.type === "tel"))
+      );
+    };
 
     const cancelKeyboardReturn = () => {
       if (keyboardReturnTimer !== null) {
@@ -4922,17 +4927,23 @@ export default function Home() {
   };
 
   const editSignInPhone = () => {
-    setAuthStep("phone");
-    setAuthCode("");
-    setAuthResendSeconds(0);
-    setAuthError("");
-    setAuthDevelopmentCode("");
+    flushSync(() => {
+      setAuthStep("phone");
+      setAuthCode("");
+      setAuthResendSeconds(0);
+      setAuthError("");
+      setAuthDevelopmentCode("");
+    });
+    authPhoneInputRef.current?.focus({ preventScroll: true });
   };
 
   const beginSignIn = () => {
-    setAuthStep("phone");
-    setAuthError("");
-    setAuthDevelopmentCode("");
+    flushSync(() => {
+      setAuthStep("phone");
+      setAuthError("");
+      setAuthDevelopmentCode("");
+    });
+    authPhoneInputRef.current?.focus({ preventScroll: true });
   };
 
   const returnToAuthLanding = () => {
@@ -6434,6 +6445,7 @@ export default function Home() {
                     <label htmlFor="auth-phone">Phone number</label>
                     <input
                       id="auth-phone"
+                      ref={authPhoneInputRef}
                       className="auth-phone-input"
                       type="tel"
                       inputMode="tel"

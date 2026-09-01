@@ -309,6 +309,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .auth-mode,
 .auth-shell {
+  overflow-anchor: none;
   background: #000000;
 }
 
@@ -798,16 +799,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .auth-confirmation-form .auth-resend-button:disabled {
   color: #4a4a4a;
   cursor: default;
-}
-
-.keyboard-open .auth-shell {
-  height: calc(100dvh - var(--keyboard-inset, 0px));
-  min-height: 0;
-  padding-bottom: 76px;
-}
-
-.keyboard-open .auth-flow-stage {
-  padding-top: 22px;
 }
 
 @media (max-height: 680px) {
