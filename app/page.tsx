@@ -6516,13 +6516,19 @@ export default function Home() {
           <footer className="composer-dock auth-action-dock">
             <div className="dock-controls dock-controls-current auth-action-controls">
               {authStep === "landing" ? (
-                <button
-                  className="auth-action-button"
-                  type="button"
-                  onClick={beginSignIn}
-                >
-                  Log in or sign up
-                </button>
+                <>
+                  <button
+                    className="auth-action-button"
+                    type="button"
+                    onClick={beginSignIn}
+                  >
+                    Log in or sign up
+                  </button>
+                  <p className="auth-action-terms">
+                    By continuing, you agree to the Terms of Service and Privacy
+                    Policy.
+                  </p>
+                </>
               ) : (
                 <button
                   className="auth-action-button"
