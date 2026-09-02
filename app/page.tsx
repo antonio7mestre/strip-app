@@ -4963,8 +4963,9 @@ export default function Home() {
     };
   }, [blocks, editingTextBlockId, selectedBlockId, view]);
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
-  const imageCoverBlocks = blocks.filter(
-    (block): block is ImageBlock => block.type === "image",
+  const visualCoverBlocks = blocks.filter(
+    (block): block is ImageBlock | StickerBlock =>
+      block.type === "image" || block.type === "sticker",
   );
   const usedCoverColors = Array.from(
     new Set(
@@ -4988,7 +4989,7 @@ export default function Home() {
         .filter((color) => !isBlackCoverColor(color)),
     ),
   );
-  const hasCoverImages = imageCoverBlocks.length > 0 || Boolean(customCoverSrc);
+  const hasCoverImages = visualCoverBlocks.length > 0 || Boolean(customCoverSrc);
   const automaticCoverColors =
     nonBlackCoverColors.length > 0
       ? nonBlackCoverColors
@@ -5008,8 +5009,8 @@ export default function Home() {
     ...(customCoverSrc
       ? [{ key: "custom", kind: "image" as const, src: customCoverSrc, alt: "Uploaded cover" }]
       : []),
-    ...imageCoverBlocks.map((block, index) => ({
-      key: `image:${block.id}`,
+    ...visualCoverBlocks.map((block, index) => ({
+      key: `${block.type}:${block.id}`,
       kind: "image" as const,
       src: block.src,
       alt: block.alt || `Cover option ${index + 1}`,
