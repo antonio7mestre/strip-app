@@ -3045,6 +3045,7 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
   const trailingTextInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
@@ -3236,7 +3237,7 @@ export default function Home() {
     inlinePreviewScrollRef.current = null;
   }, [view]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const isLibraryView =
       view === "library" ||
       view === "drafts" ||
@@ -3244,47 +3245,32 @@ export default function Home() {
       view === "settings";
     if (!isLibraryView || libraryScrollInset <= 0) return;
 
-    let touchIsActive = false;
-    let wheelIsActive = false;
-    let wheelReleaseTimer: number | null = null;
+    const library = document.querySelector<HTMLElement>(".strip-library");
+    if (!library) return;
 
-    const releaseScrollInset = () => {
-      if ((!touchIsActive && !wheelIsActive) || window.scrollY >= libraryScrollInset) {
-        return;
-      }
-      const adjustedScrollTop = Math.max(0, window.scrollY - libraryScrollInset);
-      flushSync(() => setLibraryScrollInset(0));
-      window.scrollTo({ top: adjustedScrollTop, left: 0, behavior: "auto" });
-    };
-    const handleTouchStart = () => {
-      touchIsActive = true;
-    };
-    const handleTouchEnd = () => {
-      touchIsActive = false;
-    };
-    const handleWheel = (event: WheelEvent) => {
-      if (event.deltaY >= 0) return;
-      wheelIsActive = true;
-      if (wheelReleaseTimer !== null) window.clearTimeout(wheelReleaseTimer);
-      wheelReleaseTimer = window.setTimeout(() => {
-        wheelIsActive = false;
-        wheelReleaseTimer = null;
-      }, 120);
-      releaseScrollInset();
+    const syncScrollInset = () => {
+      const currentInset = libraryScrollInsetRef.current;
+      const viewportTop = window.visualViewport?.pageTop ?? window.scrollY;
+      const nextInset = Math.max(0, Math.min(currentInset, viewportTop));
+      if (nextInset === currentInset) return;
+
+      libraryScrollInsetRef.current = nextInset;
+      library.style.setProperty("--library-tab-scroll-inset", `${nextInset}px`);
+      if (nextInset === 0) setLibraryScrollInset(0);
     };
 
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
-    window.addEventListener("wheel", handleWheel, { passive: true });
-    window.addEventListener("scroll", releaseScrollInset, { passive: true });
+    syncScrollInset();
+    window.addEventListener("scroll", syncScrollInset, { passive: true });
+    window.visualViewport?.addEventListener("scroll", syncScrollInset, {
+      passive: true,
+    });
+    window.visualViewport?.addEventListener("resize", syncScrollInset, {
+      passive: true,
+    });
     return () => {
-      if (wheelReleaseTimer !== null) window.clearTimeout(wheelReleaseTimer);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
-      window.removeEventListener("touchcancel", handleTouchEnd);
-      window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("scroll", releaseScrollInset);
+      window.removeEventListener("scroll", syncScrollInset);
+      window.visualViewport?.removeEventListener("scroll", syncScrollInset);
+      window.visualViewport?.removeEventListener("resize", syncScrollInset);
     };
   }, [libraryScrollInset, view]);
 
@@ -4607,9 +4593,11 @@ export default function Home() {
   ) => {
     const dockSnapshot = animateDock ? captureDockTransition() : null;
     if (!animateDock) cancelDockTransitionSchedule();
+    libraryScrollInsetRef.current = 0;
     flushSync(() => {
       setDockTransition(dockSnapshot);
       setDockTransitionStarted(false);
+      setLibraryScrollInset(0);
       setView(nextView);
     });
     if (animateDock) scheduleDockTransitionEnd();
@@ -4640,9 +4628,10 @@ export default function Home() {
     preserveScroll = false,
   ) => {
     const root = document.documentElement;
-    const preservedScrollTop = preserveScroll ? window.scrollY : 0;
+    const preservedScrollTop = preserveScroll ? Math.max(0, window.scrollY) : 0;
     cancelDockTransitionSchedule();
     root.classList.remove("strip-page-transitioning");
+    libraryScrollInsetRef.current = preservedScrollTop;
     flushSync(() => {
       setLegacyPageTransition(null);
       setDockTransition(null);
@@ -6989,7 +6978,7 @@ export default function Home() {
             className={`strip-library ${legacyPageEnterClass}`}
             style={
               {
-                "--library-tab-scroll-inset": `${libraryScrollInset}px`,
+                "--library-tab-scroll-inset": `${libraryScrollInsetRef.current}px`,
               } as CSSProperties
             }
           >
