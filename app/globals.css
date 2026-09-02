@@ -1677,34 +1677,27 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   overflow: visible;
 }
 
-.published-strip-loading-track,
+.published-strip-loading-track {
+  display: none;
+}
+
 .published-strip-loading-progress {
   fill: none;
   vector-effect: non-scaling-stroke;
 }
 
-.published-strip-loading-track {
-  stroke: rgba(49, 85, 255, 0.2);
-  stroke-width: 2px;
-}
-
 .published-strip-loading-progress {
   stroke: #3155ff;
   stroke-width: 3px;
-  stroke-dasharray: 0 100;
-  stroke-dashoffset: 0;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
   stroke-linecap: square;
-  animation: published-strip-outline-fill 2s cubic-bezier(0.4, 0, 0.2, 1)
-    forwards;
+  animation: published-strip-outline-fill 2s linear infinite;
 }
 
 @keyframes published-strip-outline-fill {
-  0% {
-    stroke-dasharray: 0 100;
-  }
-
   100% {
-    stroke-dasharray: 100 0;
+    stroke-dashoffset: 0;
   }
 }
 
@@ -3739,11 +3732,6 @@ html.page-color-picking * {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .published-strip-loading-progress {
-    stroke-dasharray: none;
-    animation: none;
-  }
-
   html.strip-standard-page-entering .app-shell,
   html.strip-standard-page-entering .app-shell.library-mode .strip-library,
   .main-composer-dock.is-entering-editor {
