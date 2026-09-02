@@ -1027,8 +1027,8 @@ html.library-scroll-top-locked .library-mode {
 .library-card-delete-button {
   position: absolute;
   z-index: 2;
-  top: 5px;
-  right: 5px;
+  right: 3px;
+  bottom: 25px;
   display: grid;
   width: 44px;
   height: 44px;
@@ -1043,12 +1043,10 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .library-card-delete-button svg {
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   stroke-width: 2;
-  filter:
-    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72))
-    drop-shadow(0 3px 8px rgba(0, 0, 0, 0.32));
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
 }
 
 .library-card-delete-button:active:not(:disabled) svg {
