@@ -1,4 +1,10 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable(
   "users",
@@ -71,5 +77,18 @@ export const drafts = sqliteTable(
   },
   (table) => [
     index("idx_drafts_owner_updated").on(table.ownerId, table.updatedAt),
+  ],
+);
+
+export const viewedStrips = sqliteTable(
+  "viewed_strips",
+  {
+    userId: text("user_id").notNull(),
+    stripId: text("strip_id").notNull(),
+    viewedAt: integer("viewed_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.stripId] }),
+    index("idx_viewed_strips_user_viewed").on(table.userId, table.viewedAt),
   ],
 );

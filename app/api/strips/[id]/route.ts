@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { usernameFromHostname } from "@/app/lib/username";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
+import { recordStripView } from "@/app/server/view-history";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,13 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
   const viewer = await getAuthUser(request);
+  if (viewer) {
+    try {
+      await recordStripView(viewer.id, row.id);
+    } catch {
+      // History should never prevent a published Strip from opening.
+    }
+  }
 
   const storedContent = readStripContent(row.content_json);
   const storedBlocks = storedContent.blocks as StoredBlock[];

@@ -23,6 +23,7 @@ import {
   Files,
   GripHorizontal,
   House,
+  History,
   ImagePlus,
   Link2,
   LogOut,
@@ -99,6 +100,7 @@ type StripBlock = TextBlock | ImageBlock | VideoBlock | StickerBlock;
 type View =
   | "library"
   | "drafts"
+  | "history"
   | "settings"
   | "edit"
   | "preview"
@@ -119,6 +121,9 @@ type PublishedStripSummary = {
   title: string;
   cover: PublishedCover;
   publishedAt: number;
+};
+type ViewedStripSummary = PublishedStripSummary & {
+  viewedAt: number;
 };
 type PublishedStripDetail = {
   id: string;
@@ -149,6 +154,7 @@ type DraftStripDetail = {
 type AppRoute =
   | { kind: "library" }
   | { kind: "drafts" }
+  | { kind: "history" }
   | { kind: "settings" }
   | { kind: "edit"; id: string }
   | { kind: "share"; id: string }
@@ -333,6 +339,7 @@ function routeFromLocation(pathname: string, hostname: string): AppRoute {
   const publishedMatch = /^\/strip\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (publishedMatch) return { kind: "published", id: publishedMatch[1] };
   if (/^\/drafts\/?$/.test(pathname)) return { kind: "drafts" };
+  if (/^\/history\/?$/.test(pathname)) return { kind: "history" };
   if (/^\/settings\/?$/.test(pathname)) return { kind: "settings" };
   const username = usernameFromHostname(hostname);
   const rootPublishedMatch = /^\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
@@ -2889,6 +2896,7 @@ export default function Home() {
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
+  const [viewedStrips, setViewedStrips] = useState<ViewedStripSummary[]>([]);
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -2906,6 +2914,7 @@ export default function Home() {
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [draftsLoading, setDraftsLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingDraftId, setOpeningDraftId] = useState<string | null>(null);
   const [openedPublishedStrip, setOpenedPublishedStrip] =
@@ -3053,6 +3062,7 @@ export default function Home() {
   const topSafeAreaColor =
     view === "library" ||
     view === "drafts" ||
+    view === "history" ||
     view === "settings" ||
     view === "publish-setup" ||
     view === "title-setup" ||
@@ -3816,6 +3826,31 @@ export default function Home() {
       })
       .finally(() => {
         if (!controller.signal.aborted) setDraftsLoading(false);
+      });
+    return () => controller.abort();
+  }, [libraryOwnerId]);
+
+  useEffect(() => {
+    if (!libraryOwnerId) return;
+    const controller = new AbortController();
+    setHistoryLoading(true);
+    void fetch("/api/history", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("History request failed");
+        const data = (await response.json()) as {
+          history?: ViewedStripSummary[];
+        };
+        setViewedStrips(Array.isArray(data.history) ? data.history : []);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setNotice("Couldn’t load your history. Try refreshing.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHistoryLoading(false);
       });
     return () => controller.abort();
   }, [libraryOwnerId]);
@@ -4974,6 +5009,7 @@ export default function Home() {
     } finally {
       setPublishedStrips([]);
       setDraftStrips([]);
+      setViewedStrips([]);
       setLibraryOwnerId("");
       setAuthUser(null);
       setAuthUsername("");
@@ -5058,7 +5094,7 @@ export default function Home() {
   };
 
   const openLibrarySection = async (
-    nextView: "library" | "drafts" | "settings",
+    nextView: "library" | "drafts" | "history" | "settings",
   ) => {
     if (view === nextView) return;
     if (pageTransitionInFlightRef.current) return;
@@ -5069,7 +5105,9 @@ export default function Home() {
           ? "/"
           : nextView === "drafts"
             ? "/drafts"
-            : "/settings",
+            : nextView === "history"
+              ? "/history"
+              : "/settings",
       );
       await transitionToViewStandard(nextView);
     } finally {
@@ -5078,12 +5116,17 @@ export default function Home() {
   };
 
   const openDraftLibrary = () => openLibrarySection("drafts");
+  const openHistory = () => openLibrarySection("history");
   const openSettings = () => openLibrarySection("settings");
   const returnToLibrary = () => openLibrarySection("library");
 
   const openPublishedStrip = async (strip: PublishedStripSummary) => {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
     setOpeningStripId(strip.id);
+    setViewedStrips((current) => [
+      { ...strip, viewedAt: Date.now() },
+      ...current.filter((viewedStrip) => viewedStrip.id !== strip.id),
+    ]);
     pageTransitionInFlightRef.current = true;
     try {
       await fetch("/api/auth/session", { cache: "no-store" });
@@ -5161,6 +5204,12 @@ export default function Home() {
         }
         if (route.kind === "drafts") {
           setView("drafts");
+          setOpenedPublishedStrip(null);
+          window.scrollTo({ top: 0, behavior: "auto" });
+          return;
+        }
+        if (route.kind === "history") {
+          setView("history");
           setOpenedPublishedStrip(null);
           window.scrollTo({ top: 0, behavior: "auto" });
           return;
@@ -6587,21 +6636,32 @@ export default function Home() {
   }
 
 
-  if (view === "library" || view === "drafts" || view === "settings") {
+  if (
+    view === "library" ||
+    view === "drafts" ||
+    view === "history" ||
+    view === "settings"
+  ) {
     const isDraftLibrary = view === "drafts";
+    const isHistory = view === "history";
     const isSettings = view === "settings";
     const libraryItems = isSettings
       ? []
-      : isDraftLibrary
-        ? draftStrips
-        : publishedStrips;
+      : isHistory
+        ? viewedStrips
+        : isDraftLibrary
+          ? draftStrips
+          : publishedStrips;
     const libraryColumns = [
       libraryItems.filter((_, index) => index % 2 === 0),
       libraryItems.filter((_, index) => index % 2 === 1),
     ];
 
     const renderLibraryCard = (
-      strip: PublishedStripSummary | DraftStripSummary,
+      strip:
+        | PublishedStripSummary
+        | DraftStripSummary
+        | ViewedStripSummary,
     ) => {
       const isDraft = "updatedAt" in strip;
       const cardTitle =
@@ -6653,7 +6713,9 @@ export default function Home() {
         <main
           className={`app-shell library-mode ${
             isDraftLibrary ? "drafts-library-mode" : ""
-          } ${isSettings ? "settings-mode" : ""}`}
+          } ${isHistory ? "history-library-mode" : ""} ${
+            isSettings ? "settings-mode" : ""
+          }`}
         >
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -6663,7 +6725,15 @@ export default function Home() {
 
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
-              <h1>{isSettings ? "SETTINGS" : isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
+              <h1>
+                {isSettings
+                  ? "SETTINGS"
+                  : isDraftLibrary
+                    ? "DRAFTS"
+                    : isHistory
+                      ? "HISTORY"
+                      : "STRIP"}
+              </h1>
             </header>
             {isSettings ? (
               <div className="settings-content">
@@ -6694,6 +6764,10 @@ export default function Home() {
                       <span>Drafts</span>
                       <strong>{draftStrips.length}</strong>
                     </div>
+                    <div className="settings-row">
+                      <span>Viewed Strips</span>
+                      <strong>{viewedStrips.length}</strong>
+                    </div>
                   </div>
                 </section>
 
@@ -6715,11 +6789,28 @@ export default function Home() {
                   {authPending ? "Signing out…" : "Sign out"}
                 </button>
               </div>
+            ) : isHistory && !historyLoading && libraryItems.length === 0 ? (
+              <div className="library-empty-state">
+                <strong>No viewing history yet.</strong>
+                <span>Strips you open will appear here.</span>
+              </div>
             ) : (
               <div
                 className="library-grid"
-                aria-label={isDraftLibrary ? "Your drafts" : "Your Strips"}
-                aria-busy={isDraftLibrary ? draftsLoading : libraryLoading}
+                aria-label={
+                  isDraftLibrary
+                    ? "Your drafts"
+                    : isHistory
+                      ? "Your viewed Strips"
+                      : "Your Strips"
+                }
+                aria-busy={
+                  isDraftLibrary
+                    ? draftsLoading
+                    : isHistory
+                      ? historyLoading
+                      : libraryLoading
+                }
               >
                 {libraryColumns.map((column, columnIndex) => (
                   <div
@@ -6769,6 +6860,18 @@ export default function Home() {
               >
                 <Files aria-hidden="true" />
                 <span className="visually-hidden">Drafts</span>
+              </button>
+              <button
+                className={`app-navigation-button ${
+                  view === "history" ? "is-active" : ""
+                }`}
+                type="button"
+                onClick={() => void openHistory()}
+                aria-label="History"
+                aria-current={view === "history" ? "page" : undefined}
+              >
+                <History aria-hidden="true" />
+                <span className="visually-hidden">History</span>
               </button>
               <button
                 className={`app-navigation-button ${
