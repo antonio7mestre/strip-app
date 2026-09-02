@@ -1000,6 +1000,13 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .library-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.library-card-open-button {
   display: block;
   width: 100%;
   min-width: 0;
@@ -1009,11 +1016,53 @@ html.library-scroll-top-locked .library-mode {
   color: inherit;
   text-align: left;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.library-card:disabled {
+.library-card-open-button:disabled {
   opacity: 0.62;
   cursor: wait;
+}
+
+.library-card-delete-button {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.library-card-delete-button svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2;
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72))
+    drop-shadow(0 3px 8px rgba(0, 0, 0, 0.32));
+}
+
+.library-card-delete-button:active:not(:disabled) svg {
+  transform: scale(0.9);
+}
+
+.library-card-delete-button:disabled {
+  opacity: 0.48;
+  cursor: wait;
+}
+
+.library-card-delete-button:focus-visible {
+  outline-color: #ffffff;
+  outline-offset: -6px;
 }
 
 .library-cover {
@@ -3822,6 +3871,11 @@ html.page-color-picking * {
 
 .delete-modal-actions button:focus-visible {
   outline-color: #000000;
+}
+
+.delete-modal-actions button:disabled {
+  opacity: 0.52;
+  cursor: wait;
 }
 
 .visually-hidden {

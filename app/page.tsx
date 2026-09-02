@@ -9,6 +9,7 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
+  RefObject,
 } from "react";
 import {
   ArrowDown,
@@ -3207,6 +3208,60 @@ function LiveLinkToolbar() {
   );
 }
 
+function DeleteConfirmationModal({
+  title,
+  pending = false,
+  cancelButtonRef,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  pending?: boolean;
+  cancelButtonRef: RefObject<HTMLButtonElement | null>;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={() => {
+        if (!pending) onCancel();
+      }}
+    >
+      <section
+        className="delete-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-modal-title"
+        aria-describedby="delete-modal-description"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="delete-modal-title">{title}</h2>
+        <p id="delete-modal-description">This can&apos;t be undone.</p>
+        <div className="delete-modal-actions">
+          <button
+            ref={cancelButtonRef}
+            className="cancel-delete-button"
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+          <button
+            className="confirm-delete-button"
+            type="button"
+            onClick={onConfirm}
+            disabled={pending}
+          >
+            {pending ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function Home() {
   const [blocks, setBlocks] = useState<StripBlock[]>([]);
   const [endingStyle, setEndingStyle] = useState<StripEndingStyle>(
@@ -3278,6 +3333,10 @@ export default function Home() {
   const [heightCropSession, setHeightCropSession] =
     useState<HeightCropSession | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDraftDeleteId, setPendingDraftDeleteId] = useState<string | null>(
+    null,
+  );
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [stripTitle, setStripTitle] = useState("");
   const [selectedCover, setSelectedCover] = useState("");
   const [activeCoverKey, setActiveCoverKey] = useState("");
@@ -3342,6 +3401,7 @@ export default function Home() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSequenceRef = useRef(0);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const deletingDraftRef = useRef(false);
   const storyAssetObjectUrlRef = useRef("");
   const blockTapGestureRef = useRef<{
     blockId: string;
@@ -4505,20 +4565,22 @@ export default function Home() {
   }, [notice]);
 
   useEffect(() => {
-    if (!pendingDeleteId) return;
+    if (!pendingDeleteId && !pendingDraftDeleteId) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     cancelDeleteButtonRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPendingDeleteId(null);
+      if (event.key !== "Escape" || deletingDraftRef.current) return;
+      setPendingDeleteId(null);
+      setPendingDraftDeleteId(null);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [pendingDeleteId]);
+  }, [pendingDeleteId, pendingDraftDeleteId]);
 
 
   const enterTextEditing = (id: string, caretOffset?: number) => {
@@ -5831,6 +5893,40 @@ export default function Home() {
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
     setViewInstantly("edit");
+  };
+
+  const deleteDraft = async (draftId: string) => {
+    if (deletingDraftRef.current) return;
+    deletingDraftRef.current = true;
+    setDeletingDraftId(draftId);
+
+    try {
+      const response = await fetch(
+        `/api/drafts/${encodeURIComponent(draftId)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) throw new Error("Draft delete failed");
+
+      if (draftSaveTimerRef.current !== null && currentDraftId === draftId) {
+        window.clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+      if (currentDraftId === draftId) {
+        draftSaveSequenceRef.current += 1;
+        setCurrentDraftId(null);
+        setCurrentDraftCreatedAt(0);
+      }
+      setDraftStrips((current) =>
+        current.filter((draft) => draft.id !== draftId),
+      );
+      setPendingDraftDeleteId(null);
+      setNotice("Draft deleted.");
+    } catch {
+      setNotice("Couldn’t delete this draft. Try again.");
+    } finally {
+      deletingDraftRef.current = false;
+      setDeletingDraftId(null);
+    }
   };
 
   const openDraft = async (draft: DraftStripSummary) => {
@@ -7502,6 +7598,9 @@ export default function Home() {
       : isHistory
         ? historyLoading
         : libraryLoading;
+    const pendingDraftDelete = draftStrips.find(
+      (draft) => draft.id === pendingDraftDeleteId,
+    );
     const librarySkeletonColumns = [
       [
         { order: 0, titleWidth: "68%" },
@@ -7531,44 +7630,61 @@ export default function Home() {
             ? { aspectRatio: String(strip.cover.aspectRatio) }
             : undefined;
       return (
-        <button
+        <div
           className="library-card is-library-card-entering"
-          type="button"
           key={strip.id}
           style={{ "--library-item-order": Math.min(itemOrder, 8) } as CSSProperties}
-          onClick={() =>
-            isDraft
-              ? void openDraft(strip)
-              : openPublishedStrip(strip)
-          }
-          disabled={
-            isDraft ? openingDraftId === strip.id : openingStripId === strip.id
-          }
-          aria-label={`Open ${cardTitle}`}
         >
-          <div
-            className={`library-cover library-cover-${strip.cover.kind} ${
-              strip.cover.kind === "color"
-                ? `library-cover-${strip.cover.shape} ${
-                    isDraft && isBlackCoverColor(strip.cover.color)
-                      ? "is-dark-draft-cover"
-                      : ""
-                  }`
-                : ""
-            }`}
-            style={coverStyle}
+          <button
+            className="library-card-open-button"
+            type="button"
+            onClick={() =>
+              isDraft
+                ? void openDraft(strip)
+                : openPublishedStrip(strip)
+            }
+            disabled={
+              isDraft ? openingDraftId === strip.id : openingStripId === strip.id
+            }
+            aria-label={`Open ${cardTitle}`}
           >
-            {strip.cover.kind === "image" ? (
-              <img
-                src={strip.cover.src}
-                alt={strip.cover.alt}
-                loading={itemOrder < 6 ? "eager" : "lazy"}
-                decoding="async"
-              />
-            ) : null}
-          </div>
-          <h2>{cardTitle}</h2>
-        </button>
+            <div
+              className={`library-cover library-cover-${strip.cover.kind} ${
+                strip.cover.kind === "color"
+                  ? `library-cover-${strip.cover.shape} ${
+                      isDraft && isBlackCoverColor(strip.cover.color)
+                        ? "is-dark-draft-cover"
+                        : ""
+                    }`
+                  : ""
+              }`}
+              style={coverStyle}
+            >
+              {strip.cover.kind === "image" ? (
+                <img
+                  src={strip.cover.src}
+                  alt={strip.cover.alt}
+                  loading={itemOrder < 6 ? "eager" : "lazy"}
+                  decoding="async"
+                />
+              ) : null}
+            </div>
+            <h2>{cardTitle}</h2>
+          </button>
+          {isDraft ? (
+            <button
+              className="library-card-delete-button"
+              type="button"
+              onClick={() => setPendingDraftDeleteId(strip.id)}
+              disabled={
+                deletingDraftId !== null || openingDraftId === strip.id
+              }
+              aria-label={`Delete ${cardTitle} draft`}
+            >
+              <Trash2 aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       );
     };
 
@@ -7800,6 +7916,15 @@ export default function Home() {
               </button>
             </nav>
           </footer>
+          {pendingDraftDelete ? (
+            <DeleteConfirmationModal
+              title="Delete this draft?"
+              pending={deletingDraftId === pendingDraftDelete.id}
+              cancelButtonRef={cancelDeleteButtonRef}
+              onCancel={() => setPendingDraftDeleteId(null)}
+              onConfirm={() => void deleteDraft(pendingDraftDelete.id)}
+            />
+          ) : null}
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
@@ -8692,47 +8817,23 @@ export default function Home() {
         <div className="published-bottom-pocket-sampler" aria-hidden="true" />
       ) : null}
       {pendingDeleteBlock ? (
-        <div className="modal-backdrop" onClick={() => setPendingDeleteId(null)}>
-          <section
-            className="delete-modal"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-modal-title"
-            aria-describedby="delete-modal-description"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h2 id="delete-modal-title">
-              Delete this {pendingDeleteBlock.type === "text"
-                ? "text"
-                : pendingDeleteBlock.type === "image"
-                  ? "photo"
-                  : pendingDeleteBlock.type === "video"
-                    ? "video"
-                    : "sticker"} block?
-            </h2>
-            <p id="delete-modal-description">This can&apos;t be undone.</p>
-            <div className="delete-modal-actions">
-              <button
-                ref={cancelDeleteButtonRef}
-                className="cancel-delete-button"
-                type="button"
-                onClick={() => setPendingDeleteId(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="confirm-delete-button"
-                type="button"
-                onClick={() => {
-                  removeBlock(pendingDeleteBlock.id);
-                  setPendingDeleteId(null);
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </section>
-        </div>
+        <DeleteConfirmationModal
+          title={`Delete this ${
+            pendingDeleteBlock.type === "text"
+              ? "text"
+              : pendingDeleteBlock.type === "image"
+                ? "photo"
+                : pendingDeleteBlock.type === "video"
+                  ? "video"
+                  : "sticker"
+          } block?`}
+          cancelButtonRef={cancelDeleteButtonRef}
+          onCancel={() => setPendingDeleteId(null)}
+          onConfirm={() => {
+            removeBlock(pendingDeleteBlock.id);
+            setPendingDeleteId(null);
+          }}
+        />
       ) : null}
       {notice ? <div className="notice">{notice}</div> : null}
       </main>
