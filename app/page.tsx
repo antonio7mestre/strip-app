@@ -216,7 +216,6 @@ const STICKER_ENDING_BUTTON_BUFFER_PX = 18;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
 const INLINE_PREVIEW_HISTORY_KEY = "stripInlinePreview";
-const INLINE_PREVIEW_DISMISSED_HISTORY_KEY = "stripInlinePreviewDismissed";
 const AUTH_CODE_LENGTH = 6;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
@@ -3404,6 +3403,7 @@ export default function Home() {
   const publishFlowStartScrollRef = useRef(0);
   const inlinePreviewScrollRef = useRef<number | null>(null);
   const inlinePreviewHistoryEntryRef = useRef(false);
+  const inlinePreviewBasePathRef = useRef<string | null>(null);
   const inlinePreviewSelectionRef = useRef<string | null>(null);
   const suppressSelectedBlockAutoFocusRef = useRef(false);
   const inlinePreviewExitLockRef = useRef<{
@@ -3596,6 +3596,7 @@ export default function Home() {
     setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
     inlinePreviewHistoryEntryRef.current = false;
+    inlinePreviewBasePathRef.current = null;
   }, [view]);
 
   useEffect(() => {
@@ -5365,18 +5366,6 @@ export default function Home() {
     return () => window.removeEventListener("scroll", rememberPreviewScroll);
   }, [inlinePreview]);
 
-  const dismissInlinePreviewHistoryWithoutNavigation = () => {
-    if (!inlinePreviewHistoryEntryRef.current) return;
-    const currentHistoryState =
-      window.history.state && typeof window.history.state === "object"
-        ? { ...window.history.state }
-        : {};
-    delete currentHistoryState[INLINE_PREVIEW_HISTORY_KEY];
-    currentHistoryState[INLINE_PREVIEW_DISMISSED_HISTORY_KEY] = true;
-    window.history.replaceState(currentHistoryState, "", window.location.href);
-    inlinePreviewHistoryEntryRef.current = false;
-  };
-
   const toggleInlinePreview = () => {
     if (!inlinePreview && !hasContent) {
       setNotice("Add something to preview.");
@@ -5391,26 +5380,18 @@ export default function Home() {
         window.history.state && typeof window.history.state === "object"
           ? { ...window.history.state }
           : {};
-      const replacesDismissedPreview =
-        currentHistoryState[INLINE_PREVIEW_DISMISSED_HISTORY_KEY] === true;
-      delete currentHistoryState[INLINE_PREVIEW_DISMISSED_HISTORY_KEY];
       currentHistoryState[INLINE_PREVIEW_HISTORY_KEY] = true;
-      if (replacesDismissedPreview) {
-        window.history.replaceState(
-          currentHistoryState,
-          "",
-          window.location.href,
-        );
-      } else {
-        window.history.pushState(
-          currentHistoryState,
-          "",
-          window.location.href,
-        );
-      }
+      inlinePreviewBasePathRef.current = window.location.pathname;
+      window.history.pushState(
+        currentHistoryState,
+        "",
+        window.location.href,
+      );
       inlinePreviewHistoryEntryRef.current = true;
     } else if (consumesPreviewHistory) {
-      dismissInlinePreviewHistoryWithoutNavigation();
+      beginInlinePreviewExitLock(inlinePreviewScrollRef.current);
+      window.history.back();
+      return;
     }
     flushSync(() => {
       setActiveTextTool(null);
@@ -5518,7 +5499,11 @@ export default function Home() {
     suppressSelectedBlockAutoFocusRef.current = true;
     beginInlinePreviewExitLock(inlinePreviewScrollRef.current);
     triggerSelectionHaptic();
-    dismissInlinePreviewHistoryWithoutNavigation();
+
+    if (inlinePreviewHistoryEntryRef.current) {
+      window.history.back();
+      return;
+    }
 
     flushSync(() => {
       setInlinePreview(false);
@@ -6182,15 +6167,10 @@ export default function Home() {
     const handlePopState = (event: PopStateEvent) => {
       if (inlinePreviewHistoryEntryRef.current) {
         inlinePreviewHistoryEntryRef.current = false;
-        if (inlinePreviewExitLockRef.current) {
-          inlinePreviewSelectionRef.current = null;
-          settleInlinePreviewExitLock();
-          return;
-        }
-
         const selectedPreviewBlockId = inlinePreviewSelectionRef.current;
         inlinePreviewSelectionRef.current = null;
         const scrollTop = inlinePreviewScrollRef.current ?? window.scrollY;
+        inlinePreviewBasePathRef.current ??= window.location.pathname;
         if (selectedPreviewBlockId) {
           suppressSelectedBlockAutoFocusRef.current = true;
         }
@@ -6217,6 +6197,7 @@ export default function Home() {
           "edit"
       ) {
         inlinePreviewHistoryEntryRef.current = true;
+        inlinePreviewBasePathRef.current = window.location.pathname;
         inlinePreviewScrollRef.current = window.scrollY;
         flushSync(() => {
           setActiveTextTool(null);
@@ -6225,6 +6206,21 @@ export default function Home() {
           setInlinePreview(true);
         });
         return;
+      }
+
+      const previewBasePath = inlinePreviewBasePathRef.current;
+      if (
+        previewBasePath &&
+        window.location.pathname === previewBasePath &&
+        routeFromLocation(window.location.pathname, window.location.hostname).kind ===
+          "edit"
+      ) {
+        window.history.back();
+        return;
+      }
+      inlinePreviewBasePathRef.current = null;
+      if (inlinePreviewExitLockRef.current) {
+        releaseInlinePreviewExitLock();
       }
 
       resetTransientNavigationState();
