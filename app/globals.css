@@ -105,10 +105,12 @@ body {
 
 @keyframes strip-standard-page-enter {
   from {
+    transform: translate3d(0, 8px, 0);
     opacity: 0;
   }
 
   to {
+    transform: translate3d(0, 0, 0);
     opacity: 1;
   }
 }
@@ -130,7 +132,8 @@ html.strip-page-transitioning {
 }
 
 html.strip-standard-page-entering .app-shell {
-  animation: strip-standard-page-enter 180ms ease-out backwards;
+  animation: strip-standard-page-enter 240ms cubic-bezier(0.22, 0.72, 0.18, 1)
+    backwards;
 }
 
 html.leading-image-inset-active,
@@ -160,19 +163,23 @@ html.trailing-text-inset-active
 }
 
 .legacy-page-transition-overlay.is-forward {
-  animation: strip-page-out-up var(--page-transition-duration, 380ms) linear both;
+  animation: strip-page-out-up var(--page-transition-duration, 380ms)
+    cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .legacy-page-transition-overlay.is-backward {
-  animation: strip-page-out-down var(--page-transition-duration, 380ms) linear both;
+  animation: strip-page-out-down var(--page-transition-duration, 380ms)
+    cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .legacy-page-enter.is-forward {
-  animation: strip-page-in-up var(--page-transition-duration, 380ms) linear both;
+  animation: strip-page-in-up var(--page-transition-duration, 380ms)
+    cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .legacy-page-enter.is-backward {
-  animation: strip-page-in-down var(--page-transition-duration, 380ms) linear both;
+  animation: strip-page-in-down var(--page-transition-duration, 380ms)
+    cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .dock-controls {
@@ -498,9 +505,21 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   line-height: 1.35;
 }
 
-@keyframes auth-screen-enter {
+@keyframes auth-screen-enter-forward {
   from {
-    transform: translate3d(0, 10px, 0);
+    transform: translate3d(16px, 0, 0);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes auth-screen-enter-backward {
+  from {
+    transform: translate3d(-16px, 0, 0);
     opacity: 0;
   }
 
@@ -524,7 +543,20 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: 0;
   flex-direction: column;
   padding-top: clamp(42px, 9vh, 86px);
-  animation: auth-screen-enter 180ms ease-out both;
+}
+
+.auth-transition-forward .auth-landing,
+.auth-transition-forward .auth-flow-header,
+.auth-transition-forward .auth-flow-stage {
+  animation: auth-screen-enter-forward 260ms cubic-bezier(0.22, 0.72, 0.18, 1)
+    both;
+}
+
+.auth-transition-backward .auth-landing,
+.auth-transition-backward .auth-flow-header,
+.auth-transition-backward .auth-flow-stage {
+  animation: auth-screen-enter-backward 260ms cubic-bezier(0.22, 0.72, 0.18, 1)
+    both;
 }
 
 .auth-landing-copy {
@@ -617,6 +649,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   gap: 8px;
 }
 
+.auth-step-phone .auth-action-controls.dock-controls,
+.auth-step-code .auth-action-controls.dock-controls {
+  width: min(calc(100% - 44px), 536px);
+}
+
 .auth-step-landing .auth-action-dock.composer-dock {
   min-height: calc(
     274px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
@@ -638,7 +675,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: 44px;
   align-items: center;
   justify-content: space-between;
-  animation: auth-screen-enter 180ms ease-out both;
 }
 
 .auth-back-button {
@@ -675,7 +711,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: 0;
   flex-direction: column;
   padding-top: clamp(38px, 7.5vh, 72px);
-  animation: auth-screen-enter 180ms ease-out both;
 }
 
 .auth-flow-copy h1,
@@ -824,13 +859,17 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-landing,
-  .auth-flow-header,
-  .auth-flow-stage {
+  .auth-transition-forward .auth-landing,
+  .auth-transition-forward .auth-flow-header,
+  .auth-transition-forward .auth-flow-stage,
+  .auth-transition-backward .auth-landing,
+  .auth-transition-backward .auth-flow-header,
+  .auth-transition-backward .auth-flow-stage {
     animation: none;
   }
 
-  .auth-action-button {
+  .auth-action-button,
+  .app-navigation-button {
     transition: none;
   }
 }
@@ -976,7 +1015,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: 35;
   right: max(18px, env(safe-area-inset-right));
   bottom: calc(
-    18px + env(safe-area-inset-bottom) + var(--library-browser-bar-inset)
+    82px + env(safe-area-inset-bottom) + var(--library-browser-bar-inset)
   );
   display: grid;
   width: 56px;
@@ -1001,6 +1040,173 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   height: 24px;
   stroke-width: 2;
 }
+
+.app-navigation-dock.composer-dock {
+  z-index: 42;
+  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
+  corner-shape: squircle;
+}
+
+.app-navigation-controls {
+  display: grid;
+  width: min(100%, var(--bottom-action-tray-max-width));
+  grid-template-columns: repeat(3, 48px);
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app-navigation-button {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 160ms cubic-bezier(0.22, 0.72, 0.18, 1),
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.app-navigation-button svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.2;
+}
+
+.app-navigation-button.is-active {
+  background: #000000;
+  color: #ffffff;
+}
+
+.app-navigation-button:active {
+  transform: scale(0.92);
+}
+
+.app-navigation-button:focus-visible {
+  outline: 2px solid #000000;
+  outline-offset: 2px;
+}
+
+.settings-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 2px 14px calc(102px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-section + .settings-section {
+  margin-top: 24px;
+}
+
+.settings-section > h2 {
+  margin: 0 2px 8px;
+  color: #777777;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: #151515;
+}
+
+.settings-row {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 16px;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-row span {
+  color: #a0a0a0;
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.settings-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-about-card {
+  padding: 16px;
+}
+
+.settings-about-card strong {
+  display: block;
+  color: #ffffff;
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.settings-about-card p {
+  margin: 7px 0 0;
+  color: #8b8b8b;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.settings-sign-out {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 26px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 69, 58, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 69, 58, 0.12);
+  color: #ff6961;
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-sign-out svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.2;
+}
+
+.settings-sign-out:active {
+  background: rgba(255, 69, 58, 0.18);
+}
+
+.settings-sign-out:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 
 .editor-canvas {
   min-height: 100dvh;

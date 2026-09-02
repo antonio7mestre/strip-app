@@ -32,6 +32,7 @@ import {
   Pencil,
   Pipette,
   Plus,
+  Settings,
   Sticker,
   Trash2,
   Type,
@@ -98,6 +99,7 @@ type StripBlock = TextBlock | ImageBlock | VideoBlock | StickerBlock;
 type View =
   | "library"
   | "drafts"
+  | "settings"
   | "edit"
   | "preview"
   | "publish-setup"
@@ -147,6 +149,7 @@ type DraftStripDetail = {
 type AppRoute =
   | { kind: "library" }
   | { kind: "drafts" }
+  | { kind: "settings" }
   | { kind: "edit"; id: string }
   | { kind: "share"; id: string }
   | { kind: "published"; id: string; username?: string };
@@ -188,7 +191,7 @@ const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
-const STANDARD_PAGE_TRANSITION_DURATION_MS = 180;
+const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
@@ -330,6 +333,7 @@ function routeFromLocation(pathname: string, hostname: string): AppRoute {
   const publishedMatch = /^\/strip\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (publishedMatch) return { kind: "published", id: publishedMatch[1] };
   if (/^\/drafts\/?$/.test(pathname)) return { kind: "drafts" };
+  if (/^\/settings\/?$/.test(pathname)) return { kind: "settings" };
   const username = usernameFromHostname(hostname);
   const rootPublishedMatch = /^\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (username && rootPublishedMatch) {
@@ -2889,6 +2893,8 @@ export default function Home() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>("landing");
+  const [authTransitionDirection, setAuthTransitionDirection] =
+    useState<PageTransitionDirection>("forward");
   const [authPhone, setAuthPhone] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [authResendSeconds, setAuthResendSeconds] = useState(0);
@@ -3047,6 +3053,7 @@ export default function Home() {
   const topSafeAreaColor =
     view === "library" ||
     view === "drafts" ||
+    view === "settings" ||
     view === "publish-setup" ||
     view === "title-setup" ||
     view === "share"
@@ -4844,6 +4851,7 @@ export default function Home() {
       };
       if (!response.ok) throw new Error(data.error || "Couldn’t send a code.");
       setAuthDevelopmentCode(data.developmentCode ?? "");
+      setAuthTransitionDirection("forward");
       setAuthStep("code");
       setAuthCode("");
       setAuthResendSeconds(30);
@@ -4928,6 +4936,7 @@ export default function Home() {
 
   const editSignInPhone = () => {
     flushSync(() => {
+      setAuthTransitionDirection("backward");
       setAuthStep("phone");
       setAuthCode("");
       setAuthResendSeconds(0);
@@ -4939,6 +4948,7 @@ export default function Home() {
 
   const beginSignIn = () => {
     flushSync(() => {
+      setAuthTransitionDirection("forward");
       setAuthStep("phone");
       setAuthError("");
       setAuthDevelopmentCode("");
@@ -4947,6 +4957,7 @@ export default function Home() {
   };
 
   const returnToAuthLanding = () => {
+    setAuthTransitionDirection("backward");
     setAuthStep("landing");
     setAuthPhone("");
     setAuthCode("");
@@ -4969,6 +4980,7 @@ export default function Home() {
       setAuthUsernameError("");
       setAuthStatus("signed-out");
       setAuthenticationRequired(true);
+      setAuthTransitionDirection("forward");
       setAuthStep("landing");
       setAuthPhone("");
       setAuthCode("");
@@ -5045,27 +5057,29 @@ export default function Home() {
     }
   };
 
-  const openDraftLibrary = async () => {
+  const openLibrarySection = async (
+    nextView: "library" | "drafts" | "settings",
+  ) => {
+    if (view === nextView) return;
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     try {
-      setBrowserPath("/drafts");
-      setViewInstantly("drafts", 0, false);
+      setBrowserPath(
+        nextView === "library"
+          ? "/"
+          : nextView === "drafts"
+            ? "/drafts"
+            : "/settings",
+      );
+      await transitionToViewStandard(nextView);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
   };
 
-  const returnToLibrary = async () => {
-    if (pageTransitionInFlightRef.current) return;
-    pageTransitionInFlightRef.current = true;
-    try {
-      setBrowserPath("/");
-      setViewInstantly("library", 0, false);
-    } finally {
-      pageTransitionInFlightRef.current = false;
-    }
-  };
+  const openDraftLibrary = () => openLibrarySection("drafts");
+  const openSettings = () => openLibrarySection("settings");
+  const returnToLibrary = () => openLibrarySection("library");
 
   const openPublishedStrip = async (strip: PublishedStripSummary) => {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
@@ -5147,6 +5161,12 @@ export default function Home() {
         }
         if (route.kind === "drafts") {
           setView("drafts");
+          setOpenedPublishedStrip(null);
+          window.scrollTo({ top: 0, behavior: "auto" });
+          return;
+        }
+        if (route.kind === "settings") {
+          setView("settings");
           setOpenedPublishedStrip(null);
           window.scrollTo({ top: 0, behavior: "auto" });
           return;
@@ -6399,7 +6419,7 @@ export default function Home() {
           aria-hidden="true"
         />
         <section
-          className={`auth-shell auth-step-${authStep}`}
+          className={`auth-shell auth-step-${authStep} auth-transition-${authTransitionDirection}`}
           aria-labelledby="auth-heading"
         >
           {authStep === "landing" ? (
@@ -6534,7 +6554,7 @@ export default function Home() {
                     type="button"
                     onClick={beginSignIn}
                   >
-                    Log in or sign up
+                    Get started
                   </button>
                   <p className="auth-action-terms">
                     By continuing, you agree to our Terms &amp; Privacy Policy.
@@ -6567,9 +6587,14 @@ export default function Home() {
   }
 
 
-  if (view === "library" || view === "drafts") {
+  if (view === "library" || view === "drafts" || view === "settings") {
     const isDraftLibrary = view === "drafts";
-    const libraryItems = isDraftLibrary ? draftStrips : publishedStrips;
+    const isSettings = view === "settings";
+    const libraryItems = isSettings
+      ? []
+      : isDraftLibrary
+        ? draftStrips
+        : publishedStrips;
     const libraryColumns = [
       libraryItems.filter((_, index) => index % 2 === 0),
       libraryItems.filter((_, index) => index % 2 === 1),
@@ -6628,7 +6653,7 @@ export default function Home() {
         <main
           className={`app-shell library-mode ${
             isDraftLibrary ? "drafts-library-mode" : ""
-          }`}
+          } ${isSettings ? "settings-mode" : ""}`}
         >
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -6638,58 +6663,127 @@ export default function Home() {
 
           <section className={`strip-library ${legacyPageEnterClass}`}>
             <header className="library-header">
-              <h1>{isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
-              <div className="library-header-actions">
+              <h1>{isSettings ? "SETTINGS" : isDraftLibrary ? "DRAFTS" : "STRIP"}</h1>
+            </header>
+            {isSettings ? (
+              <div className="settings-content">
+                <section className="settings-section" aria-labelledby="account-settings-heading">
+                  <h2 id="account-settings-heading">Account</h2>
+                  <div className="settings-card">
+                    <div className="settings-row">
+                      <span>Username</span>
+                      <strong>
+                        {authUser?.username ? `@${authUser.username}` : "Not set"}
+                      </strong>
+                    </div>
+                    <div className="settings-row">
+                      <span>Phone</span>
+                      <strong>{authUser?.phoneLabel || "Not available"}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="settings-section" aria-labelledby="library-settings-heading">
+                  <h2 id="library-settings-heading">Your library</h2>
+                  <div className="settings-card">
+                    <div className="settings-row">
+                      <span>Published Strips</span>
+                      <strong>{publishedStrips.length}</strong>
+                    </div>
+                    <div className="settings-row">
+                      <span>Drafts</span>
+                      <strong>{draftStrips.length}</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="settings-section" aria-labelledby="about-settings-heading">
+                  <h2 id="about-settings-heading">About</h2>
+                  <div className="settings-card settings-about-card">
+                    <strong>STRIP</strong>
+                    <p>Make something for your friends.</p>
+                  </div>
+                </section>
+
                 <button
-                  className="library-header-action"
-                  type="button"
-                  onClick={() =>
-                    isDraftLibrary
-                      ? void returnToLibrary()
-                      : void openDraftLibrary()
-                  }
-                  aria-label={isDraftLibrary ? "Return to Strips" : "Open drafts"}
-                >
-                  {isDraftLibrary ? (
-                    <House aria-hidden="true" />
-                  ) : (
-                    <Files aria-hidden="true" />
-                  )}
-                </button>
-                <button
-                  className="library-header-action"
+                  className="settings-sign-out"
                   type="button"
                   onClick={() => void signOut()}
-                  aria-label={`Sign out${authUser?.phoneLabel ? ` ${authUser.phoneLabel}` : ""}`}
+                  disabled={authPending}
                 >
                   <LogOut aria-hidden="true" />
+                  {authPending ? "Signing out…" : "Sign out"}
                 </button>
               </div>
-            </header>
-            <div
-              className="library-grid"
-              aria-label={isDraftLibrary ? "Your drafts" : "Your Strips"}
-              aria-busy={isDraftLibrary ? draftsLoading : libraryLoading}
-            >
-              {libraryColumns.map((column, columnIndex) => (
-                <div
-                  className="library-column"
-                  key={`${view}-library-column-${columnIndex}`}
-                >
-                  {column.map(renderLibraryCard)}
-                </div>
-              ))}
-            </div>
+            ) : (
+              <div
+                className="library-grid"
+                aria-label={isDraftLibrary ? "Your drafts" : "Your Strips"}
+                aria-busy={isDraftLibrary ? draftsLoading : libraryLoading}
+              >
+                {libraryColumns.map((column, columnIndex) => (
+                  <div
+                    className="library-column"
+                    key={`${view}-library-column-${columnIndex}`}
+                  >
+                    {column.map(renderLibraryCard)}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
-          <button
-            className="library-add-button"
-            type="button"
-            onClick={beginNewStrip}
-            aria-label="Create a new Strip"
-          >
-            <Plus aria-hidden="true" />
-          </button>
+          {!isSettings ? (
+            <button
+              className="library-add-button"
+              type="button"
+              onClick={beginNewStrip}
+              aria-label="Create a new Strip"
+            >
+              <Plus aria-hidden="true" />
+            </button>
+          ) : null}
+
+          <footer className="composer-dock app-navigation-dock">
+            <nav className="app-navigation-controls" aria-label="Main">
+              <button
+                className={`app-navigation-button ${
+                  view === "library" ? "is-active" : ""
+                }`}
+                type="button"
+                onClick={() => void returnToLibrary()}
+                aria-label="Home"
+                aria-current={view === "library" ? "page" : undefined}
+              >
+                <House aria-hidden="true" />
+                <span className="visually-hidden">Home</span>
+              </button>
+              <button
+                className={`app-navigation-button ${
+                  view === "drafts" ? "is-active" : ""
+                }`}
+                type="button"
+                onClick={() => void openDraftLibrary()}
+                aria-label="Drafts"
+                aria-current={view === "drafts" ? "page" : undefined}
+              >
+                <Files aria-hidden="true" />
+                <span className="visually-hidden">Drafts</span>
+              </button>
+              <button
+                className={`app-navigation-button ${
+                  view === "settings" ? "is-active" : ""
+                }`}
+                type="button"
+                onClick={() => void openSettings()}
+                aria-label="Settings"
+                aria-current={view === "settings" ? "page" : undefined}
+              >
+                <Settings aria-hidden="true" />
+                <span className="visually-hidden">Settings</span>
+              </button>
+            </nav>
+          </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
       </>
