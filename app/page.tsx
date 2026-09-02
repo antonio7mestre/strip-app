@@ -192,6 +192,7 @@ type HeightCropSession = {
 const STORAGE_KEY = "strip-draft-v1";
 const OWNER_STORAGE_KEY = "strip-owner-v1";
 const DEFAULT_BACKGROUND = "#000000";
+const DEFAULT_BLOCK_BACKGROUND = "#3155FF";
 const DEFAULT_TEXT = "#FFFFFF";
 const DEFAULT_FONT_SIZE = 18;
 const MIN_FONT_SIZE = 14;
@@ -236,7 +237,7 @@ const BACKGROUND_COLORS = [
   { label: "Acid", value: "#8ACE00" },
   { label: "Hot pink", value: "#FF4FA3" },
   { label: "Chrome", value: "#D9D9D9" },
-  { label: "Electric blue", value: "#3155FF" },
+  { label: "Electric blue", value: DEFAULT_BLOCK_BACKGROUND },
   { label: "Laser violet", value: "#7A2CFF" },
   { label: "Safety orange", value: "#FF4D00" },
 ];
@@ -4376,7 +4377,8 @@ export default function Home() {
       const selectedIndex = current.findIndex((block) => block.id === selectedBlockId);
       const insertionIndex = selectedIndex >= 0 ? selectedIndex + 1 : current.length;
       const inheritedStyle = nearestTextBlock(current, insertionIndex);
-      const backgroundColor = inheritedStyle?.backgroundColor ?? DEFAULT_BACKGROUND;
+      const backgroundColor =
+        inheritedStyle?.backgroundColor ?? DEFAULT_BLOCK_BACKGROUND;
       const next = [...current];
       next.splice(insertionIndex, 0, {
         id,
