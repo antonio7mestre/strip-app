@@ -3184,6 +3184,7 @@ export default function Home() {
   const publishFlowStartScrollRef = useRef(0);
   const inlinePreviewScrollRef = useRef<number | null>(null);
   const inlinePreviewHistoryEntryRef = useRef(false);
+  const inlinePreviewSelectionRef = useRef<string | null>(null);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
   const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
@@ -4630,7 +4631,7 @@ export default function Home() {
   const endingIsSelected = selectedBlockId === STRIP_ENDING_BLOCK_ID;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
   useLayoutEffect(() => {
-    if (view !== "edit" || !selectedBlockId) return;
+    if (view !== "edit" || inlinePreview || !selectedBlockId) return;
 
     let firstFrame = 0;
     let secondFrame = 0;
@@ -4644,7 +4645,7 @@ export default function Home() {
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
-  }, [selectedBlockId, view]);
+  }, [inlinePreview, selectedBlockId, view]);
   useLayoutEffect(() => {
     const selected = blocks.find((block) => block.id === selectedBlockId);
     const selectedIsEnding = selectedBlockId === STRIP_ENDING_BLOCK_ID;
@@ -5136,13 +5137,7 @@ export default function Home() {
   const exitInlinePreviewAndSelect = (blockId: string) => {
     if (!inlinePreview) return;
     inlinePreviewScrollRef.current = window.scrollY;
-    flushSync(() => {
-      setInlinePreview(false);
-      setSelectedBlockId(blockId);
-      setEditingTextBlockId(null);
-      setActiveTextTool(null);
-      setActiveEndingTool(null);
-    });
+    inlinePreviewSelectionRef.current = blockId;
     triggerSelectionHaptic();
 
     if (inlinePreviewHistoryEntryRef.current) {
@@ -5150,17 +5145,15 @@ export default function Home() {
       return;
     }
 
-    const restoreScroll = () => {
-      const scrollTop = inlinePreviewScrollRef.current;
-      if (scrollTop === null) return;
-      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
-    };
-
-    restoreScroll();
-    window.requestAnimationFrame(() => {
-      restoreScroll();
-      inlinePreviewScrollRef.current = null;
+    flushSync(() => {
+      setInlinePreview(false);
+      setSelectedBlockId(blockId);
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
+      setActiveEndingTool(null);
     });
+    inlinePreviewSelectionRef.current = null;
+    inlinePreviewScrollRef.current = null;
   };
 
   const continueToPublish = () => {
@@ -5779,13 +5772,22 @@ export default function Home() {
     const handlePopState = (event: PopStateEvent) => {
       if (inlinePreviewHistoryEntryRef.current) {
         inlinePreviewHistoryEntryRef.current = false;
+        const selectedPreviewBlockId = inlinePreviewSelectionRef.current;
+        inlinePreviewSelectionRef.current = null;
         const scrollTop = inlinePreviewScrollRef.current ?? window.scrollY;
         flushSync(() => {
           setInlinePreview(false);
+          if (selectedPreviewBlockId) {
+            setSelectedBlockId(selectedPreviewBlockId);
+          }
           setEditingTextBlockId(null);
           setActiveTextTool(null);
           setActiveEndingTool(null);
         });
+        if (selectedPreviewBlockId) {
+          inlinePreviewScrollRef.current = null;
+          return;
+        }
         window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
         window.requestAnimationFrame(() => {
           window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
@@ -8279,15 +8281,14 @@ export default function Home() {
         />
       ) : null}
 
+      {!inlinePreview ? (
       <footer
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
           editorDockEntering ? "is-entering-editor" : ""
         } ${activeTextTool || activeEndingTool ? "is-shifted" : ""} ${
-          inlinePreview ? "is-inline-preview" : ""
-        } ${heightCropSession ? "is-height-cropping" : ""}`}
-        aria-hidden={inlinePreview || undefined}
-        inert={inlinePreview || undefined}
+          heightCropSession ? "is-height-cropping" : ""
+        }`}
       >
         {dockTransitionLayer}
         {heightCropSession ? (
@@ -8389,6 +8390,7 @@ export default function Home() {
         </div>
         )}
       </footer>
+      ) : null}
       {inlinePreview ? (
         <div className="published-bottom-pocket-sampler" aria-hidden="true" />
       ) : null}
