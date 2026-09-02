@@ -26,11 +26,9 @@ import {
   GripHorizontal,
   House,
   History,
-  Heart,
   ImagePlus,
   Link2,
   LogOut,
-  MessageCircle,
   Minus,
   Palette,
   PaintBucket,
@@ -3209,17 +3207,19 @@ function LiveLinkToolbar() {
       }`}
       aria-label="Live Strip actions"
     >
-      <button type="button" onPointerUp={fakeAction} aria-label="Like">
-        <Heart aria-hidden="true" />
-      </button>
-      <button type="button" onPointerUp={fakeAction} aria-label="Comment">
-        <MessageCircle aria-hidden="true" />
-      </button>
       <button type="button" onPointerUp={fakeAction} aria-label="Save">
         <Bookmark aria-hidden="true" />
       </button>
-      <button type="button" onPointerUp={fakeAction} aria-label="Send">
+      <button type="button" onPointerUp={fakeAction} aria-label="Share">
         <Send aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="live-link-toolbar-primary"
+        onPointerUp={fakeAction}
+        aria-label="Make your own Strip"
+      >
+        <Plus aria-hidden="true" />
       </button>
     </nav>
   );
