@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   ArrowUp,
   Baseline,
+  Bookmark,
   CaseUpper,
   Check,
   Crop,
@@ -24,15 +25,18 @@ import {
   GripHorizontal,
   House,
   History,
+  Heart,
   ImagePlus,
   Link2,
   LogOut,
+  MessageCircle,
   Minus,
   Palette,
   PaintBucket,
   Pencil,
   Pipette,
   Plus,
+  Send,
   Settings,
   Sticker,
   Trash2,
@@ -3061,6 +3065,136 @@ function StripStickerBlock({
       </span>
       {controls}
     </figure>
+  );
+}
+
+function LiveLinkToolbar() {
+  const [safariChromeIsMinimized, setSafariChromeIsMinimized] = useState(false);
+  const safariChromeIsMinimizedRef = useRef(false);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const userAgent = navigator.userAgent;
+    const isIOS =
+      /iPad|iPhone|iPod/.test(userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari =
+      /Safari/.test(userAgent) &&
+      !/(CriOS|FxiOS|EdgiOS|OPiOS)/.test(userAgent);
+    const isStandalone =
+      (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+      window.matchMedia("(display-mode: standalone)").matches;
+
+    if (!isIOS || !isSafari || isStandalone || !viewport) {
+      safariChromeIsMinimizedRef.current = false;
+      setSafariChromeIsMinimized(false);
+      return;
+    }
+
+    const createViewportProbe = (height: string) => {
+      const probe = document.createElement("div");
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText =
+        `position:fixed;visibility:hidden;pointer-events:none;width:1px;height:${height};`;
+      document.body.appendChild(probe);
+      return probe;
+    };
+
+    const smallViewportProbe = createViewportProbe("100svh");
+    const largeViewportProbe = createViewportProbe("100lvh");
+    const dynamicViewportProbe = createViewportProbe("100dvh");
+    let measurementFrame: number | null = null;
+    let settleTimer: number | null = null;
+
+    const commitVisibility = (isMinimized: boolean) => {
+      if (safariChromeIsMinimizedRef.current === isMinimized) return;
+      safariChromeIsMinimizedRef.current = isMinimized;
+      setSafariChromeIsMinimized(isMinimized);
+    };
+
+    const measureSafariChrome = () => {
+      measurementFrame = null;
+      if (viewport.scale > 1.01) {
+        commitVisibility(false);
+        return;
+      }
+
+      const smallHeight = smallViewportProbe.getBoundingClientRect().height;
+      const largeHeight = largeViewportProbe.getBoundingClientRect().height;
+      const dynamicHeight = dynamicViewportProbe.getBoundingClientRect().height;
+      const chromeRange = Math.max(0, largeHeight - smallHeight);
+      if (chromeRange < 20) {
+        commitVisibility(false);
+        return;
+      }
+
+      const distanceFromLargestViewport = Math.max(
+        0,
+        largeHeight - dynamicHeight,
+      );
+      const minimizeThreshold = Math.max(8, chromeRange * 0.18);
+      const restoreThreshold = Math.max(24, chromeRange * 0.46);
+      const isMinimized = safariChromeIsMinimizedRef.current
+        ? distanceFromLargestViewport < restoreThreshold
+        : distanceFromLargestViewport <= minimizeThreshold;
+      commitVisibility(isMinimized);
+    };
+
+    const scheduleMeasurement = () => {
+      if (measurementFrame !== null) return;
+      measurementFrame = window.requestAnimationFrame(measureSafariChrome);
+    };
+
+    viewport.addEventListener("resize", scheduleMeasurement, { passive: true });
+    viewport.addEventListener("scroll", scheduleMeasurement, { passive: true });
+    window.addEventListener("resize", scheduleMeasurement, { passive: true });
+    window.addEventListener("scroll", scheduleMeasurement, { passive: true });
+    window.addEventListener("scrollend", scheduleMeasurement);
+    window.addEventListener("orientationchange", scheduleMeasurement);
+    scheduleMeasurement();
+    settleTimer = window.setTimeout(scheduleMeasurement, 180);
+
+    return () => {
+      if (measurementFrame !== null) {
+        window.cancelAnimationFrame(measurementFrame);
+      }
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+      viewport.removeEventListener("resize", scheduleMeasurement);
+      viewport.removeEventListener("scroll", scheduleMeasurement);
+      window.removeEventListener("resize", scheduleMeasurement);
+      window.removeEventListener("scroll", scheduleMeasurement);
+      window.removeEventListener("scrollend", scheduleMeasurement);
+      window.removeEventListener("orientationchange", scheduleMeasurement);
+      smallViewportProbe.remove();
+      largeViewportProbe.remove();
+      dynamicViewportProbe.remove();
+    };
+  }, []);
+
+  const fakeAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.blur();
+  };
+
+  return (
+    <nav
+      className={`live-link-toolbar ${
+        safariChromeIsMinimized ? "is-safari-minimized" : ""
+      }`}
+      aria-label="Live Strip actions"
+    >
+      <button type="button" onPointerUp={fakeAction} aria-label="Like">
+        <Heart aria-hidden="true" />
+      </button>
+      <button type="button" onPointerUp={fakeAction} aria-label="Comment">
+        <MessageCircle aria-hidden="true" />
+      </button>
+      <button type="button" onPointerUp={fakeAction} aria-label="Save">
+        <Bookmark aria-hidden="true" />
+      </button>
+      <button type="button" onPointerUp={fakeAction} aria-label="Send">
+        <Send aria-hidden="true" />
+      </button>
+    </nav>
   );
 }
 
@@ -8156,6 +8290,7 @@ export default function Home() {
                 </div>
               </div>
             ) : null}
+            {publishedContentCanReveal ? <LiveLinkToolbar /> : null}
             {hasPublishedBottomSurface ? (
               <div
                 className="published-bottom-pocket-sampler"
