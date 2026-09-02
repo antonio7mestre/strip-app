@@ -1072,10 +1072,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .app-navigation-controls {
   display: grid;
-  width: min(100%, var(--bottom-action-tray-max-width));
+  width: min(calc(100% - 24px), 536px);
   grid-template-columns: repeat(4, 44px);
   justify-content: space-between;
-  gap: 8px;
+  gap: 0;
 }
 
 .app-navigation-button {
