@@ -214,6 +214,7 @@ const STICKER_ENDING_BUTTON_BUFFER_PX = 18;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
 const INLINE_PREVIEW_HISTORY_KEY = "stripInlinePreview";
+const INLINE_PREVIEW_DISMISSED_HISTORY_KEY = "stripInlinePreviewDismissed";
 const AUTH_CODE_LENGTH = 6;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
@@ -3320,6 +3321,13 @@ export default function Home() {
   const inlinePreviewHistoryEntryRef = useRef(false);
   const inlinePreviewSelectionRef = useRef<string | null>(null);
   const suppressSelectedBlockAutoFocusRef = useRef(false);
+  const inlinePreviewExitLockRef = useRef<{
+    scrollTop: number;
+    scrollRestoration: "auto" | "manual";
+  } | null>(null);
+  const inlinePreviewExitFrameRef = useRef<number | null>(null);
+  const inlinePreviewExitSettleFrameRef = useRef<number | null>(null);
+  const inlinePreviewExitTimerRef = useRef<number | null>(null);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
   const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
@@ -3908,6 +3916,21 @@ export default function Home() {
       }
       if (blockReorderReleaseFrameRef.current !== null) {
         window.cancelAnimationFrame(blockReorderReleaseFrameRef.current);
+      }
+      if (inlinePreviewExitFrameRef.current !== null) {
+        window.cancelAnimationFrame(inlinePreviewExitFrameRef.current);
+      }
+      if (inlinePreviewExitSettleFrameRef.current !== null) {
+        window.cancelAnimationFrame(inlinePreviewExitSettleFrameRef.current);
+      }
+      if (inlinePreviewExitTimerRef.current !== null) {
+        window.clearTimeout(inlinePreviewExitTimerRef.current);
+      }
+      const previewExitLock = inlinePreviewExitLockRef.current;
+      if (previewExitLock) {
+        history.scrollRestoration = previewExitLock.scrollRestoration;
+        document.documentElement.classList.remove("inline-preview-exit-locked");
+        inlinePreviewExitLockRef.current = null;
       }
       const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
       if (originalOverflowAnchor) {
@@ -5242,6 +5265,18 @@ export default function Home() {
     return () => window.removeEventListener("scroll", rememberPreviewScroll);
   }, [inlinePreview]);
 
+  const dismissInlinePreviewHistoryWithoutNavigation = () => {
+    if (!inlinePreviewHistoryEntryRef.current) return;
+    const currentHistoryState =
+      window.history.state && typeof window.history.state === "object"
+        ? { ...window.history.state }
+        : {};
+    delete currentHistoryState[INLINE_PREVIEW_HISTORY_KEY];
+    currentHistoryState[INLINE_PREVIEW_DISMISSED_HISTORY_KEY] = true;
+    window.history.replaceState(currentHistoryState, "", window.location.href);
+    inlinePreviewHistoryEntryRef.current = false;
+  };
+
   const toggleInlinePreview = () => {
     if (!inlinePreview && !hasContent) {
       setNotice("Add something to preview.");
@@ -5254,16 +5289,28 @@ export default function Home() {
     if (!inlinePreview) {
       const currentHistoryState =
         window.history.state && typeof window.history.state === "object"
-          ? window.history.state
+          ? { ...window.history.state }
           : {};
-      window.history.pushState(
-        { ...currentHistoryState, [INLINE_PREVIEW_HISTORY_KEY]: true },
-        "",
-        window.location.href,
-      );
+      const replacesDismissedPreview =
+        currentHistoryState[INLINE_PREVIEW_DISMISSED_HISTORY_KEY] === true;
+      delete currentHistoryState[INLINE_PREVIEW_DISMISSED_HISTORY_KEY];
+      currentHistoryState[INLINE_PREVIEW_HISTORY_KEY] = true;
+      if (replacesDismissedPreview) {
+        window.history.replaceState(
+          currentHistoryState,
+          "",
+          window.location.href,
+        );
+      } else {
+        window.history.pushState(
+          currentHistoryState,
+          "",
+          window.location.href,
+        );
+      }
       inlinePreviewHistoryEntryRef.current = true;
     } else if (consumesPreviewHistory) {
-      window.history.back();
+      dismissInlinePreviewHistoryWithoutNavigation();
     }
     flushSync(() => {
       setActiveTextTool(null);
@@ -5271,8 +5318,6 @@ export default function Home() {
       setEditingTextBlockId(null);
       setInlinePreview((current) => !current);
     });
-
-    if (consumesPreviewHistory) return;
 
     const restoreScroll = () => {
       const scrollTop = inlinePreviewScrollRef.current;
@@ -5287,20 +5332,81 @@ export default function Home() {
     });
   };
 
-  const holdInlinePreviewScrollPosition = (scrollTop: number) => {
+  const restoreInlinePreviewExitScroll = (scrollTop: number) => {
+    window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = scrollTop;
+    document.body.scrollTop = scrollTop;
+  };
+
+  const releaseInlinePreviewExitLock = () => {
+    const lock = inlinePreviewExitLockRef.current;
+    if (!lock) return;
+    restoreInlinePreviewExitScroll(lock.scrollTop);
+    history.scrollRestoration = lock.scrollRestoration;
+    document.documentElement.classList.remove("inline-preview-exit-locked");
+    inlinePreviewExitLockRef.current = null;
+    inlinePreviewScrollRef.current = null;
+    suppressSelectedBlockAutoFocusRef.current = false;
+    inlinePreviewExitTimerRef.current = null;
+  };
+
+  const beginInlinePreviewExitLock = (scrollTop: number) => {
+    if (inlinePreviewExitFrameRef.current !== null) {
+      window.cancelAnimationFrame(inlinePreviewExitFrameRef.current);
+      inlinePreviewExitFrameRef.current = null;
+    }
+    if (inlinePreviewExitSettleFrameRef.current !== null) {
+      window.cancelAnimationFrame(inlinePreviewExitSettleFrameRef.current);
+      inlinePreviewExitSettleFrameRef.current = null;
+    }
+    if (inlinePreviewExitTimerRef.current !== null) {
+      window.clearTimeout(inlinePreviewExitTimerRef.current);
+      inlinePreviewExitTimerRef.current = null;
+    }
+
+    if (!inlinePreviewExitLockRef.current) {
+      inlinePreviewExitLockRef.current = {
+        scrollTop,
+        scrollRestoration: history.scrollRestoration,
+      };
+    } else {
+      inlinePreviewExitLockRef.current.scrollTop = scrollTop;
+    }
+    history.scrollRestoration = "manual";
+    document.documentElement.classList.add("inline-preview-exit-locked");
+    restoreInlinePreviewExitScroll(scrollTop);
+
+    inlinePreviewExitTimerRef.current = window.setTimeout(
+      releaseInlinePreviewExitLock,
+      1000,
+    );
+  };
+
+  const settleInlinePreviewExitLock = () => {
+    const lock = inlinePreviewExitLockRef.current;
+    if (!lock) return;
+    if (inlinePreviewExitTimerRef.current !== null) {
+      window.clearTimeout(inlinePreviewExitTimerRef.current);
+      inlinePreviewExitTimerRef.current = null;
+    }
+
     const restoreScroll = () => {
-      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = scrollTop;
-      document.body.scrollTop = scrollTop;
+      const activeLock = inlinePreviewExitLockRef.current;
+      if (!activeLock) return;
+      restoreInlinePreviewExitScroll(activeLock.scrollTop);
     };
 
     restoreScroll();
-    window.requestAnimationFrame(() => {
+    inlinePreviewExitFrameRef.current = window.requestAnimationFrame(() => {
+      inlinePreviewExitFrameRef.current = null;
       restoreScroll();
-      window.requestAnimationFrame(() => {
+      inlinePreviewExitSettleFrameRef.current = window.requestAnimationFrame(() => {
+        inlinePreviewExitSettleFrameRef.current = null;
         restoreScroll();
-        inlinePreviewScrollRef.current = null;
-        suppressSelectedBlockAutoFocusRef.current = false;
+        inlinePreviewExitTimerRef.current = window.setTimeout(
+          releaseInlinePreviewExitLock,
+          120,
+        );
       });
     });
   };
@@ -5310,12 +5416,9 @@ export default function Home() {
     inlinePreviewScrollRef.current = window.scrollY;
     inlinePreviewSelectionRef.current = blockId;
     suppressSelectedBlockAutoFocusRef.current = true;
+    beginInlinePreviewExitLock(inlinePreviewScrollRef.current);
     triggerSelectionHaptic();
-
-    if (inlinePreviewHistoryEntryRef.current) {
-      window.history.back();
-      return;
-    }
+    dismissInlinePreviewHistoryWithoutNavigation();
 
     flushSync(() => {
       setInlinePreview(false);
@@ -5324,10 +5427,9 @@ export default function Home() {
       setActiveTextTool(null);
       setActiveEndingTool(null);
     });
+    restoreInlinePreviewExitScroll(inlinePreviewScrollRef.current);
     inlinePreviewSelectionRef.current = null;
-    holdInlinePreviewScrollPosition(
-      inlinePreviewScrollRef.current ?? window.scrollY,
-    );
+    settleInlinePreviewExitLock();
   };
 
   const continueToPublish = () => {
@@ -5946,9 +6048,19 @@ export default function Home() {
     const handlePopState = (event: PopStateEvent) => {
       if (inlinePreviewHistoryEntryRef.current) {
         inlinePreviewHistoryEntryRef.current = false;
+        if (inlinePreviewExitLockRef.current) {
+          inlinePreviewSelectionRef.current = null;
+          settleInlinePreviewExitLock();
+          return;
+        }
+
         const selectedPreviewBlockId = inlinePreviewSelectionRef.current;
         inlinePreviewSelectionRef.current = null;
         const scrollTop = inlinePreviewScrollRef.current ?? window.scrollY;
+        if (selectedPreviewBlockId) {
+          suppressSelectedBlockAutoFocusRef.current = true;
+        }
+        beginInlinePreviewExitLock(scrollTop);
         flushSync(() => {
           setInlinePreview(false);
           if (selectedPreviewBlockId) {
@@ -5958,7 +6070,8 @@ export default function Home() {
           setActiveTextTool(null);
           setActiveEndingTool(null);
         });
-        holdInlinePreviewScrollPosition(scrollTop);
+        restoreInlinePreviewExitScroll(scrollTop);
+        settleInlinePreviewExitLock();
         return;
       }
 

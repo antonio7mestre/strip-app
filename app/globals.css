@@ -167,6 +167,15 @@ html.trailing-text-inset-active
   overflow-anchor: none;
 }
 
+html.inline-preview-exit-locked,
+html.inline-preview-exit-locked body,
+html.inline-preview-exit-locked .editor-mode,
+html.inline-preview-exit-locked .editor-canvas,
+html.inline-preview-exit-locked .strip-canvas {
+  scroll-behavior: auto !important;
+  overflow-anchor: none !important;
+}
+
 .legacy-page-transition-overlay {
   position: fixed;
   z-index: 2147483646;
