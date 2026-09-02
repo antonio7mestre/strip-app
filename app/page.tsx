@@ -199,6 +199,7 @@ const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
+const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -2125,7 +2126,7 @@ function StripVideoBlock({
   shouldLoad,
   isLoaded,
   loadSettled,
-  animatePublishedLoad,
+  loadBeforeReveal,
   reservedHeight,
   onLoadSettled,
   onHeight,
@@ -2148,7 +2149,7 @@ function StripVideoBlock({
   shouldLoad: boolean;
   isLoaded: boolean;
   loadSettled: boolean;
-  animatePublishedLoad: boolean;
+  loadBeforeReveal: boolean;
   reservedHeight?: number;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
@@ -2176,7 +2177,10 @@ function StripVideoBlock({
     const video = videoRef.current;
     if (!video || !shouldLoad) return;
     video.muted = muted;
-  }, [muted]);
+    if (loadBeforeReveal && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      video.load();
+    }
+  }, [block.src, loadBeforeReveal, muted, shouldLoad]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2208,8 +2212,6 @@ function StripVideoBlock({
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
-      } ${animatePublishedLoad ? "published-media-load" : ""} ${
-        animatePublishedLoad && loadSettled ? "is-media-resolved" : ""
       }`}
       data-block-id={block.id}
       aria-busy={!loadSettled}
@@ -2271,11 +2273,11 @@ function StripVideoBlock({
             controls={false}
             disablePictureInPicture
             controlsList="nodownload nofullscreen noremoteplayback"
-            preload={shouldLoad ? "metadata" : "none"}
+            preload={shouldLoad ? (loadBeforeReveal ? "auto" : "metadata") : "none"}
             draggable={false}
             style={{
               display: loadSettled && !isLoaded ? "none" : undefined,
-              visibility: animatePublishedLoad || isLoaded ? "visible" : "hidden",
+              visibility: isLoaded ? "visible" : "hidden",
             }}
             onLoadedData={(event) => {
               onLoadSettled(true);
@@ -2319,6 +2321,7 @@ function StripStickerBlock({
   onTapSelectedText,
   onSelect,
   onTransform,
+  onLoadSettled,
   controls,
 }: {
   block: StickerBlock;
@@ -2334,6 +2337,7 @@ function StripStickerBlock({
   onTransform: (
     transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
   ) => void;
+  onLoadSettled?: (loaded: boolean) => void;
   controls?: ReactNode;
 }) {
   const stickerElementRef = useRef<HTMLElement>(null);
@@ -2915,7 +2919,21 @@ function StripStickerBlock({
       }
     >
       <span className="sticker-visual">
-        <img src={block.src} alt={block.alt} draggable={false} />
+        <img
+          src={block.src}
+          alt={block.alt}
+          loading="eager"
+          decoding="async"
+          draggable={false}
+          onLoad={(event) => {
+            const image = event.currentTarget;
+            void image
+              .decode()
+              .catch(() => {})
+              .then(() => onLoadSettled?.(true));
+          }}
+          onError={() => onLoadSettled?.(false)}
+        />
       </span>
       {controls}
     </figure>
@@ -3060,9 +3078,14 @@ export default function Home() {
     sourceHeight: number;
   } | null>(null);
 
-  const mediaLoadKey = currentDraftId ?? openedPublishedStrip?.id ?? "none";
+  const mediaLoadKey =
+    view === "published" && openedPublishedStrip
+      ? `published:${openedPublishedStrip.id}`
+      : currentDraftId
+        ? `draft:${currentDraftId}`
+        : "none";
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setMediaLoadStatus({});
   }, [mediaLoadKey]);
 
@@ -3120,10 +3143,54 @@ export default function Home() {
       ? openedPublishedStrip.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE
       : endingStyle;
   const hasPublishedEndingCard = view === "published" && openedPublishedStrip !== null;
+  const publishedAssetIds =
+    view === "published" && openedPublishedStrip
+      ? openedPublishedStrip.blocks.flatMap((block) =>
+          block.type === "image" ||
+          block.type === "video" ||
+          block.type === "sticker"
+            ? [block.id]
+            : [],
+        )
+      : [];
+  const publishedAssetKey = publishedAssetIds.join("|");
+  const publishedContentReady = publishedAssetIds.every(
+    (blockId) => mediaLoadStatus[blockId] !== undefined,
+  );
   const publishedBottomSurfaceColor = hasPublishedEndingCard
     ? visibleEndingStyle.backgroundColor
     : null;
   const hasPublishedBottomSurface = publishedBottomSurfaceColor !== null;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const isWaitingForPublishedContent =
+      view === "published" &&
+      openedPublishedStrip !== null &&
+      !publishedContentReady;
+    root.classList.toggle(
+      "published-content-loading",
+      isWaitingForPublishedContent,
+    );
+    if (!isWaitingForPublishedContent) {
+      return () => root.classList.remove("published-content-loading");
+    }
+
+    const timeout = window.setTimeout(() => {
+      setMediaLoadStatus((current) => {
+        const next = { ...current };
+        publishedAssetIds.forEach((blockId) => {
+          if (next[blockId] === undefined) next[blockId] = "error";
+        });
+        return next;
+      });
+    }, PUBLISHED_MEDIA_LOAD_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+      root.classList.remove("published-content-loading");
+    };
+  }, [openedPublishedStrip, publishedAssetKey, publishedContentReady, view]);
 
   useEffect(() => {
     if (view === "edit") return;
@@ -5938,6 +6005,7 @@ export default function Home() {
     );
     const shouldLoadMedia = (blockId: string) => {
       const mediaIndex = mediaBlockIds.indexOf(blockId);
+      if (!isEditing && view === "published") return mediaIndex >= 0;
       return (
         mediaIndex >= 0 &&
         mediaBlockIds
@@ -5991,7 +6059,6 @@ export default function Home() {
               } ${usesDarkText ? "uses-dark-text" : ""}`}
               data-block-id={block.id}
               key={block.id}
-              aria-busy={mediaLoadStatus[block.id] !== "loaded"}
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
                 beginBlockTapGesture(event, block.id);
@@ -6093,8 +6160,6 @@ export default function Home() {
         }
 
         if (block.type === "image") {
-          const animatePublishedLoad = !isEditing && view === "published";
-          const imageLoadSettled = mediaLoadStatus[block.id] !== undefined;
           const cropViewportHeight = heightCrop?.isEditing
             ? heightCrop.sourceHeight
             : heightCrop?.height;
@@ -6107,10 +6172,6 @@ export default function Home() {
               } ${
                 heightCrop?.isEditing && firstFlowBlock?.id === block.id
                   ? "has-top-crop-clearance"
-                  : ""
-              } ${animatePublishedLoad ? "published-media-load" : ""} ${
-                animatePublishedLoad && imageLoadSettled
-                  ? "is-media-resolved"
                   : ""
               }`}
               data-block-id={block.id}
@@ -6160,6 +6221,8 @@ export default function Home() {
                   <img
                     src={shouldLoadMedia(block.id) ? block.src : undefined}
                     alt={block.alt}
+                    loading="eager"
+                    decoding="async"
                     style={
                       mediaLoadStatus[block.id] === "error"
                         ? { display: "none" }
@@ -6173,19 +6236,25 @@ export default function Home() {
                             }
                     }
                     onLoad={(event) => {
-                      settleMediaLoad(block.id, true);
-                      if (selectedBlockId === block.id) {
-                        window.requestAnimationFrame(() =>
-                          focusSelectedBlockWithToolbar(block.id),
-                        );
-                      }
-                      const sampledColor = sampleImageBottomColor(event.currentTarget);
-                      if (!sampledColor) return;
-                      setImageTrayColors((current) =>
-                        current[block.id] === sampledColor
-                          ? current
-                          : { ...current, [block.id]: sampledColor },
-                      );
+                      const image = event.currentTarget;
+                      void image
+                        .decode()
+                        .catch(() => {})
+                        .then(() => {
+                          settleMediaLoad(block.id, true);
+                          if (selectedBlockId === block.id) {
+                            window.requestAnimationFrame(() =>
+                              focusSelectedBlockWithToolbar(block.id),
+                            );
+                          }
+                          const sampledColor = sampleImageBottomColor(image);
+                          if (!sampledColor) return;
+                          setImageTrayColors((current) =>
+                            current[block.id] === sampledColor
+                              ? current
+                              : { ...current, [block.id]: sampledColor },
+                          );
+                        });
                     }}
                     onError={() => settleMediaLoad(block.id, false)}
                   />
@@ -6265,6 +6334,9 @@ export default function Home() {
                   ),
                 );
               }}
+              onLoadSettled={(loadedSuccessfully) =>
+                settleMediaLoad(block.id, loadedSuccessfully)
+              }
               controls={isEditing ? renderBlockControls(block, index) : null}
             />
           );
@@ -6307,7 +6379,7 @@ export default function Home() {
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
-            animatePublishedLoad={!isEditing && view === "published"}
+            loadBeforeReveal={!isEditing && view === "published"}
             reservedHeight={block.height}
             cropTop={heightCrop?.top}
             cropSourceHeight={heightCrop?.sourceHeight}
@@ -7595,9 +7667,23 @@ export default function Home() {
               aria-hidden="true"
             />
 
-            <article className={`published-strip ${legacyPageEnterClass}`}>
+            <article
+              className={`published-strip published-strip-load-gate ${
+                publishedContentReady ? "is-ready" : ""
+              } ${legacyPageEnterClass}`}
+              aria-hidden={!publishedContentReady}
+            >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
             </article>
+            {!publishedContentReady ? (
+              <div
+                className="published-strip-loading"
+                role="status"
+                aria-label="Loading Strip"
+              >
+                <span>STRIP</span>
+              </div>
+            ) : null}
             {hasPublishedBottomSurface ? (
               <div
                 className="published-bottom-pocket-sampler"
