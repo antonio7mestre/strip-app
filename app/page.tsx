@@ -178,6 +178,7 @@ type LegacyPageTransitionSnapshot = {
 type DockTransitionSnapshot = {
   id: string;
   markup: string;
+  layoutClass: string;
 };
 type HeightCropSession = {
   blockId: string;
@@ -4504,6 +4505,9 @@ export default function Home() {
     return {
       id: makeId(),
       markup: currentControls?.innerHTML ?? "",
+      layoutClass: currentControls?.classList.contains("app-navigation-controls")
+        ? "app-navigation-controls"
+        : "",
     };
   };
 
@@ -5227,8 +5231,7 @@ export default function Home() {
     setActiveEndingTool(null);
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
-    showEditorDockEntry();
-    void transitionToViewStandard("edit");
+    setViewInstantly("edit");
   };
 
   const openDraft = async (draft: DraftStripSummary) => {
@@ -5258,8 +5261,7 @@ export default function Home() {
       setCustomCoverColors([]);
       setCoverColorShape("square");
       setBrowserPath(`/edit/${encodeURIComponent(data.draft.id)}`);
-      showEditorDockEntry();
-      await transitionToViewStandard("edit");
+      setViewInstantly("edit");
     } catch {
       setNotice("Couldn’t open this draft. Try again.");
     } finally {
@@ -6560,7 +6562,7 @@ export default function Home() {
     : "";
   const dockTransitionLayer = dockTransition?.markup ? (
     <div
-      className={`dock-controls dock-controls-outgoing ${
+      className={`dock-controls dock-controls-outgoing ${dockTransition.layoutClass} ${
         dockTransitionStarted ? "is-transitioning" : ""
       }`}
       key={dockTransition.id}
@@ -7078,8 +7080,16 @@ export default function Home() {
             </button>
           ) : null}
 
-          <footer className="composer-dock app-navigation-dock">
-            <nav className="app-navigation-controls" aria-label="Main">
+          <footer
+            key="persistent-composer-dock"
+            className="composer-dock app-navigation-dock"
+          >
+            {dockTransitionLayer}
+            <nav
+              className={`${currentDockControlsClass} app-navigation-controls`}
+              key={`dock-controls:${view}`}
+              aria-label="Main"
+            >
               <button
                 className={`app-navigation-button ${
                   view === "library" ? "is-active" : ""
