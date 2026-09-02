@@ -3094,10 +3094,10 @@ function StripStickerBlock({
 }
 
 function LiveLinkToolbar() {
-  const [safariChromeIsMinimized, setSafariChromeIsMinimized] = useState(false);
+  const toolbarRef = useRef<HTMLElement>(null);
   const safariChromeIsMinimizedRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const viewport = window.visualViewport;
     const userAgent = navigator.userAgent;
     const isIOS =
@@ -3112,7 +3112,7 @@ function LiveLinkToolbar() {
 
     if (!isIOS || !isSafari || isStandalone || !viewport) {
       safariChromeIsMinimizedRef.current = false;
-      setSafariChromeIsMinimized(false);
+      toolbarRef.current?.classList.remove("is-safari-minimized");
       return;
     }
 
@@ -3127,72 +3127,110 @@ function LiveLinkToolbar() {
 
     const smallViewportProbe = createViewportProbe("100svh");
     const largeViewportProbe = createViewportProbe("100lvh");
-    const dynamicViewportProbe = createViewportProbe("100dvh");
-    let measurementFrame: number | null = null;
     let settleTimer: number | null = null;
+    let hasMeasured = false;
+    let visibleBaseline: number | null = null;
+    let hiddenBaseline: number | null = null;
+    let lastChromeRange: number | null = null;
 
     const commitVisibility = (isMinimized: boolean) => {
+      toolbarRef.current?.classList.toggle(
+        "is-safari-minimized",
+        isMinimized,
+      );
       if (safariChromeIsMinimizedRef.current === isMinimized) return;
       safariChromeIsMinimizedRef.current = isMinimized;
-      setSafariChromeIsMinimized(isMinimized);
     };
 
     const measureSafariChrome = () => {
-      measurementFrame = null;
       if (viewport.scale > 1.01) {
         commitVisibility(false);
+        hasMeasured = false;
+        visibleBaseline = null;
+        hiddenBaseline = null;
         return;
       }
 
       const smallHeight = smallViewportProbe.getBoundingClientRect().height;
       const largeHeight = largeViewportProbe.getBoundingClientRect().height;
-      const dynamicHeight = dynamicViewportProbe.getBoundingClientRect().height;
       const chromeRange = Math.max(0, largeHeight - smallHeight);
       if (chromeRange < 20) {
         commitVisibility(false);
+        hasMeasured = false;
+        visibleBaseline = null;
+        hiddenBaseline = null;
+        lastChromeRange = chromeRange;
         return;
       }
 
       const distanceFromLargestViewport = Math.max(
         0,
-        largeHeight - dynamicHeight,
+        Math.min(chromeRange, largeHeight - viewport.height),
       );
-      const minimizeThreshold = Math.max(8, chromeRange * 0.18);
-      const restoreThreshold = Math.max(24, chromeRange * 0.46);
-      const isMinimized = safariChromeIsMinimizedRef.current
-        ? distanceFromLargestViewport < restoreThreshold
-        : distanceFromLargestViewport <= minimizeThreshold;
-      commitVisibility(isMinimized);
+      const rangeChanged =
+        lastChromeRange !== null &&
+        Math.abs(chromeRange - lastChromeRange) >
+          Math.max(4, lastChromeRange * 0.15);
+      lastChromeRange = chromeRange;
+
+      if (!hasMeasured || rangeChanged) {
+        hasMeasured = true;
+        const initiallyMinimized =
+          distanceFromLargestViewport <= chromeRange * 0.15;
+        visibleBaseline = initiallyMinimized
+          ? null
+          : distanceFromLargestViewport;
+        hiddenBaseline = initiallyMinimized
+          ? distanceFromLargestViewport
+          : null;
+        commitVisibility(initiallyMinimized);
+        return;
+      }
+
+      const motionTrigger = Math.max(1, chromeRange * 0.012);
+      if (safariChromeIsMinimizedRef.current) {
+        hiddenBaseline = Math.min(
+          hiddenBaseline ?? distanceFromLargestViewport,
+          distanceFromLargestViewport,
+        );
+        if (distanceFromLargestViewport > hiddenBaseline + motionTrigger) {
+          visibleBaseline = distanceFromLargestViewport;
+          hiddenBaseline = null;
+          commitVisibility(false);
+        }
+        return;
+      }
+
+      visibleBaseline = Math.max(
+        visibleBaseline ?? distanceFromLargestViewport,
+        distanceFromLargestViewport,
+      );
+      if (distanceFromLargestViewport < visibleBaseline - motionTrigger) {
+        hiddenBaseline = distanceFromLargestViewport;
+        visibleBaseline = null;
+        commitVisibility(true);
+      }
     };
 
-    const scheduleMeasurement = () => {
-      if (measurementFrame !== null) return;
-      measurementFrame = window.requestAnimationFrame(measureSafariChrome);
-    };
-
-    viewport.addEventListener("resize", scheduleMeasurement, { passive: true });
-    viewport.addEventListener("scroll", scheduleMeasurement, { passive: true });
-    window.addEventListener("resize", scheduleMeasurement, { passive: true });
-    window.addEventListener("scroll", scheduleMeasurement, { passive: true });
-    window.addEventListener("scrollend", scheduleMeasurement);
-    window.addEventListener("orientationchange", scheduleMeasurement);
-    scheduleMeasurement();
-    settleTimer = window.setTimeout(scheduleMeasurement, 180);
+    viewport.addEventListener("resize", measureSafariChrome, { passive: true });
+    viewport.addEventListener("scroll", measureSafariChrome, { passive: true });
+    window.addEventListener("resize", measureSafariChrome, { passive: true });
+    window.addEventListener("scroll", measureSafariChrome, { passive: true });
+    window.addEventListener("scrollend", measureSafariChrome);
+    window.addEventListener("orientationchange", measureSafariChrome);
+    measureSafariChrome();
+    settleTimer = window.setTimeout(measureSafariChrome, 180);
 
     return () => {
-      if (measurementFrame !== null) {
-        window.cancelAnimationFrame(measurementFrame);
-      }
       if (settleTimer !== null) window.clearTimeout(settleTimer);
-      viewport.removeEventListener("resize", scheduleMeasurement);
-      viewport.removeEventListener("scroll", scheduleMeasurement);
-      window.removeEventListener("resize", scheduleMeasurement);
-      window.removeEventListener("scroll", scheduleMeasurement);
-      window.removeEventListener("scrollend", scheduleMeasurement);
-      window.removeEventListener("orientationchange", scheduleMeasurement);
+      viewport.removeEventListener("resize", measureSafariChrome);
+      viewport.removeEventListener("scroll", measureSafariChrome);
+      window.removeEventListener("resize", measureSafariChrome);
+      window.removeEventListener("scroll", measureSafariChrome);
+      window.removeEventListener("scrollend", measureSafariChrome);
+      window.removeEventListener("orientationchange", measureSafariChrome);
       smallViewportProbe.remove();
       largeViewportProbe.remove();
-      dynamicViewportProbe.remove();
     };
   }, []);
 
@@ -3202,9 +3240,8 @@ function LiveLinkToolbar() {
 
   return (
     <nav
-      className={`live-link-toolbar ${
-        safariChromeIsMinimized ? "is-safari-minimized" : ""
-      }`}
+      ref={toolbarRef}
+      className="live-link-toolbar"
       aria-label="Live Strip actions"
     >
       <button type="button" onPointerUp={fakeAction} aria-label="Save">
