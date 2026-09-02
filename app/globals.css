@@ -1549,17 +1549,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   color: var(--ending-foreground, var(--white));
 }
 
-.editor-mode:not(.is-inline-preview) .strip-ending-card::after {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  height: calc(148px + env(safe-area-inset-bottom));
-  background: var(--ending-background, var(--black));
-  content: "";
-  pointer-events: none;
-}
-
 .strip-ending-card-inner {
   display: grid;
   width: 100%;
