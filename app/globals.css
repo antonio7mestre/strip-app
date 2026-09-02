@@ -1348,6 +1348,24 @@ html.library-scroll-top-locked .library-mode {
   touch-action: pan-y;
 }
 
+.editor-mode.is-inline-preview .strip-canvas {
+  min-height: 100lvh;
+  padding-bottom: 0;
+}
+
+.editor-mode.is-inline-preview
+  .strip-canvas.has-ending-card
+  > .strip-block:not(.sticker-block) {
+  flex: 0 0 auto;
+}
+
+.editor-mode.is-inline-preview
+  .strip-canvas.has-ending-card
+  > .strip-ending-card {
+  flex: 1 0 auto;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+}
+
 .image-block.is-height-cropping.has-top-crop-clearance {
   margin-top: calc(
     var(--leading-image-inset, 0px) + var(--leading-image-inset, 0px) + 20px
@@ -2012,8 +2030,10 @@ html.published-content-loading .top-safe-area-anchor {
   background: transparent;
 }
 
-.main-composer-dock.is-inline-preview .dock-divider {
-  opacity: 0.45;
+.main-composer-dock.is-inline-preview {
+  transform: translate3d(0, 100%, 0);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .dock-glyph {

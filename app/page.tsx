@@ -207,6 +207,7 @@ const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
+const INLINE_PREVIEW_HISTORY_KEY = "stripInlinePreview";
 const AUTH_CODE_LENGTH = 6;
 
 const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
@@ -3061,6 +3062,7 @@ export default function Home() {
   const editorDockEntryTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
   const inlinePreviewScrollRef = useRef<number | null>(null);
+  const inlinePreviewHistoryEntryRef = useRef(false);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
   const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
@@ -3176,6 +3178,10 @@ export default function Home() {
   const publishedBottomSurfaceColor = hasPublishedEndingCard
     ? visibleEndingStyle.backgroundColor
     : null;
+  const cleanViewBottomSurfaceColor =
+    view === "edit" && inlinePreview
+      ? endingStyle.backgroundColor
+      : publishedBottomSurfaceColor;
   const hasPublishedBottomSurface = publishedBottomSurfaceColor !== null;
 
   useEffect(() => {
@@ -3235,7 +3241,18 @@ export default function Home() {
     heightCropDragRef.current = null;
     setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
+    inlinePreviewHistoryEntryRef.current = false;
   }, [view]);
+
+  useEffect(() => {
+    if (!inlinePreview) return;
+    const rememberPreviewScroll = () => {
+      inlinePreviewScrollRef.current = window.scrollY;
+    };
+    rememberPreviewScroll();
+    window.addEventListener("scroll", rememberPreviewScroll, { passive: true });
+    return () => window.removeEventListener("scroll", rememberPreviewScroll);
+  }, [inlinePreview]);
 
   useLayoutEffect(() => {
     const isLibraryView =
@@ -3654,22 +3671,23 @@ export default function Home() {
   useLayoutEffect(() => {
     const root = document.documentElement;
     const trailingEdgeIsActive =
-      view === "published" && publishedBottomSurfaceColor !== null;
+      (view === "published" || (view === "edit" && inlinePreview)) &&
+      cleanViewBottomSurfaceColor !== null;
     root.style.setProperty(
       "--bottom-safe-area-color",
-      trailingEdgeIsActive && publishedBottomSurfaceColor
-        ? publishedBottomSurfaceColor
+      trailingEdgeIsActive && cleanViewBottomSurfaceColor
+        ? cleanViewBottomSurfaceColor
         : DEFAULT_BACKGROUND,
     );
     root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
-  }, [publishedBottomSurfaceColor, view]);
+  }, [cleanViewBottomSurfaceColor, inlinePreview, view]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (
       !initialRouteReady ||
-      view !== "published" ||
-      publishedBottomSurfaceColor === null
+      (view !== "published" && (view !== "edit" || !inlinePreview)) ||
+      cleanViewBottomSurfaceColor === null
     ) {
       root.classList.remove("published-bottom-pocket-active");
       return;
@@ -3713,7 +3731,7 @@ export default function Home() {
       }
       setThemeColor(
         shouldActivate && !topAndBottomAreBothVisible
-          ? publishedBottomSurfaceColor
+          ? cleanViewBottomSurfaceColor
           : topSafeAreaColor,
       );
     };
@@ -3754,7 +3772,8 @@ export default function Home() {
     };
   }, [
     initialRouteReady,
-    publishedBottomSurfaceColor,
+    cleanViewBottomSurfaceColor,
+    inlinePreview,
     topSafeAreaColor,
     view,
   ]);
@@ -4911,12 +4930,30 @@ export default function Home() {
     }
 
     inlinePreviewScrollRef.current = window.scrollY;
+    const consumesPreviewHistory =
+      inlinePreview && inlinePreviewHistoryEntryRef.current;
+    if (!inlinePreview) {
+      const currentHistoryState =
+        window.history.state && typeof window.history.state === "object"
+          ? window.history.state
+          : {};
+      window.history.pushState(
+        { ...currentHistoryState, [INLINE_PREVIEW_HISTORY_KEY]: true },
+        "",
+        window.location.href,
+      );
+      inlinePreviewHistoryEntryRef.current = true;
+    } else if (consumesPreviewHistory) {
+      window.history.back();
+    }
     flushSync(() => {
       setActiveTextTool(null);
       setActiveEndingTool(null);
       setEditingTextBlockId(null);
       setInlinePreview((current) => !current);
     });
+
+    if (consumesPreviewHistory) return;
 
     const restoreScroll = () => {
       const scrollTop = inlinePreviewScrollRef.current;
@@ -4942,6 +4979,11 @@ export default function Home() {
       setActiveEndingTool(null);
     });
     triggerSelectionHaptic();
+
+    if (inlinePreviewHistoryEntryRef.current) {
+      window.history.back();
+      return;
+    }
 
     const restoreScroll = () => {
       const scrollTop = inlinePreviewScrollRef.current;
@@ -5569,7 +5611,42 @@ export default function Home() {
       }
     };
 
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (inlinePreviewHistoryEntryRef.current) {
+        inlinePreviewHistoryEntryRef.current = false;
+        const scrollTop = inlinePreviewScrollRef.current ?? window.scrollY;
+        flushSync(() => {
+          setInlinePreview(false);
+          setEditingTextBlockId(null);
+          setActiveTextTool(null);
+          setActiveEndingTool(null);
+        });
+        window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+        window.requestAnimationFrame(() => {
+          window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+          inlinePreviewScrollRef.current = null;
+        });
+        return;
+      }
+
+      if (
+        event.state &&
+        typeof event.state === "object" &&
+        event.state[INLINE_PREVIEW_HISTORY_KEY] === true &&
+        routeFromLocation(window.location.pathname, window.location.hostname).kind ===
+          "edit"
+      ) {
+        inlinePreviewHistoryEntryRef.current = true;
+        inlinePreviewScrollRef.current = window.scrollY;
+        flushSync(() => {
+          setActiveTextTool(null);
+          setActiveEndingTool(null);
+          setEditingTextBlockId(null);
+          setInlinePreview(true);
+        });
+        return;
+      }
+
       resetTransientNavigationState();
       void applyRoute();
     };
@@ -7989,12 +8066,12 @@ export default function Home() {
         className={`editor-canvas ${legacyPageEnterClass}`}
         onClickCapture={(event) => {
           if (!inlinePreview || !(event.target instanceof Element)) return;
-          if (event.target.closest("button, a, input, textarea")) return;
           const blockElement = event.target.closest<HTMLElement>(
             ".strip-block[data-block-id]",
           );
           const blockId = blockElement?.dataset.blockId;
           if (!blockId || !event.currentTarget.contains(blockElement)) return;
+          event.preventDefault();
           event.stopPropagation();
           exitInlinePreviewAndSelect(blockId);
         }}
@@ -8041,6 +8118,8 @@ export default function Home() {
         } ${activeTextTool || activeEndingTool ? "is-shifted" : ""} ${
           inlinePreview ? "is-inline-preview" : ""
         } ${heightCropSession ? "is-height-cropping" : ""}`}
+        aria-hidden={inlinePreview || undefined}
+        inert={inlinePreview || undefined}
       >
         {dockTransitionLayer}
         {heightCropSession ? (
@@ -8136,6 +8215,9 @@ export default function Home() {
         </div>
         )}
       </footer>
+      {inlinePreview ? (
+        <div className="published-bottom-pocket-sampler" aria-hidden="true" />
+      ) : null}
       {pendingDeleteBlock ? (
         <div className="modal-backdrop" onClick={() => setPendingDeleteId(null)}>
           <section
