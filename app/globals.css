@@ -3655,7 +3655,7 @@ html.page-color-picking * {
   display: grid;
   width: min(calc(100% - 24px), 336px);
   height: 62px;
-  grid-template-columns: 0.8fr 0.8fr 1.4fr;
+  grid-template-columns: 0.75fr 0.75fr 1.5fr;
   gap: 0;
   padding: 7px 12px;
   transform: translate3d(-50%, 0, 0) scale(1);
@@ -3715,12 +3715,24 @@ html.page-color-picking * {
 }
 
 .live-link-toolbar .live-link-toolbar-create {
+  position: relative;
   padding: 0 6px;
-  font-size: 11.5px;
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1;
   white-space: nowrap;
+}
+
+.live-link-toolbar .live-link-toolbar-create::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 1px;
+  height: 19px;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.14);
+  content: "";
 }
 
 .live-link-toolbar button:focus-visible {
@@ -3729,9 +3741,9 @@ html.page-color-picking * {
 }
 
 .live-link-toolbar svg {
-  width: 22px;
-  height: 22px;
-  stroke-width: 1.9;
+  width: 19px;
+  height: 19px;
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 

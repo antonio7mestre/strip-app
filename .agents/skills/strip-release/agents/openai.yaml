@@ -1,0 +1,4 @@
+interface:
+  display_name: "Strip Release"
+  short_description: "Publish approved Strip changes automatically"
+  default_prompt: "Use $strip-release to update and publish this Strip change."
