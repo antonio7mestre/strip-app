@@ -3098,8 +3098,6 @@ function StripStickerBlock({
 
 function LiveLinkToolbar() {
   const [safariChromeIsMinimized, setSafariChromeIsMinimized] = useState(false);
-  const [safariChromeMeasurementReady, setSafariChromeMeasurementReady] =
-    useState(false);
   const safariChromeIsMinimizedRef = useRef(false);
 
   useEffect(() => {
@@ -3118,7 +3116,6 @@ function LiveLinkToolbar() {
     if (!isIOS || !isSafari || isStandalone || !viewport) {
       safariChromeIsMinimizedRef.current = false;
       setSafariChromeIsMinimized(false);
-      setSafariChromeMeasurementReady(true);
       return;
     }
 
@@ -3145,7 +3142,6 @@ function LiveLinkToolbar() {
 
     const measureSafariChrome = () => {
       measurementFrame = null;
-      setSafariChromeMeasurementReady(true);
       if (viewport.scale > 1.01) {
         commitVisibility(false);
         return;
@@ -3210,11 +3206,7 @@ function LiveLinkToolbar() {
   return (
     <nav
       className={`live-link-toolbar ${
-        !safariChromeMeasurementReady
-          ? "is-measuring"
-          : safariChromeIsMinimized
-            ? "is-safari-minimized"
-            : ""
+        safariChromeIsMinimized ? "is-safari-minimized" : ""
       }`}
       aria-label="Live Strip actions"
     >
