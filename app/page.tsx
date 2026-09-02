@@ -4580,6 +4580,7 @@ export default function Home() {
   const transitionToViewStandard = async (
     nextView: View,
     nextScroll: "top" | "end" = "top",
+    preserveScroll = false,
   ) => {
     const root = document.documentElement;
     cancelDockTransitionSchedule();
@@ -4590,13 +4591,15 @@ export default function Home() {
       setDockTransitionStarted(false);
       setView(nextView);
     });
-    const top =
-      nextScroll === "end"
-        ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-        : 0;
-    window.scrollTo({ top, behavior: "auto" });
-    document.documentElement.scrollTop = top;
-    document.body.scrollTop = top;
+    if (!preserveScroll) {
+      const top =
+        nextScroll === "end"
+          ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+          : 0;
+      window.scrollTo({ top, behavior: "auto" });
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
+    }
     root.classList.add("strip-standard-page-entering");
     try {
       await new Promise<void>((resolve) =>
@@ -5281,7 +5284,7 @@ export default function Home() {
               ? "/history"
               : "/settings",
       );
-      await transitionToViewStandard(nextView);
+      await transitionToViewStandard(nextView, "top", true);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
