@@ -113,7 +113,7 @@ type TextTool = "font" | "background" | "color";
 type EndingTool = "background" | "button";
 type CoverColorShape = "portrait" | "square" | "landscape";
 type PublishedCover =
-  | { kind: "image"; src: string; alt: string }
+  | { kind: "image"; src: string; alt: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape: CoverColorShape };
 type PublishedStripSummary = {
   id: string;
@@ -729,6 +729,47 @@ function loadStoryImage(src: string) {
     image.onerror = () => reject(new Error("Story cover could not load"));
     image.src = src;
   });
+}
+
+function loadLibraryCoverAspectRatio(src: string) {
+  return new Promise<number | null>((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    let settled = false;
+    const finish = (ratio: number | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(ratio);
+    };
+    const readRatio = () => {
+      const ratio = image.naturalWidth / image.naturalHeight;
+      finish(Number.isFinite(ratio) && ratio > 0 ? ratio : null);
+    };
+    const timeout = window.setTimeout(() => finish(null), 5000);
+    image.onload = readRatio;
+    image.onerror = () => finish(null);
+    image.src = src;
+    if (image.complete) readRatio();
+  });
+}
+
+async function prepareLibrarySummaries<
+  T extends PublishedStripSummary | DraftStripSummary | ViewedStripSummary,
+>(items: T[]) {
+  const preparedItems = [...items];
+  await Promise.all(
+    items.slice(0, 6).map(async (item, index) => {
+      if (item.cover.kind !== "image") return;
+      const aspectRatio = await loadLibraryCoverAspectRatio(item.cover.src);
+      if (!aspectRatio) return;
+      preparedItems[index] = {
+        ...item,
+        cover: { ...item.cover, aspectRatio },
+      } as T;
+    }),
+  );
+  return preparedItems;
 }
 
 function drawImageCover(
@@ -3872,7 +3913,9 @@ export default function Home() {
         const data = (await response.json()) as {
           strips?: PublishedStripSummary[];
         };
-        setPublishedStrips(Array.isArray(data.strips) ? data.strips : []);
+        const strips = Array.isArray(data.strips) ? data.strips : [];
+        const preparedStrips = await prepareLibrarySummaries(strips);
+        if (!controller.signal.aborted) setPublishedStrips(preparedStrips);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -3895,7 +3938,9 @@ export default function Home() {
       .then(async (response) => {
         if (!response.ok) throw new Error("Draft library request failed");
         const data = (await response.json()) as { drafts?: DraftStripSummary[] };
-        setDraftStrips(Array.isArray(data.drafts) ? data.drafts : []);
+        const drafts = Array.isArray(data.drafts) ? data.drafts : [];
+        const preparedDrafts = await prepareLibrarySummaries(drafts);
+        if (!controller.signal.aborted) setDraftStrips(preparedDrafts);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -3920,7 +3965,9 @@ export default function Home() {
         const data = (await response.json()) as {
           history?: ViewedStripSummary[];
         };
-        setViewedStrips(Array.isArray(data.history) ? data.history : []);
+        const historyItems = Array.isArray(data.history) ? data.history : [];
+        const preparedHistory = await prepareLibrarySummaries(historyItems);
+        if (!controller.signal.aborted) setViewedStrips(preparedHistory);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -6733,6 +6780,9 @@ export default function Home() {
       libraryItems.filter((_, index) => index % 2 === 0),
       libraryItems.filter((_, index) => index % 2 === 1),
     ];
+    const libraryItemOrder = new Map(
+      libraryItems.map((item, index) => [item.id, index]),
+    );
     const libraryIsLoading = isDraftLibrary
       ? draftsLoading
       : isHistory
@@ -6740,12 +6790,12 @@ export default function Home() {
         : libraryLoading;
     const librarySkeletonColumns = [
       [
-        { shape: "portrait", titleWidth: "68%" },
-        { shape: "landscape", titleWidth: "48%" },
+        { order: 0, titleWidth: "68%" },
+        { order: 2, titleWidth: "48%" },
       ],
       [
-        { shape: "square", titleWidth: "76%" },
-        { shape: "portrait", titleWidth: "58%" },
+        { order: 1, titleWidth: "76%" },
+        { order: 3, titleWidth: "58%" },
       ],
     ];
 
@@ -6756,14 +6806,22 @@ export default function Home() {
         | ViewedStripSummary,
     ) => {
       const isDraft = "updatedAt" in strip;
+      const itemOrder = libraryItemOrder.get(strip.id) ?? 0;
       const cardTitle =
         strip.title ||
         (isDraft ? draftFallbackTitle(strip.createdAt) : "Untitled");
+      const coverStyle: CSSProperties | undefined =
+        strip.cover.kind === "color"
+          ? { backgroundColor: strip.cover.color }
+          : strip.cover.aspectRatio
+            ? { aspectRatio: String(strip.cover.aspectRatio) }
+            : undefined;
       return (
         <button
-          className="library-card"
+          className="library-card is-library-card-entering"
           type="button"
           key={strip.id}
+          style={{ "--library-item-order": Math.min(itemOrder, 8) } as CSSProperties}
           onClick={() =>
             isDraft
               ? void openDraft(strip)
@@ -6784,14 +6842,15 @@ export default function Home() {
                   }`
                 : ""
             }`}
-            style={
-              strip.cover.kind === "color"
-                ? { backgroundColor: strip.cover.color }
-                : undefined
-            }
+            style={coverStyle}
           >
             {strip.cover.kind === "image" ? (
-              <img src={strip.cover.src} alt={strip.cover.alt} />
+              <img
+                src={strip.cover.src}
+                alt={strip.cover.alt}
+                loading={itemOrder < 6 ? "eager" : "lazy"}
+                decoding="async"
+              />
             ) : null}
           </div>
           <h2>{cardTitle}</h2>
@@ -6904,9 +6963,12 @@ export default function Home() {
                       <div
                         className="library-card library-card-skeleton"
                         key={`${view}-skeleton-${columnIndex}-${itemIndex}`}
+                        style={{
+                          "--library-item-order": item.order,
+                        } as CSSProperties}
                       >
                         <div
-                          className={`library-cover library-cover-${item.shape} library-skeleton-surface`}
+                          className="library-cover library-cover-square library-skeleton-surface"
                         />
                         <div
                           className="library-skeleton-title library-skeleton-surface"
