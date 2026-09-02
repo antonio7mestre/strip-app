@@ -205,6 +205,7 @@ const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
+const STICKER_ENDING_BUTTON_BUFFER_PX = 18;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const STRIP_ENDING_BLOCK_ID = "strip-ending";
 const INLINE_PREVIEW_HISTORY_KEY = "stripInlinePreview";
@@ -2324,6 +2325,7 @@ function StripStickerBlock({
   onTapSelectedText,
   onSelect,
   onTransform,
+  onLowerBoundaryAttempt,
   onLoadSettled,
   controls,
 }: {
@@ -2340,6 +2342,7 @@ function StripStickerBlock({
   onTransform: (
     transform: Pick<StickerBlock, "x" | "y" | "width"> & { rotation: number },
   ) => void;
+  onLowerBoundaryAttempt: () => void;
   onLoadSettled?: (loaded: boolean) => void;
   controls?: ReactNode;
 }) {
@@ -2398,6 +2401,7 @@ function StripStickerBlock({
     canvasWidth: number;
     canvasHeight: number;
   } | null>(null);
+  const lowerBoundaryNoticeShownRef = useRef(false);
   const [isTransforming, setIsTransforming] = useState(false);
 
   useEffect(() => {
@@ -2433,8 +2437,7 @@ function StripStickerBlock({
     );
   };
 
-  const clampStickerX = (
-    x: number,
+  const projectedStickerSize = (
     width: number,
     rotation: number,
     canvasWidth: number,
@@ -2453,6 +2456,25 @@ function StripStickerBlock({
     const projectedWidth =
       Math.abs(stickerWidth * Math.cos(radians)) +
       Math.abs(stickerHeight * Math.sin(radians));
+    const projectedHeight =
+      Math.abs(stickerHeight * Math.cos(radians)) +
+      Math.abs(stickerWidth * Math.sin(radians));
+
+    return { projectedWidth, projectedHeight };
+  };
+
+  const clampStickerX = (
+    x: number,
+    width: number,
+    rotation: number,
+    canvasWidth: number,
+  ) => {
+    const safeCanvasWidth = Math.max(1, canvasWidth);
+    const { projectedWidth } = projectedStickerSize(
+      width,
+      rotation,
+      safeCanvasWidth,
+    );
     const visiblePixels = Math.min(STICKER_MIN_VISIBLE_PX, projectedWidth);
     const minimumCenter = visiblePixels - projectedWidth / 2;
     const maximumCenter =
@@ -2466,15 +2488,96 @@ function StripStickerBlock({
     return (clampedCenter / safeCanvasWidth) * 100;
   };
 
-  const clampStickerY = (y: number, canvasHeight: number) => {
-    const stickerHeight =
-      stickerElementRef.current?.getBoundingClientRect().height ?? 48;
-    const allowedOverflow = stickerHeight * 0.25;
-    return Math.min(
-      canvasHeight + allowedOverflow,
-      Math.max(0, y),
+  const clampStickerY = (
+    y: number,
+    width: number,
+    rotation: number,
+    canvasWidth: number,
+    canvasHeight: number,
+    announceBoundary = true,
+  ) => {
+    const sticker = stickerElementRef.current;
+    const canvas = sticker?.closest<HTMLElement>(".strip-canvas");
+    const canvasBounds = canvas?.getBoundingClientRect();
+    const firstAnchor = canvas
+      ? Array.from(canvas.children).find(
+          (element): element is HTMLElement =>
+            element instanceof HTMLElement &&
+            (element.classList.contains("text-block") ||
+              element.classList.contains("image-block")),
+        )
+      : undefined;
+    const endingActions = canvas?.querySelector<HTMLElement>(
+      ".strip-ending-card .strip-ending-actions",
     );
+    const { projectedHeight } = projectedStickerSize(
+      width,
+      rotation,
+      canvasWidth,
+    );
+    const minimumCenter = Math.max(
+      0,
+      firstAnchor && canvasBounds
+        ? firstAnchor.getBoundingClientRect().top - canvasBounds.top
+        : 0,
+    );
+    const actionLimit =
+      endingActions && canvasBounds
+        ? endingActions.getBoundingClientRect().top -
+          canvasBounds.top -
+          STICKER_ENDING_BUTTON_BUFFER_PX -
+          projectedHeight / 2
+        : canvasHeight - STICKER_ENDING_BUTTON_BUFFER_PX - projectedHeight / 2;
+    const maximumCenter = Math.max(minimumCenter, actionLimit);
+
+    if (
+      announceBoundary &&
+      y > maximumCenter + 0.5 &&
+      !lowerBoundaryNoticeShownRef.current
+    ) {
+      lowerBoundaryNoticeShownRef.current = true;
+      onLowerBoundaryAttempt();
+    }
+
+    return Math.min(maximumCenter, Math.max(minimumCenter, y));
   };
+
+  const settleStickerWithinBounds = () => {
+    if (!isEditing) return;
+    const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
+    if (!canvas) return;
+    const current = liveBlockRef.current;
+    const canvasWidth = Math.max(1, canvas.getBoundingClientRect().width);
+    const canvasHeight = Math.max(window.innerHeight, canvas.scrollHeight);
+    const y = clampStickerY(
+      current.y,
+      current.width,
+      current.rotation ?? 0,
+      canvasWidth,
+      canvasHeight,
+      false,
+    );
+    if (Math.abs(y - current.y) < 0.5) return;
+    const nextTransform = {
+      x: current.x,
+      y,
+      width: current.width,
+      rotation: current.rotation ?? 0,
+    };
+    previewTransform(nextTransform);
+    onTransform(nextTransform);
+  };
+
+  useLayoutEffect(() => {
+    if (!isEditing) return;
+    const frame = window.requestAnimationFrame(settleStickerWithinBounds);
+    const handleResize = () => settleStickerWithinBounds();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [block.id, isEditing]);
 
   useEffect(() => {
     if (!isEditing || !isSelected) {
@@ -2487,6 +2590,7 @@ function StripStickerBlock({
       if (event.touches.length < 2 || canvasTouchTransformRef.current) return;
       const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
       if (!canvas) return;
+      lowerBoundaryNoticeShownRef.current = false;
 
       const [first, second] = [event.touches[0], event.touches[1]];
       const current = liveBlockRef.current;
@@ -2556,6 +2660,9 @@ function StripStickerBlock({
           ),
           y: clampStickerY(
             transform.y + midpointY - transform.midpointY,
+            width,
+            rotation,
+            transform.canvasWidth,
             transform.canvasHeight,
           ),
           width,
@@ -2580,6 +2687,9 @@ function StripStickerBlock({
         ),
         y: clampStickerY(
           drag.y + touch.clientY - drag.clientY,
+          drag.width,
+          drag.rotation,
+          drag.canvasWidth,
           drag.canvasHeight,
         ),
         width: drag.width,
@@ -2778,6 +2888,7 @@ function StripStickerBlock({
         event.preventDefault();
         const canvas = event.currentTarget.closest<HTMLElement>(".strip-canvas");
         if (!canvas) return;
+        lowerBoundaryNoticeShownRef.current = false;
         event.currentTarget.setPointerCapture(event.pointerId);
         const canvasWidth = Math.max(1, canvas.getBoundingClientRect().width);
         const canvasHeight = Math.max(window.innerHeight, canvas.scrollHeight);
@@ -2883,6 +2994,9 @@ function StripStickerBlock({
             ),
             y: clampStickerY(
               transform.y + midpointY - transform.midpointY,
+              width,
+              rotation,
+              transform.canvasWidth,
               transform.canvasHeight,
             ),
             width,
@@ -2904,6 +3018,9 @@ function StripStickerBlock({
           ),
           y: clampStickerY(
             drag.y + event.clientY - drag.clientY,
+            current.width,
+            current.rotation ?? 0,
+            drag.canvasWidth,
             drag.canvasHeight,
           ),
           width: current.width,
@@ -2933,7 +3050,10 @@ function StripStickerBlock({
             void image
               .decode()
               .catch(() => {})
-              .then(() => onLoadSettled?.(true));
+              .then(() => {
+                settleStickerWithinBounds();
+                onLoadSettled?.(true);
+              });
           }}
           onError={() => onLoadSettled?.(false)}
         />
@@ -3132,6 +3252,9 @@ export default function Home() {
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
       : blocks.find((block) => block.type !== "sticker");
+  const hasStickerAnchorBlock = blocks.some(
+    (block) => block.type === "text" || block.type === "image",
+  );
   const topSafeAreaColor =
     view === "library" ||
     view === "drafts" ||
@@ -4331,22 +4454,63 @@ export default function Home() {
   const addSticker = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    event.currentTarget.value = "";
+    if (!hasStickerAnchorBlock) {
+      setNotice("Add a text or image block before adding a sticker.");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
       const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
       const canvasBounds = canvas?.getBoundingClientRect();
+      const anchorBlocks = canvas
+        ? Array.from(canvas.children)
+            .filter(
+              (element): element is HTMLElement =>
+                element instanceof HTMLElement &&
+                (element.classList.contains("text-block") ||
+                  element.classList.contains("image-block")),
+            )
+            .map((element) => ({
+              element,
+              bounds: element.getBoundingClientRect(),
+            }))
+            .filter(({ bounds }) => bounds.height > 0)
+        : [];
+      if (!canvas || !canvasBounds || anchorBlocks.length === 0) {
+        setNotice("Add a text or image block before adding a sticker.");
+        return;
+      }
       const viewport = window.visualViewport;
       const viewportHeight = viewport?.height ?? window.innerHeight;
       const viewportOffsetTop = viewport?.offsetTop ?? 0;
-      const canvasWidth = Math.max(1, canvasBounds?.width ?? window.innerWidth);
-      const id = makeId();
-      const y = Math.max(
-        72,
-        viewportOffsetTop + viewportHeight * 0.42 - (canvasBounds?.top ?? 0),
+      const placementLine = viewportOffsetTop + viewportHeight * 0.42;
+      const selectedAnchor = anchorBlocks.find(
+        ({ element }) => element.dataset.blockId === selectedBlockId,
       );
-      const width = Math.min(34, Math.max(24, (132 / canvasWidth) * 100));
+      const targetAnchor =
+        selectedAnchor ??
+        anchorBlocks.reduce((closest, candidate) => {
+          const closestCenter = (closest.bounds.top + closest.bounds.bottom) / 2;
+          const candidateCenter = (candidate.bounds.top + candidate.bounds.bottom) / 2;
+          return Math.abs(candidateCenter - placementLine) <
+            Math.abs(closestCenter - placementLine)
+            ? candidate
+            : closest;
+        });
+      const canvasWidth = Math.max(1, canvasBounds.width);
+      const id = makeId();
+      const y =
+        Math.min(
+          targetAnchor.bounds.bottom - 1,
+          Math.max(targetAnchor.bounds.top + 1, placementLine),
+        ) - canvasBounds.top;
+      const width = Math.min(
+        34,
+        Math.max(24, (132 / canvasWidth) * 100),
+      );
       setBlocks((current) => [
         ...current,
         {
@@ -4364,7 +4528,6 @@ export default function Home() {
       setActiveTextTool(null);
     };
     reader.readAsDataURL(file);
-    event.target.value = "";
   };
 
   const updateText = (id: string, content: string) => {
@@ -6559,6 +6722,9 @@ export default function Home() {
                   ),
                 );
               }}
+              onLowerBoundaryAttempt={() =>
+                setNotice("Keep stickers above the STRIP buttons.")
+              }
               onLoadSettled={(loadedSuccessfully) =>
                 settleMediaLoad(block.id, loadedSuccessfully)
               }
@@ -8175,7 +8341,13 @@ export default function Home() {
           <button
             className="dock-icon-button dock-tool-button"
             type="button"
-            onClick={() => stickerInputRef.current?.click()}
+            onClick={() => {
+              if (!hasStickerAnchorBlock) {
+                setNotice("Add a text or image block before adding a sticker.");
+                return;
+              }
+              stickerInputRef.current?.click();
+            }}
             disabled={inlinePreview}
             aria-label="Add sticker"
           >
