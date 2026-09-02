@@ -3651,7 +3651,7 @@ html.page-color-picking * {
   position: fixed;
   z-index: 45;
   left: 50%;
-  bottom: 6px;
+  bottom: 1px;
   display: grid;
   width: min(calc(100% - 24px), 336px);
   height: 62px;
@@ -3665,8 +3665,8 @@ html.page-color-picking * {
   background: rgba(255, 255, 255, 0.9);
   color: #090909;
   box-shadow:
-    0 -10px 30px -10px rgba(0, 0, 0, 0.22),
-    0 -2px 10px -4px rgba(0, 0, 0, 0.18);
+    0 -12px 28px -12px rgba(0, 0, 0, 0.22),
+    0 -4px 8px -4px rgba(0, 0, 0, 0.18);
   opacity: 1;
   visibility: visible;
   -webkit-backdrop-filter: blur(24px) saturate(180%);
