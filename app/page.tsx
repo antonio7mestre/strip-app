@@ -6656,6 +6656,21 @@ export default function Home() {
       libraryItems.filter((_, index) => index % 2 === 0),
       libraryItems.filter((_, index) => index % 2 === 1),
     ];
+    const libraryIsLoading = isDraftLibrary
+      ? draftsLoading
+      : isHistory
+        ? historyLoading
+        : libraryLoading;
+    const librarySkeletonColumns = [
+      [
+        { shape: "portrait", titleWidth: "68%" },
+        { shape: "landscape", titleWidth: "48%" },
+      ],
+      [
+        { shape: "square", titleWidth: "76%" },
+        { shape: "portrait", titleWidth: "58%" },
+      ],
+    ];
 
     const renderLibraryCard = (
       strip:
@@ -6789,7 +6804,43 @@ export default function Home() {
                   {authPending ? "Signing out…" : "Sign out"}
                 </button>
               </div>
-            ) : isHistory && !historyLoading && libraryItems.length === 0 ? (
+            ) : libraryIsLoading ? (
+              <div
+                className="library-grid library-skeleton-grid"
+                aria-label={
+                  isDraftLibrary
+                    ? "Loading your drafts"
+                    : isHistory
+                      ? "Loading your viewed Strips"
+                      : "Loading your Strips"
+                }
+                aria-busy="true"
+                role="status"
+              >
+                {librarySkeletonColumns.map((column, columnIndex) => (
+                  <div
+                    className="library-column"
+                    key={`${view}-skeleton-column-${columnIndex}`}
+                    aria-hidden="true"
+                  >
+                    {column.map((item, itemIndex) => (
+                      <div
+                        className="library-card library-card-skeleton"
+                        key={`${view}-skeleton-${columnIndex}-${itemIndex}`}
+                      >
+                        <div
+                          className={`library-cover library-cover-${item.shape} library-skeleton-surface`}
+                        />
+                        <div
+                          className="library-skeleton-title library-skeleton-surface"
+                          style={{ width: item.titleWidth }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : isHistory && libraryItems.length === 0 ? (
               <div className="library-empty-state">
                 <strong>No viewing history yet.</strong>
                 <span>Strips you open will appear here.</span>
@@ -6804,13 +6855,7 @@ export default function Home() {
                       ? "Your viewed Strips"
                       : "Your Strips"
                 }
-                aria-busy={
-                  isDraftLibrary
-                    ? draftsLoading
-                    : isHistory
-                      ? historyLoading
-                      : libraryLoading
-                }
+                aria-busy="false"
               >
                 {libraryColumns.map((column, columnIndex) => (
                   <div
