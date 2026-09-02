@@ -3655,9 +3655,9 @@ html.page-color-picking * {
   display: grid;
   width: min(calc(100% - 24px), 336px);
   height: 62px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 7px;
+  grid-template-columns: 0.8fr 0.8fr 1.4fr;
+  gap: 0;
+  padding: 7px 12px;
   transform: translate3d(-50%, 0, 0) scale(1);
   transform-origin: 50% 50%;
   border: 1px solid rgba(255, 255, 255, 0.72);
@@ -3715,24 +3715,12 @@ html.page-color-picking * {
 }
 
 .live-link-toolbar .live-link-toolbar-create {
-  position: relative;
-  padding: 0 7px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: -0.015em;
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   line-height: 1;
   white-space: nowrap;
-}
-
-.live-link-toolbar .live-link-toolbar-create::before {
-  position: absolute;
-  top: 50%;
-  left: -2px;
-  width: 1px;
-  height: 22px;
-  transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.12);
-  content: "";
 }
 
 .live-link-toolbar button:focus-visible {
