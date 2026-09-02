@@ -82,9 +82,7 @@ body {
 
 html:has(.library-mode),
 body:has(.library-mode) {
-  height: 100dvh;
   min-height: 100dvh;
-  overflow: hidden;
 }
 
 @keyframes strip-page-out-up {
@@ -903,29 +901,19 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .library-mode {
-  height: 100dvh;
   min-height: 100dvh;
-  overflow: hidden;
+  overflow: visible;
+  overscroll-behavior-y: auto;
 }
 
 .strip-library {
   position: relative;
   z-index: 1;
-  height: 100%;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  padding-bottom: env(safe-area-inset-bottom);
-  scroll-behavior: auto;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
-}
-
-.strip-library-scroll-content {
   display: flex;
-  min-height: 100%;
+  min-height: calc(100dvh + var(--library-tab-scroll-inset, 0px));
   flex-direction: column;
+  padding-top: var(--library-tab-scroll-inset, 0px);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .library-header {

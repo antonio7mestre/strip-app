@@ -2994,6 +2994,7 @@ export default function Home() {
   const [storyAssetUrl, setStoryAssetUrl] = useState("");
   const [storyAssetLoading, setStoryAssetLoading] = useState(false);
   const [view, setView] = useState<View>("library");
+  const [libraryScrollInset, setLibraryScrollInset] = useState(0);
   const [initialRouteReady, setInitialRouteReady] = useState(false);
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
@@ -3038,13 +3039,13 @@ export default function Home() {
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const authPhoneInputRef = useRef<HTMLInputElement>(null);
-  const libraryScrollRef = useRef<HTMLElement>(null);
   const coverStageRef = useRef<HTMLDivElement>(null);
   const coverInstructionRef = useRef<HTMLParagraphElement>(null);
   const coverSwipeStartYRef = useRef<number | null>(null);
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
+  const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
   const trailingTextInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
@@ -3235,6 +3236,43 @@ export default function Home() {
     setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
   }, [view]);
+
+  useLayoutEffect(() => {
+    const isLibraryView =
+      view === "library" ||
+      view === "drafts" ||
+      view === "history" ||
+      view === "settings";
+    if (!isLibraryView || libraryScrollInset <= 0) return;
+
+    const library = document.querySelector<HTMLElement>(".strip-library");
+    if (!library) return;
+
+    const syncScrollInset = () => {
+      const currentInset = libraryScrollInsetRef.current;
+      const viewportTop = window.visualViewport?.pageTop ?? window.scrollY;
+      const nextInset = Math.max(0, Math.min(currentInset, viewportTop));
+      if (nextInset === currentInset) return;
+
+      libraryScrollInsetRef.current = nextInset;
+      library.style.setProperty("--library-tab-scroll-inset", `${nextInset}px`);
+      if (nextInset === 0) setLibraryScrollInset(0);
+    };
+
+    syncScrollInset();
+    window.addEventListener("scroll", syncScrollInset, { passive: true });
+    window.visualViewport?.addEventListener("scroll", syncScrollInset, {
+      passive: true,
+    });
+    window.visualViewport?.addEventListener("resize", syncScrollInset, {
+      passive: true,
+    });
+    return () => {
+      window.removeEventListener("scroll", syncScrollInset);
+      window.visualViewport?.removeEventListener("scroll", syncScrollInset);
+      window.visualViewport?.removeEventListener("resize", syncScrollInset);
+    };
+  }, [libraryScrollInset, view]);
 
   useEffect(() => {
     if (selectedBlockId !== STRIP_ENDING_BLOCK_ID) {
@@ -4555,9 +4593,11 @@ export default function Home() {
   ) => {
     const dockSnapshot = animateDock ? captureDockTransition() : null;
     if (!animateDock) cancelDockTransitionSchedule();
+    libraryScrollInsetRef.current = 0;
     flushSync(() => {
       setDockTransition(dockSnapshot);
       setDockTransitionStarted(false);
+      setLibraryScrollInset(0);
       setView(nextView);
     });
     if (animateDock) scheduleDockTransitionEnd();
@@ -4585,24 +4625,21 @@ export default function Home() {
   const transitionToViewStandard = async (
     nextView: View,
     nextScroll: "top" | "end" = "top",
-    resetLibraryScroll = false,
+    preserveScroll = false,
   ) => {
     const root = document.documentElement;
+    const preservedScrollTop = preserveScroll ? Math.max(0, window.scrollY) : 0;
     cancelDockTransitionSchedule();
     root.classList.remove("strip-page-transitioning");
+    libraryScrollInsetRef.current = preservedScrollTop;
     flushSync(() => {
       setLegacyPageTransition(null);
       setDockTransition(null);
       setDockTransitionStarted(false);
+      setLibraryScrollInset(preservedScrollTop);
       setView(nextView);
     });
-    if (resetLibraryScroll) {
-      const libraryScroller = libraryScrollRef.current;
-      if (libraryScroller) {
-        libraryScroller.scrollTop = 0;
-        libraryScroller.scrollLeft = 0;
-      }
-    } else {
+    if (!preserveScroll) {
       const top =
         nextScroll === "end"
           ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
@@ -6938,151 +6975,144 @@ export default function Home() {
           />
 
           <section
-            ref={libraryScrollRef}
             className={`strip-library ${legacyPageEnterClass}`}
+            style={
+              {
+                "--library-tab-scroll-inset": `${libraryScrollInsetRef.current}px`,
+              } as CSSProperties
+            }
           >
-            <div className="strip-library-scroll-content">
-              <header className="library-header">
-                <h1>
-                  {isSettings
-                    ? "SETTINGS"
-                    : isDraftLibrary
-                      ? "DRAFTS"
-                      : isHistory
-                        ? "HISTORY"
-                        : "STRIP"}
-                </h1>
-              </header>
-              {isSettings ? (
-                <div className="settings-content">
-                  <section
-                    className="settings-section"
-                    aria-labelledby="account-settings-heading"
-                  >
-                    <h2 id="account-settings-heading">Account</h2>
-                    <div className="settings-card">
-                      <div className="settings-row">
-                        <span>Username</span>
-                        <strong>
-                          {authUser?.username ? `@${authUser.username}` : "Not set"}
-                        </strong>
-                      </div>
-                      <div className="settings-row">
-                        <span>Phone</span>
-                        <strong>{authUser?.phoneLabel || "Not available"}</strong>
-                      </div>
+            <header className="library-header">
+              <h1>
+                {isSettings
+                  ? "SETTINGS"
+                  : isDraftLibrary
+                    ? "DRAFTS"
+                    : isHistory
+                      ? "HISTORY"
+                      : "STRIP"}
+              </h1>
+            </header>
+            {isSettings ? (
+              <div className="settings-content">
+                <section className="settings-section" aria-labelledby="account-settings-heading">
+                  <h2 id="account-settings-heading">Account</h2>
+                  <div className="settings-card">
+                    <div className="settings-row">
+                      <span>Username</span>
+                      <strong>
+                        {authUser?.username ? `@${authUser.username}` : "Not set"}
+                      </strong>
                     </div>
-                  </section>
-
-                  <section
-                    className="settings-section"
-                    aria-labelledby="library-settings-heading"
-                  >
-                    <h2 id="library-settings-heading">Your library</h2>
-                    <div className="settings-card">
-                      <div className="settings-row">
-                        <span>Published Strips</span>
-                        <strong>{publishedStrips.length}</strong>
-                      </div>
-                      <div className="settings-row">
-                        <span>Drafts</span>
-                        <strong>{draftStrips.length}</strong>
-                      </div>
-                      <div className="settings-row">
-                        <span>Viewed Strips</span>
-                        <strong>{viewedStrips.length}</strong>
-                      </div>
+                    <div className="settings-row">
+                      <span>Phone</span>
+                      <strong>{authUser?.phoneLabel || "Not available"}</strong>
                     </div>
-                  </section>
+                  </div>
+                </section>
 
-                  <section
-                    className="settings-section"
-                    aria-labelledby="about-settings-heading"
-                  >
-                    <h2 id="about-settings-heading">About</h2>
-                    <div className="settings-card settings-about-card">
-                      <strong>STRIP</strong>
-                      <p>Make something for your friends.</p>
+                <section className="settings-section" aria-labelledby="library-settings-heading">
+                  <h2 id="library-settings-heading">Your library</h2>
+                  <div className="settings-card">
+                    <div className="settings-row">
+                      <span>Published Strips</span>
+                      <strong>{publishedStrips.length}</strong>
                     </div>
-                  </section>
+                    <div className="settings-row">
+                      <span>Drafts</span>
+                      <strong>{draftStrips.length}</strong>
+                    </div>
+                    <div className="settings-row">
+                      <span>Viewed Strips</span>
+                      <strong>{viewedStrips.length}</strong>
+                    </div>
+                  </div>
+                </section>
 
-                  <button
-                    className="settings-sign-out"
-                    type="button"
-                    onClick={() => void signOut()}
-                    disabled={authPending}
-                  >
-                    <LogOut aria-hidden="true" />
-                    {authPending ? "Signing out…" : "Sign out"}
-                  </button>
-                </div>
-              ) : libraryIsLoading ? (
-                <div
-                  className="library-grid library-skeleton-grid"
-                  aria-label={
-                    isDraftLibrary
-                      ? "Loading your drafts"
-                      : isHistory
-                        ? "Loading your viewed Strips"
-                        : "Loading your Strips"
-                  }
-                  aria-busy="true"
-                  role="status"
+                <section className="settings-section" aria-labelledby="about-settings-heading">
+                  <h2 id="about-settings-heading">About</h2>
+                  <div className="settings-card settings-about-card">
+                    <strong>STRIP</strong>
+                    <p>Make something for your friends.</p>
+                  </div>
+                </section>
+
+                <button
+                  className="settings-sign-out"
+                  type="button"
+                  onClick={() => void signOut()}
+                  disabled={authPending}
                 >
-                  {librarySkeletonColumns.map((column, columnIndex) => (
-                    <div
-                      className="library-column"
-                      key={`${view}-skeleton-column-${columnIndex}`}
-                      aria-hidden="true"
-                    >
-                      {column.map((item, itemIndex) => (
+                  <LogOut aria-hidden="true" />
+                  {authPending ? "Signing out…" : "Sign out"}
+                </button>
+              </div>
+            ) : libraryIsLoading ? (
+              <div
+                className="library-grid library-skeleton-grid"
+                aria-label={
+                  isDraftLibrary
+                    ? "Loading your drafts"
+                    : isHistory
+                      ? "Loading your viewed Strips"
+                      : "Loading your Strips"
+                }
+                aria-busy="true"
+                role="status"
+              >
+                {librarySkeletonColumns.map((column, columnIndex) => (
+                  <div
+                    className="library-column"
+                    key={`${view}-skeleton-column-${columnIndex}`}
+                    aria-hidden="true"
+                  >
+                    {column.map((item, itemIndex) => (
+                      <div
+                        className="library-card library-card-skeleton"
+                        key={`${view}-skeleton-${columnIndex}-${itemIndex}`}
+                        style={{
+                          "--library-item-order": item.order,
+                        } as CSSProperties}
+                      >
                         <div
-                          className="library-card library-card-skeleton"
-                          key={`${view}-skeleton-${columnIndex}-${itemIndex}`}
-                          style={{
-                            "--library-item-order": item.order,
-                          } as CSSProperties}
-                        >
-                          <div
-                            className="library-cover library-cover-square library-skeleton-surface"
-                          />
-                          <div
-                            className="library-skeleton-title library-skeleton-surface"
-                            style={{ width: item.titleWidth }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              ) : isHistory && libraryItems.length === 0 ? (
-                <div className="library-empty-state">
-                  <strong>No viewing history yet.</strong>
-                  <span>Strips you open will appear here.</span>
-                </div>
-              ) : (
-                <div
-                  className="library-grid"
-                  aria-label={
-                    isDraftLibrary
-                      ? "Your drafts"
-                      : isHistory
-                        ? "Your viewed Strips"
-                        : "Your Strips"
-                  }
-                  aria-busy="false"
-                >
-                  {libraryColumns.map((column, columnIndex) => (
-                    <div
-                      className="library-column"
-                      key={`${view}-library-column-${columnIndex}`}
-                    >
-                      {column.map(renderLibraryCard)}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                          className="library-cover library-cover-square library-skeleton-surface"
+                        />
+                        <div
+                          className="library-skeleton-title library-skeleton-surface"
+                          style={{ width: item.titleWidth }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : isHistory && libraryItems.length === 0 ? (
+              <div className="library-empty-state">
+                <strong>No viewing history yet.</strong>
+                <span>Strips you open will appear here.</span>
+              </div>
+            ) : (
+              <div
+                className="library-grid"
+                aria-label={
+                  isDraftLibrary
+                    ? "Your drafts"
+                    : isHistory
+                      ? "Your viewed Strips"
+                      : "Your Strips"
+                }
+                aria-busy="false"
+              >
+                {libraryColumns.map((column, columnIndex) => (
+                  <div
+                    className="library-column"
+                    key={`${view}-library-column-${columnIndex}`}
+                  >
+                    {column.map(renderLibraryCard)}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {!isSettings ? (
