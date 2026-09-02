@@ -3252,11 +3252,11 @@ function LiveLinkToolbar() {
       </button>
       <button
         type="button"
-        className="live-link-toolbar-primary"
+        className="live-link-toolbar-create"
         onPointerUp={fakeAction}
         aria-label="Make your own Strip"
       >
-        <Plus aria-hidden="true" />
+        Make your own
       </button>
     </nav>
   );

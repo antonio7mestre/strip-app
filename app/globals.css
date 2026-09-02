@@ -3714,13 +3714,25 @@ html.page-color-picking * {
   transform: scale(0.92);
 }
 
-.live-link-toolbar .live-link-toolbar-primary {
-  background: #3155ff;
-  color: #ffffff;
+.live-link-toolbar .live-link-toolbar-create {
+  position: relative;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.live-link-toolbar .live-link-toolbar-primary:active {
-  background: #2447df;
+.live-link-toolbar .live-link-toolbar-create::before {
+  position: absolute;
+  top: 50%;
+  left: -2px;
+  width: 1px;
+  height: 22px;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.12);
+  content: "";
 }
 
 .live-link-toolbar button:focus-visible {
@@ -3733,12 +3745,6 @@ html.page-color-picking * {
   height: 22px;
   stroke-width: 1.9;
   vector-effect: non-scaling-stroke;
-}
-
-.live-link-toolbar .live-link-toolbar-primary svg {
-  width: 25px;
-  height: 25px;
-  stroke-width: 2.2;
 }
 
 .reader-footer {
