@@ -3185,6 +3185,7 @@ export default function Home() {
   const inlinePreviewScrollRef = useRef<number | null>(null);
   const inlinePreviewHistoryEntryRef = useRef(false);
   const inlinePreviewSelectionRef = useRef<string | null>(null);
+  const suppressSelectedBlockAutoFocusRef = useRef(false);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
   const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
@@ -4631,7 +4632,14 @@ export default function Home() {
   const endingIsSelected = selectedBlockId === STRIP_ENDING_BLOCK_ID;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
   useLayoutEffect(() => {
-    if (view !== "edit" || inlinePreview || !selectedBlockId) return;
+    if (
+      view !== "edit" ||
+      inlinePreview ||
+      !selectedBlockId ||
+      suppressSelectedBlockAutoFocusRef.current
+    ) {
+      return;
+    }
 
     let firstFrame = 0;
     let secondFrame = 0;
@@ -4645,7 +4653,7 @@ export default function Home() {
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(secondFrame);
     };
-  }, [inlinePreview, selectedBlockId, view]);
+  }, [selectedBlockId, view]);
   useLayoutEffect(() => {
     const selected = blocks.find((block) => block.id === selectedBlockId);
     const selectedIsEnding = selectedBlockId === STRIP_ENDING_BLOCK_ID;
@@ -5089,6 +5097,17 @@ export default function Home() {
     };
   }, [view, coverChoices.length, customCoverSrc]);
 
+  useEffect(() => {
+    if (!inlinePreview) return;
+
+    const rememberPreviewScroll = () => {
+      inlinePreviewScrollRef.current = window.scrollY;
+    };
+
+    window.addEventListener("scroll", rememberPreviewScroll, { passive: true });
+    return () => window.removeEventListener("scroll", rememberPreviewScroll);
+  }, [inlinePreview]);
+
   const toggleInlinePreview = () => {
     if (!inlinePreview && !hasContent) {
       setNotice("Add something to preview.");
@@ -5134,10 +5153,29 @@ export default function Home() {
     });
   };
 
+  const holdInlinePreviewScrollPosition = (scrollTop: number) => {
+    const restoreScroll = () => {
+      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = scrollTop;
+      document.body.scrollTop = scrollTop;
+    };
+
+    restoreScroll();
+    window.requestAnimationFrame(() => {
+      restoreScroll();
+      window.requestAnimationFrame(() => {
+        restoreScroll();
+        inlinePreviewScrollRef.current = null;
+        suppressSelectedBlockAutoFocusRef.current = false;
+      });
+    });
+  };
+
   const exitInlinePreviewAndSelect = (blockId: string) => {
     if (!inlinePreview) return;
     inlinePreviewScrollRef.current = window.scrollY;
     inlinePreviewSelectionRef.current = blockId;
+    suppressSelectedBlockAutoFocusRef.current = true;
     triggerSelectionHaptic();
 
     if (inlinePreviewHistoryEntryRef.current) {
@@ -5153,7 +5191,9 @@ export default function Home() {
       setActiveEndingTool(null);
     });
     inlinePreviewSelectionRef.current = null;
-    inlinePreviewScrollRef.current = null;
+    holdInlinePreviewScrollPosition(
+      inlinePreviewScrollRef.current ?? window.scrollY,
+    );
   };
 
   const continueToPublish = () => {
@@ -5784,15 +5824,7 @@ export default function Home() {
           setActiveTextTool(null);
           setActiveEndingTool(null);
         });
-        if (selectedPreviewBlockId) {
-          inlinePreviewScrollRef.current = null;
-          return;
-        }
-        window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
-        window.requestAnimationFrame(() => {
-          window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
-          inlinePreviewScrollRef.current = null;
-        });
+        holdInlinePreviewScrollPosition(scrollTop);
         return;
       }
 
@@ -6634,7 +6666,11 @@ export default function Home() {
                         .catch(() => {})
                         .then(() => {
                           settleMediaLoad(block.id, true);
-                          if (selectedBlockId === block.id) {
+                          if (
+                            isEditing &&
+                            !suppressSelectedBlockAutoFocusRef.current &&
+                            selectedBlockId === block.id
+                          ) {
                             window.requestAnimationFrame(() =>
                               focusSelectedBlockWithToolbar(block.id),
                             );
@@ -6782,7 +6818,12 @@ export default function Home() {
             croppedHeight={heightCrop?.height}
             onLoadSettled={(loadedSuccessfully) => {
               settleMediaLoad(block.id, loadedSuccessfully);
-              if (loadedSuccessfully && selectedBlockId === block.id) {
+              if (
+                isEditing &&
+                loadedSuccessfully &&
+                !suppressSelectedBlockAutoFocusRef.current &&
+                selectedBlockId === block.id
+              ) {
                 window.requestAnimationFrame(() =>
                   focusSelectedBlockWithToolbar(block.id),
                 );
