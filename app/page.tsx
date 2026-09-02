@@ -4577,6 +4577,31 @@ export default function Home() {
     }
   };
 
+  const resetTransientNavigationState = () => {
+    const root = document.documentElement;
+    pageTransitionInFlightRef.current = false;
+    cancelDockTransitionSchedule();
+    setOpeningStripId(null);
+    setOpeningDraftId(null);
+    setLegacyPageTransition(null);
+    setDockTransition(null);
+    setDockTransitionStarted(false);
+    root.classList.remove(
+      "strip-page-transitioning",
+      "strip-standard-page-entering",
+    );
+    root.style.removeProperty("--page-transition-duration");
+  };
+
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) resetTransientNavigationState();
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   useEffect(() => {
     if (view !== "publish-setup") return;
     const stage = coverStageRef.current;
@@ -5329,7 +5354,10 @@ export default function Home() {
       }
     };
 
-    const handlePopState = () => void applyRoute();
+    const handlePopState = () => {
+      resetTransientNavigationState();
+      void applyRoute();
+    };
     void applyRoute();
     window.addEventListener("popstate", handlePopState);
     return () => {
