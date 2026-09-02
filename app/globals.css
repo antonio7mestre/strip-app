@@ -1120,35 +1120,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     0 -6px 20px rgba(0, 0, 0, 0.08);
 }
 
-.app-navigation-dock.composer-dock::before,
-.app-navigation-dock.composer-dock::after {
-  position: absolute;
-  bottom: calc(
-    172px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
-  );
-  width: 72px;
-  height: 2px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.22);
-  content: "";
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 180ms ease;
-}
-
-.app-navigation-dock.composer-dock::before {
-  left: max(18px, calc(50% - 148px));
-}
-
-.app-navigation-dock.composer-dock::after {
-  right: max(18px, calc(50% - 148px));
-}
-
-html.safari-toolbar-minimized .app-navigation-dock.composer-dock::before,
-html.safari-toolbar-minimized .app-navigation-dock.composer-dock::after {
-  opacity: 1;
-}
-
 .app-navigation-controls {
   display: grid;
   width: min(calc(100% - 48px), 280px);
@@ -3797,11 +3768,6 @@ html.page-color-picking * {
   .library-card.is-library-card-entering,
   .selector-option {
     animation: none;
-    transition: none;
-  }
-
-  .app-navigation-dock.composer-dock::before,
-  .app-navigation-dock.composer-dock::after {
     transition: none;
   }
 
