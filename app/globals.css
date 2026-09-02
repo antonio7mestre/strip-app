@@ -915,7 +915,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 20px) 14px 22px;
+  padding: calc(env(safe-area-inset-top) + 16px) 14px 22px;
 }
 
 .library-header h1 {
