@@ -4253,40 +4253,60 @@ export default function Home() {
     setActiveTextTool(null);
   };
 
-  const addMedia = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const addMedia = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      const id = makeId();
-      const mediaBlock: ImageBlock | VideoBlock = file.type.startsWith("video/")
-        ? {
-            id,
-            type: "video",
-            src: reader.result,
-            alt: file.name.replace(/\.[^/.]+$/, ""),
-            audioEnabled: true,
-          }
-        : {
-            id,
-            type: "image",
-            src: reader.result,
-            alt: file.name.replace(/\.[^/.]+$/, ""),
-          };
-      setBlocks((current) => {
-        const next = [...current];
-        const selectedIndex = current.findIndex((block) => block.id === selectedBlockId);
-        next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, mediaBlock);
-        return next;
-      });
-      setSelectedBlockId(id);
-      setEditingTextBlockId(null);
-      setActiveTextTool(null);
-      };
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    const insertionAfterId = selectedBlockId;
+    const mediaBlocks = (
+      await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<ImageBlock | VideoBlock | null>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result !== "string") {
+                  resolve(null);
+                  return;
+                }
+
+                const id = makeId();
+                resolve(
+                  file.type.startsWith("video/")
+                    ? {
+                        id,
+                        type: "video",
+                        src: reader.result,
+                        alt: file.name.replace(/\.[^/.]+$/, ""),
+                        audioEnabled: true,
+                      }
+                    : {
+                        id,
+                        type: "image",
+                        src: reader.result,
+                        alt: file.name.replace(/\.[^/.]+$/, ""),
+                      },
+                );
+              };
+              reader.onerror = () => resolve(null);
+              reader.readAsDataURL(file);
+            }),
+        ),
+      )
+    ).filter((block): block is ImageBlock | VideoBlock => block !== null);
+
+    if (mediaBlocks.length === 0) return;
+
+    setBlocks((current) => {
+      const next = [...current];
+      const selectedIndex = current.findIndex((block) => block.id === insertionAfterId);
+      next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, ...mediaBlocks);
+      return next;
+    });
+    setSelectedBlockId(mediaBlocks[mediaBlocks.length - 1].id);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
   };
 
   const addSticker = (event: ChangeEvent<HTMLInputElement>) => {
@@ -8069,8 +8089,9 @@ export default function Home() {
             className="visually-hidden"
             type="file"
             accept="image/*,video/*"
+            multiple
             onChange={addMedia}
-            aria-label="Choose a photo or video"
+            aria-label="Choose photos or videos"
           />
           <button
             className="dock-icon-button dock-tool-button"
