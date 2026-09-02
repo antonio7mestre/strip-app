@@ -900,6 +900,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   overflow-anchor: none;
 }
 
+html.library-scroll-top-locked,
+html.library-scroll-top-locked body,
+html.library-scroll-top-locked .library-mode {
+  overscroll-behavior-y: none;
+}
+
 .library-mode {
   min-height: 100dvh;
   overflow: visible;

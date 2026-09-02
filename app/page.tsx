@@ -3245,32 +3245,83 @@ export default function Home() {
       view === "settings";
     if (!isLibraryView || libraryScrollInset <= 0) return;
 
-    const library = document.querySelector<HTMLElement>(".strip-library");
-    if (!library) return;
+    const lockedScrollTop = libraryScrollInset;
+    const root = document.documentElement;
+    let lastTouchY: number | null = null;
+    let restoringScroll = false;
 
-    const syncScrollInset = () => {
-      const currentInset = libraryScrollInsetRef.current;
-      const viewportTop = window.visualViewport?.pageTop ?? window.scrollY;
-      const nextInset = Math.max(0, Math.min(currentInset, viewportTop));
-      if (nextInset === currentInset) return;
+    const setLockedScrollTop = () => {
+      if (
+        restoringScroll ||
+        Math.abs(window.scrollY - lockedScrollTop) < 0.5
+      ) {
+        return;
+      }
+      restoringScroll = true;
+      window.scrollTo({ top: lockedScrollTop, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = lockedScrollTop;
+      document.body.scrollTop = lockedScrollTop;
+      restoringScroll = false;
+    };
+    const restoreLockedScrollTop = () => {
+      if (window.scrollY < lockedScrollTop) setLockedScrollTop();
+    };
+    const handleTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? null;
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const nextTouchY = event.touches[0]?.clientY;
+      if (nextTouchY === undefined || lastTouchY === null) return;
 
-      libraryScrollInsetRef.current = nextInset;
-      library.style.setProperty("--library-tab-scroll-inset", `${nextInset}px`);
-      if (nextInset === 0) setLibraryScrollInset(0);
+      const upwardScrollDistance = nextTouchY - lastTouchY;
+      lastTouchY = nextTouchY;
+      if (
+        upwardScrollDistance <= 0 ||
+        window.scrollY - upwardScrollDistance > lockedScrollTop
+      ) {
+        return;
+      }
+
+      if (event.cancelable) event.preventDefault();
+      setLockedScrollTop();
+    };
+    const handleTouchEnd = () => {
+      lastTouchY = null;
+      restoreLockedScrollTop();
+    };
+    const handleWheel = (event: WheelEvent) => {
+      if (
+        event.deltaY >= 0 ||
+        window.scrollY + event.deltaY > lockedScrollTop
+      ) {
+        return;
+      }
+      if (event.cancelable) event.preventDefault();
+      setLockedScrollTop();
     };
 
-    syncScrollInset();
-    window.addEventListener("scroll", syncScrollInset, { passive: true });
-    window.visualViewport?.addEventListener("scroll", syncScrollInset, {
+    root.classList.add("library-scroll-top-locked");
+    restoreLockedScrollTop();
+    document.addEventListener("touchstart", handleTouchStart, {
       passive: true,
+      capture: true,
     });
-    window.visualViewport?.addEventListener("resize", syncScrollInset, {
-      passive: true,
+    document.addEventListener("touchmove", handleTouchMove, {
+      passive: false,
+      capture: true,
     });
+    document.addEventListener("touchend", handleTouchEnd, { capture: true });
+    document.addEventListener("touchcancel", handleTouchEnd, { capture: true });
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("scroll", restoreLockedScrollTop, { passive: true });
     return () => {
-      window.removeEventListener("scroll", syncScrollInset);
-      window.visualViewport?.removeEventListener("scroll", syncScrollInset);
-      window.visualViewport?.removeEventListener("resize", syncScrollInset);
+      root.classList.remove("library-scroll-top-locked");
+      document.removeEventListener("touchstart", handleTouchStart, true);
+      document.removeEventListener("touchmove", handleTouchMove, true);
+      document.removeEventListener("touchend", handleTouchEnd, true);
+      document.removeEventListener("touchcancel", handleTouchEnd, true);
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("scroll", restoreLockedScrollTop);
     };
   }, [libraryScrollInset, view]);
 
