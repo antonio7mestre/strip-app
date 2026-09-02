@@ -199,6 +199,7 @@ const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
+const PUBLISHED_LOADING_MINIMUM_MS = 2000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
@@ -2952,6 +2953,9 @@ export default function Home() {
   const [mediaLoadStatus, setMediaLoadStatus] = useState<
     Record<string, "loaded" | "error">
   >({});
+  const [publishedMinimumReadyKey, setPublishedMinimumReadyKey] = useState<
+    string | null
+  >(null);
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -3157,17 +3161,36 @@ export default function Home() {
   const publishedContentReady = publishedAssetIds.every(
     (blockId) => mediaLoadStatus[blockId] !== undefined,
   );
+  const publishedStripLoadKey =
+    view === "published" && openedPublishedStrip
+      ? openedPublishedStrip.id
+      : "";
+  const publishedMinimumElapsed =
+    publishedStripLoadKey !== "" &&
+    publishedMinimumReadyKey === publishedStripLoadKey;
+  const publishedContentCanReveal =
+    publishedContentReady && publishedMinimumElapsed;
   const publishedBottomSurfaceColor = hasPublishedEndingCard
     ? visibleEndingStyle.backgroundColor
     : null;
   const hasPublishedBottomSurface = publishedBottomSurfaceColor !== null;
 
   useEffect(() => {
+    setPublishedMinimumReadyKey(null);
+    if (!publishedStripLoadKey) return;
+
+    const timeout = window.setTimeout(() => {
+      setPublishedMinimumReadyKey(publishedStripLoadKey);
+    }, PUBLISHED_LOADING_MINIMUM_MS);
+    return () => window.clearTimeout(timeout);
+  }, [publishedStripLoadKey]);
+
+  useEffect(() => {
     const root = document.documentElement;
     const isWaitingForPublishedContent =
       view === "published" &&
       openedPublishedStrip !== null &&
-      !publishedContentReady;
+      !publishedContentCanReveal;
     root.classList.toggle(
       "published-content-loading",
       isWaitingForPublishedContent,
@@ -3176,21 +3199,31 @@ export default function Home() {
       return () => root.classList.remove("published-content-loading");
     }
 
-    const timeout = window.setTimeout(() => {
-      setMediaLoadStatus((current) => {
-        const next = { ...current };
-        publishedAssetIds.forEach((blockId) => {
-          if (next[blockId] === undefined) next[blockId] = "error";
-        });
-        return next;
-      });
-    }, PUBLISHED_MEDIA_LOAD_TIMEOUT_MS);
+    const timeout = !publishedContentReady
+      ? window.setTimeout(() => {
+          setMediaLoadStatus((current) => {
+            const next = { ...current };
+            publishedAssetIds.forEach((blockId) => {
+              if (next[blockId] === undefined) next[blockId] = "error";
+            });
+            return next;
+          });
+        }, PUBLISHED_MEDIA_LOAD_TIMEOUT_MS)
+      : null;
 
     return () => {
-      window.clearTimeout(timeout);
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
+      }
       root.classList.remove("published-content-loading");
     };
-  }, [openedPublishedStrip, publishedAssetKey, publishedContentReady, view]);
+  }, [
+    openedPublishedStrip,
+    publishedAssetKey,
+    publishedContentCanReveal,
+    publishedContentReady,
+    view,
+  ]);
 
   useEffect(() => {
     if (view === "edit") return;
@@ -7669,19 +7702,43 @@ export default function Home() {
 
             <article
               className={`published-strip published-strip-load-gate ${
-                publishedContentReady ? "is-ready" : ""
+                publishedContentCanReveal ? "is-ready" : ""
               } ${legacyPageEnterClass}`}
-              aria-hidden={!publishedContentReady}
+              aria-hidden={!publishedContentCanReveal}
             >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
             </article>
-            {!publishedContentReady ? (
+            {!publishedContentCanReveal ? (
               <div
                 className="published-strip-loading"
                 role="status"
                 aria-label="Loading Strip"
               >
-                <span>STRIP</span>
+                <div className="published-strip-loading-frame">
+                  <svg
+                    viewBox="0 0 280 96"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      className="published-strip-loading-track"
+                      x="2"
+                      y="2"
+                      width="276"
+                      height="92"
+                      pathLength="100"
+                    />
+                    <rect
+                      className="published-strip-loading-progress"
+                      x="2"
+                      y="2"
+                      width="276"
+                      height="92"
+                      pathLength="100"
+                    />
+                  </svg>
+                  <span>STRIP</span>
+                </div>
               </div>
             ) : null}
             {hasPublishedBottomSurface ? (

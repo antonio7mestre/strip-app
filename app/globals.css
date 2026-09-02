@@ -1661,7 +1661,51 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   touch-action: none;
 }
 
-.published-strip-loading span {
+.published-strip-loading-frame {
+  position: relative;
+  display: grid;
+  width: min(280px, calc(100vw - 64px));
+  height: 96px;
+  place-items: center;
+}
+
+.published-strip-loading-frame svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.published-strip-loading-track,
+.published-strip-loading-progress {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.published-strip-loading-track {
+  stroke: rgba(49, 85, 255, 0.2);
+  stroke-width: 2px;
+}
+
+.published-strip-loading-progress {
+  stroke: #3155ff;
+  stroke-width: 3px;
+  stroke-dasharray: 24 76;
+  stroke-dashoffset: 0;
+  stroke-linecap: square;
+  animation: published-strip-outline-trace 1.1s linear infinite;
+}
+
+@keyframes published-strip-outline-trace {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.published-strip-loading-frame span {
+  position: relative;
+  z-index: 1;
   font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   font-weight: 900;
@@ -3690,6 +3734,11 @@ html.page-color-picking * {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .published-strip-loading-progress {
+    stroke-dasharray: none;
+    animation: none;
+  }
+
   html.strip-standard-page-entering .app-shell,
   html.strip-standard-page-entering .app-shell.library-mode .strip-library,
   .main-composer-dock.is-entering-editor {
