@@ -1857,7 +1857,8 @@ html.published-content-loading .top-safe-area-anchor {
   transform-origin: center;
 }
 
-.sticker-block img {
+.sticker-block img,
+.sticker-block video {
   display: block;
   width: 100%;
   height: auto;

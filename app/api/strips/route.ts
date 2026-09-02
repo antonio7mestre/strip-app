@@ -66,6 +66,7 @@ type PublishBlock =
       type: "sticker";
       src: string;
       alt: string;
+      mediaType?: "image" | "video";
       x: number;
       y: number;
       width: number;
@@ -89,6 +90,7 @@ type StoredContentBlock =
       type: "sticker";
       objectKey: string;
       alt: string;
+      mediaType?: "image" | "video";
       x: number;
       y: number;
       width: number;
@@ -213,9 +215,14 @@ function prepareContentBlocks(
     }
 
     const objectKey = `strips/${ownerId}/${stripId}/media/${block.id}`;
+    const expectedType =
+      block.type === "video" ||
+      (block.type === "sticker" && block.mediaType === "video")
+        ? "video"
+        : "image";
     const media = decodeMediaDataUrl(
       block.src,
-      block.type === "video" ? "video" : "image",
+      expectedType,
       MAX_MEDIA_BYTES,
     );
     if (media) {
@@ -228,7 +235,7 @@ function prepareContentBlocks(
       copies.push({
         sourceObjectKey: `drafts/${ownerId}/${draftId}/media/${block.id}`,
         objectKey,
-        expectedType: block.type === "video" ? "video" : "image",
+        expectedType,
       });
     }
     if (block.type === "sticker") {
@@ -237,6 +244,7 @@ function prepareContentBlocks(
         type: "sticker",
         objectKey,
         alt: String(block.alt ?? "").slice(0, 160),
+        mediaType: block.mediaType === "video" ? "video" : "image",
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
         width: Math.min(80, Math.max(8, finiteNumber(block.width, 30))),

@@ -34,6 +34,7 @@ type StoredDraftBlock =
       type: "sticker";
       objectKey: string;
       alt: string;
+      mediaType?: "image" | "video";
       x: number;
       y: number;
       width: number;
@@ -115,7 +116,12 @@ export async function GET(
           }
         : {}),
       ...(block.type === "sticker"
-        ? { x: block.x, y: block.y, width: block.width }
+        ? {
+            mediaType: block.mediaType === "video" ? "video" : "image",
+            x: block.x,
+            y: block.y,
+            width: block.width,
+          }
         : {}),
     });
   }

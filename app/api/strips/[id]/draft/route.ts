@@ -34,6 +34,7 @@ type StoredBlock =
       type: "sticker";
       objectKey: string;
       alt: string;
+      mediaType?: "image" | "video";
       x: number;
       y: number;
       width: number;
@@ -102,7 +103,11 @@ export async function POST(
         throw new Error("Published media is missing.");
       }
       const source = await env.STRIP_MEDIA.get(block.objectKey);
-      const expectedType = block.type === "video" ? "video" : "image";
+      const expectedType =
+        block.type === "video" ||
+        (block.type === "sticker" && block.mediaType === "video")
+          ? "video"
+          : "image";
       if (
         !source ||
         !isAllowedStoredMediaContentType(

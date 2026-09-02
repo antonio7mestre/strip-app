@@ -95,6 +95,7 @@ type StickerBlock = {
   type: "sticker";
   src: string;
   alt: string;
+  mediaType?: "image" | "video";
   x: number;
   y: number;
   width: number;
@@ -2451,12 +2452,16 @@ function StripStickerBlock({
   ) => {
     const safeCanvasWidth = Math.max(1, canvasWidth);
     const stickerWidth = (width / 100) * safeCanvasWidth;
-    const image = stickerElementRef.current?.querySelector("img");
+    const media = stickerElementRef.current?.querySelector("img, video");
+    const intrinsicWidth =
+      media instanceof HTMLVideoElement ? media.videoWidth : media?.naturalWidth;
+    const intrinsicHeight =
+      media instanceof HTMLVideoElement ? media.videoHeight : media?.naturalHeight;
     const aspectRatio =
-      image && image.naturalWidth > 0 && image.naturalHeight > 0
-        ? image.naturalWidth / image.naturalHeight
-        : image && image.clientWidth > 0 && image.clientHeight > 0
-          ? image.clientWidth / image.clientHeight
+      intrinsicWidth && intrinsicHeight
+        ? intrinsicWidth / intrinsicHeight
+        : media && media.clientWidth > 0 && media.clientHeight > 0
+          ? media.clientWidth / media.clientHeight
           : 1;
     const stickerHeight = stickerWidth / Math.max(0.01, aspectRatio);
     const radians = (rotation * Math.PI) / 180;
@@ -3046,24 +3051,45 @@ function StripStickerBlock({
       }
     >
       <span className="sticker-visual">
-        <img
-          src={block.src}
-          alt={block.alt}
-          loading="eager"
-          decoding="async"
-          draggable={false}
-          onLoad={(event) => {
-            const image = event.currentTarget;
-            void image
-              .decode()
-              .catch(() => {})
-              .then(() => {
-                settleStickerWithinBounds();
-                onLoadSettled?.(true);
-              });
-          }}
-          onError={() => onLoadSettled?.(false)}
-        />
+        {block.mediaType === "video" ? (
+          <video
+            src={block.src}
+            aria-label={block.alt ? `Video sticker: ${block.alt}` : "Video sticker"}
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls={false}
+            disablePictureInPicture
+            controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
+            preload="auto"
+            draggable={false}
+            onLoadedData={() => {
+              settleStickerWithinBounds();
+              onLoadSettled?.(true);
+            }}
+            onError={() => onLoadSettled?.(false)}
+          />
+        ) : (
+          <img
+            src={block.src}
+            alt={block.alt}
+            loading="eager"
+            decoding="async"
+            draggable={false}
+            onLoad={(event) => {
+              const image = event.currentTarget;
+              void image
+                .decode()
+                .catch(() => {})
+                .then(() => {
+                  settleStickerWithinBounds();
+                  onLoadSettled?.(true);
+                });
+            }}
+            onError={() => onLoadSettled?.(false)}
+          />
+        )}
       </span>
       {controls}
     </figure>
@@ -4686,6 +4712,15 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (!file) return;
     event.currentTarget.value = "";
+    const mediaType = file.type.startsWith("video/")
+      ? "video"
+      : file.type.startsWith("image/")
+        ? "image"
+        : null;
+    if (!mediaType) {
+      setNotice("Choose an image or video for your sticker.");
+      return;
+    }
     if (!hasStickerAnchorBlock) {
       setNotice("Add a text or image block before adding a sticker.");
       return;
@@ -4749,6 +4784,7 @@ export default function Home() {
           type: "sticker",
           src: reader.result as string,
           alt: file.name.replace(/\.[^/.]+$/, ""),
+          mediaType,
           x: 50,
           y,
           width,
@@ -4965,7 +5001,8 @@ export default function Home() {
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
   const visualCoverBlocks = blocks.filter(
     (block): block is ImageBlock | StickerBlock =>
-      block.type === "image" || block.type === "sticker",
+      block.type === "image" ||
+      (block.type === "sticker" && block.mediaType !== "video"),
   );
   const usedCoverColors = Array.from(
     new Set(
@@ -8783,9 +8820,9 @@ export default function Home() {
             ref={stickerInputRef}
             className="visually-hidden"
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             onChange={addSticker}
-            aria-label="Choose a sticker image"
+            aria-label="Choose a sticker image or video"
           />
           <span className="dock-divider" aria-hidden="true" />
           <button
