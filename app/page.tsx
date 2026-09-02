@@ -3100,6 +3100,83 @@ export default function Home() {
   }, [selectedBlockId]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const isMainTab =
+      view === "library" ||
+      view === "drafts" ||
+      view === "history" ||
+      view === "settings";
+    const userAgent = navigator.userAgent;
+    const isIOS =
+      /iPad|iPhone|iPod/.test(userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari =
+      /Safari/.test(userAgent) &&
+      !/(CriOS|FxiOS|EdgiOS|OPiOS)/.test(userAgent);
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+
+    root.classList.remove("safari-toolbar-minimized");
+    if (!isMainTab || !isIOS || !isSafari || isStandalone) return;
+
+    const largeViewportProbe = document.createElement("div");
+    const dynamicViewportProbe = document.createElement("div");
+    largeViewportProbe.style.cssText =
+      "position:fixed;visibility:hidden;pointer-events:none;width:0;height:100lvh";
+    dynamicViewportProbe.style.cssText =
+      "position:fixed;visibility:hidden;pointer-events:none;width:0;height:100dvh";
+    document.body.append(largeViewportProbe, dynamicViewportProbe);
+
+    let syncFrame: number | null = null;
+    let toolbarIsMinimized = false;
+
+    const syncToolbarState = () => {
+      syncFrame = null;
+      const largeViewportHeight = largeViewportProbe.getBoundingClientRect().height;
+      const dynamicViewportHeight =
+        dynamicViewportProbe.getBoundingClientRect().height;
+      const browserChromeInset = Math.max(
+        0,
+        largeViewportHeight - dynamicViewportHeight,
+      );
+      const nextMinimized =
+        browserChromeInset <= (toolbarIsMinimized ? 18 : 8);
+
+      if (nextMinimized === toolbarIsMinimized) return;
+      toolbarIsMinimized = nextMinimized;
+      root.classList.toggle("safari-toolbar-minimized", toolbarIsMinimized);
+    };
+
+    const scheduleToolbarSync = () => {
+      if (syncFrame !== null) return;
+      syncFrame = window.requestAnimationFrame(syncToolbarState);
+    };
+
+    window.addEventListener("resize", scheduleToolbarSync, { passive: true });
+    window.addEventListener("scroll", scheduleToolbarSync, { passive: true });
+    window.addEventListener("pageshow", scheduleToolbarSync);
+    window.visualViewport?.addEventListener("resize", scheduleToolbarSync, {
+      passive: true,
+    });
+    syncToolbarState();
+
+    return () => {
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+      window.removeEventListener("resize", scheduleToolbarSync);
+      window.removeEventListener("scroll", scheduleToolbarSync);
+      window.removeEventListener("pageshow", scheduleToolbarSync);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        scheduleToolbarSync,
+      );
+      largeViewportProbe.remove();
+      dynamicViewportProbe.remove();
+      root.classList.remove("safari-toolbar-minimized");
+    };
+  }, [view]);
+
+  useEffect(() => {
     if (view !== "edit") return;
 
     const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
