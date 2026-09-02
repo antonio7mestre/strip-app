@@ -5325,26 +5325,21 @@ export default function Home() {
     }
   };
 
-  const openLibrarySection = async (
+  const openLibrarySection = (
     nextView: "library" | "drafts" | "history" | "settings",
   ) => {
     if (view === nextView) return;
     if (pageTransitionInFlightRef.current) return;
-    pageTransitionInFlightRef.current = true;
-    try {
-      setBrowserPath(
-        nextView === "library"
-          ? "/"
-          : nextView === "drafts"
-            ? "/drafts"
-            : nextView === "history"
-              ? "/history"
-              : "/settings",
-      );
-      await transitionToViewStandard(nextView, "top", true);
-    } finally {
-      pageTransitionInFlightRef.current = false;
-    }
+    setBrowserPath(
+      nextView === "library"
+        ? "/"
+        : nextView === "drafts"
+          ? "/drafts"
+          : nextView === "history"
+            ? "/history"
+            : "/settings",
+    );
+    void transitionToViewStandard(nextView, "top", true);
   };
 
   const openDraftLibrary = () => openLibrarySection("drafts");
