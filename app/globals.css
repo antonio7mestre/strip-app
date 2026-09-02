@@ -1691,15 +1691,20 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .published-strip-loading-progress {
   stroke: #3155ff;
   stroke-width: 3px;
-  stroke-dasharray: 24 76;
+  stroke-dasharray: 0 100;
   stroke-dashoffset: 0;
   stroke-linecap: square;
-  animation: published-strip-outline-trace 1.1s linear infinite;
+  animation: published-strip-outline-fill 2s cubic-bezier(0.4, 0, 0.2, 1)
+    forwards;
 }
 
-@keyframes published-strip-outline-trace {
-  to {
-    stroke-dashoffset: -100;
+@keyframes published-strip-outline-fill {
+  0% {
+    stroke-dasharray: 0 100;
+  }
+
+  100% {
+    stroke-dasharray: 100 0;
   }
 }
 

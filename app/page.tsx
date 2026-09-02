@@ -7728,12 +7728,9 @@ export default function Home() {
                       height="92"
                       pathLength="100"
                     />
-                    <rect
+                    <path
                       className="published-strip-loading-progress"
-                      x="2"
-                      y="2"
-                      width="276"
-                      height="92"
+                      d="M 140 2 H 278 V 94 H 2 V 2 H 140"
                       pathLength="100"
                     />
                   </svg>
