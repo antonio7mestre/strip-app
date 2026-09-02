@@ -2994,6 +2994,7 @@ export default function Home() {
   const [storyAssetUrl, setStoryAssetUrl] = useState("");
   const [storyAssetLoading, setStoryAssetLoading] = useState(false);
   const [view, setView] = useState<View>("library");
+  const [libraryScrollInset, setLibraryScrollInset] = useState(0);
   const [initialRouteReady, setInitialRouteReady] = useState(false);
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
@@ -3234,6 +3235,58 @@ export default function Home() {
     setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
   }, [view]);
+
+  useEffect(() => {
+    const isLibraryView =
+      view === "library" ||
+      view === "drafts" ||
+      view === "history" ||
+      view === "settings";
+    if (!isLibraryView || libraryScrollInset <= 0) return;
+
+    let touchIsActive = false;
+    let wheelIsActive = false;
+    let wheelReleaseTimer: number | null = null;
+
+    const releaseScrollInset = () => {
+      if ((!touchIsActive && !wheelIsActive) || window.scrollY >= libraryScrollInset) {
+        return;
+      }
+      const adjustedScrollTop = Math.max(0, window.scrollY - libraryScrollInset);
+      flushSync(() => setLibraryScrollInset(0));
+      window.scrollTo({ top: adjustedScrollTop, left: 0, behavior: "auto" });
+    };
+    const handleTouchStart = () => {
+      touchIsActive = true;
+    };
+    const handleTouchEnd = () => {
+      touchIsActive = false;
+    };
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY >= 0) return;
+      wheelIsActive = true;
+      if (wheelReleaseTimer !== null) window.clearTimeout(wheelReleaseTimer);
+      wheelReleaseTimer = window.setTimeout(() => {
+        wheelIsActive = false;
+        wheelReleaseTimer = null;
+      }, 120);
+      releaseScrollInset();
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    window.addEventListener("scroll", releaseScrollInset, { passive: true });
+    return () => {
+      if (wheelReleaseTimer !== null) window.clearTimeout(wheelReleaseTimer);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("scroll", releaseScrollInset);
+    };
+  }, [libraryScrollInset, view]);
 
   useEffect(() => {
     if (selectedBlockId !== STRIP_ENDING_BLOCK_ID) {
@@ -4587,12 +4640,14 @@ export default function Home() {
     preserveScroll = false,
   ) => {
     const root = document.documentElement;
+    const preservedScrollTop = preserveScroll ? window.scrollY : 0;
     cancelDockTransitionSchedule();
     root.classList.remove("strip-page-transitioning");
     flushSync(() => {
       setLegacyPageTransition(null);
       setDockTransition(null);
       setDockTransitionStarted(false);
+      setLibraryScrollInset(preservedScrollTop);
       setView(nextView);
     });
     if (!preserveScroll) {
@@ -6935,7 +6990,14 @@ export default function Home() {
             aria-hidden="true"
           />
 
-          <section className={`strip-library ${legacyPageEnterClass}`}>
+          <section
+            className={`strip-library ${legacyPageEnterClass}`}
+            style={
+              {
+                "--library-tab-scroll-inset": `${libraryScrollInset}px`,
+              } as CSSProperties
+            }
+          >
             <header className="library-header">
               <h1>
                 {isSettings

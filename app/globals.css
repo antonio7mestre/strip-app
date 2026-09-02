@@ -897,6 +897,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .library-mode,
 .strip-library {
   background: #000000;
+  overflow-anchor: none;
 }
 
 .library-mode {
@@ -909,8 +910,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   position: relative;
   z-index: 1;
   display: flex;
-  min-height: 100dvh;
+  min-height: calc(100dvh + var(--library-tab-scroll-inset, 0px));
   flex-direction: column;
+  padding-top: var(--library-tab-scroll-inset, 0px);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
