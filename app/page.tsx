@@ -7097,7 +7097,7 @@ export default function Home() {
             {endingIsVisitor ? (
               <>
                 <div className="strip-ending-invitation">
-                  <h2>Do you want to Strip?</h2>
+                  <h2>Want to strip?</h2>
                 </div>
                 <button
                   className="strip-ending-action strip-ending-cta"
