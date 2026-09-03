@@ -13,6 +13,7 @@
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
   --leading-image-inset: 0px;
+  --published-trailing-media-inset: 0px;
   --height-crop-motion-duration: 520ms;
   --height-crop-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1750,6 +1751,47 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   background: #000000;
   object-fit: contain;
   pointer-events: none;
+}
+
+html.published-trailing-media-inset-active
+  .published-mode
+  .is-published-trailing-media {
+  height: calc(
+    var(--published-trailing-media-base-height) +
+      var(--published-trailing-media-inset)
+  ) !important;
+  overflow: hidden;
+}
+
+html.published-trailing-media-inset-active
+  .published-mode
+  .is-published-trailing-media
+  > .block-crop-viewport {
+  height: 100% !important;
+  overflow: hidden;
+}
+
+html.published-trailing-media-inset-active
+  .published-mode
+  .is-published-trailing-media
+  > .block-crop-viewport
+  > .block-crop-content {
+  height: calc(
+    100% + var(--published-trailing-media-crop-top, 0px)
+  ) !important;
+}
+
+html.published-trailing-media-inset-active
+  .published-mode
+  .is-published-trailing-media
+  img,
+html.published-trailing-media-inset-active
+  .published-mode
+  .is-published-trailing-media
+  video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .published-strip-load-gate {

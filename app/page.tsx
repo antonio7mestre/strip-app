@@ -2173,6 +2173,7 @@ function StripVideoBlock({
   cropEditing = false,
   croppedHeight,
   heightCropHandles,
+  isPublishedTrailingMedia = false,
 }: {
   block: VideoBlock;
   isEditing: boolean;
@@ -2197,6 +2198,7 @@ function StripVideoBlock({
   cropEditing?: boolean;
   croppedHeight?: number;
   heightCropHandles?: ReactNode;
+  isPublishedTrailingMedia?: boolean;
 }) {
   const cropViewportHeight = cropEditing ? cropSourceHeight : croppedHeight;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -2250,13 +2252,22 @@ function StripVideoBlock({
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
+      } ${
+        isPublishedTrailingMedia ? "is-published-trailing-media" : ""
       }`}
       data-block-id={block.id}
       aria-busy={!loadSettled}
       style={
-        !loadSettled && reservedHeight && croppedHeight === undefined
-          ? { minHeight: reservedHeight }
-          : undefined
+        {
+          ...(!loadSettled && reservedHeight && croppedHeight === undefined
+            ? { minHeight: reservedHeight }
+            : {}),
+          ...(isPublishedTrailingMedia
+            ? {
+                "--published-trailing-media-crop-top": `${cropTop}px`,
+              }
+            : {}),
+        } as CSSProperties
       }
       onPointerDown={(event) => {
         tapGestureRef.current = {
@@ -3297,6 +3308,7 @@ export default function Home() {
   const pageTransitionInFlightRef = useRef(false);
   const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
+  const publishedTrailingMediaInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
@@ -3464,6 +3476,9 @@ export default function Home() {
           .reverse()
           .find((block) => block.type !== "sticker")
       : undefined;
+  const publishedHasTrailingMedia =
+    publishedTrailingBlock?.type === "image" ||
+    publishedTrailingBlock?.type === "video";
   const publishedBottomSurfaceColor = publishedTrailingBlock
     ? publishedTrailingBlock.type === "text"
       ? publishedTrailingBlock.backgroundColor ?? DEFAULT_BACKGROUND
@@ -3538,6 +3553,129 @@ export default function Home() {
   ]);
 
   useLayoutEffect(() => {
+    const root = document.documentElement;
+    const trailingMedia = document.querySelector<HTMLElement>(
+      ".published-mode .is-published-trailing-media",
+    );
+    const viewport = window.visualViewport;
+    let resizeFrame: number | null = null;
+    let measuredScreenWidth = window.screen.width;
+    let baseHeight = 0;
+
+    const clearTrailingInset = () => {
+      publishedTrailingMediaInsetRef.current = 0;
+      root.classList.remove("published-trailing-media-inset-active");
+      root.style.removeProperty("--published-trailing-media-inset");
+      trailingMedia?.style.removeProperty("--published-trailing-media-base-height");
+    };
+
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (
+      view !== "published" ||
+      !publishedHasTrailingMedia ||
+      !publishedAssetsReady ||
+      !publishedContentCanReveal ||
+      !trailingMedia ||
+      !isIOS
+    ) {
+      clearTrailingInset();
+      return;
+    }
+
+    const measureSafeArea = () => {
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
+      document.body.appendChild(probe);
+      const styles = window.getComputedStyle(probe);
+      const reportedSafeTop = Number.parseFloat(styles.paddingTop);
+      const reportedSafeBottom = Number.parseFloat(styles.paddingBottom);
+      probe.remove();
+
+      const fallbackSafeTop = Math.min(
+        62,
+        Math.max(47, window.screen.width * 0.154),
+      );
+      const safeTop =
+        Number.isFinite(reportedSafeTop) && reportedSafeTop >= 1
+          ? reportedSafeTop
+          : fallbackSafeTop;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const inferredBottom =
+        window.screen.height -
+        viewportHeight -
+        (viewport?.offsetTop ?? 0) -
+        safeTop;
+      const safeBottom =
+        Number.isFinite(reportedSafeBottom) && reportedSafeBottom >= 1
+          ? reportedSafeBottom
+          : inferredBottom;
+      return Math.round(Math.min(160, Math.max(0, safeBottom)));
+    };
+
+    const measureBaseHeight = () => {
+      root.classList.remove("published-trailing-media-inset-active");
+      root.style.setProperty("--published-trailing-media-inset", "0px");
+      trailingMedia.style.removeProperty("--published-trailing-media-base-height");
+      baseHeight = trailingMedia.getBoundingClientRect().height;
+      measuredScreenWidth = window.screen.width;
+      trailingMedia.style.setProperty(
+        "--published-trailing-media-base-height",
+        `${baseHeight}px`,
+      );
+    };
+
+    const applyTrailingInset = () => {
+      resizeFrame = null;
+      if (Math.abs(window.screen.width - measuredScreenWidth) >= 1) {
+        measureBaseHeight();
+      }
+      const inset = measureSafeArea();
+      if (baseHeight <= 0) {
+        clearTrailingInset();
+        return;
+      }
+      if (inset <= 0) {
+        publishedTrailingMediaInsetRef.current = 0;
+        root.classList.remove("published-trailing-media-inset-active");
+        root.style.setProperty("--published-trailing-media-inset", "0px");
+        return;
+      }
+
+      root.style.setProperty("--published-trailing-media-inset", `${inset}px`);
+      publishedTrailingMediaInsetRef.current = inset;
+      root.classList.add("published-trailing-media-inset-active");
+    };
+
+    const scheduleTrailingInset = () => {
+      if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(applyTrailingInset);
+    };
+
+    measureBaseHeight();
+    applyTrailingInset();
+    window.addEventListener("resize", scheduleTrailingInset, { passive: true });
+    viewport?.addEventListener("resize", scheduleTrailingInset, {
+      passive: true,
+    });
+
+    return () => {
+      if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+      window.removeEventListener("resize", scheduleTrailingInset);
+      viewport?.removeEventListener("resize", scheduleTrailingInset);
+      clearTrailingInset();
+    };
+  }, [
+    publishedAssetsReady,
+    publishedContentCanReveal,
+    publishedHasTrailingMedia,
+    publishedTrailingBlock?.id,
+    view,
+  ]);
+
+  useLayoutEffect(() => {
     if (view !== "published" || !openedPublishedStrip) return;
 
     const root = document.documentElement;
@@ -3553,16 +3691,29 @@ export default function Home() {
     const maximumScrollTop = () => {
       const viewportHeight = viewport?.height ?? window.innerHeight;
       const viewportOffsetTop = viewport?.offsetTop ?? 0;
+      const trailingInset = publishedHasTrailingMedia
+        ? publishedTrailingMediaInsetRef.current
+        : 0;
       return Math.max(
         0,
-        scrollRoot.scrollHeight - viewportHeight - viewportOffsetTop,
+        scrollRoot.scrollHeight -
+          viewportHeight -
+          viewportOffsetTop -
+          trailingInset,
       );
     };
 
     const distanceFromBottom = () => {
       const viewportTop = viewport?.pageTop ?? window.scrollY;
       const viewportHeight = viewport?.height ?? window.innerHeight;
-      return scrollRoot.scrollHeight - (viewportTop + viewportHeight);
+      const trailingInset = publishedHasTrailingMedia
+        ? publishedTrailingMediaInsetRef.current
+        : 0;
+      return (
+        scrollRoot.scrollHeight -
+        trailingInset -
+        (viewportTop + viewportHeight)
+      );
     };
 
     const commitActionVisibility = (visible: boolean) => {
@@ -3715,6 +3866,7 @@ export default function Home() {
     publishedBottomMediaImage,
     publishedBottomSurfaceColor,
     publishedEndActionsEnabled,
+    publishedHasTrailingMedia,
     topSafeAreaColor,
     view,
   ]);
@@ -6915,6 +7067,9 @@ export default function Home() {
       0,
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
+    const lastFlowBlock = [...sourceBlocks]
+      .reverse()
+      .find((block) => block.type !== "sticker");
     const showsEndingCard = view !== "published";
     const canvasMinHeight = stickerFloor > 0 ? `${stickerFloor}px` : undefined;
 
@@ -6935,6 +7090,11 @@ export default function Home() {
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, heightCropSession)
             : null;
+        const isPublishedTrailingMedia =
+          !isEditing &&
+          view === "published" &&
+          lastFlowBlock?.id === block.id &&
+          (block.type === "image" || block.type === "video");
         if (block.type === "text") {
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
           const textIsEmpty = block.content.length === 0;
@@ -7063,16 +7223,29 @@ export default function Home() {
                 heightCrop?.isEditing && firstFlowBlock?.id === block.id
                   ? "has-top-crop-clearance"
                   : ""
+              } ${
+                isPublishedTrailingMedia
+                  ? "is-published-trailing-media"
+                  : ""
               }`}
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] === undefined}
               style={
-                mediaLoadStatus[block.id] === undefined &&
-                block.height &&
-                heightCrop?.height === undefined
-                  ? { minHeight: block.height }
-                  : undefined
+                {
+                  ...(mediaLoadStatus[block.id] === undefined &&
+                  block.height &&
+                  heightCrop?.height === undefined
+                    ? { minHeight: block.height }
+                    : {}),
+                  ...(isPublishedTrailingMedia
+                    ? {
+                        "--published-trailing-media-crop-top": `${
+                          heightCrop?.top ?? 0
+                        }px`,
+                      }
+                    : {}),
+                } as CSSProperties
               }
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
@@ -7289,6 +7462,7 @@ export default function Home() {
             cropSourceHeight={heightCrop?.sourceHeight}
             cropEditing={heightCrop?.isEditing}
             croppedHeight={heightCrop?.height}
+            isPublishedTrailingMedia={isPublishedTrailingMedia}
             onLoadSettled={(loadedSuccessfully) => {
               settleMediaLoad(block.id, loadedSuccessfully);
               if (
