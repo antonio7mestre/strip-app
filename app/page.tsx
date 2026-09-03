@@ -3880,6 +3880,80 @@ export default function Home() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const sheet = document.querySelector<HTMLElement>(
+      ".published-mode .published-bottom-sheet",
+    );
+    if (view !== "published" || !publishedContentCanReveal || !sheet) {
+      root.classList.remove("published-bottom-sheet-canvas-active");
+      return;
+    }
+
+    const themeColor = document.querySelector<HTMLMetaElement>(
+      "#strip-theme-color",
+    );
+    const viewport = window.visualViewport;
+    let syncFrame: number | null = null;
+    let canvasIsWhite: boolean | null = null;
+
+    const setCanvasIsWhite = (isWhite: boolean) => {
+      if (canvasIsWhite === isWhite) return;
+      canvasIsWhite = isWhite;
+      root.classList.toggle(
+        "published-bottom-sheet-canvas-active",
+        isWhite,
+      );
+      root.style.setProperty(
+        "--bottom-safe-area-color",
+        isWhite ? "#ffffff" : DEFAULT_BACKGROUND,
+      );
+      themeColor?.setAttribute(
+        "content",
+        isWhite ? "#ffffff" : topSafeAreaColor,
+      );
+    };
+
+    const syncTrailingCanvas = () => {
+      syncFrame = null;
+      const viewportBottom = viewport
+        ? viewport.offsetTop + viewport.height
+        : window.innerHeight;
+      const sheetBounds = sheet.getBoundingClientRect();
+      setCanvasIsWhite(sheetBounds.top <= viewportBottom + 240);
+    };
+
+    const scheduleTrailingCanvasSync = () => {
+      if (syncFrame !== null) return;
+      syncFrame = window.requestAnimationFrame(syncTrailingCanvas);
+    };
+
+    syncTrailingCanvas();
+    window.addEventListener("scroll", scheduleTrailingCanvasSync, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleTrailingCanvasSync, {
+      passive: true,
+    });
+    viewport?.addEventListener("scroll", scheduleTrailingCanvasSync, {
+      passive: true,
+    });
+    viewport?.addEventListener("resize", scheduleTrailingCanvasSync, {
+      passive: true,
+    });
+
+    return () => {
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+      window.removeEventListener("scroll", scheduleTrailingCanvasSync);
+      window.removeEventListener("resize", scheduleTrailingCanvasSync);
+      viewport?.removeEventListener("scroll", scheduleTrailingCanvasSync);
+      viewport?.removeEventListener("resize", scheduleTrailingCanvasSync);
+      root.classList.remove("published-bottom-sheet-canvas-active");
+      root.style.setProperty("--bottom-safe-area-color", DEFAULT_BACKGROUND);
+      themeColor?.setAttribute("content", topSafeAreaColor);
+    };
+  }, [publishedContentCanReveal, topSafeAreaColor, view]);
+
+  useEffect(() => {
+    const root = document.documentElement;
     if (
       !initialRouteReady ||
       view !== "edit" ||

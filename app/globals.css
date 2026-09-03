@@ -69,6 +69,19 @@ html.published-bottom-pocket-active body {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
 }
 
+html.published-bottom-sheet-canvas-active {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(
+    to bottom,
+    #ffffff 0 50%,
+    var(--top-safe-area-color, var(--black)) 50% 100%
+  ) !important;
+}
+
+html.published-bottom-sheet-canvas-active body {
+  background-color: #ffffff !important;
+}
+
 body {
   min-height: 100lvh;
   overflow-x: clip;
