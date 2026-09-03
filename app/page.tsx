@@ -3888,9 +3888,21 @@ export default function Home() {
         0,
         scrollRoot.scrollHeight - scrollRoot.clientHeight,
       );
-      const activationRange = 20;
+      const endingCard = document.querySelector<HTMLElement>(
+        ".published-mode .strip-ending-card, .editor-mode.is-inline-preview .strip-ending-card",
+      );
+      const viewport = window.visualViewport;
+      const viewportBottom = viewport
+        ? viewport.offsetTop + viewport.height
+        : window.innerHeight;
+      const endingBounds = endingCard?.getBoundingClientRect();
+      const endingIsVisible = Boolean(
+        endingBounds &&
+          endingBounds.top <= viewportBottom + 1 &&
+          endingBounds.bottom >= -1,
+      );
       const shouldActivate =
-        maximumScroll - window.scrollY <= activationRange;
+        endingIsVisible || maximumScroll - window.scrollY <= 2;
       const topAndBottomAreBothVisible =
         maximumScroll <= 1 && window.scrollY <= 1;
 
@@ -3926,6 +3938,10 @@ export default function Home() {
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(scheduleBottomPocketSync);
       resizeObserver.observe(scrollRoot);
+      const endingCard = document.querySelector<HTMLElement>(
+        ".published-mode .strip-ending-card, .editor-mode.is-inline-preview .strip-ending-card",
+      );
+      if (endingCard) resizeObserver.observe(endingCard);
     }
     syncBottomPocket();
 
