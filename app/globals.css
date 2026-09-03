@@ -1175,8 +1175,7 @@ html.library-scroll-top-locked .library-mode {
 .app-navigation-dock.composer-dock {
   z-index: 42;
   border-top: 0;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
-  corner-shape: squircle;
+  border-radius: 0;
   box-shadow:
     0 -20px 56px rgba(0, 0, 0, 0.14),
     0 -6px 20px rgba(0, 0, 0, 0.08);
