@@ -207,7 +207,6 @@ const DOCK_TRANSITION_DURATION_MS = 300;
 const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
 const PUBLISHED_LOADING_RELEASE_MS = 1200;
-const PUBLISHED_BOTTOM_BOUNCE_ALLOWANCE_PX = 14;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -1024,32 +1023,6 @@ function sampleImageBottomColor(image: HTMLImageElement) {
 function sampleVideoBottomColor(video: HTMLVideoElement) {
   if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return null;
   return sampleVisualBottomColor(video, video.videoWidth, video.videoHeight);
-}
-
-function captureVideoFrameImage(video: HTMLVideoElement) {
-  if (
-    video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-    !video.videoWidth ||
-    !video.videoHeight
-  ) {
-    return null;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = 192;
-  canvas.height = Math.max(
-    108,
-    Math.min(256, Math.round(192 * (video.videoHeight / video.videoWidth))),
-  );
-  const context = canvas.getContext("2d");
-  if (!context) return null;
-
-  try {
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.78);
-  } catch {
-    return null;
-  }
 }
 
 type VideoAudioProbe = HTMLVideoElement & {
@@ -2159,7 +2132,6 @@ function StripVideoBlock({
   onToggleAudio,
   onAudioPresence,
   onFirstFrameColor,
-  onFirstFrameImage,
   shouldLoad,
   isLoaded,
   loadSettled,
@@ -2173,7 +2145,6 @@ function StripVideoBlock({
   cropEditing = false,
   croppedHeight,
   heightCropHandles,
-  isPublishedTrailingMedia = false,
 }: {
   block: VideoBlock;
   isEditing: boolean;
@@ -2184,7 +2155,6 @@ function StripVideoBlock({
   onToggleAudio: () => void;
   onAudioPresence?: (hasAudio: boolean) => void;
   onFirstFrameColor?: (color: string) => void;
-  onFirstFrameImage?: (image: string) => void;
   shouldLoad: boolean;
   isLoaded: boolean;
   loadSettled: boolean;
@@ -2198,7 +2168,6 @@ function StripVideoBlock({
   cropEditing?: boolean;
   croppedHeight?: number;
   heightCropHandles?: ReactNode;
-  isPublishedTrailingMedia?: boolean;
 }) {
   const cropViewportHeight = cropEditing ? cropSourceHeight : croppedHeight;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -2252,22 +2221,13 @@ function StripVideoBlock({
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
-      } ${
-        isPublishedTrailingMedia ? "is-published-trailing-media" : ""
       }`}
       data-block-id={block.id}
       aria-busy={!loadSettled}
       style={
-        {
-          ...(!loadSettled && reservedHeight && croppedHeight === undefined
-            ? { minHeight: reservedHeight }
-            : {}),
-          ...(isPublishedTrailingMedia
-            ? {
-                "--published-trailing-media-crop-top": `${cropTop}px`,
-              }
-            : {}),
-        } as CSSProperties
+        !loadSettled && reservedHeight && croppedHeight === undefined
+          ? { minHeight: reservedHeight }
+          : undefined
       }
       onPointerDown={(event) => {
         tapGestureRef.current = {
@@ -2332,8 +2292,6 @@ function StripVideoBlock({
               onLoadSettled(true);
               const sampledColor = sampleVideoBottomColor(event.currentTarget);
               if (sampledColor) onFirstFrameColor?.(sampledColor);
-              const frameImage = captureVideoFrameImage(event.currentTarget);
-              if (frameImage) onFirstFrameImage?.(frameImage);
               reportAudioPresence(event.currentTarget);
             }}
             onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
@@ -3195,9 +3153,6 @@ export default function Home() {
     DEFAULT_STRIP_ENDING_STYLE,
   );
   const [imageTrayColors, setImageTrayColors] = useState<Record<string, string>>({});
-  const [videoBottomFrames, setVideoBottomFrames] = useState<
-    Record<string, string>
-  >({});
   const [videoAudioPresence, setVideoAudioPresence] = useState<Record<string, boolean>>(
     {},
   );
@@ -3213,8 +3168,6 @@ export default function Home() {
   const [publishedLoaderDismissedKey, setPublishedLoaderDismissedKey] = useState<
     string | null
   >(null);
-  const [publishedEndActionsAtBottom, setPublishedEndActionsAtBottom] =
-    useState(false);
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -3308,7 +3261,6 @@ export default function Home() {
   const pageTransitionInFlightRef = useRef(false);
   const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
-  const publishedTrailingMediaInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
@@ -3459,38 +3411,10 @@ export default function Home() {
     publishedStripLoadKey !== "" &&
     (!publishedContentCanReveal ||
       publishedLoaderDismissedKey !== publishedStripLoadKey);
-  const publishedEndActionsEnabled =
-    view === "published" &&
-    openedPublishedStrip !== null &&
-    publishedContentCanReveal &&
-    !publishedLoaderIsVisible;
-  const publishedEndActionsVisible =
-    publishedEndActionsEnabled && publishedEndActionsAtBottom;
   const cleanViewBottomSurfaceColor =
     view === "edit" && inlinePreview
       ? endingStyle.backgroundColor
       : null;
-  const publishedTrailingBlock =
-    view === "published" && openedPublishedStrip
-      ? [...openedPublishedStrip.blocks]
-          .reverse()
-          .find((block) => block.type !== "sticker")
-      : undefined;
-  const publishedHasTrailingMedia =
-    publishedTrailingBlock?.type === "image" ||
-    publishedTrailingBlock?.type === "video";
-  const publishedBottomSurfaceColor = publishedTrailingBlock
-    ? publishedTrailingBlock.type === "text"
-      ? publishedTrailingBlock.backgroundColor ?? DEFAULT_BACKGROUND
-      : imageTrayColors[publishedTrailingBlock.id] ?? DEFAULT_BACKGROUND
-    : null;
-  const publishedBottomMediaImage = publishedTrailingBlock
-    ? publishedTrailingBlock.type === "image"
-      ? publishedTrailingBlock.src
-      : publishedTrailingBlock.type === "video"
-        ? videoBottomFrames[publishedTrailingBlock.id] ?? null
-        : null
-    : null;
 
   useEffect(() => {
     setPublishedMinimumReadyKey(null);
@@ -3549,325 +3473,6 @@ export default function Home() {
     publishedAssetsReady,
     publishedLoaderIsVisible,
     publishedStripLoadKey,
-    view,
-  ]);
-
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    const trailingMedia = document.querySelector<HTMLElement>(
-      ".published-mode .is-published-trailing-media",
-    );
-    const viewport = window.visualViewport;
-    let resizeFrame: number | null = null;
-    let measuredScreenWidth = window.screen.width;
-    let baseHeight = 0;
-
-    const clearTrailingInset = () => {
-      publishedTrailingMediaInsetRef.current = 0;
-      root.classList.remove("published-trailing-media-inset-active");
-      root.style.removeProperty("--published-trailing-media-inset");
-      trailingMedia?.style.removeProperty("--published-trailing-media-base-height");
-    };
-
-    const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    if (
-      view !== "published" ||
-      !publishedHasTrailingMedia ||
-      !publishedAssetsReady ||
-      !publishedContentCanReveal ||
-      !trailingMedia ||
-      !isIOS
-    ) {
-      clearTrailingInset();
-      return;
-    }
-
-    const measureSafeArea = () => {
-      const probe = document.createElement("div");
-      probe.style.cssText =
-        "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
-      document.body.appendChild(probe);
-      const styles = window.getComputedStyle(probe);
-      const reportedSafeTop = Number.parseFloat(styles.paddingTop);
-      const reportedSafeBottom = Number.parseFloat(styles.paddingBottom);
-      probe.remove();
-
-      const fallbackSafeTop = Math.min(
-        62,
-        Math.max(47, window.screen.width * 0.154),
-      );
-      const safeTop =
-        Number.isFinite(reportedSafeTop) && reportedSafeTop >= 1
-          ? reportedSafeTop
-          : fallbackSafeTop;
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const inferredBottom =
-        window.screen.height -
-        viewportHeight -
-        (viewport?.offsetTop ?? 0) -
-        safeTop;
-      const safeBottom =
-        Number.isFinite(reportedSafeBottom) && reportedSafeBottom >= 1
-          ? reportedSafeBottom
-          : inferredBottom;
-      return Math.round(Math.min(160, Math.max(0, safeBottom)));
-    };
-
-    const measureBaseHeight = () => {
-      root.classList.remove("published-trailing-media-inset-active");
-      root.style.setProperty("--published-trailing-media-inset", "0px");
-      trailingMedia.style.removeProperty("--published-trailing-media-base-height");
-      baseHeight = trailingMedia.getBoundingClientRect().height;
-      measuredScreenWidth = window.screen.width;
-      trailingMedia.style.setProperty(
-        "--published-trailing-media-base-height",
-        `${baseHeight}px`,
-      );
-    };
-
-    const applyTrailingInset = () => {
-      resizeFrame = null;
-      if (Math.abs(window.screen.width - measuredScreenWidth) >= 1) {
-        measureBaseHeight();
-      }
-      const inset = measureSafeArea();
-      if (baseHeight <= 0) {
-        clearTrailingInset();
-        return;
-      }
-      if (inset <= 0) {
-        publishedTrailingMediaInsetRef.current = 0;
-        root.classList.remove("published-trailing-media-inset-active");
-        root.style.setProperty("--published-trailing-media-inset", "0px");
-        return;
-      }
-
-      root.style.setProperty("--published-trailing-media-inset", `${inset}px`);
-      publishedTrailingMediaInsetRef.current = inset;
-      root.classList.add("published-trailing-media-inset-active");
-    };
-
-    const scheduleTrailingInset = () => {
-      if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
-      resizeFrame = window.requestAnimationFrame(applyTrailingInset);
-    };
-
-    measureBaseHeight();
-    applyTrailingInset();
-    window.addEventListener("resize", scheduleTrailingInset, { passive: true });
-    viewport?.addEventListener("resize", scheduleTrailingInset, {
-      passive: true,
-    });
-
-    return () => {
-      if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
-      window.removeEventListener("resize", scheduleTrailingInset);
-      viewport?.removeEventListener("resize", scheduleTrailingInset);
-      clearTrailingInset();
-    };
-  }, [
-    publishedAssetsReady,
-    publishedContentCanReveal,
-    publishedHasTrailingMedia,
-    publishedTrailingBlock?.id,
-    view,
-  ]);
-
-  useLayoutEffect(() => {
-    if (view !== "published" || !openedPublishedStrip) return;
-
-    const root = document.documentElement;
-    const scrollRoot = document.scrollingElement ?? document.documentElement;
-    const viewport = window.visualViewport;
-    let syncFrame: number | null = null;
-    let viewportSettleTimer: number | null = null;
-    let touchReleaseTimer: number | null = null;
-    let lastTouchY: number | null = null;
-    let bottomIsPinned = false;
-    let committedVisibility: boolean | null = null;
-
-    const maximumScrollTop = () => {
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const viewportOffsetTop = viewport?.offsetTop ?? 0;
-      const trailingInset = publishedHasTrailingMedia
-        ? publishedTrailingMediaInsetRef.current
-        : 0;
-      return Math.max(
-        0,
-        scrollRoot.scrollHeight -
-          viewportHeight -
-          viewportOffsetTop -
-          trailingInset,
-      );
-    };
-
-    const distanceFromBottom = () => {
-      const viewportTop = viewport?.pageTop ?? window.scrollY;
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const trailingInset = publishedHasTrailingMedia
-        ? publishedTrailingMediaInsetRef.current
-        : 0;
-      return (
-        scrollRoot.scrollHeight -
-        trailingInset -
-        (viewportTop + viewportHeight)
-      );
-    };
-
-    const commitActionVisibility = (visible: boolean) => {
-      if (committedVisibility === visible) return;
-      committedVisibility = visible;
-      setPublishedEndActionsAtBottom(visible);
-    };
-
-    const setThemeColor = (color: string, enabled = true) => {
-      const themeColor = document.querySelector<HTMLMetaElement>(
-        "#strip-theme-color",
-      );
-      if (!themeColor) return;
-      if (enabled) {
-        themeColor.removeAttribute("media");
-        if (themeColor.content !== color) themeColor.setAttribute("content", color);
-        return;
-      }
-      themeColor.setAttribute("media", "(max-width: 0px)");
-    };
-
-    const syncBottomEdge = () => {
-      syncFrame = null;
-      const distance = distanceFromBottom();
-      const isAtBottom = (viewport?.scale ?? 1) <= 1.01 && distance <= 8;
-      bottomIsPinned = isAtBottom;
-      commitActionVisibility(publishedEndActionsEnabled && isAtBottom);
-      if (isAtBottom && publishedBottomMediaImage) {
-        setThemeColor(topSafeAreaColor, false);
-      } else {
-        setThemeColor(
-          isAtBottom && publishedBottomSurfaceColor
-            ? publishedBottomSurfaceColor
-            : topSafeAreaColor,
-        );
-      }
-    };
-
-    const scheduleBottomEdgeSync = () => {
-      if (syncFrame !== null) return;
-      syncFrame = window.requestAnimationFrame(syncBottomEdge);
-    };
-
-    const restoreBottomEdge = (behavior: ScrollBehavior) => {
-      const maximum = maximumScrollTop();
-      if (window.scrollY <= maximum + 0.5) return;
-      window.scrollTo({ top: maximum, left: 0, behavior });
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      lastTouchY = event.touches[0]?.clientY ?? null;
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      const nextTouchY = event.touches[0]?.clientY;
-      if (nextTouchY === undefined || lastTouchY === null) return;
-      if ((viewport?.scale ?? 1) > 1.01) return;
-      const downwardScrollIntent = lastTouchY - nextTouchY;
-      lastTouchY = nextTouchY;
-      if (downwardScrollIntent <= 0) return;
-
-      const maximum = maximumScrollTop();
-      if (
-        window.scrollY + downwardScrollIntent <=
-        maximum + PUBLISHED_BOTTOM_BOUNCE_ALLOWANCE_PX
-      ) {
-        return;
-      }
-
-      bottomIsPinned = true;
-      if (event.cancelable) event.preventDefault();
-      scheduleBottomEdgeSync();
-    };
-
-    const handleTouchEnd = () => {
-      lastTouchY = null;
-      if (touchReleaseTimer !== null) window.clearTimeout(touchReleaseTimer);
-      touchReleaseTimer = window.setTimeout(() => {
-        touchReleaseTimer = null;
-        if (bottomIsPinned) restoreBottomEdge("smooth");
-        scheduleBottomEdgeSync();
-      }, 24);
-    };
-
-    const handleWheel = (event: WheelEvent) => {
-      if (event.deltaY <= 0) return;
-      const maximum = maximumScrollTop();
-      if (window.scrollY + event.deltaY <= maximum) return;
-      if (event.cancelable) event.preventDefault();
-      window.scrollTo({ top: maximum, left: 0, behavior: "auto" });
-      scheduleBottomEdgeSync();
-    };
-
-    const handleViewportResize = () => {
-      const shouldRemainPinned = bottomIsPinned;
-      scheduleBottomEdgeSync();
-      if (!shouldRemainPinned) return;
-      if (viewportSettleTimer !== null) window.clearTimeout(viewportSettleTimer);
-      viewportSettleTimer = window.setTimeout(() => {
-        viewportSettleTimer = null;
-        window.scrollTo({
-          top: maximumScrollTop(),
-          left: 0,
-          behavior: "auto",
-        });
-        scheduleBottomEdgeSync();
-      }, 80);
-    };
-
-    root.classList.add("published-bottom-edge-locked");
-    scheduleBottomEdgeSync();
-    document.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-      capture: true,
-    });
-    document.addEventListener("touchmove", handleTouchMove, {
-      passive: false,
-      capture: true,
-    });
-    document.addEventListener("touchend", handleTouchEnd, { capture: true });
-    document.addEventListener("touchcancel", handleTouchEnd, { capture: true });
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    window.addEventListener("scroll", scheduleBottomEdgeSync, { passive: true });
-    window.addEventListener("scrollend", handleTouchEnd);
-    window.addEventListener("resize", handleViewportResize, { passive: true });
-    viewport?.addEventListener("resize", handleViewportResize, { passive: true });
-    viewport?.addEventListener("scroll", scheduleBottomEdgeSync, {
-      passive: true,
-    });
-
-    return () => {
-      root.classList.remove("published-bottom-edge-locked");
-      setThemeColor(topSafeAreaColor);
-      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
-      if (viewportSettleTimer !== null) window.clearTimeout(viewportSettleTimer);
-      if (touchReleaseTimer !== null) window.clearTimeout(touchReleaseTimer);
-      document.removeEventListener("touchstart", handleTouchStart, true);
-      document.removeEventListener("touchmove", handleTouchMove, true);
-      document.removeEventListener("touchend", handleTouchEnd, true);
-      document.removeEventListener("touchcancel", handleTouchEnd, true);
-      window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("scroll", scheduleBottomEdgeSync);
-      window.removeEventListener("scrollend", handleTouchEnd);
-      window.removeEventListener("resize", handleViewportResize);
-      viewport?.removeEventListener("resize", handleViewportResize);
-      viewport?.removeEventListener("scroll", scheduleBottomEdgeSync);
-    };
-  }, [
-    openedPublishedStrip,
-    publishedBottomMediaImage,
-    publishedBottomSurfaceColor,
-    publishedEndActionsEnabled,
-    publishedHasTrailingMedia,
-    topSafeAreaColor,
     view,
   ]);
 
@@ -4262,41 +3867,16 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const cleanViewTrailingEdgeIsActive =
-      view === "edit" && inlinePreview && cleanViewBottomSurfaceColor !== null;
-    const publishedTrailingEdgeIsActive =
-      view === "published" && publishedBottomSurfaceColor !== null;
     const trailingEdgeIsActive =
-      cleanViewTrailingEdgeIsActive || publishedTrailingEdgeIsActive;
-    const trailingSurfaceColor = publishedTrailingEdgeIsActive
-      ? publishedBottomSurfaceColor
-      : cleanViewBottomSurfaceColor;
+      view === "edit" && inlinePreview && cleanViewBottomSurfaceColor !== null;
     root.style.setProperty(
       "--bottom-safe-area-color",
-      trailingEdgeIsActive && trailingSurfaceColor
-        ? trailingSurfaceColor
+      trailingEdgeIsActive && cleanViewBottomSurfaceColor
+        ? cleanViewBottomSurfaceColor
         : DEFAULT_BACKGROUND,
     );
-    if (publishedTrailingEdgeIsActive && publishedBottomMediaImage) {
-      root.style.setProperty(
-        "--published-bottom-safe-area-image",
-        `url(${JSON.stringify(publishedBottomMediaImage)})`,
-      );
-    } else {
-      root.style.removeProperty("--published-bottom-safe-area-image");
-    }
     root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
-    root.classList.toggle(
-      "published-trailing-media-active",
-      publishedTrailingEdgeIsActive && publishedBottomMediaImage !== null,
-    );
-  }, [
-    cleanViewBottomSurfaceColor,
-    inlinePreview,
-    publishedBottomMediaImage,
-    publishedBottomSurfaceColor,
-    view,
-  ]);
+  }, [cleanViewBottomSurfaceColor, inlinePreview, view]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -6604,29 +6184,6 @@ export default function Home() {
     }
   };
 
-  const sharePublishedStripFromReader = async () => {
-    if (!openedPublishedStrip) return;
-    const stripUrl = publicStripUrl(openedPublishedStrip);
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: openedPublishedStrip.title || "Strip",
-          url: stripUrl,
-        });
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-    await copyLink();
-  };
-
-  const makeOwnStripFromReader = () => {
-    window.location.assign(
-      `${mainAppOrigin()}/edit/${encodeURIComponent(makeId())}`,
-    );
-  };
-
   const copyPublishedStripLink = async () => {
     if (!openedPublishedStrip) return;
     const stripUrl = publicStripUrl(openedPublishedStrip);
@@ -7067,9 +6624,6 @@ export default function Home() {
       0,
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
-    const lastFlowBlock = [...sourceBlocks]
-      .reverse()
-      .find((block) => block.type !== "sticker");
     const showsEndingCard = view !== "published";
     const canvasMinHeight = stickerFloor > 0 ? `${stickerFloor}px` : undefined;
 
@@ -7090,11 +6644,6 @@ export default function Home() {
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, heightCropSession)
             : null;
-        const isPublishedTrailingMedia =
-          !isEditing &&
-          view === "published" &&
-          lastFlowBlock?.id === block.id &&
-          (block.type === "image" || block.type === "video");
         if (block.type === "text") {
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
           const textIsEmpty = block.content.length === 0;
@@ -7223,29 +6772,16 @@ export default function Home() {
                 heightCrop?.isEditing && firstFlowBlock?.id === block.id
                   ? "has-top-crop-clearance"
                   : ""
-              } ${
-                isPublishedTrailingMedia
-                  ? "is-published-trailing-media"
-                  : ""
               }`}
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] === undefined}
               style={
-                {
-                  ...(mediaLoadStatus[block.id] === undefined &&
-                  block.height &&
-                  heightCrop?.height === undefined
-                    ? { minHeight: block.height }
-                    : {}),
-                  ...(isPublishedTrailingMedia
-                    ? {
-                        "--published-trailing-media-crop-top": `${
-                          heightCrop?.top ?? 0
-                        }px`,
-                      }
-                    : {}),
-                } as CSSProperties
+                mediaLoadStatus[block.id] === undefined &&
+                block.height &&
+                heightCrop?.height === undefined
+                  ? { minHeight: block.height }
+                  : undefined
               }
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
@@ -7446,13 +6982,6 @@ export default function Home() {
                   : { ...current, [block.id]: color },
               );
             }}
-            onFirstFrameImage={(image) => {
-              setVideoBottomFrames((current) =>
-                current[block.id] === image
-                  ? current
-                  : { ...current, [block.id]: image },
-              );
-            }}
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
@@ -7462,7 +6991,6 @@ export default function Home() {
             cropSourceHeight={heightCrop?.sourceHeight}
             cropEditing={heightCrop?.isEditing}
             croppedHeight={heightCrop?.height}
-            isPublishedTrailingMedia={isPublishedTrailingMedia}
             onLoadSettled={(loadedSuccessfully) => {
               settleMediaLoad(block.id, loadedSuccessfully);
               if (
@@ -8929,33 +8457,6 @@ export default function Home() {
                 </div>
               </div>
             ) : null}
-            <nav
-              className={`published-end-actions ${
-                publishedEndActionsVisible ? "is-visible" : ""
-              }`}
-              aria-label="Strip actions"
-              aria-hidden={!publishedEndActionsVisible}
-            >
-              <button
-                className="published-end-create"
-                type="button"
-                onClick={makeOwnStripFromReader}
-                disabled={!publishedEndActionsVisible}
-                tabIndex={publishedEndActionsVisible ? 0 : -1}
-              >
-                Make your own Strip
-              </button>
-              <button
-                className="published-end-share"
-                type="button"
-                onClick={() => void sharePublishedStripFromReader()}
-                disabled={!publishedEndActionsVisible}
-                tabIndex={publishedEndActionsVisible ? 0 : -1}
-                aria-label="Share this Strip"
-              >
-                <Share2 aria-hidden="true" />
-              </button>
-            </nav>
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
         </>

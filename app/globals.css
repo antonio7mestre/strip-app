@@ -13,7 +13,6 @@
   --glass: rgba(19, 19, 19, 0.76);
   --green: #00d979;
   --leading-image-inset: 0px;
-  --published-trailing-media-inset: 0px;
   --height-crop-motion-duration: 520ms;
   --height-crop-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -68,28 +67,6 @@ html.published-trailing-edge-active {
 html.published-bottom-pocket-active,
 html.published-bottom-pocket-active body {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
-html.published-bottom-edge-locked {
-  background-image: linear-gradient(
-    to bottom,
-    var(--bottom-safe-area-color, #000000) 0 50%,
-    var(--top-safe-area-color, #000000) 50% 100%
-  );
-}
-
-html.published-trailing-media-active,
-html.published-trailing-media-active.published-bottom-edge-locked {
-  background-image:
-    linear-gradient(
-      to bottom,
-      transparent 0 50%,
-      var(--top-safe-area-color, #000000) 50% 100%
-    ),
-    var(--published-bottom-safe-area-image);
-  background-position: center, center top;
-  background-repeat: no-repeat;
-  background-size: 100% 100%, 100% 50%;
 }
 
 body {
@@ -1458,13 +1435,6 @@ html.library-scroll-top-locked .library-mode {
 .published-mode,
 .published-mode .published-strip {
   min-height: 0;
-}
-
-.published-mode {
-  background: var(--bottom-safe-area-color, var(--black));
-}
-
-.published-mode .published-strip {
   background: var(--black);
 }
 
@@ -1751,47 +1721,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   background: #000000;
   object-fit: contain;
   pointer-events: none;
-}
-
-html.published-trailing-media-inset-active
-  .published-mode
-  .is-published-trailing-media {
-  height: calc(
-    var(--published-trailing-media-base-height) +
-      var(--published-trailing-media-inset)
-  ) !important;
-  overflow: hidden;
-}
-
-html.published-trailing-media-inset-active
-  .published-mode
-  .is-published-trailing-media
-  > .block-crop-viewport {
-  height: 100% !important;
-  overflow: hidden;
-}
-
-html.published-trailing-media-inset-active
-  .published-mode
-  .is-published-trailing-media
-  > .block-crop-viewport
-  > .block-crop-content {
-  height: calc(
-    100% + var(--published-trailing-media-crop-top, 0px)
-  ) !important;
-}
-
-html.published-trailing-media-inset-active
-  .published-mode
-  .is-published-trailing-media
-  img,
-html.published-trailing-media-inset-active
-  .published-mode
-  .is-published-trailing-media
-  video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .published-strip-load-gate {
@@ -2268,92 +2197,6 @@ html.published-content-loading .top-safe-area-anchor {
   to {
     opacity: 0;
   }
-}
-
-.published-end-actions {
-  position: fixed;
-  z-index: 45;
-  left: 50%;
-  bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px));
-  display: flex;
-  width: min(calc(100% - 28px), 344px);
-  gap: 10px;
-  transform: translate3d(-50%, 8px, 0) scale(0.72);
-  transform-origin: 50% 100%;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  will-change: transform, opacity;
-  transition:
-    transform 360ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 0s linear 360ms;
-}
-
-.published-end-actions.is-visible {
-  transform: translate3d(-50%, 0, 0) scale(1);
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition-delay: 0s;
-}
-
-.published-end-actions button {
-  height: 58px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.94);
-  color: #090909;
-  box-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.24),
-    0 3px 9px rgba(0, 0, 0, 0.14);
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: transform 140ms ease, background-color 140ms ease;
-}
-
-.published-end-actions button:active {
-  transform: scale(0.96);
-  background: rgba(245, 245, 245, 0.88);
-}
-
-.published-end-actions button:disabled {
-  cursor: default;
-}
-
-.published-end-create {
-  min-width: 0;
-  flex: 1 1 auto;
-  padding: 0 24px;
-  border-radius: 999px;
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.018em;
-  white-space: nowrap;
-}
-
-.published-end-share {
-  display: grid;
-  width: 58px;
-  flex: 0 0 58px;
-  place-items: center;
-  padding: 0;
-  border-radius: 50%;
-}
-
-.published-end-share svg {
-  width: 21px;
-  height: 21px;
-  stroke-width: 2.15;
-}
-
-.published-end-actions button:focus-visible {
-  outline: 2px solid #090909;
-  outline-offset: -4px;
 }
 
 .sticker-block {
