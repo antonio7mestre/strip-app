@@ -3425,6 +3425,17 @@ export default function Home() {
     view === "edit" && inlinePreview
       ? endingStyle.backgroundColor
       : null;
+  const publishedTrailingBlock =
+    view === "published" && openedPublishedStrip
+      ? [...openedPublishedStrip.blocks]
+          .reverse()
+          .find((block) => block.type !== "sticker")
+      : undefined;
+  const publishedBottomSurfaceColor = publishedTrailingBlock
+    ? publishedTrailingBlock.type === "text"
+      ? publishedTrailingBlock.backgroundColor ?? DEFAULT_BACKGROUND
+      : imageTrayColors[publishedTrailingBlock.id] ?? DEFAULT_BACKGROUND
+    : null;
 
   useEffect(() => {
     setPublishedMinimumReadyKey(null);
@@ -3520,12 +3531,25 @@ export default function Home() {
       setPublishedEndActionsAtBottom(visible);
     };
 
+    const setThemeColor = (color: string) => {
+      const themeColor = document.querySelector<HTMLMetaElement>(
+        "#strip-theme-color",
+      );
+      if (!themeColor || themeColor.content === color) return;
+      themeColor.setAttribute("content", color);
+    };
+
     const syncBottomEdge = () => {
       syncFrame = null;
       const distance = distanceFromBottom();
       const isAtBottom = (viewport?.scale ?? 1) <= 1.01 && distance <= 8;
       bottomIsPinned = isAtBottom;
       commitActionVisibility(publishedEndActionsEnabled && isAtBottom);
+      setThemeColor(
+        isAtBottom && publishedBottomSurfaceColor
+          ? publishedBottomSurfaceColor
+          : topSafeAreaColor,
+      );
     };
 
     const scheduleBottomEdgeSync = () => {
@@ -3622,6 +3646,7 @@ export default function Home() {
 
     return () => {
       root.classList.remove("published-bottom-edge-locked");
+      setThemeColor(topSafeAreaColor);
       if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
       if (viewportSettleTimer !== null) window.clearTimeout(viewportSettleTimer);
       if (touchReleaseTimer !== null) window.clearTimeout(touchReleaseTimer);
@@ -3636,7 +3661,13 @@ export default function Home() {
       viewport?.removeEventListener("resize", handleViewportResize);
       viewport?.removeEventListener("scroll", scheduleBottomEdgeSync);
     };
-  }, [openedPublishedStrip, publishedEndActionsEnabled, view]);
+  }, [
+    openedPublishedStrip,
+    publishedBottomSurfaceColor,
+    publishedEndActionsEnabled,
+    topSafeAreaColor,
+    view,
+  ]);
 
   useEffect(() => {
     if (view === "edit") return;
@@ -4029,16 +4060,28 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const trailingEdgeIsActive =
+    const cleanViewTrailingEdgeIsActive =
       view === "edit" && inlinePreview && cleanViewBottomSurfaceColor !== null;
+    const publishedTrailingEdgeIsActive =
+      view === "published" && publishedBottomSurfaceColor !== null;
+    const trailingEdgeIsActive =
+      cleanViewTrailingEdgeIsActive || publishedTrailingEdgeIsActive;
+    const trailingSurfaceColor = publishedTrailingEdgeIsActive
+      ? publishedBottomSurfaceColor
+      : cleanViewBottomSurfaceColor;
     root.style.setProperty(
       "--bottom-safe-area-color",
-      trailingEdgeIsActive && cleanViewBottomSurfaceColor
-        ? cleanViewBottomSurfaceColor
+      trailingEdgeIsActive && trailingSurfaceColor
+        ? trailingSurfaceColor
         : DEFAULT_BACKGROUND,
     );
     root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
-  }, [cleanViewBottomSurfaceColor, inlinePreview, view]);
+  }, [
+    cleanViewBottomSurfaceColor,
+    inlinePreview,
+    publishedBottomSurfaceColor,
+    view,
+  ]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -8472,7 +8515,6 @@ export default function Home() {
               style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
-            <div className="published-bottom-safe-area-anchor" aria-hidden="true" />
 
             <article
               className={`published-strip published-strip-load-gate ${

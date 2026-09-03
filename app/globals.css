@@ -72,7 +72,7 @@ html.published-bottom-pocket-active body {
 html.published-bottom-edge-locked {
   background-image: linear-gradient(
     to bottom,
-    #000000 0 50%,
+    var(--bottom-safe-area-color, #000000) 0 50%,
     var(--top-safe-area-color, #000000) 50% 100%
   );
 }
@@ -315,17 +315,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   z-index: 0;
   right: 0;
   left: 0;
-  pointer-events: none;
-}
-
-.published-bottom-safe-area-anchor {
-  position: fixed;
-  z-index: 9;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: max(1px, env(safe-area-inset-bottom));
-  background: #000000;
   pointer-events: none;
 }
 
@@ -1454,6 +1443,13 @@ html.library-scroll-top-locked .library-mode {
 .published-mode,
 .published-mode .published-strip {
   min-height: 0;
+}
+
+.published-mode {
+  background: var(--bottom-safe-area-color, var(--black));
+}
+
+.published-mode .published-strip {
   background: var(--black);
 }
 
