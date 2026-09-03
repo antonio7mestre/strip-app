@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   ArrowUp,
   Baseline,
-  Bookmark,
   CaseUpper,
   Check,
   Crop,
@@ -35,7 +34,6 @@ import {
   Pencil,
   Pipette,
   Plus,
-  Send,
   Settings,
   Sticker,
   Trash2,
@@ -3090,175 +3088,6 @@ function StripStickerBlock({
       </span>
       {controls}
     </figure>
-  );
-}
-
-function LiveLinkToolbar() {
-  const toolbarRef = useRef<HTMLElement>(null);
-  const safariChromeIsMinimizedRef = useRef(false);
-
-  useLayoutEffect(() => {
-    const viewport = window.visualViewport;
-    const userAgent = navigator.userAgent;
-    const isIOS =
-      /iPad|iPhone|iPod/.test(userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isSafari =
-      /Safari/.test(userAgent) &&
-      !/(CriOS|FxiOS|EdgiOS|OPiOS)/.test(userAgent);
-    const isStandalone =
-      (navigator as Navigator & { standalone?: boolean }).standalone === true ||
-      window.matchMedia("(display-mode: standalone)").matches;
-
-    if (!isIOS || !isSafari || isStandalone || !viewport) {
-      safariChromeIsMinimizedRef.current = false;
-      toolbarRef.current?.classList.remove("is-safari-minimized");
-      return;
-    }
-
-    const createViewportProbe = (height: string) => {
-      const probe = document.createElement("div");
-      probe.setAttribute("aria-hidden", "true");
-      probe.style.cssText =
-        `position:fixed;visibility:hidden;pointer-events:none;width:1px;height:${height};`;
-      document.body.appendChild(probe);
-      return probe;
-    };
-
-    const smallViewportProbe = createViewportProbe("100svh");
-    const largeViewportProbe = createViewportProbe("100lvh");
-    let settleTimer: number | null = null;
-    let hasMeasured = false;
-    let visibleBaseline: number | null = null;
-    let hiddenBaseline: number | null = null;
-    let lastChromeRange: number | null = null;
-
-    const commitVisibility = (isMinimized: boolean) => {
-      toolbarRef.current?.classList.toggle(
-        "is-safari-minimized",
-        isMinimized,
-      );
-      if (safariChromeIsMinimizedRef.current === isMinimized) return;
-      safariChromeIsMinimizedRef.current = isMinimized;
-    };
-
-    const measureSafariChrome = () => {
-      if (viewport.scale > 1.01) {
-        commitVisibility(false);
-        hasMeasured = false;
-        visibleBaseline = null;
-        hiddenBaseline = null;
-        return;
-      }
-
-      const smallHeight = smallViewportProbe.getBoundingClientRect().height;
-      const largeHeight = largeViewportProbe.getBoundingClientRect().height;
-      const chromeRange = Math.max(0, largeHeight - smallHeight);
-      if (chromeRange < 20) {
-        commitVisibility(false);
-        hasMeasured = false;
-        visibleBaseline = null;
-        hiddenBaseline = null;
-        lastChromeRange = chromeRange;
-        return;
-      }
-
-      const distanceFromLargestViewport = Math.max(
-        0,
-        Math.min(chromeRange, largeHeight - viewport.height),
-      );
-      const rangeChanged =
-        lastChromeRange !== null &&
-        Math.abs(chromeRange - lastChromeRange) >
-          Math.max(4, lastChromeRange * 0.15);
-      lastChromeRange = chromeRange;
-
-      if (!hasMeasured || rangeChanged) {
-        hasMeasured = true;
-        const initiallyMinimized =
-          distanceFromLargestViewport <= chromeRange * 0.15;
-        visibleBaseline = initiallyMinimized
-          ? null
-          : distanceFromLargestViewport;
-        hiddenBaseline = initiallyMinimized
-          ? distanceFromLargestViewport
-          : null;
-        commitVisibility(initiallyMinimized);
-        return;
-      }
-
-      const motionTrigger = Math.max(1, chromeRange * 0.012);
-      if (safariChromeIsMinimizedRef.current) {
-        hiddenBaseline = Math.min(
-          hiddenBaseline ?? distanceFromLargestViewport,
-          distanceFromLargestViewport,
-        );
-        if (distanceFromLargestViewport > hiddenBaseline + motionTrigger) {
-          visibleBaseline = distanceFromLargestViewport;
-          hiddenBaseline = null;
-          commitVisibility(false);
-        }
-        return;
-      }
-
-      visibleBaseline = Math.max(
-        visibleBaseline ?? distanceFromLargestViewport,
-        distanceFromLargestViewport,
-      );
-      if (distanceFromLargestViewport < visibleBaseline - motionTrigger) {
-        hiddenBaseline = distanceFromLargestViewport;
-        visibleBaseline = null;
-        commitVisibility(true);
-      }
-    };
-
-    viewport.addEventListener("resize", measureSafariChrome, { passive: true });
-    viewport.addEventListener("scroll", measureSafariChrome, { passive: true });
-    window.addEventListener("resize", measureSafariChrome, { passive: true });
-    window.addEventListener("scroll", measureSafariChrome, { passive: true });
-    window.addEventListener("scrollend", measureSafariChrome);
-    window.addEventListener("orientationchange", measureSafariChrome);
-    measureSafariChrome();
-    settleTimer = window.setTimeout(measureSafariChrome, 180);
-
-    return () => {
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      viewport.removeEventListener("resize", measureSafariChrome);
-      viewport.removeEventListener("scroll", measureSafariChrome);
-      window.removeEventListener("resize", measureSafariChrome);
-      window.removeEventListener("scroll", measureSafariChrome);
-      window.removeEventListener("scrollend", measureSafariChrome);
-      window.removeEventListener("orientationchange", measureSafariChrome);
-      smallViewportProbe.remove();
-      largeViewportProbe.remove();
-    };
-  }, []);
-
-  const fakeAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.currentTarget.blur();
-  };
-
-  return (
-    <nav
-      ref={toolbarRef}
-      className="live-link-toolbar"
-      aria-label="Live Strip actions"
-    >
-      <button type="button" onPointerUp={fakeAction} aria-label="Save">
-        <Bookmark aria-hidden="true" />
-      </button>
-      <button type="button" onPointerUp={fakeAction} aria-label="Share">
-        <Send aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className="live-link-toolbar-create"
-        onPointerUp={fakeAction}
-        aria-label="Make your own Strip"
-      >
-        Make your own
-      </button>
-    </nav>
   );
 }
 
@@ -8599,7 +8428,6 @@ export default function Home() {
                 </div>
               </div>
             ) : null}
-            {publishedContentCanReveal ? <LiveLinkToolbar /> : null}
             {hasPublishedBottomSurface ? (
               <div
                 className="published-bottom-pocket-sampler"
