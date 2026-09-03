@@ -1635,36 +1635,16 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .strip-ending-card-inner.is-visitor {
-  gap: 16px;
-  padding-top: 28px;
-}
-
-.strip-ending-card-inner.is-visitor .strip-ending-brandline {
-  min-height: auto;
-  justify-content: center;
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.strip-ending-invitation h2,
-.strip-ending-invitation p {
-  margin: 0;
+  gap: 18px;
+  padding-top: 26px;
 }
 
 .strip-ending-invitation h2 {
-  font-size: clamp(28px, 8vw, 34px);
+  margin: 0;
+  font-size: clamp(24px, 7vw, 28px);
   font-weight: 850;
-  line-height: 0.98;
-  letter-spacing: -0.045em;
-}
-
-.strip-ending-invitation p {
-  margin-top: 9px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  opacity: 0.72;
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
 .strip-ending-actions {
@@ -1710,28 +1690,18 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .strip-ending-cta {
-  min-height: 62px;
-  justify-content: space-between;
-  padding: 8px 9px 8px 24px;
-  font-size: 18px;
+  min-height: 58px;
+  gap: 10px;
+  padding: 0 22px;
+  font-size: 17px;
   font-weight: 800;
 }
 
-.strip-ending-cta-icon {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--ending-background, var(--black));
-  color: var(--ending-foreground, var(--white));
-}
-
-.strip-ending-cta-icon svg {
-  width: 21px;
-  height: 21px;
-  stroke-width: 2.4;
+.strip-ending-cta > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  stroke-width: 2.3;
 }
 
 .strip-ending-action:active {

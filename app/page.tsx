@@ -7085,20 +7085,19 @@ export default function Home() {
               endingIsVisitor ? "is-visitor" : "is-owner"
             }`}
           >
-            <div className="strip-ending-brandline">
-              <span className="strip-ending-wordmark">STRIP</span>
-              {!endingIsVisitor ? (
+            {!endingIsVisitor ? (
+              <div className="strip-ending-brandline">
+                <span className="strip-ending-wordmark">STRIP</span>
                 <span className="strip-ending-status">
                   <span aria-hidden="true" />
                   {view === "published" ? "Live" : "Preview"}
                 </span>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
             {endingIsVisitor ? (
               <>
                 <div className="strip-ending-invitation">
                   <h2>Do you want to Strip?</h2>
-                  <p>Make something for your friends.</p>
                 </div>
                 <button
                   className="strip-ending-action strip-ending-cta"
@@ -7109,9 +7108,7 @@ export default function Home() {
                   }}
                 >
                   <span>Make your own</span>
-                  <span className="strip-ending-cta-icon" aria-hidden="true">
-                    <Plus />
-                  </span>
+                  <Plus aria-hidden="true" />
                 </button>
               </>
             ) : view === "published" ? (
