@@ -1175,7 +1175,8 @@ html.library-scroll-top-locked .library-mode {
 .app-navigation-dock.composer-dock {
   z-index: 42;
   border-top: 0;
-  border-radius: 0;
+  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
+  corner-shape: squircle;
   box-shadow:
     0 -20px 56px rgba(0, 0, 0, 0.14),
     0 -6px 20px rgba(0, 0, 0, 0.08);
@@ -1239,8 +1240,7 @@ html.library-scroll-top-locked .library-mode {
     max(28px, calc(env(safe-area-inset-bottom) + 14px))
     max(18px, env(safe-area-inset-left));
   border: 0;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
-  corner-shape: squircle;
+  border-radius: 0;
   background: #ffffff;
   color: #000000;
   box-shadow:
