@@ -206,6 +206,7 @@ const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const PUBLISHED_LOADING_MINIMUM_MS = 2000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
+const PUBLISHED_LOADING_RELEASE_MS = 900;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -3161,6 +3162,12 @@ export default function Home() {
   const [publishedMinimumReadyKey, setPublishedMinimumReadyKey] = useState<
     string | null
   >(null);
+  const [publishedCoverSettledKey, setPublishedCoverSettledKey] = useState<
+    string | null
+  >(null);
+  const [publishedLoaderDismissedKey, setPublishedLoaderDismissedKey] = useState<
+    string | null
+  >(null);
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -3388,11 +3395,22 @@ export default function Home() {
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.id
       : "";
+  const publishedCoverReady =
+    openedPublishedStrip?.cover.kind !== "image" ||
+    publishedCoverSettledKey === publishedStripLoadKey;
+  const publishedAssetsReady = publishedContentReady && publishedCoverReady;
   const publishedMinimumElapsed =
     publishedStripLoadKey !== "" &&
     publishedMinimumReadyKey === publishedStripLoadKey;
   const publishedContentCanReveal =
-    publishedContentReady && publishedMinimumElapsed;
+    publishedAssetsReady && publishedMinimumElapsed;
+  const publishedLoaderPhase = publishedContentCanReveal
+    ? "revealing"
+    : "loading";
+  const publishedLoaderIsVisible =
+    publishedStripLoadKey !== "" &&
+    (!publishedContentCanReveal ||
+      publishedLoaderDismissedKey !== publishedStripLoadKey);
   const cleanViewBottomSurfaceColor =
     view === "edit" && inlinePreview
       ? endingStyle.backgroundColor
@@ -3409,11 +3427,19 @@ export default function Home() {
   }, [publishedStripLoadKey]);
 
   useEffect(() => {
+    if (!publishedStripLoadKey || !publishedContentCanReveal) return;
+    const timeout = window.setTimeout(() => {
+      setPublishedLoaderDismissedKey(publishedStripLoadKey);
+    }, PUBLISHED_LOADING_RELEASE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [publishedContentCanReveal, publishedStripLoadKey]);
+
+  useEffect(() => {
     const root = document.documentElement;
     const isWaitingForPublishedContent =
       view === "published" &&
       openedPublishedStrip !== null &&
-      !publishedContentCanReveal;
+      publishedLoaderIsVisible;
     root.classList.toggle(
       "published-content-loading",
       isWaitingForPublishedContent,
@@ -3422,15 +3448,16 @@ export default function Home() {
       return () => root.classList.remove("published-content-loading");
     }
 
-    const timeout = !publishedContentReady
+    const timeout = !publishedAssetsReady
       ? window.setTimeout(() => {
           setMediaLoadStatus((current) => {
             const next = { ...current };
-            publishedAssetIds.forEach((blockId) => {
+            publishedAssetKey.split("|").filter(Boolean).forEach((blockId) => {
               if (next[blockId] === undefined) next[blockId] = "error";
             });
             return next;
           });
+          setPublishedCoverSettledKey(publishedStripLoadKey);
         }, PUBLISHED_MEDIA_LOAD_TIMEOUT_MS)
       : null;
 
@@ -3443,8 +3470,9 @@ export default function Home() {
   }, [
     openedPublishedStrip,
     publishedAssetKey,
-    publishedContentCanReveal,
-    publishedContentReady,
+    publishedAssetsReady,
+    publishedLoaderIsVisible,
+    publishedStripLoadKey,
     view,
   ]);
 
@@ -5869,6 +5897,8 @@ export default function Home() {
               throw new Error("Published route username mismatch");
             }
             if (cancelled) return;
+            setPublishedCoverSettledKey(null);
+            setPublishedLoaderDismissedKey(null);
             setOpenedPublishedStrip(data.strip);
             setView("published");
             window.scrollTo({ top: 0, behavior: "auto" });
@@ -8266,33 +8296,78 @@ export default function Home() {
             >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
             </article>
-            {!publishedContentCanReveal ? (
+            {publishedLoaderIsVisible ? (
               <div
-                className="published-strip-loading"
+                className={`published-strip-loading ${
+                  publishedLoaderPhase === "revealing" ? "is-revealing" : ""
+                }`}
                 role="status"
                 aria-label="Loading Strip"
               >
-                <div className="published-strip-loading-frame">
-                  <svg
-                    viewBox="0 0 280 96"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      className="published-strip-loading-track"
-                      x="2"
-                      y="2"
-                      width="276"
-                      height="92"
-                      pathLength="100"
-                    />
-                    <path
-                      className="published-strip-loading-progress"
-                      d="M 140 2 H 278 V 94 H 2 V 2 H 140"
-                      pathLength="100"
-                    />
-                  </svg>
-                  <span>STRIP</span>
+                <div className="published-strip-loading-orb-stage" aria-hidden="true">
+                  <div className="published-strip-loading-orb-drift">
+                    <div
+                      className={`published-strip-loading-orb is-${
+                        openedPublishedStrip.cover.kind
+                      }`}
+                    >
+                      {openedPublishedStrip.cover.kind === "image" ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            className="published-strip-loading-orb-glow"
+                            src={openedPublishedStrip.cover.src}
+                            alt=""
+                            fetchPriority="high"
+                            decoding="async"
+                            draggable={false}
+                            onLoad={(event) => {
+                              const image = event.currentTarget;
+                              void image
+                                .decode()
+                                .catch(() => {})
+                                .then(() =>
+                                  setPublishedCoverSettledKey(
+                                    publishedStripLoadKey,
+                                  ),
+                                );
+                            }}
+                            onError={() =>
+                              setPublishedCoverSettledKey(publishedStripLoadKey)
+                            }
+                          />
+                          <div className="published-strip-loading-orb-surface">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={openedPublishedStrip.cover.src}
+                              alt=""
+                              fetchPriority="high"
+                              decoding="async"
+                              draggable={false}
+                            />
+                            <span />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            className="published-strip-loading-orb-glow"
+                            style={{
+                              backgroundColor: openedPublishedStrip.cover.color,
+                            }}
+                          />
+                          <div
+                            className="published-strip-loading-orb-surface"
+                            style={{
+                              backgroundColor: openedPublishedStrip.cover.color,
+                            }}
+                          >
+                            <span />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}

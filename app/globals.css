@@ -1725,12 +1725,15 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 
 .published-strip-load-gate {
   visibility: hidden;
+  opacity: 0;
   pointer-events: none;
 }
 
 .published-strip-load-gate.is-ready {
   visibility: visible;
+  opacity: 1;
   pointer-events: auto;
+  transition: opacity 720ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .published-strip-loading {
@@ -1738,59 +1741,154 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   z-index: 50;
   inset: 0;
   display: grid;
+  overflow: hidden;
   place-items: center;
-  background: #000000;
-  color: #ffffff;
+  isolation: isolate;
   touch-action: none;
 }
 
-.published-strip-loading-frame {
-  position: relative;
-  display: grid;
-  width: min(280px, calc(100vw - 64px));
-  height: 96px;
-  place-items: center;
+.published-strip-loading::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: #000000;
+  content: "";
+  opacity: 1;
 }
 
-.published-strip-loading-frame svg {
+.published-strip-loading.is-revealing {
+  pointer-events: none;
+}
+
+.published-strip-loading.is-revealing::before {
+  animation: published-strip-loading-backdrop-release 900ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.published-strip-loading-orb-stage {
+  position: relative;
+  width: clamp(148px, 44vw, 208px);
+  aspect-ratio: 1;
+  transform: translateZ(0) scale(1);
+  will-change: transform, opacity;
+}
+
+.published-strip-loading-orb-drift,
+.published-strip-loading-orb {
+  position: absolute;
+  inset: 0;
+}
+
+.published-strip-loading-orb-drift {
+  animation: published-strip-orb-drift 3.8s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.published-strip-loading-orb {
+  border-radius: 50%;
+}
+
+.published-strip-loading-orb-glow,
+.published-strip-loading-orb-surface {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  border-radius: 50%;
 }
 
-.published-strip-loading-track {
-  display: none;
+.published-strip-loading-orb-glow {
+  transform: translateZ(0) scale(1.2);
+  filter: blur(28px) saturate(1.18);
+  opacity: 0.42;
+  object-fit: cover;
 }
 
-.published-strip-loading-progress {
-  fill: none;
-  vector-effect: non-scaling-stroke;
+.published-strip-loading-orb-surface {
+  overflow: hidden;
+  transform: translateZ(0) scale3d(0.98, 1.04, 1);
+  opacity: 0.72;
+  box-shadow:
+    inset 0 0 34px rgba(255, 255, 255, 0.16),
+    0 0 56px rgba(255, 255, 255, 0.1);
+  animation: published-strip-orb-breathe 2.7s ease-in-out infinite alternate;
+  will-change: transform, opacity;
 }
 
-.published-strip-loading-progress {
-  stroke: #3155ff;
-  stroke-width: 3px;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  stroke-linecap: square;
-  animation: published-strip-outline-fill 2s linear infinite;
+.published-strip-loading-orb-surface img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scale(1.1);
+  filter: saturate(0.88) contrast(0.9) brightness(0.92);
+  object-fit: cover;
 }
 
-@keyframes published-strip-outline-fill {
+.published-strip-loading-orb-surface > span {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 35% 26%, rgba(255, 255, 255, 0.34), transparent 36%),
+    radial-gradient(circle at 70% 72%, transparent 24%, rgba(0, 0, 0, 0.2) 100%);
+  mix-blend-mode: screen;
+  opacity: 0.62;
+}
+
+.published-strip-loading.is-revealing
+  .published-strip-loading-orb-stage {
+  animation: published-strip-orb-release 900ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+.published-strip-loading.is-revealing
+  .published-strip-loading-orb-drift,
+.published-strip-loading.is-revealing
+  .published-strip-loading-orb-surface {
+  animation-play-state: paused;
+}
+
+@keyframes published-strip-orb-drift {
+  0% {
+    transform: translate3d(-6px, 5px, 0) rotate(-1.5deg);
+  }
   100% {
-    stroke-dashoffset: 0;
+    transform: translate3d(7px, -7px, 0) rotate(2deg);
   }
 }
 
-.published-strip-loading-frame span {
-  position: relative;
-  z-index: 1;
-  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 0.18em;
+@keyframes published-strip-orb-breathe {
+  0% {
+    transform: translateZ(0) scale3d(0.97, 1.04, 1);
+    opacity: 0.66;
+  }
+  100% {
+    transform: translateZ(0) scale3d(1.045, 0.97, 1);
+    opacity: 0.79;
+  }
+}
+
+@keyframes published-strip-orb-release {
+  0% {
+    transform: translateZ(0) scale(1);
+    opacity: 1;
+  }
+  48% {
+    opacity: 0.82;
+  }
+  100% {
+    transform: translateZ(0) scale(8);
+    opacity: 0;
+  }
+}
+
+@keyframes published-strip-loading-backdrop-release {
+  0%,
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 html.published-content-loading,
@@ -1801,6 +1899,32 @@ html.published-content-loading body {
 
 html.published-content-loading .top-safe-area-anchor {
   background: #000000 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .published-strip-load-gate.is-ready {
+    transition-duration: 280ms;
+  }
+
+  .published-strip-loading-orb-drift,
+  .published-strip-loading-orb-surface {
+    animation: none;
+  }
+
+  .published-strip-loading.is-revealing
+    .published-strip-loading-orb-stage {
+    animation: published-strip-orb-dissolve 280ms ease-out both;
+  }
+
+  .published-strip-loading.is-revealing::before {
+    animation: published-strip-loading-backdrop-release 280ms ease-out both;
+  }
+}
+
+@keyframes published-strip-orb-dissolve {
+  to {
+    opacity: 0;
+  }
 }
 
 .sticker-block {
