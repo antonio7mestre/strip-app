@@ -8515,6 +8515,47 @@ export default function Home() {
               style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
+            {publishedTrailingBlock ? (
+              <div
+                className={`published-bottom-safe-area-anchor is-${publishedTrailingBlock.type}`}
+                style={
+                  publishedTrailingBlock.type === "text"
+                    ? {
+                        backgroundColor:
+                          publishedTrailingBlock.backgroundColor ??
+                          DEFAULT_BACKGROUND,
+                      }
+                    : {
+                        backgroundColor:
+                          imageTrayColors[publishedTrailingBlock.id] ??
+                          DEFAULT_BACKGROUND,
+                      }
+                }
+                aria-hidden="true"
+              >
+                {publishedTrailingBlock.type === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={publishedTrailingBlock.src}
+                    alt=""
+                    loading="eager"
+                    decoding="async"
+                    draggable={false}
+                  />
+                ) : publishedTrailingBlock.type === "video" ? (
+                  <video
+                    src={publishedTrailingBlock.src}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    controls={false}
+                    disablePictureInPicture
+                    preload="auto"
+                  />
+                ) : null}
+              </div>
+            ) : null}
 
             <article
               className={`published-strip published-strip-load-gate ${
