@@ -1427,29 +1427,15 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .published-mode .strip-canvas {
-  min-height: 100lvh;
+  min-height: 0;
   padding-bottom: 0;
   background: var(--black);
 }
 
 .published-mode,
 .published-mode .published-strip {
-  min-height: 100lvh;
+  min-height: 0;
   background: var(--black);
-}
-
-.published-mode.has-trailing-text .published-strip,
-.published-mode.has-trailing-text .strip-canvas {
-  min-height: inherit;
-}
-
-.published-mode.has-trailing-text {
-  --published-bottom-anchor-inset: env(safe-area-inset-bottom);
-}
-
-.published-mode.has-trailing-text .strip-canvas {
-  display: flex;
-  flex-direction: column;
 }
 
 .published-mode.has-trailing-image .strip-canvas {
@@ -1470,25 +1456,6 @@ html.library-scroll-top-locked .library-mode {
   content: "";
 }
 
-.published-mode.has-trailing-text
-  .strip-canvas
-  > .strip-block:not(.sticker-block) {
-  flex: 0 0 auto;
-}
-
-.published-mode.has-trailing-text
-  .strip-canvas
-  > .text-block.is-published-tail-text {
-  flex: 1 0 auto;
-  padding-bottom: calc(16px + var(--published-bottom-anchor-inset));
-}
-
-.published-mode.has-trailing-text
-  .strip-canvas.has-ending-card
-  > .strip-block.strip-ending-card.is-published-ending {
-  flex: 0 0 auto;
-  margin-top: auto;
-}
 
 .published-bottom-pocket-sampler {
   display: none;
@@ -1603,7 +1570,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   text-align: center;
 }
 
-.published-mode .strip-ending-card-inner,
 .editor-mode.is-inline-preview .strip-ending-card-inner {
   padding-bottom: max(
     44px,
@@ -1642,19 +1608,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-}
-
-.strip-ending-card-inner.is-visitor {
-  gap: 18px;
-  padding-top: 26px;
-}
-
-.strip-ending-invitation h2 {
-  margin: 0;
-  font-size: clamp(24px, 7vw, 28px);
-  font-weight: 850;
-  line-height: 1;
-  letter-spacing: -0.04em;
 }
 
 .strip-ending-actions {
@@ -1697,21 +1650,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   height: 17px;
   flex: 0 0 auto;
   stroke-width: 2.25;
-}
-
-.strip-ending-cta {
-  min-height: 58px;
-  gap: 10px;
-  padding: 0 22px;
-  font-size: 17px;
-  font-weight: 800;
-}
-
-.strip-ending-cta > svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  stroke-width: 2.3;
 }
 
 .strip-ending-action:active {
@@ -3702,36 +3640,6 @@ html.page-color-picking * {
 }
 
 .strip-byline span {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.reader-footer {
-  padding: 54px max(20px, env(safe-area-inset-right))
-    max(42px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  background: var(--black);
-  text-align: center;
-}
-
-.reader-footer p {
-  margin: 0 0 18px;
-  font-size: 21px;
-  letter-spacing: -0.02em;
-}
-
-.reader-footer button {
-  width: 100%;
-  min-height: 52px;
-  margin-bottom: 24px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--white);
-  color: var(--black);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.reader-footer span {
   color: var(--muted);
   font-size: 13px;
 }

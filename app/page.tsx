@@ -3192,7 +3192,6 @@ export default function Home() {
   const [editingPublishedStripId, setEditingPublishedStripId] = useState<
     string | null
   >(null);
-  const [openingPublishedEditor, setOpeningPublishedEditor] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [storyAssetFile, setStoryAssetFile] = useState<File | null>(null);
   const [storyAssetUrl, setStoryAssetUrl] = useState("");
@@ -3371,7 +3370,6 @@ export default function Home() {
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE
       : endingStyle;
-  const hasPublishedEndingCard = view === "published" && openedPublishedStrip !== null;
   const publishedAssetIds =
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.flatMap((block) =>
@@ -3395,14 +3393,10 @@ export default function Home() {
     publishedMinimumReadyKey === publishedStripLoadKey;
   const publishedContentCanReveal =
     publishedContentReady && publishedMinimumElapsed;
-  const publishedBottomSurfaceColor = hasPublishedEndingCard
-    ? visibleEndingStyle.backgroundColor
-    : null;
   const cleanViewBottomSurfaceColor =
     view === "edit" && inlinePreview
       ? endingStyle.backgroundColor
-      : publishedBottomSurfaceColor;
-  const hasPublishedBottomSurface = publishedBottomSurfaceColor !== null;
+      : null;
 
   useEffect(() => {
     setPublishedMinimumReadyKey(null);
@@ -3846,8 +3840,7 @@ export default function Home() {
   useLayoutEffect(() => {
     const root = document.documentElement;
     const trailingEdgeIsActive =
-      (view === "published" || (view === "edit" && inlinePreview)) &&
-      cleanViewBottomSurfaceColor !== null;
+      view === "edit" && inlinePreview && cleanViewBottomSurfaceColor !== null;
     root.style.setProperty(
       "--bottom-safe-area-color",
       trailingEdgeIsActive && cleanViewBottomSurfaceColor
@@ -3861,7 +3854,8 @@ export default function Home() {
     const root = document.documentElement;
     if (
       !initialRouteReady ||
-      (view !== "published" && (view !== "edit" || !inlinePreview)) ||
+      view !== "edit" ||
+      !inlinePreview ||
       cleanViewBottomSurfaceColor === null
     ) {
       root.classList.remove("published-bottom-pocket-active");
@@ -3889,7 +3883,7 @@ export default function Home() {
         scrollRoot.scrollHeight - scrollRoot.clientHeight,
       );
       const endingCard = document.querySelector<HTMLElement>(
-        ".published-mode .strip-ending-card, .editor-mode.is-inline-preview .strip-ending-card",
+        ".editor-mode.is-inline-preview .strip-ending-card",
       );
       const viewport = window.visualViewport;
       const viewportBottom = viewport
@@ -3939,7 +3933,7 @@ export default function Home() {
       resizeObserver = new ResizeObserver(scheduleBottomPocketSync);
       resizeObserver.observe(scrollRoot);
       const endingCard = document.querySelector<HTMLElement>(
-        ".published-mode .strip-ending-card, .editor-mode.is-inline-preview .strip-ending-card",
+        ".editor-mode.is-inline-preview .strip-ending-card",
       );
       if (endingCard) resizeObserver.observe(endingCard);
     }
@@ -6171,44 +6165,6 @@ export default function Home() {
     }
   };
 
-  const activateStripEnding = () => {
-    if (!openedPublishedStrip || view !== "published") return;
-    window.location.assign(
-      `${mainAppOrigin()}/edit/${encodeURIComponent(makeId())}`,
-    );
-  };
-
-  const editPublishedStrip = async () => {
-    if (
-      !openedPublishedStrip?.viewerIsOwner ||
-      view !== "published" ||
-      openingPublishedEditor
-    ) {
-      return;
-    }
-    setOpeningPublishedEditor(true);
-    try {
-      const response = await fetch(
-        `/api/strips/${encodeURIComponent(openedPublishedStrip.id)}/draft`,
-        { method: "POST" },
-      );
-      if (!response.ok) throw new Error("Couldn’t prepare this Strip.");
-      window.location.assign(
-        `${mainAppOrigin()}/edit/${encodeURIComponent(openedPublishedStrip.id)}`,
-      );
-    } catch {
-      setNotice("Couldn’t open this Strip for editing. Try again.");
-      setOpeningPublishedEditor(false);
-    }
-  };
-
-  const sharePublishedStrip = () => {
-    if (!openedPublishedStrip?.viewerIsOwner || view !== "published") return;
-    window.location.assign(
-      `${mainAppOrigin()}/share/${encodeURIComponent(openedPublishedStrip.id)}`,
-    );
-  };
-
   const downloadStoryAsset = () => {
     if (!storyAssetFile || !storyAssetUrl) return;
     const link = document.createElement("a");
@@ -6638,20 +6594,12 @@ export default function Home() {
       0,
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
-    const anchorsPublishedEnding = !isEditing && view === "published";
-    const endingIsVisitor =
-      view === "published" && openedPublishedStrip?.viewerIsOwner !== true;
-    const canvasMinHeight = anchorsPublishedEnding
-      ? `max(${stickerFloor}px, calc(100lvh + ${
-          hasLeadingImage ? "var(--leading-image-inset)" : "0px"
-        }))`
-      : stickerFloor > 0
-        ? `${stickerFloor}px`
-        : undefined;
+    const showsEndingCard = view !== "published";
+    const canvasMinHeight = stickerFloor > 0 ? `${stickerFloor}px` : undefined;
 
     return (
       <div
-        className="strip-canvas has-ending-card"
+        className={`strip-canvas ${showsEndingCard ? "has-ending-card" : ""}`}
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
         {sourceBlocks.length === 0 && isEditing ? (
@@ -7036,12 +6984,11 @@ export default function Home() {
           />
         );
         })}
+        {showsEndingCard ? (
         <section
           className={`strip-block strip-ending-card ${
             isEditing ? "is-editing" : ""
-          } ${isEditing && endingIsSelected ? "is-selected" : ""} ${
-            anchorsPublishedEnding ? "is-published-ending" : ""
-          }`}
+          } ${isEditing && endingIsSelected ? "is-selected" : ""}`}
           data-block-id={STRIP_ENDING_BLOCK_ID}
           role={isEditing && !endingIsSelected ? "button" : undefined}
           tabIndex={isEditing && !endingIsSelected ? 0 : undefined}
@@ -7080,80 +7027,27 @@ export default function Home() {
           }}
         >
           {isEditing ? renderEndingControls() : null}
-          <div
-            className={`strip-ending-card-inner ${
-              endingIsVisitor ? "is-visitor" : "is-owner"
-            }`}
-          >
-            {!endingIsVisitor ? (
-              <div className="strip-ending-brandline">
-                <span className="strip-ending-wordmark">STRIP</span>
-                <span className="strip-ending-status">
-                  <span aria-hidden="true" />
-                  {view === "published" ? "Live" : "Preview"}
-                </span>
-              </div>
-            ) : null}
-            {endingIsVisitor ? (
-              <>
-                <div className="strip-ending-invitation">
-                  <h2>Want to strip?</h2>
-                </div>
-                <button
-                  className="strip-ending-action strip-ending-cta"
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    activateStripEnding();
-                  }}
-                >
-                  <span>Make your own</span>
-                  <Plus aria-hidden="true" />
-                </button>
-              </>
-            ) : view === "published" ? (
-              openedPublishedStrip?.viewerIsOwner ? (
-                <div className="strip-ending-actions">
-                  <button
-                    className="strip-ending-action"
-                    type="button"
-                    aria-busy={openingPublishedEditor}
-                    disabled={openingPublishedEditor}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void editPublishedStrip();
-                    }}
-                  >
-                    <Pencil aria-hidden="true" />
-                    Edit
-                  </button>
-                  <button
-                    className="strip-ending-action"
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      sharePublishedStrip();
-                    }}
-                  >
-                    <Share2 aria-hidden="true" />
-                    Share
-                  </button>
-                </div>
-              ) : null
-            ) : (
-              <div className="strip-ending-actions">
-                <span className="strip-ending-action" aria-disabled="true">
-                  <Pencil aria-hidden="true" />
-                  Edit
-                </span>
-                <span className="strip-ending-action" aria-disabled="true">
-                  <Share2 aria-hidden="true" />
-                  Share
-                </span>
-              </div>
-            )}
+          <div className="strip-ending-card-inner is-owner">
+            <div className="strip-ending-brandline">
+              <span className="strip-ending-wordmark">STRIP</span>
+              <span className="strip-ending-status">
+                <span aria-hidden="true" />
+                Preview
+              </span>
+            </div>
+            <div className="strip-ending-actions">
+              <span className="strip-ending-action" aria-disabled="true">
+                <Pencil aria-hidden="true" />
+                Edit
+              </span>
+              <span className="strip-ending-action" aria-disabled="true">
+                <Share2 aria-hidden="true" />
+                Share
+              </span>
+            </div>
           </div>
         </section>
+        ) : null}
       </div>
     );
   };
@@ -8356,9 +8250,7 @@ export default function Home() {
           <main
             className={`app-shell reader-mode published-mode ${
               hasLeadingImage ? "has-leading-image" : ""
-            } ${hasLeadingText ? "has-leading-text" : ""} ${
-              hasPublishedEndingCard ? "has-trailing-text" : ""
-            }`}
+            } ${hasLeadingText ? "has-leading-text" : ""}`}
           >
             <div
               className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -8403,12 +8295,6 @@ export default function Home() {
                   <span>STRIP</span>
                 </div>
               </div>
-            ) : null}
-            {hasPublishedBottomSurface ? (
-              <div
-                className="published-bottom-pocket-sampler"
-                aria-hidden="true"
-              />
             ) : null}
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
@@ -8463,13 +8349,6 @@ export default function Home() {
             </header>
           ) : null}
           {renderStrip(false, publishedBlocks)}
-          {isPublished ? (
-            <footer className="reader-footer">
-              <p>Get Antonio&apos;s next Strip.</p>
-              <button type="button">Subscribe</button>
-              <span>Make your own Strip</span>
-            </footer>
-          ) : null}
         </article>
         {!isPublished || dockTransition ? (
           <footer
