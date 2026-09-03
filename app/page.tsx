@@ -6195,6 +6195,53 @@ export default function Home() {
     }
   };
 
+  const sharePublishedStripFromReader = async () => {
+    if (!openedPublishedStrip) return;
+    const stripUrl = publicStripUrl(openedPublishedStrip);
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: openedPublishedStrip.title || "Strip",
+          url: stripUrl,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await copyPublishedStripLink();
+  };
+
+  const makeOwnStripFromReader = () => {
+    window.location.assign(
+      `${mainAppOrigin()}/edit/${encodeURIComponent(makeId())}`,
+    );
+  };
+
+  const editPublishedStripFromReader = async () => {
+    if (
+      !openedPublishedStrip?.viewerIsOwner ||
+      pageTransitionInFlightRef.current
+    ) {
+      return;
+    }
+    pageTransitionInFlightRef.current = true;
+    try {
+      const response = await fetch(
+        `/api/strips/${encodeURIComponent(openedPublishedStrip.id)}/draft`,
+        { method: "POST" },
+      );
+      if (!response.ok) throw new Error("Published draft request failed");
+      const data = (await response.json()) as { draft: { id: string } };
+      window.location.assign(
+        `${mainAppOrigin()}/edit/${encodeURIComponent(data.draft.id)}`,
+      );
+    } catch {
+      pageTransitionInFlightRef.current = false;
+      setNotice("Couldn’t open this Strip for editing. Try again.");
+    }
+  };
+
   const downloadStoryAsset = () => {
     if (!storyAssetFile || !storyAssetUrl) return;
     const link = document.createElement("a");
@@ -8295,6 +8342,43 @@ export default function Home() {
               aria-hidden={!publishedContentCanReveal}
             >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
+              <footer
+                className="published-bottom-sheet"
+                aria-label="Strip actions"
+              >
+                <div className="published-bottom-sheet-controls">
+                  <button
+                    className="published-bottom-sheet-primary"
+                    type="button"
+                    onClick={() => {
+                      if (openedPublishedStrip?.viewerIsOwner) {
+                        void editPublishedStripFromReader();
+                        return;
+                      }
+                      makeOwnStripFromReader();
+                    }}
+                  >
+                    {openedPublishedStrip?.viewerIsOwner ? (
+                      <Pencil aria-hidden="true" />
+                    ) : (
+                      <Plus aria-hidden="true" />
+                    )}
+                    <span>
+                      {openedPublishedStrip?.viewerIsOwner
+                        ? "Edit Strip"
+                        : "Make your own Strip"}
+                    </span>
+                  </button>
+                  <button
+                    className="published-bottom-sheet-share"
+                    type="button"
+                    onClick={() => void sharePublishedStripFromReader()}
+                    aria-label="Share this Strip"
+                  >
+                    <Share2 aria-hidden="true" />
+                  </button>
+                </div>
+              </footer>
             </article>
             {publishedLoaderIsVisible ? (
               <div
