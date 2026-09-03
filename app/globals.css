@@ -77,6 +77,20 @@ html.published-bottom-edge-locked {
   );
 }
 
+html.published-trailing-media-active,
+html.published-trailing-media-active.published-bottom-edge-locked {
+  background-image:
+    linear-gradient(
+      to bottom,
+      transparent 0 50%,
+      var(--top-safe-area-color, #000000) 50% 100%
+    ),
+    var(--published-bottom-safe-area-image);
+  background-position: center, center top;
+  background-repeat: no-repeat;
+  background-size: 100% 100%, 100% 50%;
+}
+
 body {
   min-height: 100lvh;
   overflow-x: clip;
@@ -329,37 +343,6 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 
 .has-leading-image .top-safe-area-anchor {
   display: none;
-}
-
-/*
- * Mirror the top safe-area anchor at the trailing edge. This sits underneath
- * the published Strip, so its real final media continues behind Safari's
- * translucent bottom controls without covering any visible page content.
- * The 128px floor covers Safari's expanded toolbar even when WebKit reports a
- * zero safe-area-inset-bottom.
- */
-.published-bottom-safe-area-anchor {
-  position: fixed;
-  z-index: 0;
-  right: 0;
-  bottom: -2px;
-  left: 0;
-  height: max(128px, calc(env(safe-area-inset-bottom) + 2px));
-  overflow: hidden;
-  background: var(--bottom-safe-area-color, var(--black));
-  line-height: 0;
-  pointer-events: none;
-}
-
-.published-bottom-safe-area-anchor img,
-.published-bottom-safe-area-anchor video {
-  display: block;
-  width: 100%;
-  height: calc(100% + 4px);
-  transform: translate3d(0, -1px, 0) scale(1.02);
-  transform-origin: 50% 100%;
-  object-fit: cover;
-  object-position: 50% 100%;
 }
 
 .auth-mode,

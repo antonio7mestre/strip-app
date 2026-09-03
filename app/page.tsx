@@ -1026,6 +1026,32 @@ function sampleVideoBottomColor(video: HTMLVideoElement) {
   return sampleVisualBottomColor(video, video.videoWidth, video.videoHeight);
 }
 
+function captureVideoFrameImage(video: HTMLVideoElement) {
+  if (
+    video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+    !video.videoWidth ||
+    !video.videoHeight
+  ) {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 192;
+  canvas.height = Math.max(
+    108,
+    Math.min(256, Math.round(192 * (video.videoHeight / video.videoWidth))),
+  );
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  try {
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.78);
+  } catch {
+    return null;
+  }
+}
+
 type VideoAudioProbe = HTMLVideoElement & {
   audioTracks?: { length: number };
   mozHasAudio?: boolean;
@@ -2133,6 +2159,7 @@ function StripVideoBlock({
   onToggleAudio,
   onAudioPresence,
   onFirstFrameColor,
+  onFirstFrameImage,
   shouldLoad,
   isLoaded,
   loadSettled,
@@ -2156,6 +2183,7 @@ function StripVideoBlock({
   onToggleAudio: () => void;
   onAudioPresence?: (hasAudio: boolean) => void;
   onFirstFrameColor?: (color: string) => void;
+  onFirstFrameImage?: (image: string) => void;
   shouldLoad: boolean;
   isLoaded: boolean;
   loadSettled: boolean;
@@ -2293,6 +2321,8 @@ function StripVideoBlock({
               onLoadSettled(true);
               const sampledColor = sampleVideoBottomColor(event.currentTarget);
               if (sampledColor) onFirstFrameColor?.(sampledColor);
+              const frameImage = captureVideoFrameImage(event.currentTarget);
+              if (frameImage) onFirstFrameImage?.(frameImage);
               reportAudioPresence(event.currentTarget);
             }}
             onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
@@ -3154,6 +3184,9 @@ export default function Home() {
     DEFAULT_STRIP_ENDING_STYLE,
   );
   const [imageTrayColors, setImageTrayColors] = useState<Record<string, string>>({});
+  const [videoBottomFrames, setVideoBottomFrames] = useState<
+    Record<string, string>
+  >({});
   const [videoAudioPresence, setVideoAudioPresence] = useState<Record<string, boolean>>(
     {},
   );
@@ -3436,6 +3469,13 @@ export default function Home() {
       ? publishedTrailingBlock.backgroundColor ?? DEFAULT_BACKGROUND
       : imageTrayColors[publishedTrailingBlock.id] ?? DEFAULT_BACKGROUND
     : null;
+  const publishedBottomMediaImage = publishedTrailingBlock
+    ? publishedTrailingBlock.type === "image"
+      ? publishedTrailingBlock.src
+      : publishedTrailingBlock.type === "video"
+        ? videoBottomFrames[publishedTrailingBlock.id] ?? null
+        : null
+    : null;
 
   useEffect(() => {
     setPublishedMinimumReadyKey(null);
@@ -3531,12 +3571,17 @@ export default function Home() {
       setPublishedEndActionsAtBottom(visible);
     };
 
-    const setThemeColor = (color: string) => {
+    const setThemeColor = (color: string, enabled = true) => {
       const themeColor = document.querySelector<HTMLMetaElement>(
         "#strip-theme-color",
       );
-      if (!themeColor || themeColor.content === color) return;
-      themeColor.setAttribute("content", color);
+      if (!themeColor) return;
+      if (enabled) {
+        themeColor.removeAttribute("media");
+        if (themeColor.content !== color) themeColor.setAttribute("content", color);
+        return;
+      }
+      themeColor.setAttribute("media", "(max-width: 0px)");
     };
 
     const syncBottomEdge = () => {
@@ -3545,11 +3590,15 @@ export default function Home() {
       const isAtBottom = (viewport?.scale ?? 1) <= 1.01 && distance <= 8;
       bottomIsPinned = isAtBottom;
       commitActionVisibility(publishedEndActionsEnabled && isAtBottom);
-      setThemeColor(
-        isAtBottom && publishedBottomSurfaceColor
-          ? publishedBottomSurfaceColor
-          : topSafeAreaColor,
-      );
+      if (isAtBottom && publishedBottomMediaImage) {
+        setThemeColor(topSafeAreaColor, false);
+      } else {
+        setThemeColor(
+          isAtBottom && publishedBottomSurfaceColor
+            ? publishedBottomSurfaceColor
+            : topSafeAreaColor,
+        );
+      }
     };
 
     const scheduleBottomEdgeSync = () => {
@@ -3663,6 +3712,7 @@ export default function Home() {
     };
   }, [
     openedPublishedStrip,
+    publishedBottomMediaImage,
     publishedBottomSurfaceColor,
     publishedEndActionsEnabled,
     topSafeAreaColor,
@@ -4075,10 +4125,23 @@ export default function Home() {
         ? trailingSurfaceColor
         : DEFAULT_BACKGROUND,
     );
+    if (publishedTrailingEdgeIsActive && publishedBottomMediaImage) {
+      root.style.setProperty(
+        "--published-bottom-safe-area-image",
+        `url(${JSON.stringify(publishedBottomMediaImage)})`,
+      );
+    } else {
+      root.style.removeProperty("--published-bottom-safe-area-image");
+    }
     root.classList.toggle("published-trailing-edge-active", trailingEdgeIsActive);
+    root.classList.toggle(
+      "published-trailing-media-active",
+      publishedTrailingEdgeIsActive && publishedBottomMediaImage !== null,
+    );
   }, [
     cleanViewBottomSurfaceColor,
     inlinePreview,
+    publishedBottomMediaImage,
     publishedBottomSurfaceColor,
     view,
   ]);
@@ -7210,6 +7273,13 @@ export default function Home() {
                   : { ...current, [block.id]: color },
               );
             }}
+            onFirstFrameImage={(image) => {
+              setVideoBottomFrames((current) =>
+                current[block.id] === image
+                  ? current
+                  : { ...current, [block.id]: image },
+              );
+            }}
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
@@ -8515,47 +8585,6 @@ export default function Home() {
               style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
-            {publishedTrailingBlock ? (
-              <div
-                className={`published-bottom-safe-area-anchor is-${publishedTrailingBlock.type}`}
-                style={
-                  publishedTrailingBlock.type === "text"
-                    ? {
-                        backgroundColor:
-                          publishedTrailingBlock.backgroundColor ??
-                          DEFAULT_BACKGROUND,
-                      }
-                    : {
-                        backgroundColor:
-                          imageTrayColors[publishedTrailingBlock.id] ??
-                          DEFAULT_BACKGROUND,
-                      }
-                }
-                aria-hidden="true"
-              >
-                {publishedTrailingBlock.type === "image" ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={publishedTrailingBlock.src}
-                    alt=""
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                  />
-                ) : publishedTrailingBlock.type === "video" ? (
-                  <video
-                    src={publishedTrailingBlock.src}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    controls={false}
-                    disablePictureInPicture
-                    preload="auto"
-                  />
-                ) : null}
-              </div>
-            ) : null}
 
             <article
               className={`published-strip published-strip-load-gate ${
