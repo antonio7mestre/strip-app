@@ -204,9 +204,10 @@ const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
-const PUBLISHED_LOADING_MINIMUM_MS = 2000;
+const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
-const PUBLISHED_LOADING_RELEASE_MS = 900;
+const PUBLISHED_LOADING_RELEASE_MS = 1200;
+const PUBLISHED_BOTTOM_BOUNCE_ALLOWANCE_PX = 14;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -3168,6 +3169,8 @@ export default function Home() {
   const [publishedLoaderDismissedKey, setPublishedLoaderDismissedKey] = useState<
     string | null
   >(null);
+  const [publishedEndActionsAtBottom, setPublishedEndActionsAtBottom] =
+    useState(false);
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -3411,6 +3414,13 @@ export default function Home() {
     publishedStripLoadKey !== "" &&
     (!publishedContentCanReveal ||
       publishedLoaderDismissedKey !== publishedStripLoadKey);
+  const publishedEndActionsEnabled =
+    view === "published" &&
+    openedPublishedStrip !== null &&
+    publishedContentCanReveal &&
+    !publishedLoaderIsVisible;
+  const publishedEndActionsVisible =
+    publishedEndActionsEnabled && publishedEndActionsAtBottom;
   const cleanViewBottomSurfaceColor =
     view === "edit" && inlinePreview
       ? endingStyle.backgroundColor
@@ -3475,6 +3485,158 @@ export default function Home() {
     publishedStripLoadKey,
     view,
   ]);
+
+  useLayoutEffect(() => {
+    if (view !== "published" || !openedPublishedStrip) return;
+
+    const root = document.documentElement;
+    const scrollRoot = document.scrollingElement ?? document.documentElement;
+    const viewport = window.visualViewport;
+    let syncFrame: number | null = null;
+    let viewportSettleTimer: number | null = null;
+    let touchReleaseTimer: number | null = null;
+    let lastTouchY: number | null = null;
+    let bottomIsPinned = false;
+    let committedVisibility: boolean | null = null;
+
+    const maximumScrollTop = () => {
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportOffsetTop = viewport?.offsetTop ?? 0;
+      return Math.max(
+        0,
+        scrollRoot.scrollHeight - viewportHeight - viewportOffsetTop,
+      );
+    };
+
+    const distanceFromBottom = () => {
+      const viewportTop = viewport?.pageTop ?? window.scrollY;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      return scrollRoot.scrollHeight - (viewportTop + viewportHeight);
+    };
+
+    const commitActionVisibility = (visible: boolean) => {
+      if (committedVisibility === visible) return;
+      committedVisibility = visible;
+      setPublishedEndActionsAtBottom(visible);
+    };
+
+    const syncBottomEdge = () => {
+      syncFrame = null;
+      const distance = distanceFromBottom();
+      const isAtBottom = (viewport?.scale ?? 1) <= 1.01 && distance <= 8;
+      bottomIsPinned = isAtBottom;
+      commitActionVisibility(publishedEndActionsEnabled && isAtBottom);
+    };
+
+    const scheduleBottomEdgeSync = () => {
+      if (syncFrame !== null) return;
+      syncFrame = window.requestAnimationFrame(syncBottomEdge);
+    };
+
+    const restoreBottomEdge = (behavior: ScrollBehavior) => {
+      const maximum = maximumScrollTop();
+      if (window.scrollY <= maximum + 0.5) return;
+      window.scrollTo({ top: maximum, left: 0, behavior });
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const nextTouchY = event.touches[0]?.clientY;
+      if (nextTouchY === undefined || lastTouchY === null) return;
+      if ((viewport?.scale ?? 1) > 1.01) return;
+      const downwardScrollIntent = lastTouchY - nextTouchY;
+      lastTouchY = nextTouchY;
+      if (downwardScrollIntent <= 0) return;
+
+      const maximum = maximumScrollTop();
+      if (
+        window.scrollY + downwardScrollIntent <=
+        maximum + PUBLISHED_BOTTOM_BOUNCE_ALLOWANCE_PX
+      ) {
+        return;
+      }
+
+      bottomIsPinned = true;
+      if (event.cancelable) event.preventDefault();
+      scheduleBottomEdgeSync();
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchY = null;
+      if (touchReleaseTimer !== null) window.clearTimeout(touchReleaseTimer);
+      touchReleaseTimer = window.setTimeout(() => {
+        touchReleaseTimer = null;
+        if (bottomIsPinned) restoreBottomEdge("smooth");
+        scheduleBottomEdgeSync();
+      }, 24);
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY <= 0) return;
+      const maximum = maximumScrollTop();
+      if (window.scrollY + event.deltaY <= maximum) return;
+      if (event.cancelable) event.preventDefault();
+      window.scrollTo({ top: maximum, left: 0, behavior: "auto" });
+      scheduleBottomEdgeSync();
+    };
+
+    const handleViewportResize = () => {
+      const shouldRemainPinned = bottomIsPinned;
+      scheduleBottomEdgeSync();
+      if (!shouldRemainPinned) return;
+      if (viewportSettleTimer !== null) window.clearTimeout(viewportSettleTimer);
+      viewportSettleTimer = window.setTimeout(() => {
+        viewportSettleTimer = null;
+        window.scrollTo({
+          top: maximumScrollTop(),
+          left: 0,
+          behavior: "auto",
+        });
+        scheduleBottomEdgeSync();
+      }, 80);
+    };
+
+    root.classList.add("published-bottom-edge-locked");
+    scheduleBottomEdgeSync();
+    document.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+      capture: true,
+    });
+    document.addEventListener("touchmove", handleTouchMove, {
+      passive: false,
+      capture: true,
+    });
+    document.addEventListener("touchend", handleTouchEnd, { capture: true });
+    document.addEventListener("touchcancel", handleTouchEnd, { capture: true });
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("scroll", scheduleBottomEdgeSync, { passive: true });
+    window.addEventListener("scrollend", handleTouchEnd);
+    window.addEventListener("resize", handleViewportResize, { passive: true });
+    viewport?.addEventListener("resize", handleViewportResize, { passive: true });
+    viewport?.addEventListener("scroll", scheduleBottomEdgeSync, {
+      passive: true,
+    });
+
+    return () => {
+      root.classList.remove("published-bottom-edge-locked");
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+      if (viewportSettleTimer !== null) window.clearTimeout(viewportSettleTimer);
+      if (touchReleaseTimer !== null) window.clearTimeout(touchReleaseTimer);
+      document.removeEventListener("touchstart", handleTouchStart, true);
+      document.removeEventListener("touchmove", handleTouchMove, true);
+      document.removeEventListener("touchend", handleTouchEnd, true);
+      document.removeEventListener("touchcancel", handleTouchEnd, true);
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("scroll", scheduleBottomEdgeSync);
+      window.removeEventListener("scrollend", handleTouchEnd);
+      window.removeEventListener("resize", handleViewportResize);
+      viewport?.removeEventListener("resize", handleViewportResize);
+      viewport?.removeEventListener("scroll", scheduleBottomEdgeSync);
+    };
+  }, [openedPublishedStrip, publishedEndActionsEnabled, view]);
 
   useEffect(() => {
     if (view === "edit") return;
@@ -6184,6 +6346,29 @@ export default function Home() {
     }
   };
 
+  const sharePublishedStripFromReader = async () => {
+    if (!openedPublishedStrip) return;
+    const stripUrl = publicStripUrl(openedPublishedStrip);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: openedPublishedStrip.title || "Strip",
+          url: stripUrl,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await copyLink();
+  };
+
+  const makeOwnStripFromReader = () => {
+    window.location.assign(
+      `${mainAppOrigin()}/edit/${encodeURIComponent(makeId())}`,
+    );
+  };
+
   const copyPublishedStripLink = async () => {
     if (!openedPublishedStrip) return;
     const stripUrl = publicStripUrl(openedPublishedStrip);
@@ -8287,6 +8472,7 @@ export default function Home() {
               style={{ backgroundColor: topSafeAreaColor }}
               aria-hidden="true"
             />
+            <div className="published-bottom-safe-area-anchor" aria-hidden="true" />
 
             <article
               className={`published-strip published-strip-load-gate ${
@@ -8336,6 +8522,22 @@ export default function Home() {
                               setPublishedCoverSettledKey(publishedStripLoadKey)
                             }
                           />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            className="published-strip-loading-orb-vapor is-far"
+                            src={openedPublishedStrip.cover.src}
+                            alt=""
+                            decoding="async"
+                            draggable={false}
+                          />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            className="published-strip-loading-orb-vapor is-near"
+                            src={openedPublishedStrip.cover.src}
+                            alt=""
+                            decoding="async"
+                            draggable={false}
+                          />
                           <div className="published-strip-loading-orb-surface">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -8345,13 +8547,54 @@ export default function Home() {
                               decoding="async"
                               draggable={false}
                             />
-                            <span />
+                            <svg
+                              className="published-strip-loading-orb-grain"
+                              viewBox="0 0 100 100"
+                              preserveAspectRatio="none"
+                              focusable="false"
+                            >
+                              <filter id="published-strip-gas-texture-image">
+                                <feTurbulence
+                                  type="fractalNoise"
+                                  baseFrequency="0.018 0.036"
+                                  numOctaves="3"
+                                  seed="11"
+                                  stitchTiles="stitch"
+                                />
+                                <feComponentTransfer>
+                                  <feFuncA
+                                    type="table"
+                                    tableValues="0.05 0.62"
+                                  />
+                                </feComponentTransfer>
+                              </filter>
+                              <rect
+                                width="100"
+                                height="100"
+                                filter="url(#published-strip-gas-texture-image)"
+                              />
+                            </svg>
+                            <span className="published-strip-loading-orb-sheen" />
+                            <span className="published-strip-loading-orb-membrane" />
                           </div>
+                          <span className="published-strip-loading-orb-burst-ring" />
                         </>
                       ) : (
                         <>
                           <span
                             className="published-strip-loading-orb-glow"
+                            style={{
+                              backgroundColor: openedPublishedStrip.cover.color,
+                            }}
+                          />
+                          <span
+                            className="published-strip-loading-orb-vapor is-far"
+                            style={{
+                              backgroundColor: openedPublishedStrip.cover.color,
+                            }}
+                          />
+                          <span
+                            className="published-strip-loading-orb-vapor is-near"
                             style={{
                               backgroundColor: openedPublishedStrip.cover.color,
                             }}
@@ -8362,8 +8605,37 @@ export default function Home() {
                               backgroundColor: openedPublishedStrip.cover.color,
                             }}
                           >
-                            <span />
+                            <svg
+                              className="published-strip-loading-orb-grain"
+                              viewBox="0 0 100 100"
+                              preserveAspectRatio="none"
+                              focusable="false"
+                            >
+                              <filter id="published-strip-gas-texture-color">
+                                <feTurbulence
+                                  type="fractalNoise"
+                                  baseFrequency="0.018 0.036"
+                                  numOctaves="3"
+                                  seed="17"
+                                  stitchTiles="stitch"
+                                />
+                                <feComponentTransfer>
+                                  <feFuncA
+                                    type="table"
+                                    tableValues="0.04 0.56"
+                                  />
+                                </feComponentTransfer>
+                              </filter>
+                              <rect
+                                width="100"
+                                height="100"
+                                filter="url(#published-strip-gas-texture-color)"
+                              />
+                            </svg>
+                            <span className="published-strip-loading-orb-sheen" />
+                            <span className="published-strip-loading-orb-membrane" />
                           </div>
+                          <span className="published-strip-loading-orb-burst-ring" />
                         </>
                       )}
                     </div>
@@ -8371,6 +8643,33 @@ export default function Home() {
                 </div>
               </div>
             ) : null}
+            <nav
+              className={`published-end-actions ${
+                publishedEndActionsVisible ? "is-visible" : ""
+              }`}
+              aria-label="Strip actions"
+              aria-hidden={!publishedEndActionsVisible}
+            >
+              <button
+                className="published-end-create"
+                type="button"
+                onClick={makeOwnStripFromReader}
+                disabled={!publishedEndActionsVisible}
+                tabIndex={publishedEndActionsVisible ? 0 : -1}
+              >
+                Make your own Strip
+              </button>
+              <button
+                className="published-end-share"
+                type="button"
+                onClick={() => void sharePublishedStripFromReader()}
+                disabled={!publishedEndActionsVisible}
+                tabIndex={publishedEndActionsVisible ? 0 : -1}
+                aria-label="Share this Strip"
+              >
+                <Share2 aria-hidden="true" />
+              </button>
+            </nav>
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
         </>
