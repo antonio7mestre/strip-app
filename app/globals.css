@@ -158,15 +158,6 @@ html.leading-image-inset-active .strip-canvas {
   overflow-anchor: none;
 }
 
-html.trailing-text-inset-active,
-html.trailing-text-inset-active body,
-html.trailing-text-inset-active .published-mode.has-trailing-text,
-html.trailing-text-inset-active
-  .published-mode.has-trailing-text
-  .strip-canvas {
-  overflow-anchor: none;
-}
-
 html.inline-preview-exit-locked,
 html.inline-preview-exit-locked body,
 html.inline-preview-exit-locked .editor-mode,
@@ -305,16 +296,6 @@ textarea:focus-visible,
 
 .app-shell.has-leading-image {
   min-height: calc(100lvh + var(--leading-image-inset));
-}
-
-.app-shell.has-trailing-text {
-  min-height: calc(100lvh + var(--trailing-text-inset, 0px));
-}
-
-.app-shell.has-leading-image.has-trailing-text {
-  min-height: calc(
-    100lvh + var(--leading-image-inset) + var(--trailing-text-inset, 0px)
-  );
 }
 
 html.is-releasing-leading-image-scroll .app-shell.editor-mode {
@@ -1418,8 +1399,8 @@ html.library-scroll-top-locked .library-mode {
 .editor-mode.is-inline-preview
   .strip-canvas.has-ending-card
   > .strip-ending-card {
-  flex: 1 0 auto;
-  padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  flex: 0 0 auto;
+  margin-top: auto;
 }
 
 .image-block.is-height-cropping.has-top-crop-clearance {
@@ -1463,10 +1444,7 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .published-mode.has-trailing-text {
-  --published-bottom-anchor-inset: max(
-    env(safe-area-inset-bottom),
-    var(--trailing-text-inset, 0px)
-  );
+  --published-bottom-anchor-inset: env(safe-area-inset-bottom);
 }
 
 .published-mode.has-trailing-text .strip-canvas {
@@ -1508,18 +1486,18 @@ html.library-scroll-top-locked .library-mode {
 .published-mode.has-trailing-text
   .strip-canvas.has-ending-card
   > .strip-block.strip-ending-card.is-published-ending {
-  flex: 1 0 auto;
-  padding-bottom: calc(28px + var(--published-bottom-anchor-inset));
+  flex: 0 0 auto;
+  margin-top: auto;
 }
 
 .published-bottom-pocket-sampler {
   display: none;
   position: fixed;
-  z-index: 8;
+  z-index: 0;
   right: 0;
   bottom: 0;
   left: 0;
-  height: 12px;
+  height: 2px;
   background: var(--bottom-safe-area-color, var(--black));
   pointer-events: none;
 }
@@ -1598,8 +1576,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .strip-ending-card {
   position: relative;
   display: flex;
-  min-height: 240px;
-  align-items: flex-end;
+  min-height: 0;
+  align-items: stretch;
   overflow: visible;
   background: var(--ending-background, var(--black));
   color: var(--ending-foreground, var(--white));
@@ -1608,24 +1586,89 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .strip-ending-card-inner {
   display: grid;
   width: 100%;
-  min-height: 240px;
-  place-content: center;
-  gap: 22px;
-  padding: 36px 24px;
+  min-height: 0;
+  justify-items: center;
+  gap: 18px;
+  padding: 24px 20px;
   text-align: center;
 }
 
+.published-mode .strip-ending-card-inner,
+.editor-mode.is-inline-preview .strip-ending-card-inner {
+  padding-bottom: max(24px, var(--published-bottom-anchor-inset, env(safe-area-inset-bottom)));
+}
+
+.strip-ending-brandline {
+  display: flex;
+  width: min(332px, calc(100vw - 40px));
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 13px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+
 .strip-ending-wordmark {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+}
+
+.strip-ending-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.strip-ending-status > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.strip-ending-card-inner.is-visitor {
+  gap: 16px;
+  padding-top: 28px;
+}
+
+.strip-ending-card-inner.is-visitor .strip-ending-brandline {
+  min-height: auto;
+  justify-content: center;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.strip-ending-invitation h2,
+.strip-ending-invitation p {
+  margin: 0;
+}
+
+.strip-ending-invitation h2 {
+  font-size: clamp(28px, 8vw, 34px);
+  font-weight: 850;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+.strip-ending-invitation p {
+  margin-top: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  opacity: 0.72;
 }
 
 .strip-ending-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: min(280px, calc(100vw - 48px));
-  gap: 10px;
+  width: min(332px, calc(100vw - 40px));
+  gap: 8px;
   justify-self: center;
 }
 
@@ -1635,15 +1678,15 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   justify-content: center;
   justify-self: center;
   box-sizing: border-box;
-  width: min(280px, calc(100vw - 48px));
-  min-height: 56px;
+  width: min(332px, calc(100vw - 40px));
+  min-height: 54px;
   padding: 0 24px;
   border: 0;
   border-radius: 999px;
   background: var(--ending-button, var(--white));
   color: var(--ending-button-foreground, var(--black));
   font-size: 16px;
-  font-weight: 680;
+  font-weight: 750;
   letter-spacing: -0.018em;
   cursor: pointer;
   transition: transform 140ms ease;
@@ -1653,6 +1696,39 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   width: 100%;
   min-width: 0;
   padding-inline: 16px;
+  gap: 8px;
+}
+
+.strip-ending-actions .strip-ending-action svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  stroke-width: 2.25;
+}
+
+.strip-ending-cta {
+  min-height: 62px;
+  justify-content: space-between;
+  padding: 8px 9px 8px 24px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.strip-ending-cta-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ending-background, var(--black));
+  color: var(--ending-foreground, var(--white));
+}
+
+.strip-ending-cta-icon svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.4;
 }
 
 .strip-ending-action:active {

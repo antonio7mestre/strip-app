@@ -34,6 +34,7 @@ import {
   Pencil,
   Pipette,
   Plus,
+  Share2,
   Settings,
   Sticker,
   Trash2,
@@ -3254,7 +3255,6 @@ export default function Home() {
   const pageTransitionInFlightRef = useRef(false);
   const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
-  const trailingTextInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
@@ -3789,67 +3789,6 @@ export default function Home() {
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-
-    const calculateTrailingTextOffset = () => {
-      const isIOS =
-        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-      if (
-        view !== "published" ||
-        !hasPublishedEndingCard ||
-        !isIOS ||
-        window.screen.height / window.screen.width <= 2
-      ) {
-        return 0;
-      }
-
-      const probe = document.createElement("div");
-      probe.style.cssText =
-        "position:fixed;visibility:hidden;padding-bottom:env(safe-area-inset-bottom);height:100lvh";
-      const smallViewportProbe = document.createElement("div");
-      smallViewportProbe.style.cssText =
-        "position:fixed;visibility:hidden;height:100svh";
-      document.body.append(probe, smallViewportProbe);
-      const reportedSafeBottom = Number.parseFloat(
-        window.getComputedStyle(probe).paddingBottom,
-      );
-      const largeViewportHeight = probe.getBoundingClientRect().height;
-      const smallViewportHeight = smallViewportProbe.getBoundingClientRect().height;
-      probe.remove();
-      smallViewportProbe.remove();
-
-      const fallbackSafeBottom = Math.min(
-        62,
-        Math.max(47, window.screen.width * 0.154),
-      );
-      const browserChromeRange = Math.max(
-        0,
-        largeViewportHeight - smallViewportHeight,
-      );
-      return Math.round(
-        Math.max(
-          fallbackSafeBottom,
-          Number.isFinite(reportedSafeBottom) ? reportedSafeBottom : 0,
-          browserChromeRange,
-        ),
-      );
-    };
-
-    const offset = calculateTrailingTextOffset();
-    trailingTextInsetRef.current = offset;
-    root.style.setProperty("--trailing-text-inset", `${offset}px`);
-    root.classList.toggle("trailing-text-inset-active", offset > 0);
-
-    return () => {
-      trailingTextInsetRef.current = 0;
-      root.classList.remove("trailing-text-inset-active");
-      root.style.removeProperty("--trailing-text-inset");
-    };
-  }, [hasPublishedEndingCard, view]);
-
   useEffect(
     () => () => {
       if (dockTransitionTimerRef.current !== null) {
@@ -3949,10 +3888,7 @@ export default function Home() {
         0,
         scrollRoot.scrollHeight - scrollRoot.clientHeight,
       );
-      const activationRange = Math.max(
-        96,
-        trailingTextInsetRef.current * 3,
-      );
+      const activationRange = 20;
       const shouldActivate =
         maximumScroll - window.scrollY <= activationRange;
       const topAndBottomAreBothVisible =
@@ -6687,10 +6623,12 @@ export default function Home() {
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
     const anchorsPublishedEnding = !isEditing && view === "published";
+    const endingIsVisitor =
+      view === "published" && openedPublishedStrip?.viewerIsOwner !== true;
     const canvasMinHeight = anchorsPublishedEnding
       ? `max(${stickerFloor}px, calc(100lvh + ${
           hasLeadingImage ? "var(--leading-image-inset)" : "0px"
-        } + var(--published-bottom-anchor-inset, env(safe-area-inset-bottom))))`
+        }))`
       : stickerFloor > 0
         ? `${stickerFloor}px`
         : undefined;
@@ -7126,9 +7064,41 @@ export default function Home() {
           }}
         >
           {isEditing ? renderEndingControls() : null}
-          <div className="strip-ending-card-inner">
-            <span className="strip-ending-wordmark">STRIP</span>
-            {view === "published" ? (
+          <div
+            className={`strip-ending-card-inner ${
+              endingIsVisitor ? "is-visitor" : "is-owner"
+            }`}
+          >
+            <div className="strip-ending-brandline">
+              <span className="strip-ending-wordmark">STRIP</span>
+              {!endingIsVisitor ? (
+                <span className="strip-ending-status">
+                  <span aria-hidden="true" />
+                  {view === "published" ? "Live" : "Preview"}
+                </span>
+              ) : null}
+            </div>
+            {endingIsVisitor ? (
+              <>
+                <div className="strip-ending-invitation">
+                  <h2>Do you want to Strip?</h2>
+                  <p>Make something for your friends.</p>
+                </div>
+                <button
+                  className="strip-ending-action strip-ending-cta"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    activateStripEnding();
+                  }}
+                >
+                  <span>Make your own</span>
+                  <span className="strip-ending-cta-icon" aria-hidden="true">
+                    <Plus />
+                  </span>
+                </button>
+              </>
+            ) : view === "published" ? (
               openedPublishedStrip?.viewerIsOwner ? (
                 <div className="strip-ending-actions">
                   <button
@@ -7141,6 +7111,7 @@ export default function Home() {
                       void editPublishedStrip();
                     }}
                   >
+                    <Pencil aria-hidden="true" />
                     Edit
                   </button>
                   <button
@@ -7151,27 +7122,19 @@ export default function Home() {
                       sharePublishedStrip();
                     }}
                   >
+                    <Share2 aria-hidden="true" />
                     Share
                   </button>
                 </div>
-              ) : (
-                <button
-                  className="strip-ending-action"
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    activateStripEnding();
-                  }}
-                >
-                  Make your own Strip
-                </button>
-              )
+              ) : null
             ) : (
               <div className="strip-ending-actions">
                 <span className="strip-ending-action" aria-disabled="true">
+                  <Pencil aria-hidden="true" />
                   Edit
                 </span>
                 <span className="strip-ending-action" aria-disabled="true">
+                  <Share2 aria-hidden="true" />
                   Share
                 </span>
               </div>
