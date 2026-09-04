@@ -56,6 +56,15 @@ html {
   background-size: 100% 100%;
 }
 
+html.published-bottom-canvas-active,
+html.published-bottom-canvas-active body {
+  background-color: var(--bottom-safe-area-color, var(--black)) !important;
+}
+
+html.published-bottom-canvas-active {
+  background-image: none;
+}
+
 body {
   min-height: 100lvh;
   overflow-x: clip;
