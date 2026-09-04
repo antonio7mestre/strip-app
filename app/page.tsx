@@ -8395,6 +8395,13 @@ export default function Home() {
         ? openedPublishedStrip.blocks
         : blocks;
     if (isPublished) {
+      const trailingPublishedBlock = [...publishedBlocks]
+        .reverse()
+        .find((block) => block.type !== "sticker");
+      const publishedEndsWithMedia =
+        trailingPublishedBlock?.type === "image" ||
+        trailingPublishedBlock?.type === "video";
+      const publishedEndsWithText = trailingPublishedBlock?.type === "text";
       return (
         <>
           {legacyTransitionLayer}
@@ -8412,7 +8419,17 @@ export default function Home() {
             <article
               className={`published-strip published-strip-load-gate ${
                 publishedContentCanReveal ? "is-ready" : ""
+              } ${publishedEndsWithMedia ? "has-trailing-media" : ""} ${
+                publishedEndsWithText ? "has-trailing-text" : ""
               } ${legacyPageEnterClass}`}
+              style={
+                publishedEndsWithText
+                  ? {
+                      backgroundColor:
+                        trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND,
+                    }
+                  : undefined
+              }
               aria-hidden={!publishedContentCanReveal}
             >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
