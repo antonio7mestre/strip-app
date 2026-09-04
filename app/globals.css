@@ -1207,13 +1207,11 @@ html.library-scroll-top-locked .library-mode {
   z-index: 2;
   display: flex;
   width: 100%;
-  min-height: calc(
-    var(--dock-visible-height) + env(safe-area-inset-bottom)
-  );
+  min-height: var(--dock-visible-height);
   align-items: flex-start;
   justify-content: center;
   padding: 12px max(18px, env(safe-area-inset-right))
-    env(safe-area-inset-bottom)
+    12px
     max(18px, env(safe-area-inset-left));
   border: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
