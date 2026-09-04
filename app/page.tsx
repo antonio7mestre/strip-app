@@ -34,7 +34,7 @@ import {
   Pencil,
   Pipette,
   Plus,
-  Share2,
+  Send,
   Settings,
   Sticker,
   Trash2,
@@ -690,6 +690,51 @@ function contrastColor(color: string) {
         .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
     : 0;
   return luminance > 0.179 ? "#000000" : "#FFFFFF";
+}
+
+function StripEndActions({
+  primaryAction,
+  primaryLabel,
+  onPrimary,
+  onShare,
+}: {
+  primaryAction: "edit" | "create";
+  primaryLabel: string;
+  onPrimary: () => void;
+  onShare: () => void;
+}) {
+  return (
+    <div className="strip-end-sheet-controls">
+      <button
+        className="strip-end-sheet-primary"
+        type="button"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onPrimary();
+        }}
+      >
+        {primaryAction === "edit" ? (
+          <Pencil aria-hidden="true" />
+        ) : (
+          <Plus aria-hidden="true" />
+        )}
+        <span>{primaryLabel}</span>
+      </button>
+      <button
+        className="strip-end-sheet-share"
+        type="button"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onShare();
+        }}
+        aria-label="Share this Strip"
+      >
+        <Send aria-hidden="true" />
+      </button>
+    </div>
+  );
 }
 
 function normalizeStoryColor(color: string, fallback = DEFAULT_BACKGROUND) {
@@ -2517,7 +2562,7 @@ function StripStickerBlock({
         )
       : undefined;
     const endingActions = canvas?.querySelector<HTMLElement>(
-      ".strip-ending-card .strip-ending-actions",
+      ".strip-ending-card .strip-end-sheet-controls",
     );
     const { projectedHeight } = projectedStickerSize(
       width,
@@ -3891,24 +3936,25 @@ export default function Home() {
     const themeColor = document.querySelector<HTMLMetaElement>(
       "#strip-theme-color",
     );
+    const sheetCanvasColor = visibleEndingStyle.backgroundColor;
     const viewport = window.visualViewport;
     let syncFrame: number | null = null;
-    let canvasIsWhite: boolean | null = null;
+    let sheetCanvasIsActive: boolean | null = null;
 
-    const setCanvasIsWhite = (isWhite: boolean) => {
-      if (canvasIsWhite === isWhite) return;
-      canvasIsWhite = isWhite;
+    const setSheetCanvasIsActive = (isActive: boolean) => {
+      if (sheetCanvasIsActive === isActive) return;
+      sheetCanvasIsActive = isActive;
       root.classList.toggle(
         "published-bottom-sheet-canvas-active",
-        isWhite,
+        isActive,
       );
       root.style.setProperty(
         "--bottom-safe-area-color",
-        isWhite ? "#ffffff" : DEFAULT_BACKGROUND,
+        isActive ? sheetCanvasColor : DEFAULT_BACKGROUND,
       );
       themeColor?.setAttribute(
         "content",
-        isWhite ? "#ffffff" : topSafeAreaColor,
+        isActive ? sheetCanvasColor : topSafeAreaColor,
       );
     };
 
@@ -3918,7 +3964,7 @@ export default function Home() {
         ? viewport.offsetTop + viewport.height
         : window.innerHeight;
       const sheetBounds = sheet.getBoundingClientRect();
-      setCanvasIsWhite(sheetBounds.top <= viewportBottom + 240);
+      setSheetCanvasIsActive(sheetBounds.top <= viewportBottom + 240);
     };
 
     const scheduleTrailingCanvasSync = () => {
@@ -3950,7 +3996,12 @@ export default function Home() {
       root.style.setProperty("--bottom-safe-area-color", DEFAULT_BACKGROUND);
       themeColor?.setAttribute("content", topSafeAreaColor);
     };
-  }, [publishedContentCanReveal, topSafeAreaColor, view]);
+  }, [
+    publishedContentCanReveal,
+    topSafeAreaColor,
+    view,
+    visibleEndingStyle.backgroundColor,
+  ]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -6721,6 +6772,10 @@ export default function Home() {
     setActiveTextTool(null);
   };
 
+  const showEndingPreviewActionNotice = () => {
+    setNotice("These buttons are only live when your Strip is published.");
+  };
+
   const renderStrip = (
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
@@ -6746,12 +6801,30 @@ export default function Home() {
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
     const showsEndingCard = view !== "published";
+    const trailingFlowBlock = [...sourceBlocks]
+      .reverse()
+      .find((block) => block.type !== "sticker");
+    const endingOverlapsMedia =
+      showsEndingCard &&
+      (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
+    const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
     const canvasMinHeight = stickerFloor > 0 ? `${stickerFloor}px` : undefined;
+    const canvasStyle = {
+      ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
+      ...(endingFollowsText
+        ? {
+            backgroundColor:
+              trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND,
+          }
+        : {}),
+    } satisfies CSSProperties;
 
     return (
       <div
-        className={`strip-canvas ${showsEndingCard ? "has-ending-card" : ""}`}
-        style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
+        className={`strip-canvas ${showsEndingCard ? "has-ending-card" : ""} ${
+          endingOverlapsMedia ? "has-trailing-media" : ""
+        } ${endingFollowsText ? "has-trailing-text" : ""}`}
+        style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
         {sourceBlocks.length === 0 && isEditing ? (
           <div className="empty-strip">
@@ -7137,7 +7210,7 @@ export default function Home() {
         })}
         {showsEndingCard ? (
         <section
-          className={`strip-block strip-ending-card ${
+          className={`strip-block strip-ending-card strip-end-sheet ${
             isEditing ? "is-editing" : ""
           } ${isEditing && endingIsSelected ? "is-selected" : ""}`}
           data-block-id={STRIP_ENDING_BLOCK_ID}
@@ -7178,24 +7251,13 @@ export default function Home() {
           }}
         >
           {isEditing ? renderEndingControls() : null}
-          <div className="strip-ending-card-inner is-owner">
-            <div className="strip-ending-brandline">
-              <span className="strip-ending-wordmark">STRIP</span>
-              <span className="strip-ending-status">
-                <span aria-hidden="true" />
-                Preview
-              </span>
-            </div>
-            <div className="strip-ending-actions">
-              <span className="strip-ending-action" aria-disabled="true">
-                <Pencil aria-hidden="true" />
-                Edit
-              </span>
-              <span className="strip-ending-action" aria-disabled="true">
-                <Share2 aria-hidden="true" />
-                Share
-              </span>
-            </div>
+          <div className="strip-ending-card-inner">
+            <StripEndActions
+              primaryAction="edit"
+              primaryLabel="Edit this Strip"
+              onPrimary={showEndingPreviewActionNotice}
+              onShare={showEndingPreviewActionNotice}
+            />
           </div>
         </section>
         ) : null}
@@ -8402,6 +8464,25 @@ export default function Home() {
         trailingPublishedBlock?.type === "image" ||
         trailingPublishedBlock?.type === "video";
       const publishedEndsWithText = trailingPublishedBlock?.type === "text";
+      const publishedViewerCanEdit =
+        authStatus === "signed-in" &&
+        openedPublishedStrip?.viewerIsOwner === true;
+      const publishedStripStyle = {
+        "--ending-background": visibleEndingStyle.backgroundColor,
+        "--ending-foreground": contrastColor(
+          visibleEndingStyle.backgroundColor,
+        ),
+        "--ending-button": visibleEndingStyle.buttonColor,
+        "--ending-button-foreground": contrastColor(
+          visibleEndingStyle.buttonColor,
+        ),
+        ...(publishedEndsWithText
+          ? {
+              backgroundColor:
+                trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND,
+            }
+          : {}),
+      } as CSSProperties;
       return (
         <>
           {legacyTransitionLayer}
@@ -8422,53 +8503,30 @@ export default function Home() {
               } ${publishedEndsWithMedia ? "has-trailing-media" : ""} ${
                 publishedEndsWithText ? "has-trailing-text" : ""
               } ${legacyPageEnterClass}`}
-              style={
-                publishedEndsWithText
-                  ? {
-                      backgroundColor:
-                        trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND,
-                    }
-                  : undefined
-              }
+              style={publishedStripStyle}
               aria-hidden={!publishedContentCanReveal}
             >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
               <footer
-                className="published-bottom-sheet"
+                className="published-bottom-sheet strip-end-sheet"
                 aria-label="Strip actions"
               >
-                <div className="published-bottom-sheet-controls">
-                  <button
-                    className="published-bottom-sheet-primary"
-                    type="button"
-                    onClick={() => {
-                      if (openedPublishedStrip?.viewerIsOwner) {
-                        void editPublishedStripFromReader();
-                        return;
-                      }
-                      makeOwnStripFromReader();
-                    }}
-                  >
-                    {openedPublishedStrip?.viewerIsOwner ? (
-                      <Pencil aria-hidden="true" />
-                    ) : (
-                      <Plus aria-hidden="true" />
-                    )}
-                    <span>
-                      {openedPublishedStrip?.viewerIsOwner
-                        ? "Edit Strip"
-                        : "Make your own Strip"}
-                    </span>
-                  </button>
-                  <button
-                    className="published-bottom-sheet-share"
-                    type="button"
-                    onClick={() => void sharePublishedStripFromReader()}
-                    aria-label="Share this Strip"
-                  >
-                    <Share2 aria-hidden="true" />
-                  </button>
-                </div>
+                <StripEndActions
+                  primaryAction={publishedViewerCanEdit ? "edit" : "create"}
+                  primaryLabel={
+                    publishedViewerCanEdit
+                      ? "Edit this Strip"
+                      : "Make your own Strip"
+                  }
+                  onPrimary={() => {
+                    if (publishedViewerCanEdit) {
+                      void editPublishedStripFromReader();
+                      return;
+                    }
+                    makeOwnStripFromReader();
+                  }}
+                  onShare={() => void sharePublishedStripFromReader()}
+                />
               </footer>
             </article>
             {publishedLoaderIsVisible ? (
