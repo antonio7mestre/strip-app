@@ -3935,6 +3935,7 @@ export default function Home() {
       );
     };
 
+    // Re-evaluate both edges as Safari expands or collapses its viewport.
     const syncSafeArea = () => {
       syncFrame = null;
       if (
