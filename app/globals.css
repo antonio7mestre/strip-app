@@ -1229,7 +1229,6 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .strip-end-sheet {
-  --dock-browser-extension: max(0px, calc(100lvh - 100dvh));
   position: relative;
   z-index: 2;
   display: flex;
@@ -1250,17 +1249,6 @@ html.library-scroll-top-locked .library-mode {
   box-shadow:
     0 -20px 56px rgba(0, 0, 0, 0.14),
     0 -6px 20px rgba(0, 0, 0, 0.08);
-}
-
-.published-bottom-sheet {
-  min-height: calc(
-    var(--dock-visible-height) + 180px + env(safe-area-inset-bottom) +
-      var(--dock-browser-extension)
-  );
-  margin-bottom: calc(-180px - var(--dock-browser-extension));
-  padding-bottom: calc(
-    180px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
-  );
 }
 
 .published-strip.has-trailing-media .published-bottom-sheet,
