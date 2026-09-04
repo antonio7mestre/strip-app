@@ -3910,6 +3910,26 @@ export default function Home() {
     document.documentElement.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
 
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const isActive = view === "published" && publishedContentCanReveal;
+
+    root.classList.toggle("published-bottom-canvas-active", isActive);
+    root.style.setProperty(
+      "--bottom-safe-area-color",
+      isActive ? visibleEndingStyle.backgroundColor : DEFAULT_BACKGROUND,
+    );
+
+    return () => {
+      root.classList.remove("published-bottom-canvas-active");
+      root.style.setProperty("--bottom-safe-area-color", DEFAULT_BACKGROUND);
+    };
+  }, [
+    publishedContentCanReveal,
+    view,
+    visibleEndingStyle.backgroundColor,
+  ]);
+
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;
     let cancelled = false;
