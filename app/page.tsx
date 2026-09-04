@@ -8463,6 +8463,7 @@ export default function Home() {
       const publishedEndsWithMedia =
         trailingPublishedBlock?.type === "image" ||
         trailingPublishedBlock?.type === "video";
+      const publishedEndsWithVideo = trailingPublishedBlock?.type === "video";
       const publishedEndsWithText = trailingPublishedBlock?.type === "text";
       const publishedViewerCanEdit =
         authStatus === "signed-in" &&
@@ -8501,7 +8502,8 @@ export default function Home() {
               className={`published-strip published-strip-load-gate ${
                 publishedContentCanReveal ? "is-ready" : ""
               } ${publishedEndsWithMedia ? "has-trailing-media" : ""} ${
-                publishedEndsWithText ? "has-trailing-text" : ""
+                publishedEndsWithVideo ? "has-trailing-video" : ""
+              } ${publishedEndsWithText ? "has-trailing-text" : ""
               } ${legacyPageEnterClass}`}
               style={publishedStripStyle}
               aria-hidden={!publishedContentCanReveal}

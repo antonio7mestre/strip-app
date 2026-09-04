@@ -2292,6 +2292,13 @@ html.published-content-loading .top-safe-area-anchor {
   -webkit-tap-highlight-color: transparent;
 }
 
+.published-strip.has-trailing-video
+  .strip-canvas
+  > .video-block:last-of-type
+  .video-audio-toggle {
+  bottom: calc(10px + var(--iphone-panel-radius));
+}
+
 .video-audio-toggle svg {
   width: 18px;
   height: 18px;
