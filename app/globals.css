@@ -1229,15 +1229,18 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .strip-end-sheet {
+  --dock-browser-extension: max(0px, calc(100lvh - 100dvh));
   position: relative;
   z-index: 2;
   display: flex;
   width: 100%;
-  min-height: calc(92px + max(28px, env(safe-area-inset-bottom)));
+  min-height: calc(
+    var(--dock-visible-height) + env(safe-area-inset-bottom)
+  );
   align-items: flex-start;
   justify-content: center;
-  padding: 14px max(18px, env(safe-area-inset-right))
-    max(28px, calc(env(safe-area-inset-bottom) + 14px))
+  padding: 12px max(18px, env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
     max(18px, env(safe-area-inset-left));
   border: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
@@ -1247,6 +1250,17 @@ html.library-scroll-top-locked .library-mode {
   box-shadow:
     0 -20px 56px rgba(0, 0, 0, 0.14),
     0 -6px 20px rgba(0, 0, 0, 0.08);
+}
+
+.published-bottom-sheet {
+  min-height: calc(
+    var(--dock-visible-height) + 180px + env(safe-area-inset-bottom) +
+      var(--dock-browser-extension)
+  );
+  margin-bottom: calc(-180px - var(--dock-browser-extension));
+  padding-bottom: calc(
+    180px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
+  );
 }
 
 .published-strip.has-trailing-media .published-bottom-sheet,
