@@ -3912,20 +3912,95 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const isActive = view === "published" && publishedContentCanReveal;
-
-    root.classList.toggle("published-bottom-canvas-active", isActive);
-    root.style.setProperty(
-      "--bottom-safe-area-color",
-      isActive ? visibleEndingStyle.backgroundColor : DEFAULT_BACKGROUND,
+    const themeColor = document.querySelector<HTMLMetaElement>(
+      "#strip-theme-color",
     );
+    const bottomSheet = document.querySelector<HTMLElement>(
+      ".published-mode .published-bottom-sheet",
+    );
+    const bottomColor = visibleEndingStyle.backgroundColor;
+
+    let syncFrame: number | null = null;
+    let bottomIsActive: boolean | null = null;
+    let intersectionObserver: IntersectionObserver | null = null;
+
+    const setBottomIsActive = (isActive: boolean) => {
+      if (isActive === bottomIsActive) return;
+      bottomIsActive = isActive;
+      root.classList.toggle("published-bottom-canvas-active", isActive);
+      root.style.setProperty("--bottom-safe-area-color", bottomColor);
+      themeColor?.setAttribute(
+        "content",
+        isActive ? bottomColor : topSafeAreaColor,
+      );
+    };
+
+    const syncSafeArea = () => {
+      syncFrame = null;
+      if (
+        view !== "published" ||
+        !publishedContentCanReveal ||
+        !bottomSheet
+      ) {
+        setBottomIsActive(false);
+        return;
+      }
+
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportBottom =
+        viewportTop + (viewport?.height ?? window.innerHeight);
+      const bounds = bottomSheet.getBoundingClientRect();
+      setBottomIsActive(
+        bounds.top < viewportBottom && bounds.bottom > viewportTop,
+      );
+    };
+
+    const scheduleSafeAreaSync = () => {
+      if (syncFrame !== null) return;
+      syncFrame = window.requestAnimationFrame(syncSafeArea);
+    };
+
+    if (bottomSheet && typeof IntersectionObserver !== "undefined") {
+      intersectionObserver = new IntersectionObserver(scheduleSafeAreaSync, {
+        threshold: 0,
+      });
+      intersectionObserver.observe(bottomSheet);
+    }
+    window.addEventListener("scroll", scheduleSafeAreaSync, { passive: true });
+    window.addEventListener("resize", scheduleSafeAreaSync, { passive: true });
+    window.visualViewport?.addEventListener(
+      "scroll",
+      scheduleSafeAreaSync,
+      { passive: true },
+    );
+    window.visualViewport?.addEventListener(
+      "resize",
+      scheduleSafeAreaSync,
+      { passive: true },
+    );
+    syncSafeArea();
 
     return () => {
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+      intersectionObserver?.disconnect();
+      window.removeEventListener("scroll", scheduleSafeAreaSync);
+      window.removeEventListener("resize", scheduleSafeAreaSync);
+      window.visualViewport?.removeEventListener(
+        "scroll",
+        scheduleSafeAreaSync,
+      );
+      window.visualViewport?.removeEventListener(
+        "resize",
+        scheduleSafeAreaSync,
+      );
       root.classList.remove("published-bottom-canvas-active");
       root.style.setProperty("--bottom-safe-area-color", DEFAULT_BACKGROUND);
+      themeColor?.setAttribute("content", topSafeAreaColor);
     };
   }, [
     publishedContentCanReveal,
+    topSafeAreaColor,
     view,
     visibleEndingStyle.backgroundColor,
   ]);
