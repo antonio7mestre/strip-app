@@ -56,32 +56,6 @@ html {
   background-size: 100% 100%;
 }
 
-html.published-trailing-edge-active {
-  background-image: linear-gradient(
-    to bottom,
-    var(--bottom-safe-area-color, var(--black)) 0 50%,
-    var(--top-safe-area-color, var(--black)) 50% 100%
-  );
-}
-
-html.published-bottom-pocket-active,
-html.published-bottom-pocket-active body {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
-html.published-bottom-sheet-canvas-active {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-  background-image: linear-gradient(
-    to bottom,
-    var(--bottom-safe-area-color, var(--black)) 0 50%,
-    var(--top-safe-area-color, var(--black)) 50% 100%
-  ) !important;
-}
-
-html.published-bottom-sheet-canvas-active body {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
 body {
   min-height: 100lvh;
   overflow-x: clip;
@@ -1562,32 +1536,6 @@ html.library-scroll-top-locked .library-mode {
   content: "";
 }
 
-
-.published-bottom-pocket-sampler {
-  display: none;
-  position: fixed;
-  z-index: 8;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: max(84px, calc(env(safe-area-inset-bottom) + 50px));
-  background: linear-gradient(
-    to bottom,
-    color-mix(
-        in srgb,
-        var(--bottom-safe-area-color, var(--black)) 0%,
-        transparent
-      )
-      0,
-    var(--bottom-safe-area-color, var(--black)) 42px,
-    var(--bottom-safe-area-color, var(--black)) 100%
-  );
-  pointer-events: none;
-}
-
-html.published-bottom-pocket-active .published-bottom-pocket-sampler {
-  display: block;
-}
 
 .strip-block {
   position: relative;
