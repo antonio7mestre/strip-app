@@ -1616,6 +1616,21 @@ html.library-scroll-top-locked .library-mode {
   overflow: visible;
 }
 
+.strip-ending-card.is-selected::before {
+  position: absolute;
+  z-index: 33;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--iphone-panel-radius);
+  border: 2px solid var(--ending-foreground, #000000);
+  border-bottom: 0;
+  border-radius: inherit;
+  corner-shape: inherit;
+  content: "";
+  pointer-events: none;
+}
+
 .strip-ending-card-inner {
   display: flex;
   width: 100%;

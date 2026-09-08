@@ -1305,15 +1305,24 @@ function BlockControls({
   const edgeStart = Math.max(0, (edgeWidth - trayWidth) / 2);
   const edgeEnd = edgeStart + trayWidth;
   const edgePath = edgeWidth
-    ? [
-        `M 0 0 H ${edgeStart}`,
-        `C ${edgeStart + 7} 0 ${edgeStart + 12} 5 ${edgeStart + 12} 12`,
-        `V 30 C ${edgeStart + 12} 44 ${edgeStart + 24} 56 ${edgeStart + 38} 56`,
-        `H ${edgeEnd - 38}`,
-        `C ${edgeEnd - 24} 56 ${edgeEnd - 12} 44 ${edgeEnd - 12} 30`,
-        `V 12 C ${edgeEnd - 12} 5 ${edgeEnd - 7} 0 ${edgeEnd} 0`,
-        `H ${edgeWidth}`,
-      ].join(" ")
+    ? onEndingTool
+      ? [
+          `M ${edgeStart} 0`,
+          `C ${edgeStart + 7} 0 ${edgeStart + 12} 5 ${edgeStart + 12} 12`,
+          `V 30 C ${edgeStart + 12} 44 ${edgeStart + 24} 56 ${edgeStart + 38} 56`,
+          `H ${edgeEnd - 38}`,
+          `C ${edgeEnd - 24} 56 ${edgeEnd - 12} 44 ${edgeEnd - 12} 30`,
+          `V 12 C ${edgeEnd - 12} 5 ${edgeEnd - 7} 0 ${edgeEnd} 0`,
+        ].join(" ")
+      : [
+          `M 0 0 H ${edgeStart}`,
+          `C ${edgeStart + 7} 0 ${edgeStart + 12} 5 ${edgeStart + 12} 12`,
+          `V 30 C ${edgeStart + 12} 44 ${edgeStart + 24} 56 ${edgeStart + 38} 56`,
+          `H ${edgeEnd - 38}`,
+          `C ${edgeEnd - 24} 56 ${edgeEnd - 12} 44 ${edgeEnd - 12} 30`,
+          `V 12 C ${edgeEnd - 12} 5 ${edgeEnd - 7} 0 ${edgeEnd} 0`,
+          `H ${edgeWidth}`,
+        ].join(" ")
     : "";
   const style: BlockControlsStyle | undefined =
     surfaceColor || imageSrc
@@ -6654,6 +6663,7 @@ export default function Home() {
         }}
         activeEndingTool={activeEndingTool}
         surfaceColor={endingStyle.backgroundColor}
+        showTopEdge={false}
       />
     );
   };
