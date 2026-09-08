@@ -141,7 +141,7 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   const entranceCss = css.slice(css.indexOf(".published-strip-load-gate {"), css.indexOf(".sticker-block {"));
   assert.doesNotMatch(entranceCss, /published-strip-orb/);
   assert.match(entranceCss, /\.published-strip-load-gate \{[\s\S]*?visibility: visible;[\s\S]*?opacity: 1;/);
-  assert.doesNotMatch(entranceCss, /gradient|box-shadow|filter:|ribbon|@keyframes/);
+  assert.doesNotMatch(entranceCss.replace(/\/\*[\s\S]*?\*\//g, ""), /gradient|box-shadow|filter:|ribbon|@keyframes/);
   assert.match(componentSource, /animation.dispose\(\)/);
   assert.match(componentSource, /controller.current\?\.setReady\(ready\)/);
   assert.match(entranceCss, /--entrance-safe-top: env\(safe-area-inset-top\)/);
@@ -149,9 +149,11 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   assert.match(componentSource, /installScribbleSurface\(surface\)/);
 });
 
-test("text-first reader ink owns the edge only until its actual overlay is removed", () => {
-  assert.match(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body\s*\{\s*background: #000 !important;/);
-  assert.match(css, /\.published-mode\.has-leading-text:has\(\.strip-entrance\) > \.top-safe-area-anchor\s*\{\s*display: none;/);
+test("text-first reader reveals the real edge underneath its opaque canvas before fading", () => {
+  assert.match(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance:not\(\[data-ink-phase="fading"\]\)\) body\s*\{\s*background: #000 !important;/);
+  assert.match(css, /\.published-mode\.has-leading-text:has\(\.strip-entrance:not\(\[data-ink-phase="fading"\]\)\) > \.top-safe-area-anchor\s*\{\s*display: none;/);
+  assert.doesNotMatch(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body/);
+  assert.match(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color 650ms ease-in-out;/);
   assert.match(css, /padding-top: calc\(var\(--leading-image-inset\) \+ env\(safe-area-inset-top\)\)/);
   assert.match(page, /hasLeadingImage \|\| \(view === "published" && hasLeadingText\)/);
   const anchorEffect = page.slice(page.indexOf("const calculateLeadingImageOffset"), page.indexOf("const calculateLeadingImageOffset") + 2500);

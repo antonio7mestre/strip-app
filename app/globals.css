@@ -1836,15 +1836,25 @@ html.published-content-loading body {
   overflow: hidden;
 }
 
-/* Do not let a text block's browser tint cover the actual loading canvas.
- * :has follows the real overlay, including its entire fade, with no effect lag. */
-html:has(.published-mode.has-leading-text .strip-entrance),
-html:has(.published-mode.has-leading-text .strip-entrance) body {
+/* Keep Safari's text tint out of the drawing, then reveal the real edge color
+ * UNDER the fully painted canvas as its fade starts. Waiting until unmount
+ * would fade into black and flash to the text color on the final frame. */
+html:has(.published-mode.has-leading-text .strip-entrance:not([data-ink-phase="fading"])),
+html:has(.published-mode.has-leading-text .strip-entrance:not([data-ink-phase="fading"])) body {
   background: #000 !important;
 }
 
-.published-mode.has-leading-text:has(.strip-entrance) > .top-safe-area-anchor {
+.published-mode.has-leading-text:has(.strip-entrance:not([data-ink-phase="fading"])) > .top-safe-area-anchor {
   display: none;
+}
+
+/* Safari also samples the root behind its chrome. Ease that sampled color
+ * during this handoff only, without slowing normal scroll-driven edge colors.
+ * Remove the root gradient while blending so it cannot snap over the fade. */
+html:has(.published-mode.has-leading-text .strip-entrance[data-ink-phase="fading"]),
+html:has(.published-mode.has-leading-text .strip-entrance[data-ink-phase="fading"]) body {
+  background-image: none !important;
+  transition: background-color 650ms ease-in-out;
 }
 
 .sticker-block {
