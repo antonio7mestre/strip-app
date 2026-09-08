@@ -701,35 +701,42 @@ function contrastColor(color: string) {
 function StripEndActions({
   primaryAction,
   primaryLabel,
+  primaryPending = false,
   onPrimary,
   onShare,
 }: {
   primaryAction: "edit" | "create";
   primaryLabel: string;
+  primaryPending?: boolean;
   onPrimary: () => void;
   onShare: () => void;
 }) {
   return (
     <div className="strip-end-sheet-controls">
       <button
-        className="strip-end-sheet-primary"
+        className={`strip-end-sheet-primary${primaryPending ? " is-opening" : ""}`}
         type="button"
+        disabled={primaryPending}
+        aria-busy={primaryPending || undefined}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
           onPrimary();
         }}
       >
-        {primaryAction === "edit" ? (
+        {primaryPending ? (
+          <span className="strip-end-sheet-spinner" aria-hidden="true" />
+        ) : primaryAction === "edit" ? (
           <Pencil aria-hidden="true" />
         ) : (
           <Plus aria-hidden="true" />
         )}
-        <span>{primaryLabel}</span>
+        <span aria-live="polite">{primaryPending ? "Opening editor…" : primaryLabel}</span>
       </button>
       <button
         className="strip-end-sheet-share"
         type="button"
+        disabled={primaryPending}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
@@ -3231,6 +3238,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingDraftId, setOpeningDraftId] = useState<string | null>(null);
+  const [openingPublishedEditor, setOpeningPublishedEditor] = useState(false);
   const [openedPublishedStrip, setOpenedPublishedStrip] =
     useState<PublishedStripDetail | null>(null);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
@@ -4900,6 +4908,7 @@ export default function Home() {
     setOpeningStripId(null);
     setOpeningDraftId(null);
     setLegacyPageTransition(null);
+    setOpeningPublishedEditor(false);
     setDockTransition(null);
     setDockTransitionStarted(false);
     root.classList.remove(
@@ -6022,6 +6031,7 @@ export default function Home() {
 
   const editPublishedStripFromReader = async () => {
     if (
+      authStatus !== "signed-in" ||
       !openedPublishedStrip?.viewerIsOwner ||
       pageTransitionInFlightRef.current
     ) {
@@ -6029,6 +6039,8 @@ export default function Home() {
     }
     pageTransitionInFlightRef.current = true;
     try {
+      // Commit feedback in the click itself, before waiting for the draft copy.
+      flushSync(() => setOpeningPublishedEditor(true));
       const response = await fetch(
         `/api/strips/${encodeURIComponent(openedPublishedStrip.id)}/draft`,
         { method: "POST" },
@@ -6040,6 +6052,7 @@ export default function Home() {
       );
     } catch {
       pageTransitionInFlightRef.current = false;
+      setOpeningPublishedEditor(false);
       setNotice("Couldn’t open this Strip for editing. Try again.");
     }
   };
@@ -8201,6 +8214,7 @@ export default function Home() {
               >
                 <StripEndActions
                   primaryAction={publishedViewerCanEdit ? "edit" : "create"}
+                  primaryPending={publishedViewerCanEdit && openingPublishedEditor}
                   primaryLabel={
                     publishedViewerCanEdit
                       ? "Edit this Strip"

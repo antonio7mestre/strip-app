@@ -1306,6 +1306,33 @@ html.library-scroll-top-locked .library-mode {
   stroke-width: 2.25;
 }
 
+.strip-end-sheet button:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.strip-end-sheet-primary.is-opening {
+  transform: scale(0.98);
+}
+
+.strip-end-sheet-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: strip-end-opening-spin 700ms linear infinite;
+}
+
+@keyframes strip-end-opening-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strip-end-sheet-spinner { animation: none; }
+}
+
 .strip-end-sheet-share {
   display: grid;
   width: 52px;
