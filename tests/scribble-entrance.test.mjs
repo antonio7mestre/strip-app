@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { makeScribble, chooseScribbleColor, createScribbleHaptics, scribbleProgress, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_DRAW_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+import { makeScribble, createScribbleJourney, chooseScribbleColor, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_DRAW_MS, SCRIBBLE_SWEEP_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
 
 
 test("the paint surface follows the existing anchor without scrolling or retaining listeners", () => {
@@ -17,9 +17,19 @@ test("the paint surface follows the existing anchor without scrolling or retaini
   globalThis.getComputedStyle=()=>({getPropertyValue:()=>"0px"});
   globalThis.requestAnimationFrame=callback=>{nextFrame=callback;return 12;};
   globalThis.cancelAnimationFrame=id=>{assert.equal(id,12);cancelled=true;};
-  const host={style:{top:"",height:""}};
+  const attributes = new Map([["name", "theme-color"], ["content", "#003CFF"]]);
+  const theme = {
+    getAttribute: name => attributes.get(name) ?? null,
+    hasAttribute: name => attributes.has(name),
+    removeAttribute: name => attributes.delete(name),
+    setAttribute: (name, value) => attributes.set(name, value),
+  };
+  globalThis.document = {getElementById: () => theme};
+  const host={style:{top:"",height:""},closest:()=>({})};
   const dispose=installScribbleSurface(host);
   try {
+    assert.equal(attributes.has("name"), false);
+    theme.setAttribute("content", "#FF00FF");
     assert.deepEqual(host.style,{top:"-62px",height:"896px"});
     window.scrollY=62; nextFrame();
     assert.deepEqual(host.style,{top:"0px",height:"896px"});
@@ -29,9 +39,11 @@ test("the paint surface follows the existing anchor without scrolling or retaini
     dispose();window.scrollY=500;lateScroll();
     assert.equal(host.style.top,"0px");
     assert.equal(events.size,0);assert.equal(viewportEvents.size,0);assert.ok(cancelled);
+    assert.equal(attributes.get("name"), "theme-color");
+    assert.equal(attributes.get("content"), "#FF00FF");
   } finally {
     dispose();
-    delete globalThis.window;delete globalThis.getComputedStyle;
+    delete globalThis.window;delete globalThis.getComputedStyle;delete globalThis.document;
     delete globalThis.requestAnimationFrame;delete globalThis.cancelAnimationFrame;
     if(originalNavigator)Object.defineProperty(globalThis,"navigator",originalNavigator);
     else delete globalThis.navigator;
@@ -125,47 +137,28 @@ test("one strip-derived ink color is frozen, with dark colors lifted for the bla
   } finally { h.clean(); }
 });
 
-test("haptics are short, drawing-synchronized, gated by activation, and cancel on exit", () => {
-  const pulses = [];
-  let active = false, visible = true;
-  const h = createScribbleHaptics({ vibrate: ms => { pulses.push(ms); return true; }, active: () => active, visible: () => visible });
-  h.update(0, 0.03, true);
-  assert.deepEqual(pulses, []);
-  active = true;
-  h.update(500, 0.15, true); h.update(510, 0.28, true);
-  assert.deepEqual(pulses, [6]);
-  h.update(1000, 0.9, true);
-  assert.deepEqual(pulses, [6, 10]); // Frame gaps never replay missed pulses.
-  visible = false; h.update(1100, 0.92, true);
-  assert.deepEqual(pulses, [6, 10, 0]);
-  visible = true; h.update(1500, 0.96, true); h.stop(); h.stop();
-  assert.deepEqual(pulses, [6, 10, 0, 11, 0]);
-});
-
-test("unsupported, denied, reduced-motion, or throwing haptics never interrupt loading", () => {
-  for (const fails of [false, true]) {
-    let calls = 0;
-    const h = createScribbleHaptics({ vibrate: () => { calls++; if (fails) throw Error("unsupported"); return false; }, active: () => true, visible: () => true });
-    h.update(100, 0.03, false); assert.equal(calls, 0);
-    h.update(200, 0.15, true); h.update(1000, 0.8, true); h.stop();
-    assert.equal(calls, 1);
+test("extended waiting and a mid-curve final sweep never lift the pen or recolor it", () => {
+  const journey = createScribbleJourney(393, 852, 51);
+  const first = structuredClone(journey.segments);
+  for (let round = 0; round < 6; round++) journey.extend();
+  assert.deepEqual(journey.segments.slice(0, first.length), first);
+  const drawn = journey.segments.length - 317;
+  const before = structuredClone(journey.segments.slice(0, drawn));
+  journey.finish(drawn);
+  assert.deepEqual(journey.segments.slice(0, drawn), before);
+  for (let index = 1; index < journey.segments.length; index++) {
+    const segment = journey.segments[index], previous = journey.segments[index - 1];
+    assert.deepEqual(segment.from, previous.to);
+    assert.ok(segment.width >= previous.width - 1e-10);
   }
-});
-
-test("drawing progress is continuous, monotonic, and clamped", () => {
-  let previous = 0;
-  for (let ms = -20; ms <= 3000; ms++) {
-    const p = scribbleProgress(ms);
-    assert.ok(p >= previous && p >= 0 && p <= 1);
-    assert.ok(p - previous < 0.003);
-    previous = p;
-  }
-  assert.equal(scribbleProgress(SCRIBBLE_DRAW_MS), 1);
+  const length = journey.segments.length;
+  journey.extend(); journey.finish();
+  assert.equal(journey.segments.length, length);
 });
 
 function harness({ reduced = false, canvasFails = false } = {}) {
   const queue = new Map(), listeners = new Map();
-  let id = 0, resized, disconnected = false, strokes = 0, fills = 0, done = 0;
+  let id = 0, resized, disconnected = false, strokes = 0, fills = 0, done = 0, now = 0;
   let bounds = { width: 393, height: 852 };
   const colors = new Set();
   const media = { matches: reduced, addEventListener: (name, fn) => listeners.set(name, fn),
@@ -187,6 +180,10 @@ function harness({ reduced = false, canvasFails = false } = {}) {
     get done() { return done; }, get strokes() { return strokes; }, get fills() { return fills; },
     get disconnected() { return disconnected; }, get listeners() { return listeners.size; },
     tick(now) { const pending = [...queue.values()]; queue.clear(); pending.forEach(callback => callback(now)); },
+    advance(duration) {
+      const end = now + duration;
+      while (now < end) { now = Math.min(end, now + 16); this.tick(now); }
+    },
     resize(width, height) { bounds = { width, height }; resized(); },
     motion(value) { media.matches = value; listeners.get("change")(); },
     clean() {
@@ -201,16 +198,19 @@ test("never fades before the page is fully inked, then completes exactly once", 
   const h = harness();
   try {
     h.animation.setReady(true);
-    h.tick(0); h.tick(SCRIBBLE_DRAW_MS - 1);
+    h.tick(0); h.advance(SCRIBBLE_DRAW_MS - 1);
     assert.equal(h.host.dataset.inkPhase, "drawing");
     assert.equal(h.host.style.opacity, "1");
-    h.tick(SCRIBBLE_DRAW_MS);
+    h.advance(1);
+    assert.equal(h.host.dataset.inkPhase, "sweeping");
+    assert.equal(h.fills, 0);
+    h.advance(SCRIBBLE_SWEEP_MS);
     assert.equal(h.host.dataset.inkPhase, "fading");
     assert.equal(h.host.dataset.inkProgress, "1.000");
     assert.ok(h.fills > 0);
-    h.tick(SCRIBBLE_DRAW_MS + SCRIBBLE_FADE_MS / 2);
+    h.advance(SCRIBBLE_FADE_MS / 2);
     assert.equal(Number(h.host.style.opacity), 0.5);
-    h.tick(SCRIBBLE_DRAW_MS + SCRIBBLE_FADE_MS);
+    h.advance(SCRIBBLE_FADE_MS / 2);
     assert.equal(h.done, 1);
     h.animation.setReady(true); h.tick(9000);
     assert.equal(h.done, 1);
@@ -218,15 +218,22 @@ test("never fades before the page is fully inked, then completes exactly once", 
   } finally { h.clean(); }
 });
 
-test("slow assets hold the completed drawing with no idle animation loop", () => {
+test("slow assets keep drawing without covering or fading, then trigger one final sweep", () => {
   const h = harness();
   try {
-    h.tick(0); h.tick(SCRIBBLE_DRAW_MS);
-    assert.equal(h.host.dataset.inkPhase, "covered");
-    assert.equal(h.queue.size, 0);
+    h.tick(0); h.advance(SCRIBBLE_DRAW_MS);
+    const previous = h.strokes;
+    h.advance(10000);
+    assert.ok(h.strokes > previous + 4000);
+    assert.equal(h.host.dataset.inkPhase, "drawing");
+    assert.equal(h.fills, 0);
+    assert.equal(h.host.style.opacity, "1");
+    assert.equal(h.queue.size, 1);
     assert.equal(h.done, 0);
     h.animation.setReady(true);
-    h.tick(10000); h.tick(10000 + SCRIBBLE_FADE_MS);
+    h.advance(16);
+    assert.equal(h.host.dataset.inkPhase, "sweeping");
+    h.advance(SCRIBBLE_SWEEP_MS + SCRIBBLE_FADE_MS);
     assert.equal(h.done, 1);
   } finally { h.clean(); }
 });
@@ -234,17 +241,38 @@ test("slow assets hold the completed drawing with no idle animation loop", () =>
 test("resize preserves drawing progress and fade instead of restarting or clearing the frame", () => {
   const h = harness();
   try {
-    h.tick(0); h.tick(1900);
+    h.tick(0); h.advance(7000);
     const progress = h.host.dataset.inkProgress, before = h.strokes;
     h.resize(852, 393);
     assert.equal(h.host.dataset.inkProgress, progress);
     assert.ok(h.strokes > before);
     assert.equal(h.canvas.width, 1278);
-    h.animation.setReady(true); h.tick(2600); h.tick(2800);
+    h.animation.setReady(true); h.advance(16); h.advance(SCRIBBLE_SWEEP_MS + 200);
     const opacity = h.host.style.opacity;
     h.resize(393, 852);
     assert.equal(h.host.style.opacity, opacity);
-    h.tick(3250);
+    h.advance(SCRIBBLE_FADE_MS);
+    assert.equal(h.done, 1);
+  } finally { h.clean(); }
+});
+
+test("returning from a suspended tab cannot skip all wandering or the final sweep", () => {
+  const h = harness();
+  try {
+    h.tick(0); h.animation.setReady(true); h.tick(90000);
+    assert.equal(h.host.dataset.inkPhase, "drawing");
+    assert.ok(h.strokes < 40);
+    assert.equal(h.fills, 0);
+  } finally { h.clean(); }
+});
+
+test("the final sweep cannot fade through assets that became unready", () => {
+  const h = harness();
+  try {
+    h.tick(0); h.animation.setReady(true); h.advance(SCRIBBLE_DRAW_MS);
+    h.animation.setReady(false); h.advance(SCRIBBLE_SWEEP_MS + 1000);
+    assert.equal(h.host.style.opacity, "1"); assert.equal(h.done, 0);
+    h.animation.setReady(true); h.advance(16 + SCRIBBLE_FADE_MS);
     assert.equal(h.done, 1);
   } finally { h.clean(); }
 });

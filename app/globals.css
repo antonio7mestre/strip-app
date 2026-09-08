@@ -1482,6 +1482,19 @@ html.leading-image-inset-active .app-shell.has-leading-image {
   min-height: calc(100lvh + var(--leading-image-inset));
 }
 
+/* Text-first readers need the same real under-glass origin as the loader.
+ * Equal padding preserves the text's original visual position. Retain both
+ * after the fade: removing/re-adding scroll offsets makes Safari jump. */
+html.leading-image-inset-active:has(.published-mode.has-leading-text) {
+  min-height: calc(100lvh + var(--leading-image-inset));
+}
+
+html.leading-image-inset-active .published-mode.has-leading-text .strip-canvas {
+  margin-top: 0;
+  padding-top: calc(var(--leading-image-inset) + env(safe-area-inset-top));
+  background: var(--top-safe-area-color);
+}
+
 html.leading-image-inset-active .has-leading-image .strip-canvas {
   margin-top: 0;
   padding-top: 0;
@@ -1504,7 +1517,8 @@ html.leading-image-inset-active.leading-media-top-edge body {
  * Promoting an entire long Strip mid-fling can expose an unpainted frame.
  * The fixed composer stays outside this layer. */
 html.leading-image-inset-active .has-leading-image > .editor-canvas,
-html.leading-image-inset-active .has-leading-image > .published-strip {
+html.leading-image-inset-active .has-leading-image > .published-strip,
+html.leading-image-inset-active .published-mode.has-leading-text > .published-strip {
   translate: 0 var(--leading-media-return-y, 0px);
   will-change: translate;
 }
@@ -1799,6 +1813,17 @@ html.published-content-loading body {
   overflow: hidden;
 }
 
+/* Do not let a text block's browser tint cover the actual loading canvas.
+ * :has follows the real overlay, including its entire fade, with no effect lag. */
+html:has(.published-mode.has-leading-text .strip-entrance),
+html:has(.published-mode.has-leading-text .strip-entrance) body {
+  background: #000 !important;
+}
+
+.published-mode.has-leading-text:has(.strip-entrance) > .top-safe-area-anchor {
+  display: none;
+}
+
 .sticker-block {
   position: absolute;
   z-index: 36;
@@ -1888,18 +1913,6 @@ html.published-content-loading body {
 .video-audio-toggle:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
-}
-
-.selection-haptic-proxy {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
-  -webkit-appearance: auto;
-  appearance: auto;
 }
 
 .empty-strip {

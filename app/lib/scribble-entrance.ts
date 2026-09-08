@@ -1,4 +1,5 @@
 export const SCRIBBLE_DRAW_MS = 2600;
+export const SCRIBBLE_SWEEP_MS = 720;
 export const SCRIBBLE_FADE_MS = 650;
 export const SCRIBBLE_REDUCED_FADE_MS = 280;
 
@@ -18,6 +19,12 @@ export function scribbleSurfaceBounds({
 
 export function installScribbleSurface(host: HTMLElement) {
   let disposed = false;
+  // Text pages normally ask Safari for a solid edge tint. Suspend that hint
+  // while real ink is painting there; preserve ongoing content/color updates.
+  const theme = host.closest?.(".published-mode.has-leading-text")
+    ? document.getElementById("strip-theme-color") : null;
+  const themeName = theme?.getAttribute("name") ?? null;
+  if (themeName) theme?.removeAttribute("name");
   const sync = () => {
     if (disposed) return;
     const safeTop = parseFloat(getComputedStyle(host).getPropertyValue("--entrance-safe-top")) || 0;
@@ -46,6 +53,7 @@ export function installScribbleSurface(host: HTMLElement) {
     window.removeEventListener("scroll", sync);
     window.removeEventListener("resize", sync);
     window.visualViewport?.removeEventListener("resize", sync);
+    if (themeName && !theme?.hasAttribute("name")) theme?.setAttribute("name", themeName);
   };
 }
 
@@ -69,7 +77,7 @@ export function chooseScribbleColor(palette: readonly string[]) {
 }
 
 /** New seed per entrance, retained by the controller across every resize. */
-export function makeScribble(width: number, height: number, seed = Math.floor(Math.random() * 4294967296)): InkSegment[] {
+export function createScribbleJourney(width: number, height: number, seed = Math.floor(Math.random() * 4294967296)) {
   const w = Math.max(1, width), h = Math.max(1, height);
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -124,61 +132,52 @@ export function makeScribble(width: number, height: number, seed = Math.floor(Ma
     const radius = 5 + i * 1.5;
     wander([cx + Math.cos(turn) * radius, cy + Math.sin(turn) * radius], 2 + i * 0.4);
   }
-  // Shuffle two visits to every cell. This feels freehand but cannot remain
-  // trapped in a central knot. The curve's tangent carries through every join.
-  const cells = Array.from({ length: 24 }, (_, index) => index % 12);
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [cells[i], cells[j]] = [cells[j], cells[i]];
-  }
-  cells.forEach((cell, index) => {
-    const spread = Math.min(1, 0.25 + index * 0.13);
-    const x = ((cell % 3) + 0.12 + random() * 0.76) / 3 * w;
-    const y = (Math.floor(cell / 3) + 0.12 + random() * 0.76) / 4 * h;
-    wander([cx + (x - cx) * spread, cy + (y - cy) * spread],
-      4 + Math.pow((index + 1) / cells.length, 1.5) * step * 0.85);
-  });
-  // The SAME line becomes a broad marker and paints vertically, edge to edge.
-  // The connector reaches outside the glass before the first full-height pass.
-  wander([-step, -step * 2], step * 2.3);
-  let pass = 0;
-  for (let x = -step; x <= w + step * 2; x += step) {
-    travel([x, pass++ % 2 === 0 ? h + step * 2 : -step * 2], step * 2.3 + pass * 0.15, step * 0.12);
-  }
-  return segments;
-}
-
-/** Short, drawing-synchronized taps. No timers, catch-up bursts, or activation tricks. */
-export function createScribbleHaptics(device: {
-  vibrate: (duration: number) => boolean; active: () => boolean; visible: () => boolean;
-}) {
-  const marks = [0.025, 0.14, 0.27, 0.42, 0.59, 0.77, 0.94];
-  let next = 0, last = -Infinity, buzzing = false, disabled = false;
-  const stop = () => {
-    if (!buzzing) return;
-    buzzing = false;
-    try { device.vibrate(0); } catch { disabled = true; }
+  let rounds = 0, finished = false;
+  const extend = () => {
+    if (finished) return;
+    // New destinations, but the same pen and tangent. Keep the waiting stroke
+    // narrow enough to remain visibly in motion on a slow connection.
+    const cells = Array.from({ length: 24 }, (_, index) => index % 12);
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [cells[i], cells[j]] = [cells[j], cells[i]];
+    }
+    cells.forEach((cell, index) => {
+      const spread = rounds ? 1 : Math.min(1, 0.25 + index * 0.13);
+      const x = ((cell % 3) + 0.12 + random() * 0.76) / 3 * w;
+      const y = (Math.floor(cell / 3) + 0.12 + random() * 0.76) / 4 * h;
+      const growth = 1 - Math.exp(-(rounds + (index + 1) / cells.length) * 0.55);
+      wander([cx + (x - cx) * spread, cy + (y - cy) * spread], 4 + step * 0.36 * growth);
+    });
+    rounds++;
   };
+  extend();
   return {
-    stop,
-    update(now: number, progress: number, allowed: boolean) {
-      if (!allowed || progress >= 1 || !device.visible()) { stop(); return; }
-      let due = false;
-      while (next < marks.length && progress >= marks[next]) { next++; due = true; }
-      if (!due || disabled || now - last < 220 || !device.active()) return;
-      try {
-        buzzing = device.vibrate(4 + next);
-        last = now;
-        if (!buzzing) disabled = true;
-      } catch { disabled = true; }
+    segments,
+    extend,
+    finish(drawn = segments.length) {
+      if (finished) return;
+      finished = true;
+      // Readiness can arrive in the middle of a curve. Start the sweep at the
+      // exact visible pen tip, not at a queued destination or a new stroke.
+      segments.length = Math.max(1, Math.min(drawn, segments.length));
+      const tip = segments[segments.length - 1];
+      previous = tip.to;
+      previousWidth = tip.width;
+      tangent = Math.atan2(tip.to[1] - tip.from[1], tip.to[0] - tip.from[0]);
+      wander([-step, -step * 2], step * 2.3);
+      let pass = 0;
+      for (let x = -step; x <= w + step * 2; x += step) {
+        travel([x, pass++ % 2 === 0 ? h + step * 2 : -step * 2], step * 2.3 + pass * 0.15, step * 0.12);
+      }
     },
   };
 }
 
-export function scribbleProgress(elapsed: number) {
-  // Spend most of the drawing on the expanding knot, then scribble in the gaps.
-  const p = clamp(elapsed / SCRIBBLE_DRAW_MS);
-  return p < 0.79 ? Math.pow(p / 0.79, 0.9) * 0.6 : 0.6 + (p - 0.79) / 0.21 * 0.4;
+export function makeScribble(width: number, height: number, seed?: number): InkSegment[] {
+  const journey = createScribbleJourney(width, height, seed);
+  journey.finish();
+  return journey.segments;
 }
 
 export function startScribble(
@@ -191,17 +190,13 @@ export function startScribble(
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let reduced = motion.matches;
   let stopped = false, completed = false, ready = false, covered = false;
-  let frame = 0, started: number | null = null, fadeStarted: number | null = null;
+  let frame = 0, previousFrame: number | null = null, fadeStarted: number | null = null;
+  let elapsed = 0, sweepElapsed = 0, sweepFrom: number | null = null, extensions = 0;
+  let journey: ReturnType<typeof createScribbleJourney>;
   let segments: InkSegment[] = [], drawn = 0, progress = 0;
   let width = 1, height = 1;
   const ink = chooseScribbleColor(palette);
   const seed = Math.floor(Math.random() * 4294967296);
-  const haptics = createScribbleHaptics({
-    vibrate: duration => typeof navigator !== "undefined" && typeof navigator.vibrate === "function"
-      ? navigator.vibrate(duration) : false,
-    active: () => typeof navigator !== "undefined" && navigator.userActivation?.hasBeenActive === true,
-    visible: () => typeof document !== "undefined" && document.visibilityState === "visible",
-  });
   const drawTo = (target: number) => {
     if (!context) return;
     for (; drawn < target; drawn++) {
@@ -238,10 +233,17 @@ export function startScribble(
     canvas.height = Math.ceil(height * ratio);
     context?.setTransform(ratio, 0, 0, ratio, 0, 0);
     if (context) { context.lineCap = "round"; context.lineJoin = "round"; }
-    segments = makeScribble(width, height, seed);
+    const previousDrawn = drawn;
+    journey = createScribbleJourney(width, height, seed);
+    for (let i = 0; i < extensions; i++) journey.extend();
+    if (sweepFrom !== null) journey.finish(sweepFrom);
+    segments = journey.segments;
     drawn = 0;
     if (reduced) paintReduced();
-    else { drawTo(Math.floor(progress * segments.length)); if (covered) fillBehind(); }
+    else {
+      drawTo(sweepFrom === null ? previousDrawn : sweepFrom + Math.floor(clamp(sweepElapsed / SCRIBBLE_SWEEP_MS) * (segments.length - sweepFrom)));
+      if (covered) fillBehind();
+    }
   };
   const schedule = () => {
     if (!frame && !stopped && !completed) frame = requestAnimationFrame(tick);
@@ -249,13 +251,32 @@ export function startScribble(
   function tick(now: number) {
     frame = 0;
     if (stopped || completed) return;
-    if (started === null) started = now;
+    // Never catch up an entire hidden-tab interval in one visible frame.
+    const delta = previousFrame === null ? 0 : Math.min(64, Math.max(0, now - previousFrame));
+    previousFrame = now;
     if (!covered) {
-      progress = reduced || !context ? 1 : scribbleProgress(now - started);
-      if (reduced) paintReduced();
-      else drawTo(Math.floor(progress * segments.length));
+      if (reduced || !context) {
+        progress = 1;
+        if (reduced) paintReduced();
+      } else if (sweepFrom === null) {
+        elapsed += delta;
+        const target = Math.floor(elapsed / SCRIBBLE_DRAW_MS * 1200);
+        while (target > segments.length) { journey.extend(); extensions++; }
+        drawTo(target);
+        progress = Math.min(0.6, elapsed / SCRIBBLE_DRAW_MS * 0.6);
+        if (ready && elapsed >= SCRIBBLE_DRAW_MS) {
+          sweepFrom = drawn;
+          journey.finish(drawn);
+          host.dataset.inkPhase = "sweeping";
+        }
+      } else {
+        sweepElapsed += delta;
+        const sweep = clamp(sweepElapsed / SCRIBBLE_SWEEP_MS);
+        drawTo(sweepFrom + Math.floor(sweep * (segments.length - sweepFrom)));
+        progress = 0.6 + sweep * 0.4;
+      }
+      host.dataset.inkSegments = String(drawn);
       host.dataset.inkProgress = progress.toFixed(3);
-      haptics.update(now, progress, !reduced && Boolean(context));
       if (progress >= 1) {
         covered = true;
         fillBehind();
@@ -273,17 +294,15 @@ export function startScribble(
         return;
       }
     }
-    // No idle animation or sampling loop while a slow connection finishes.
+    // Normal motion stays alive until assets settle and the final sweep ends.
+    // Reduced motion remains still while waiting, without a polling loop.
     if (!covered || ready) schedule();
   }
   const onMotionChange = () => {
     reduced = motion.matches;
-    if (reduced) haptics.stop();
     resize();
     schedule();
   };
-  const onVisibilityChange = () => { if (document.visibilityState !== "visible") haptics.stop(); };
-  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibilityChange);
   host.dataset.inkPhase = "drawing";
   host.style.opacity = "1";
   host.dataset.inkColor = ink;
@@ -296,11 +315,9 @@ export function startScribble(
     setReady(value: boolean) { ready = value; schedule(); },
     dispose() {
       stopped = true;
-      haptics.stop();
       cancelAnimationFrame(frame);
       observer.disconnect();
       motion.removeEventListener("change", onMotionChange);
-      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibilityChange);
     },
   };
 }

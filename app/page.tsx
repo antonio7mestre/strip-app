@@ -2118,27 +2118,6 @@ function TextStyleSelector({
   );
 }
 
-let safariHapticSwitch: HTMLInputElement | null = null;
-
-function triggerSelectionHaptic() {
-  if (navigator.vibrate) {
-    navigator.vibrate(10);
-    return;
-  }
-
-  if (!safariHapticSwitch) {
-    safariHapticSwitch = document.createElement("input");
-    safariHapticSwitch.type = "checkbox";
-    safariHapticSwitch.setAttribute("switch", "");
-    safariHapticSwitch.tabIndex = -1;
-    safariHapticSwitch.setAttribute("aria-hidden", "true");
-    safariHapticSwitch.className = "selection-haptic-proxy";
-    document.body.append(safariHapticSwitch);
-  }
-
-  safariHapticSwitch.click();
-}
-
 function BlockHeightReporter({
   blockId,
   onHeight,
@@ -3685,7 +3664,7 @@ export default function Home() {
 
       if (
         !stripIsVisible ||
-        !hasLeadingImage ||
+        !(hasLeadingImage || (view === "published" && hasLeadingText)) ||
         !isIOS ||
         window.screen.height / window.screen.width <= 2
       ) {
@@ -3732,7 +3711,7 @@ export default function Home() {
       removeLeadingMediaTop();
       leadingImageInsetRef.current = 0;
     };
-  }, [hasLeadingImage, initialRouteReady, view]);
+  }, [hasLeadingImage, hasLeadingText, initialRouteReady, view]);
 
   useEffect(
     () => () => {
@@ -5162,7 +5141,6 @@ export default function Home() {
     inlinePreviewSelectionRef.current = blockId;
     suppressSelectedBlockAutoFocusRef.current = true;
     beginInlinePreviewExitLock(inlinePreviewScrollRef.current);
-    triggerSelectionHaptic();
 
     if (inlinePreviewHistoryEntryRef.current) {
       window.history.back();
@@ -6466,7 +6444,6 @@ export default function Home() {
   };
 
   const selectEndingBlock = () => {
-    if (!endingIsSelected) triggerSelectionHaptic();
     setSelectedBlockId(STRIP_ENDING_BLOCK_ID);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
@@ -6579,7 +6556,6 @@ export default function Home() {
                   enterTextEditing(block.id, caretOffset);
                   return;
                 }
-                triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setActiveTextTool(null);
               }}
@@ -6688,7 +6664,6 @@ export default function Home() {
                 if (!isEditing || heightCropSession?.blockId === block.id) return;
                 if (!completeBlockTapGesture(block.id)) return;
                 if (!releaseHeightCropForSelection(block.id)) return;
-                if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
@@ -6825,7 +6800,6 @@ export default function Home() {
               }}
               onSelect={() => {
                 if (!isEditing || !releaseHeightCropForSelection(block.id)) return;
-                if (selectedBlockId !== block.id) triggerSelectionHaptic();
                 setSelectedBlockId(block.id);
                 setEditingTextBlockId(null);
                 setActiveTextTool(null);
@@ -6873,7 +6847,6 @@ export default function Home() {
             }
             onSelect={() => {
               if (!isEditing || !releaseHeightCropForSelection(block.id)) return;
-              if (selectedBlockId !== block.id) triggerSelectionHaptic();
               setSelectedBlockId(block.id);
               setEditingTextBlockId(null);
               setActiveTextTool(null);

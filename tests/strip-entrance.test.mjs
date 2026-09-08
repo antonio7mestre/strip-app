@@ -94,6 +94,40 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   assert.match(componentSource, /animation.dispose\(\)/);
   assert.match(componentSource, /controller.current\?\.setReady\(ready\)/);
   assert.match(entranceCss, /--entrance-safe-top: env\(safe-area-inset-top\)/);
-  assert.doesNotMatch(entranceCss, /html.published-content-loading[\s\S]*background:/);
+  assert.doesNotMatch(entranceCss, /html.published-content-loading[^}]*background:/);
   assert.match(componentSource, /installScribbleSurface\(surface\)/);
+});
+
+test("text-first reader ink owns the edge only until its actual overlay is removed", () => {
+  assert.match(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body\s*\{\s*background: #000 !important;/);
+  assert.match(css, /\.published-mode\.has-leading-text:has\(\.strip-entrance\) > \.top-safe-area-anchor\s*\{\s*display: none;/);
+  assert.match(css, /padding-top: calc\(var\(--leading-image-inset\) \+ env\(safe-area-inset-top\)\)/);
+  assert.match(page, /hasLeadingImage \|\| \(view === "published" && hasLeadingText\)/);
+  const anchorEffect = page.slice(page.indexOf("const calculateLeadingImageOffset"), page.indexOf("const calculateLeadingImageOffset") + 2500);
+  assert.doesNotMatch(anchorEffect, /publishedLoaderIsVisible|publishedContentCanReveal/);
+});
+
+test("no vibration API, native switch proxy, or selection haptic remains", () => {
+  const ink = readFileSync(new URL("../app/lib/scribble-entrance.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(page + css + ink, /navigator\.vibrate|createScribbleHaptics|triggerSelectionHaptic|selection-haptic-proxy|safariHapticSwitch/);
+});
+
+test("a saved editor color never leaks into public Strip startup", () => {
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const literal = layout.match(/const initialThemeColorScript = (`[\s\S]*?`);/)[1];
+  const script = runInNewContext(literal);
+  for (const [hostname, pathname, expected] of [
+    ["striiip.com", "/strip/1788883180526-yblku5", 0],
+    ["striiip.com", "/share/1788883180526-yblku5", 0],
+    ["antonio.striiip.com", "/1788883180526-yblku5", 0],
+    ["localhost", "/strip/1788883180526-yblku5", 0],
+    ["striiip.com", "/edit/draft-123", 1],
+  ]) {
+    let reads = 0, writes = 0;
+    runInNewContext(script, {
+      window: { location: { hostname, pathname }, localStorage: { getItem: () => { reads++; return '[{"type":"text","backgroundColor":"#FF00FF"}]'; } } },
+      document: { getElementById: () => ({ setAttribute() { writes++; } }), documentElement: { style: { setProperty() {} } } },
+    });
+    assert.equal(reads, expected, pathname); assert.equal(writes, expected, pathname);
+  }
 });
