@@ -1,0 +1,187 @@
+export const SCRIBBLE_DRAW_MS = 2600;
+export const SCRIBBLE_FADE_MS = 650;
+export const SCRIBBLE_REDUCED_FADE_MS = 280;
+
+export type InkSegment = {
+  from: [number, number];
+  to: [number, number];
+  width: number;
+  color: number;
+};
+
+const clamp = (value: number) => Math.max(0, Math.min(1, value));
+
+/** A repeatable pen journey, not a scaled-up image. Coordinates are viewport-local. */
+export function makeScribble(width: number, height: number): InkSegment[] {
+  const w = Math.max(1, width), h = Math.max(1, height);
+  let seed = 7319;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const segments: InkSegment[] = [];
+  const cx = w / 2, cy = h / 2;
+  const step = Math.max(16, Math.min(w, h) * 0.085);
+  let previous: [number, number] = [cx, cy];
+  let previousWidth = 2.3;
+  let pass = 0;
+  const travel = (target: [number, number], penWidth: number, color: number, wobble: number) => {
+    const origin = previous;
+    const phase = random() * Math.PI * 2;
+    for (let j = 1; j <= 40; j++) {
+      const t = j / 40;
+      // The pen never lifts. Small sideways hesitations keep each long vertical
+      // stroke human, while its endpoints meet the next stroke exactly.
+      const sway = Math.sin(t * Math.PI) * (Math.sin(t * Math.PI * 3 + phase) * wobble
+        + (random() - 0.5) * wobble * 0.35);
+      const point: [number, number] = [
+        origin[0] + (target[0] - origin[0]) * t + sway,
+        origin[1] + (target[1] - origin[1]) * t,
+      ];
+      const width = previousWidth + (penWidth - previousWidth) * t;
+      segments.push({ from: previous, to: point, width: width * (0.92 + random() * 0.16), color });
+      previous = point;
+    }
+    previousWidth = penWidth;
+    pass++;
+  };
+  // A small back-and-forth scribble grows into long up/down strokes.
+  for (let i = 0; i < 30; i++) {
+    const growth = Math.pow(i / 29, 1.85);
+    const direction = i % 2 === 0 ? -1 : 1;
+    const target: [number, number] = [
+      i === 29 ? -step : cx + Math.sin(i * 1.71) * (7 + growth * w * 0.55),
+      cy + direction * (8 + growth * (h / 2 + step)),
+    ];
+    travel(target, 2.3 + growth * growth * step * 1.7,
+      [0, 0, 1, 0, 2, 0][Math.floor(i / 3) % 6], 0.7 + growth * step * 0.2);
+  }
+  // Keep that same up/down journey going across the page. The marker has now
+  // broadened enough that neighboring strokes meet, including every corner.
+  for (let x = -step; x <= w + step * 2; x += step) {
+    const direction = pass % 2 === 0 ? -1 : 1;
+    const target: [number, number] = [x, direction === -1 ? -step * 2 : h + step * 2];
+    travel(target, step * 2.3, [0, 1, 0, 2, 0][Math.floor(pass / 2) % 5], step * 0.12);
+  }
+  return segments;
+}
+
+export function scribbleProgress(elapsed: number) {
+  // Spend most of the drawing on the expanding knot, then scribble in the gaps.
+  const p = clamp(elapsed / SCRIBBLE_DRAW_MS);
+  return p < 0.79 ? Math.pow(p / 0.79, 0.9) * 0.6 : 0.6 + (p - 0.79) / 0.21 * 0.4;
+}
+
+export function startScribble(
+  canvas: HTMLCanvasElement,
+  host: HTMLElement,
+  palette: readonly string[],
+  onComplete: () => void,
+) {
+  const context = canvas.getContext("2d");
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let reduced = motion.matches;
+  let stopped = false, completed = false, ready = false, covered = false;
+  let frame = 0, started: number | null = null, fadeStarted: number | null = null;
+  let segments: InkSegment[] = [], drawn = 0, progress = 0;
+  let width = 1, height = 1;
+  const ink = [...palette].sort((a, b) => {
+    const lightness = (color: string) => parseInt(color.slice(1, 3), 16) * 0.2126
+      + parseInt(color.slice(3, 5), 16) * 0.7152 + parseInt(color.slice(5, 7), 16) * 0.0722;
+    return lightness(b) - lightness(a);
+  });
+  const drawTo = (target: number) => {
+    if (!context) return;
+    for (; drawn < target; drawn++) {
+      const segment = segments[drawn];
+      context.strokeStyle = ink[segment.color] ?? ink[0];
+      context.lineWidth = segment.width;
+      context.beginPath();
+      context.moveTo(...segment.from);
+      context.lineTo(...segment.to);
+      context.stroke();
+    }
+  };
+  const fillBehind = () => {
+    if (!context) return;
+    context.globalCompositeOperation = "destination-over";
+    context.fillStyle = ink[0];
+    context.fillRect(0, 0, width, height);
+    context.globalCompositeOperation = "source-over";
+  };
+  const paintReduced = () => {
+    if (!context) return;
+    context.clearRect(0, 0, width, height);
+    drawn = 0;
+    drawTo(110);
+    fillBehind();
+  };
+  const resize = () => {
+    if (stopped) return;
+    const bounds = host.getBoundingClientRect();
+    width = Math.max(1, bounds.width);
+    height = Math.max(1, bounds.height);
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    canvas.width = Math.ceil(width * ratio);
+    canvas.height = Math.ceil(height * ratio);
+    context?.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (context) { context.lineCap = "round"; context.lineJoin = "round"; }
+    segments = makeScribble(width, height);
+    drawn = 0;
+    if (reduced) paintReduced();
+    else { drawTo(Math.floor(progress * segments.length)); if (covered) fillBehind(); }
+  };
+  const schedule = () => {
+    if (!frame && !stopped && !completed) frame = requestAnimationFrame(tick);
+  };
+  function tick(now: number) {
+    frame = 0;
+    if (stopped || completed) return;
+    if (started === null) started = now;
+    if (!covered) {
+      progress = reduced || !context ? 1 : scribbleProgress(now - started);
+      if (reduced) paintReduced();
+      else drawTo(Math.floor(progress * segments.length));
+      host.dataset.inkProgress = progress.toFixed(3);
+      if (progress >= 1) {
+        covered = true;
+        fillBehind();
+        host.dataset.inkPhase = "covered";
+      }
+    }
+    if (covered && ready) {
+      if (fadeStarted === null) fadeStarted = now;
+      host.dataset.inkPhase = "fading";
+      const fade = clamp((now - fadeStarted) / (reduced ? SCRIBBLE_REDUCED_FADE_MS : SCRIBBLE_FADE_MS));
+      host.style.opacity = String(1 - fade * fade * (3 - 2 * fade));
+      if (fade === 1) {
+        completed = true;
+        onComplete();
+        return;
+      }
+    }
+    // No idle animation or sampling loop while a slow connection finishes.
+    if (!covered || ready) schedule();
+  }
+  const onMotionChange = () => {
+    reduced = motion.matches;
+    resize();
+    schedule();
+  };
+  host.dataset.inkPhase = "drawing";
+  host.style.opacity = "1";
+  resize();
+  const observer = new ResizeObserver(resize);
+  observer.observe(host);
+  motion.addEventListener("change", onMotionChange);
+  schedule();
+  return {
+    setReady(value: boolean) { ready = value; schedule(); },
+    dispose() {
+      stopped = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      motion.removeEventListener("change", onMotionChange);
+    },
+  };
+}

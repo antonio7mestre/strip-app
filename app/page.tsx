@@ -213,7 +213,6 @@ const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
-const PUBLISHED_LOADING_RELEASE_MS = 1400;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -3485,14 +3484,6 @@ export default function Home() {
     }, PUBLISHED_LOADING_MINIMUM_MS);
     return () => window.clearTimeout(timeout);
   }, [publishedStripLoadKey]);
-
-  useEffect(() => {
-    if (!publishedStripLoadKey || !publishedContentCanReveal) return;
-    const timeout = window.setTimeout(() => {
-      setPublishedLoaderDismissedKey(publishedStripLoadKey);
-    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 280 : PUBLISHED_LOADING_RELEASE_MS);
-    return () => window.clearTimeout(timeout);
-  }, [publishedContentCanReveal, publishedStripLoadKey]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -8262,6 +8253,7 @@ export default function Home() {
                 mediaReady={publishedContentReady}
                 revealing={publishedLoaderPhase === "revealing"}
                 onCoverSettled={() => setPublishedCoverSettledKey(publishedStripLoadKey)}
+                onExitComplete={() => setPublishedLoaderDismissedKey(publishedStripLoadKey)}
               />
             ) : null}
             {notice ? <div className="notice">{notice}</div> : null}

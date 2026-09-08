@@ -2,9 +2,30 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { makeEntrancePalette, sampleEntranceMedia } from "@/app/lib/strip-entrance";
+import { startScribble } from "@/app/lib/scribble-entrance";
 
 type Cover = { kind: "image"; src: string } | { kind: "color"; color: string };
 type PaletteBlock = { type: string; backgroundColor?: string; textColor?: string };
+
+function InkCanvas({ palette, ready, onComplete }: {
+  palette: string[]; ready: boolean; onComplete: () => void;
+}) {
+  // Once the pen touches down, arriving photos must not recolor old strokes.
+  const [ink] = useState(palette);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const controller = useRef<ReturnType<typeof startScribble> | null>(null);
+  const complete = useRef(onComplete);
+  useLayoutEffect(() => { complete.current = onComplete; }, [onComplete]);
+  useLayoutEffect(() => {
+    const element = canvas.current;
+    if (!element?.parentElement) return;
+    const animation = startScribble(element, element.parentElement, ink, () => complete.current());
+    controller.current = animation;
+    return () => { animation.dispose(); controller.current = null; };
+  }, [ink]);
+  useLayoutEffect(() => { controller.current?.setReady(ready); }, [ready]);
+  return <canvas ref={canvas} className="strip-entrance-ink" aria-hidden="true" />;
+}
 
 export function StripEntrance({
   cover,
@@ -13,6 +34,7 @@ export function StripEntrance({
   mediaReady,
   revealing,
   onCoverSettled,
+  onExitComplete,
 }: {
   cover: Cover;
   blocks: PaletteBlock[];
@@ -20,6 +42,7 @@ export function StripEntrance({
   mediaReady: boolean;
   revealing: boolean;
   onCoverSettled: () => void;
+  onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
   const mounted = useRef(false);
@@ -70,7 +93,6 @@ export function StripEntrance({
     "--entrance-a": palette[0],
     "--entrance-b": palette[1],
     "--entrance-c": palette[2],
-    "--entrance-release": "1400ms",
   } as CSSProperties;
 
   return (
@@ -94,19 +116,7 @@ export function StripEntrance({
           onError={() => settledCallback.current()}
         />
       ) : null}
-      <div className="strip-entrance-atmosphere" aria-hidden="true" />
-      <div className="strip-entrance-stage" aria-hidden="true">
-        {[0, 1, 2].map(index => (
-          <div className="strip-entrance-lane" data-lane={index} key={index}>
-            <div className="strip-entrance-arrival">
-              <div className="strip-entrance-ribbon">
-                <span className="strip-entrance-light" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <span className="strip-entrance-wordmark" aria-hidden="true">STRIP</span>
+      {hasPalette ? <InkCanvas palette={palette} ready={revealing} onComplete={onExitComplete} /> : null}
     </div>
   );
 }

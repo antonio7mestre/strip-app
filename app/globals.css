@@ -1753,35 +1753,26 @@ html.leading-image-inset-active .has-leading-image > .published-strip {
 }
 
 .published-strip-load-gate {
-  /* Keep the real strip painted under the entrance, including its footer. */
+  /* The strip stays painted and stationary behind the drawing. */
   visibility: visible;
   opacity: 1;
   pointer-events: none;
 }
-
 .published-strip-load-gate.is-ready {
   pointer-events: auto;
 }
-
 .published-strip-loading {
   position: fixed;
   z-index: 50;
   inset: 0;
-  display: grid;
   overflow: hidden;
-  place-items: center;
   isolation: isolate;
   touch-action: none;
 }
-
-.strip-entrance::before {
-  position: absolute;
-  z-index: -2;
-  inset: 0;
+.strip-entrance {
   background: #000;
-  content: "";
+  will-change: opacity;
 }
-
 .strip-entrance-color-source {
   position: absolute;
   width: 1px;
@@ -1789,193 +1780,14 @@ html.leading-image-inset-active .has-leading-image > .published-strip {
   opacity: 0;
   pointer-events: none;
 }
-
-.strip-entrance-atmosphere {
+.strip-entrance-ink {
   position: absolute;
-  z-index: -1;
-  width: min(92vw, 620px);
-  height: min(72svh, 620px);
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 28% 52%, var(--entrance-a), transparent 61%),
-    radial-gradient(ellipse at 72% 48%, var(--entrance-c), transparent 62%);
-  filter: blur(48px);
-  opacity: 0.16;
-  transform: translateZ(0);
-  animation: strip-entrance-atmosphere 4.8s ease-in-out infinite alternate;
-}
-
-.strip-entrance-stage {
-  position: relative;
-  width: clamp(190px, 54vw, 270px);
-  height: clamp(240px, 36svh, 350px);
-  transform: translate3d(0, -3svh, 0);
-  perspective: 900px;
-  will-change: transform, opacity;
-}
-
-.strip-entrance-lane {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 30%;
-  --lane-color: var(--entrance-a);
-  --lane-tilt: -9deg;
-  --lane-lift: 18px;
-  --lane-exit: -76%;
-  --lane-delay: 0ms;
-}
-
-.strip-entrance-lane[data-lane="0"] { left: 0; }
-.strip-entrance-lane[data-lane="1"] {
-  left: 35%;
-  --lane-color: var(--entrance-b);
-  --lane-tilt: 1deg;
-  --lane-lift: -16px;
-  --lane-exit: 0%;
-  --lane-delay: 90ms;
-}
-.strip-entrance-lane[data-lane="2"] {
-  left: 70%;
-  --lane-color: var(--entrance-c);
-  --lane-tilt: 9deg;
-  --lane-lift: 12px;
-  --lane-exit: 76%;
-  --lane-delay: 180ms;
-}
-
-.strip-entrance-arrival {
+  inset: 0;
+  display: block;
+  width: 100%;
   height: 100%;
-  transform-origin: 50% 80%;
-  animation: strip-entrance-unfold 1000ms var(--lane-delay)
-    cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.strip-entrance-ribbon {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-  border-radius: 999px;
-  background-color: var(--lane-color);
-  background-image: linear-gradient(100deg,
-    rgba(255,255,255,0.46) 0%, rgba(255,255,255,0.04) 20%,
-    transparent 44%, rgba(0,0,0,0.24) 100%);
-  box-shadow: inset 1px 0 0 rgba(255,255,255,0.24), 0 22px 48px rgba(0,0,0,0.28);
-  transform: translate3d(0, var(--lane-lift), 0) rotate(var(--lane-tilt));
-  transform-origin: 50% 60%;
-  transition: background-color 650ms ease;
-  animation: strip-entrance-sway 3600ms calc(1000ms + var(--lane-delay))
-    ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-.strip-entrance-light {
-  position: absolute;
-  inset: -60% -100%;
-  background: linear-gradient(170deg, transparent 36%, rgba(255,255,255,0.48) 49%, transparent 61%);
-  opacity: 0.4;
-  transform: translate3d(0, -30%, 0);
-  animation: strip-entrance-light 3800ms var(--lane-delay) ease-in-out infinite;
   pointer-events: none;
 }
-
-.strip-entrance-wordmark {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(50% + clamp(120px, 18svh, 175px) + 40px);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: 0.38em;
-  padding-left: 0.38em;
-  text-align: center;
-  opacity: 0.62;
-  animation: strip-entrance-wordmark 900ms 350ms both;
-}
-
-.strip-entrance.is-revealing {
-  pointer-events: none;
-}
-.strip-entrance:not(.has-palette) .strip-entrance-arrival,
-.strip-entrance:not(.has-palette) .strip-entrance-atmosphere,
-.strip-entrance:not(.has-palette) .strip-entrance-wordmark {
-  animation: none;
-  opacity: 0;
-}
-.strip-entrance.is-revealing::before {
-  animation: strip-entrance-backdrop var(--entrance-release) cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.strip-entrance.is-revealing .strip-entrance-stage {
-  animation: strip-entrance-open var(--entrance-release) cubic-bezier(0.55, 0, 0.2, 1) both;
-}
-.strip-entrance.is-revealing .strip-entrance-lane {
-  animation: strip-entrance-part var(--entrance-release) cubic-bezier(0.55, 0, 0.2, 1) both;
-}
-.strip-entrance.is-revealing .strip-entrance-lane[data-lane="1"] {
-  animation-name: strip-entrance-center;
-}
-.strip-entrance.is-revealing .strip-entrance-ribbon,
-.strip-entrance.is-revealing .strip-entrance-light {
-  animation-play-state: paused;
-}
-.strip-entrance.is-revealing .strip-entrance-atmosphere {
-  animation: strip-entrance-wash var(--entrance-release) ease-out both;
-}
-.strip-entrance.is-revealing .strip-entrance-wordmark {
-  animation: strip-entrance-wordmark-out 300ms ease-out both;
-}
-
-@keyframes strip-entrance-unfold {
-  0% { opacity: 0; transform: translate3d(0, 65px, 0) rotateX(50deg) scale3d(0.75, 0.28, 1); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) rotateX(0deg) scale3d(1, 1, 1); }
-}
-@keyframes strip-entrance-sway {
-  0% { transform: translate3d(0, var(--lane-lift), 0) rotate(var(--lane-tilt)); }
-  100% { transform: translate3d(0, calc(var(--lane-lift) * -0.45), 0) rotate(calc(var(--lane-tilt) * -0.45)); }
-}
-@keyframes strip-entrance-light {
-  0%, 12% { transform: translate3d(0, -30%, 0); opacity: 0; }
-  40% { opacity: 0.48; }
-  78%, 100% { transform: translate3d(0, 35%, 0); opacity: 0; }
-}
-@keyframes strip-entrance-atmosphere {
-  from { opacity: 0.10; transform: scale(0.92); }
-  to { opacity: 0.22; transform: scale(1.12); }
-}
-@keyframes strip-entrance-wordmark {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 0.62; transform: translateY(0); }
-}
-@keyframes strip-entrance-open {
-  0% { transform: translate3d(0, -3svh, 0) scale(1); opacity: 1; }
-  15% { transform: translate3d(0, -3svh, 0) scale(0.96); opacity: 1; }
-  62% { opacity: 0.94; }
-  100% { transform: translate3d(0, -3svh, 0) scale(7); opacity: 0; }
-}
-@keyframes strip-entrance-part {
-  0%, 15% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(var(--lane-exit), 0, 0); }
-}
-@keyframes strip-entrance-center {
-  0%, 15% { transform: translate3d(0, 0, 0); opacity: 1; }
-  65% { opacity: 0.5; }
-  100% { transform: translate3d(0, -26%, 0); opacity: 0; }
-}
-@keyframes strip-entrance-backdrop {
-  0%, 22% { opacity: 1; }
-  64% { opacity: 0.38; }
-  100% { opacity: 0; }
-}
-@keyframes strip-entrance-wash {
-  0% { opacity: 0.16; transform: scale(1); }
-  38% { opacity: 0.3; }
-  100% { opacity: 0; transform: scale(2.2); }
-}
-@keyframes strip-entrance-wordmark-out {
-  to { opacity: 0; transform: translateY(-8px); }
-}
-
 html.published-content-loading,
 html.published-content-loading body {
   overflow: hidden;
@@ -1983,22 +1795,6 @@ html.published-content-loading body {
 }
 html.published-content-loading .top-safe-area-anchor {
   background: #000000 !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .strip-entrance *, .strip-entrance.is-revealing * {
-    animation: none !important;
-    transition: none !important;
-  }
-  .strip-entrance.is-revealing {
-    animation: strip-entrance-fade 280ms ease-out both;
-  }
-  .strip-entrance.is-revealing::before {
-    animation: none;
-  }
-}
-@keyframes strip-entrance-fade {
-  to { opacity: 0; }
 }
 
 .sticker-block {

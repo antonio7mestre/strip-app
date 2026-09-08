@@ -7,6 +7,7 @@ import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia } from "../app/lib/strip-entrance.ts";
+import { startScribble } from "../app/lib/scribble-entrance.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -61,23 +62,25 @@ const exports = {};
 runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
-  ? { makeEntrancePalette, sampleEntranceMedia } : require(name) });
-test("renders one accessible status, three ribbons, and no duplicated videos or orb", () => {
+  ? { makeEntrancePalette, sampleEntranceMedia } : name === "@/app/lib/scribble-entrance"
+    ? { startScribble } : require(name) });
+test("renders one accessible status and one flat ink canvas, without ribbons or extra media", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
-    mediaReady: true, revealing: false, onCoverSettled() {},
+    mediaReady: true, revealing: false, onCoverSettled() {}, onExitComplete() {},
   }));
-  assert.equal((html.match(/data-lane=/g) ?? []).length, 3);
+  assert.equal((html.match(/<canvas/g) ?? []).length, 1);
   assert.equal((html.match(/role="status"/g) ?? []).length, 1);
   assert.match(html, /--entrance-a:#FF3366/);
   assert.match(html, /aria-label="Loading Strip"/);
-  assert.doesNotMatch(html, /<video|orb|<canvas/);
+  assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
 test("readiness, timeout, and reduced motion preserve the loading contract", () => {
   assert.match(page, /publishedAssetsReady && publishedMinimumElapsed/);
   assert.match(page, /PUBLISHED_MEDIA_LOAD_TIMEOUT_MS/);
-  assert.match(page, /prefers-reduced-motion: reduce.*\? 280 : PUBLISHED_LOADING_RELEASE_MS/);
+  assert.match(page, /onExitComplete=\{\(\) => setPublishedLoaderDismissedKey\(publishedStripLoadKey\)\}/);
+  assert.doesNotMatch(page, /PUBLISHED_LOADING_RELEASE_MS/);
   assert.match(componentSource, /cancelAnimationFrame\(frame\)/);
   assert.match(componentSource, /if \(!mounted.current\) return/);
   assert.match(componentSource, /if \(revealing\) frozen.current = true/);
@@ -87,8 +90,7 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   const entranceCss = css.slice(css.indexOf(".published-strip-load-gate {"), css.indexOf(".sticker-block {"));
   assert.doesNotMatch(entranceCss, /published-strip-orb/);
   assert.match(entranceCss, /\.published-strip-load-gate \{[\s\S]*?visibility: visible;[\s\S]*?opacity: 1;/);
-  assert.match(entranceCss, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(entranceCss, /strip-entrance-fade 280ms/);
-  assert.match(page, /PUBLISHED_LOADING_RELEASE_MS = 1400/);
-  assert.match(componentSource, /"--entrance-release": "1400ms"/);
+  assert.doesNotMatch(entranceCss, /gradient|box-shadow|filter:|ribbon|@keyframes/);
+  assert.match(componentSource, /animation.dispose\(\)/);
+  assert.match(componentSource, /controller.current\?\.setReady\(ready\)/);
 });

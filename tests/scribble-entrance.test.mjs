@@ -1,0 +1,176 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { makeScribble, scribbleProgress, startScribble, SCRIBBLE_DRAW_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+
+test("starts as a tiny knot and draws a repeatable, bounded pen journey", () => {
+  const path = makeScribble(393, 852);
+  assert.deepEqual(path, makeScribble(393, 852));
+  assert.ok(path.length < 3000);
+  for (const segment of path.slice(0, 100)) {
+    assert.ok(Math.abs(segment.to[0] - 393 / 2) < 22);
+    assert.ok(Math.abs(segment.to[1] - 852 / 2) < 22);
+  }
+  for (const segment of path) {
+    assert.ok(segment.width > 0);
+    assert.ok([...segment.from, ...segment.to, segment.width].every(Number.isFinite));
+    assert.ok([0, 1, 2].includes(segment.color));
+  }
+  assert.ok(new Set(path.map(segment => segment.width)).size > 100);
+});
+
+test("finishing strokes cover every sampled edge and corner on phone, landscape, and desktop", () => {
+  for (const [w, h] of [[393, 852], [852, 393], [1440, 900], [320, 1024]]) {
+    const path = makeScribble(w, h);
+    for (let yi = 0; yi <= 36; yi++) for (let xi = 0; xi <= 24; xi++) {
+      const x = xi * w / 24, y = yi * h / 36;
+      assert.ok(path.some(s => {
+        const dx = s.to[0] - s.from[0], dy = s.to[1] - s.from[1];
+        const t = Math.max(0, Math.min(1, ((x-s.from[0])*dx + (y-s.from[1])*dy) / (dx*dx + dy*dy || 1)));
+        return Math.hypot(x-s.from[0]-t*dx, y-s.from[1]-t*dy) < s.width / 2;
+      }), `uncovered ${x},${y} at ${w}x${h}`);
+    }
+  }
+});
+
+test("one continuous pen stroke moves predominantly up and down", () => {
+  const path = makeScribble(393, 852);
+  let vertical = 0, horizontal = 0;
+  for (let index = 0; index < path.length; index++) {
+    const segment = path[index];
+    if (index) assert.deepEqual(segment.from, path[index - 1].to);
+    vertical += Math.abs(segment.to[1] - segment.from[1]);
+    horizontal += Math.abs(segment.to[0] - segment.from[0]);
+  }
+  assert.ok(vertical > horizontal * 4);
+});
+
+test("drawing progress is continuous, monotonic, and clamped", () => {
+  let previous = 0;
+  for (let ms = -20; ms <= 3000; ms++) {
+    const p = scribbleProgress(ms);
+    assert.ok(p >= previous && p >= 0 && p <= 1);
+    assert.ok(p - previous < 0.003);
+    previous = p;
+  }
+  assert.equal(scribbleProgress(SCRIBBLE_DRAW_MS), 1);
+});
+
+function harness({ reduced = false, canvasFails = false } = {}) {
+  const queue = new Map(), listeners = new Map();
+  let id = 0, resized, disconnected = false, strokes = 0, fills = 0, done = 0;
+  let bounds = { width: 393, height: 852 };
+  const media = { matches: reduced, addEventListener: (name, fn) => listeners.set(name, fn),
+    removeEventListener: name => listeners.delete(name) };
+  globalThis.window = { matchMedia: () => media, devicePixelRatio: 3 };
+  globalThis.requestAnimationFrame = fn => { queue.set(++id, fn); return id; };
+  globalThis.cancelAnimationFrame = key => queue.delete(key);
+  globalThis.ResizeObserver = class {
+    constructor(callback) { resized = callback; }
+    observe() {}
+    disconnect() { disconnected = true; }
+  };
+  const context = { setTransform() {}, beginPath() {}, moveTo() {}, lineTo() {}, clearRect() {},
+    stroke() { strokes++; }, fillRect() { fills++; } };
+  const canvas = { width: 0, height: 0, getContext: () => canvasFails ? null : context };
+  const host = { dataset: {}, style: {}, getBoundingClientRect: () => bounds };
+  const animation = startScribble(canvas, host, ["#EC6350", "#99CC00", "#2244AA"], () => done++);
+  return { animation, host, canvas, queue,
+    get done() { return done; }, get strokes() { return strokes; }, get fills() { return fills; },
+    get disconnected() { return disconnected; }, get listeners() { return listeners.size; },
+    tick(now) { const pending = [...queue.values()]; queue.clear(); pending.forEach(callback => callback(now)); },
+    resize(width, height) { bounds = { width, height }; resized(); },
+    motion(value) { media.matches = value; listeners.get("change")(); },
+    clean() {
+      animation.dispose();
+      delete globalThis.window; delete globalThis.requestAnimationFrame;
+      delete globalThis.cancelAnimationFrame; delete globalThis.ResizeObserver;
+    },
+  };
+}
+
+test("never fades before the page is fully inked, then completes exactly once", () => {
+  const h = harness();
+  try {
+    h.animation.setReady(true);
+    h.tick(0); h.tick(SCRIBBLE_DRAW_MS - 1);
+    assert.equal(h.host.dataset.inkPhase, "drawing");
+    assert.equal(h.host.style.opacity, "1");
+    h.tick(SCRIBBLE_DRAW_MS);
+    assert.equal(h.host.dataset.inkPhase, "fading");
+    assert.equal(h.host.dataset.inkProgress, "1.000");
+    assert.ok(h.fills > 0);
+    h.tick(SCRIBBLE_DRAW_MS + SCRIBBLE_FADE_MS / 2);
+    assert.equal(Number(h.host.style.opacity), 0.5);
+    h.tick(SCRIBBLE_DRAW_MS + SCRIBBLE_FADE_MS);
+    assert.equal(h.done, 1);
+    h.animation.setReady(true); h.tick(9000);
+    assert.equal(h.done, 1);
+    assert.equal(h.queue.size, 0);
+  } finally { h.clean(); }
+});
+
+test("slow assets hold the completed drawing with no idle animation loop", () => {
+  const h = harness();
+  try {
+    h.tick(0); h.tick(SCRIBBLE_DRAW_MS);
+    assert.equal(h.host.dataset.inkPhase, "covered");
+    assert.equal(h.queue.size, 0);
+    assert.equal(h.done, 0);
+    h.animation.setReady(true);
+    h.tick(10000); h.tick(10000 + SCRIBBLE_FADE_MS);
+    assert.equal(h.done, 1);
+  } finally { h.clean(); }
+});
+
+test("resize preserves drawing progress and fade instead of restarting or clearing the frame", () => {
+  const h = harness();
+  try {
+    h.tick(0); h.tick(1900);
+    const progress = h.host.dataset.inkProgress, before = h.strokes;
+    h.resize(852, 393);
+    assert.equal(h.host.dataset.inkProgress, progress);
+    assert.ok(h.strokes > before);
+    assert.equal(h.canvas.width, 1278);
+    h.animation.setReady(true); h.tick(2600); h.tick(2800);
+    const opacity = h.host.style.opacity;
+    h.resize(393, 852);
+    assert.equal(h.host.style.opacity, opacity);
+    h.tick(3250);
+    assert.equal(h.done, 1);
+  } finally { h.clean(); }
+});
+
+test("reduced motion skips scrawling, honors readiness, and fades gently", () => {
+  const h = harness({ reduced: true });
+  try {
+    h.tick(0);
+    assert.equal(h.host.dataset.inkPhase, "covered");
+    assert.equal(h.queue.size, 0);
+    h.animation.setReady(true); h.tick(3000); h.tick(3140);
+    assert.equal(Number(h.host.style.opacity), 0.5);
+    h.tick(3280);
+    assert.equal(h.done, 1);
+  } finally { h.clean(); }
+});
+
+test("canvas failure and a reduced-motion preference change cannot trap the loader", () => {
+  for (const canvasFails of [false, true]) {
+    const h = harness({ canvasFails });
+    try {
+      h.tick(0); h.motion(true);
+      h.animation.setReady(true); h.tick(1000); h.tick(1280);
+      assert.equal(h.done, 1);
+    } finally { h.clean(); }
+  }
+});
+
+test("unmount cancels drawing and removes observers and listeners", () => {
+  const h = harness();
+  try {
+    h.tick(0); h.animation.dispose(); h.tick(10000);
+    assert.equal(h.done, 0);
+    assert.equal(h.queue.size, 0);
+    assert.equal(h.listeners, 0);
+    assert.equal(h.disconnected, true);
+  } finally { h.clean(); }
+});
