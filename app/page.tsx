@@ -6676,8 +6676,12 @@ export default function Home() {
     setActiveTextTool(null);
   };
 
-  const showEndingPreviewActionNotice = () => {
-    setNotice("These buttons are only live when your Strip is published.");
+  const handleEditorEndingAction = () => {
+    if (!endingIsSelected) {
+      selectEndingBlock();
+      return;
+    }
+    setNotice("Publish to use these buttons.");
   };
 
   const renderStrip = (
@@ -7121,13 +7125,20 @@ export default function Home() {
         <section
           className={`strip-block strip-ending-card strip-end-sheet ${
             isEditing ? "is-editing" : ""
-          } ${isEditing && endingIsSelected ? "is-selected" : ""}`}
+          } ${isEditing && endingIsSelected ? "is-selected" : ""} ${
+            isEditing && endingFollowsText && selectedBlockId === trailingFlowBlock.id
+              ? "is-after-selected-text"
+              : ""
+          }`}
           data-block-id={STRIP_ENDING_BLOCK_ID}
           role={isEditing && !endingIsSelected ? "button" : undefined}
           tabIndex={isEditing && !endingIsSelected ? 0 : undefined}
           style={
             {
               "--ending-background": sourceEndingStyle.backgroundColor,
+              "--ending-corner-color": endingFollowsText
+                ? trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND
+                : undefined,
               "--ending-foreground": contrastColor(
                 sourceEndingStyle.backgroundColor,
               ),
@@ -7164,8 +7175,8 @@ export default function Home() {
             <StripEndActions
               primaryAction="edit"
               primaryLabel="Edit this Strip"
-              onPrimary={showEndingPreviewActionNotice}
-              onShare={showEndingPreviewActionNotice}
+              onPrimary={handleEditorEndingAction}
+              onShare={handleEditorEndingAction}
             />
           </div>
         </section>
@@ -8379,6 +8390,9 @@ export default function Home() {
         openedPublishedStrip?.viewerIsOwner === true;
       const publishedStripStyle = {
         "--ending-background": visibleEndingStyle.backgroundColor,
+        "--ending-corner-color": publishedEndsWithText
+          ? trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND
+          : undefined,
         "--ending-foreground": contrastColor(
           visibleEndingStyle.backgroundColor,
         ),

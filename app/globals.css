@@ -1238,6 +1238,19 @@ html.library-scroll-top-locked .library-mode {
   padding-bottom: 12px;
 }
 
+.strip-canvas.has-trailing-text > .strip-ending-card::after,
+.published-strip.has-trailing-text > .published-bottom-sheet::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  corner-shape: inherit;
+  /* Paint only the corner cutouts, not the footer or the canvas below it. */
+  box-shadow: 0 0 0 var(--iphone-panel-radius) var(--ending-corner-color);
+  clip-path: inset(0);
+  content: "";
+  pointer-events: none;
+}
+
 .media-edge-extension {
   position: absolute;
   top: 100%;
@@ -1626,7 +1639,8 @@ html.library-scroll-top-locked .library-mode {
   overflow: visible;
 }
 
-.strip-ending-card.is-selected {
+.strip-ending-card.is-selected,
+.strip-ending-card.is-after-selected-text {
   box-shadow: none;
 }
 

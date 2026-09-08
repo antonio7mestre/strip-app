@@ -142,3 +142,95 @@ test("the extension sits below the source and never intercepts input", () => {
   assert.match(rule, /pointer-events: none/);
   assert.doesNotMatch(css, /margin-top: calc\(-1 \* var\(--iphone-panel-radius\)\)/);
 });
+
+const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const pageTree = ts.createSourceFile("page.tsx", pageSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function findNode(predicate) {
+  let found;
+  function visit(node) {
+    if (!found && predicate(node)) found = node;
+    if (!found) ts.forEachChild(node, visit);
+  }
+  visit(pageTree);
+  assert.ok(found, "expected footer source node");
+  return found;
+}
+function evaluate(source, bindings = {}) {
+  const exports = {};
+  const script = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+  runInNewContext(script, {
+    ...bindings, exports,
+    require: () => ({ jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) }),
+  });
+  return exports;
+}
+
+test("both footer buttons select on first click and warn only after selection", () => {
+  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handleEditorEndingAction");
+  const actions = findNode((node) => ts.isFunctionDeclaration(node) && node.name?.text === "StripEndActions");
+  for (const buttonIndex of [0, 1]) {
+    for (const endingIsSelected of [false, true]) {
+      let selections = 0;
+      let propagationStops = 0;
+      const notices = [];
+      const evaluated = evaluate(`export const ${handler.getText(pageTree)};\nexport ${actions.getText(pageTree)}`, {
+        endingIsSelected,
+        selectEndingBlock: () => selections++,
+        setNotice: (message) => notices.push(message),
+        Pencil: "pencil", Plus: "plus", Send: "send",
+      });
+      const tree = evaluated.StripEndActions({
+        primaryAction: "edit", primaryLabel: "Edit this Strip",
+        onPrimary: evaluated.handleEditorEndingAction, onShare: evaluated.handleEditorEndingAction,
+      });
+      tree.props.children[buttonIndex].props.onClick({ stopPropagation: () => propagationStops++ });
+      assert.equal(propagationStops, 1, "the same click must not also activate the container");
+      assert.equal(selections, endingIsSelected ? 0 : 1);
+      assert.deepEqual(notices, endingIsSelected ? ["Publish to use these buttons."] : []);
+    }
+  }
+});
+
+test("the footer suppresses its shadow only for its own selection or the final text selection", () => {
+  const footer = findNode((node) => ts.isJsxOpeningElement(node) && node.tagName.getText(pageTree) === "section" && node.attributes.getText(pageTree).includes("strip-ending-card strip-end-sheet"));
+  const className = footer.attributes.properties.find((property) => property.name?.getText(pageTree) === "className");
+  const expression = className.initializer.expression.getText(pageTree);
+  for (const [isEditing, endingFollowsText, selectedBlockId, expected] of [
+    [true, true, "last-text", true],
+    [true, true, "other-text", false],
+    [true, false, "last-text", false],
+    [false, true, "last-text", false],
+  ]) {
+    const result = evaluate(`export const className = ${expression};`, {
+      isEditing, endingFollowsText, selectedBlockId, endingIsSelected: false,
+      trailingFlowBlock: { id: "last-text" },
+    });
+    assert.equal(result.className.includes("is-after-selected-text"), expected);
+  }
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.strip-ending-card\.is-selected,\s*\.strip-ending-card\.is-after-selected-text\s*\{\s*box-shadow: none;/);
+});
+
+test("text corner fill is confined to the rounded cutouts in editor and live strips", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const rule = css.match(/\.strip-canvas\.has-trailing-text > \.strip-ending-card::after,\s*\.published-strip\.has-trailing-text > \.published-bottom-sheet::after \{([^}]+)\}/)[1];
+  assert.match(rule, /inset: 0/);
+  assert.match(rule, /clip-path: inset\(0\)/);
+  assert.match(rule, /border-radius: inherit/);
+  assert.match(rule, /corner-shape: inherit/);
+  assert.match(rule, /var\(--ending-corner-color\)/);
+  assert.match(rule, /pointer-events: none/);
+  const style = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "publishedStripStyle");
+  for (const publishedEndsWithText of [false, true]) {
+    const result = evaluate(`export const ${style.getText(pageTree)};`, {
+      visibleEndingStyle: { backgroundColor: "#66FF8A", buttonColor: "#003BEA" },
+      publishedEndsWithText,
+      trailingPublishedBlock: { backgroundColor: "#9772FF" },
+      DEFAULT_BACKGROUND: "#000000", contrastColor: () => "#000000",
+    }).publishedStripStyle;
+    assert.equal(result["--ending-corner-color"], publishedEndsWithText ? "#9772FF" : undefined);
+    assert.equal(result["--ending-background"], "#66FF8A", "the footer keeps its own color");
+  }
+});
