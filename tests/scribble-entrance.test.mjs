@@ -32,15 +32,15 @@ test("the paint surface follows the existing anchor without scrolling or retaini
     assert.equal(attributes.has("name"), false);
     theme.setAttribute("content", "#FF00FF");
     assert.deepEqual([host.style.top,host.style.height],["-62px","904px"]);
-    assert.equal(properties.get("--entrance-label-bottom"),"152px");
+    assert.equal(properties.get("--entrance-label-bottom"),"140px");
     window.scrollY=62; nextFrame();
     assert.deepEqual([host.style.top,host.style.height],["0px","904px"]);
     window.innerHeight=754;viewportEvents.get("resize")();
     assert.equal(host.style.height,"904px");
-    assert.equal(properties.get("--entrance-label-bottom"),"112px");
+    assert.equal(properties.get("--entrance-label-bottom"),"100px");
     window.visualViewport.height=680; window.visualViewport.offsetTop=4;
     viewportEvents.get("scroll")();
-    assert.equal(properties.get("--entrance-label-bottom"),"182px");
+    assert.equal(properties.get("--entrance-label-bottom"),"170px");
     const lateScroll=events.get("scroll");
     dispose();window.scrollY=500;lateScroll();
     assert.equal(host.style.top,"0px");

@@ -78,7 +78,7 @@ test("renders one accessible status and one flat ink canvas, without ribbons or 
   assert.match(html, /STRIP LOADING\.\.\./);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
-  assert.match(html, />0%<\/span>/);
+  assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
 test("readiness and timeout preserve the loading contract", () => {
@@ -111,6 +111,10 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
   assert.match(readoutCss,/color: #fff;/);
   assert.match(readoutCss,/text-shadow: 0 1px 3px rgba\(0, 0, 0, 0.2\)/);
+  assert.match(readoutCss,/justify-content: center;/);
+  assert.match(readoutCss,/gap: 0.5em;/);
+  assert.match(readoutCss,/white-space: nowrap;/);
+  assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*width: 3ch;\s*text-align: right;/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
   assert.match(componentSource,/ready=\{revealing && displayPercent === 100\}/);
 });

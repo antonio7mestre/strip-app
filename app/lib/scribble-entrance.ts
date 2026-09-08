@@ -41,7 +41,7 @@ export function installScribbleSurface(host: HTMLElement) {
     if (host.style.height !== height) host.style.height = height;
     const viewport = window.visualViewport;
     const visibleBottom = Math.min(window.innerHeight, (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0));
-    const labelBottom = Math.max(24, size.height + size.top - window.scrollY - visibleBottom + 24) + "px";
+    const labelBottom = Math.max(12, size.height + size.top - window.scrollY - visibleBottom + 12) + "px";
     if (host.style.getPropertyValue("--entrance-label-bottom") !== labelBottom) {
       host.style.setProperty("--entrance-label-bottom", labelBottom);
     }

@@ -1812,12 +1812,13 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   position: absolute;
   z-index: 1;
   right: max(24px, env(safe-area-inset-right));
-  bottom: var(--entrance-label-bottom, calc(env(safe-area-inset-bottom) + 28px));
+  bottom: var(--entrance-label-bottom, calc(env(safe-area-inset-bottom) + 16px));
   left: max(24px, env(safe-area-inset-left));
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: center;
+  gap: 0.5em;
+  white-space: nowrap;
   color: #fff;
   font-size: 0.875rem;
   font-weight: 600;
@@ -1827,9 +1828,16 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   pointer-events: none;
 }
 .strip-entrance-percent {
+  display: inline-flex;
+  align-items: baseline;
   flex: none;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+}
+.strip-entrance-percent-value {
+  /* Reserve all three digits so the label and percent sign never shift. */
+  width: 3ch;
+  text-align: right;
 }
 html.published-content-loading,
 html.published-content-loading body {

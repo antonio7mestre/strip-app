@@ -138,7 +138,7 @@ export function StripEntrance({
       <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
         <span aria-hidden="true">STRIP LOADING...</span>
-        <span className="strip-entrance-percent" aria-hidden="true">{displayPercent}%</span>
+        <span className="strip-entrance-percent" aria-hidden="true"><span className="strip-entrance-percent-value">{displayPercent}</span>%</span>
       </div>
     </div>
   );
