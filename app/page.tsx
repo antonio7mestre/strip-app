@@ -51,6 +51,7 @@ import {
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
+import { StripEntrance } from "@/app/components/StripEntrance";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
@@ -212,7 +213,7 @@ const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
-const PUBLISHED_LOADING_RELEASE_MS = 1200;
+const PUBLISHED_LOADING_RELEASE_MS = 1400;
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -3489,7 +3490,7 @@ export default function Home() {
     if (!publishedStripLoadKey || !publishedContentCanReveal) return;
     const timeout = window.setTimeout(() => {
       setPublishedLoaderDismissedKey(publishedStripLoadKey);
-    }, PUBLISHED_LOADING_RELEASE_MS);
+    }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 280 : PUBLISHED_LOADING_RELEASE_MS);
     return () => window.clearTimeout(timeout);
   }, [publishedContentCanReveal, publishedStripLoadKey]);
 
@@ -8253,165 +8254,15 @@ export default function Home() {
               </footer>
             </article>
             {publishedLoaderIsVisible ? (
-              <div
-                className={`published-strip-loading ${
-                  publishedLoaderPhase === "revealing" ? "is-revealing" : ""
-                }`}
-                role="status"
-                aria-label="Loading Strip"
-              >
-                <div className="published-strip-loading-orb-stage" aria-hidden="true">
-                  <div className="published-strip-loading-orb-drift">
-                    <div
-                      className={`published-strip-loading-orb is-${
-                        openedPublishedStrip.cover.kind
-                      }`}
-                    >
-                      {openedPublishedStrip.cover.kind === "image" ? (
-                        <>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            className="published-strip-loading-orb-glow"
-                            src={openedPublishedStrip.cover.src}
-                            alt=""
-                            fetchPriority="high"
-                            decoding="async"
-                            draggable={false}
-                            onLoad={(event) => {
-                              const image = event.currentTarget;
-                              void image
-                                .decode()
-                                .catch(() => {})
-                                .then(() =>
-                                  setPublishedCoverSettledKey(
-                                    publishedStripLoadKey,
-                                  ),
-                                );
-                            }}
-                            onError={() =>
-                              setPublishedCoverSettledKey(publishedStripLoadKey)
-                            }
-                          />
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            className="published-strip-loading-orb-vapor is-far"
-                            src={openedPublishedStrip.cover.src}
-                            alt=""
-                            decoding="async"
-                            draggable={false}
-                          />
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            className="published-strip-loading-orb-vapor is-near"
-                            src={openedPublishedStrip.cover.src}
-                            alt=""
-                            decoding="async"
-                            draggable={false}
-                          />
-                          <div className="published-strip-loading-orb-surface">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={openedPublishedStrip.cover.src}
-                              alt=""
-                              fetchPriority="high"
-                              decoding="async"
-                              draggable={false}
-                            />
-                            <svg
-                              className="published-strip-loading-orb-grain"
-                              viewBox="0 0 100 100"
-                              preserveAspectRatio="none"
-                              focusable="false"
-                            >
-                              <filter id="published-strip-gas-texture-image">
-                                <feTurbulence
-                                  type="fractalNoise"
-                                  baseFrequency="0.018 0.036"
-                                  numOctaves="3"
-                                  seed="11"
-                                  stitchTiles="stitch"
-                                />
-                                <feComponentTransfer>
-                                  <feFuncA
-                                    type="table"
-                                    tableValues="0.05 0.62"
-                                  />
-                                </feComponentTransfer>
-                              </filter>
-                              <rect
-                                width="100"
-                                height="100"
-                                filter="url(#published-strip-gas-texture-image)"
-                              />
-                            </svg>
-                            <span className="published-strip-loading-orb-sheen" />
-                            <span className="published-strip-loading-orb-membrane" />
-                          </div>
-                          <span className="published-strip-loading-orb-burst-ring" />
-                        </>
-                      ) : (
-                        <>
-                          <span
-                            className="published-strip-loading-orb-glow"
-                            style={{
-                              backgroundColor: openedPublishedStrip.cover.color,
-                            }}
-                          />
-                          <span
-                            className="published-strip-loading-orb-vapor is-far"
-                            style={{
-                              backgroundColor: openedPublishedStrip.cover.color,
-                            }}
-                          />
-                          <span
-                            className="published-strip-loading-orb-vapor is-near"
-                            style={{
-                              backgroundColor: openedPublishedStrip.cover.color,
-                            }}
-                          />
-                          <div
-                            className="published-strip-loading-orb-surface"
-                            style={{
-                              backgroundColor: openedPublishedStrip.cover.color,
-                            }}
-                          >
-                            <svg
-                              className="published-strip-loading-orb-grain"
-                              viewBox="0 0 100 100"
-                              preserveAspectRatio="none"
-                              focusable="false"
-                            >
-                              <filter id="published-strip-gas-texture-color">
-                                <feTurbulence
-                                  type="fractalNoise"
-                                  baseFrequency="0.018 0.036"
-                                  numOctaves="3"
-                                  seed="17"
-                                  stitchTiles="stitch"
-                                />
-                                <feComponentTransfer>
-                                  <feFuncA
-                                    type="table"
-                                    tableValues="0.04 0.56"
-                                  />
-                                </feComponentTransfer>
-                              </filter>
-                              <rect
-                                width="100"
-                                height="100"
-                                filter="url(#published-strip-gas-texture-color)"
-                              />
-                            </svg>
-                            <span className="published-strip-loading-orb-sheen" />
-                            <span className="published-strip-loading-orb-membrane" />
-                          </div>
-                          <span className="published-strip-loading-orb-burst-ring" />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <StripEntrance
+                key={publishedStripLoadKey}
+                cover={openedPublishedStrip.cover}
+                blocks={publishedBlocks}
+                endingStyle={visibleEndingStyle}
+                mediaReady={publishedContentReady}
+                revealing={publishedLoaderPhase === "revealing"}
+                onCoverSettled={() => setPublishedCoverSettledKey(publishedStripLoadKey)}
+              />
             ) : null}
             {notice ? <div className="notice">{notice}</div> : null}
           </main>

@@ -1753,16 +1753,14 @@ html.leading-image-inset-active .has-leading-image > .published-strip {
 }
 
 .published-strip-load-gate {
-  visibility: hidden;
-  opacity: 0;
+  /* Keep the real strip painted under the entrance, including its footer. */
+  visibility: visible;
+  opacity: 1;
   pointer-events: none;
 }
 
 .published-strip-load-gate.is-ready {
-  visibility: visible;
-  opacity: 1;
   pointer-events: auto;
-  transition: opacity 720ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .published-strip-loading {
@@ -1776,415 +1774,206 @@ html.leading-image-inset-active .has-leading-image > .published-strip {
   touch-action: none;
 }
 
-.published-strip-loading::before {
+.strip-entrance::before {
   position: absolute;
-  z-index: -1;
+  z-index: -2;
   inset: 0;
-  background: #000000;
+  background: #000;
   content: "";
-  opacity: 1;
 }
 
-.published-strip-loading.is-revealing {
-  pointer-events: none;
-}
-
-.published-strip-loading.is-revealing::before {
-  animation: published-strip-loading-backdrop-release 1200ms
-    cubic-bezier(0.2, 0.78, 0.24, 1) both;
-}
-
-.published-strip-loading-orb-stage {
-  position: relative;
-  width: clamp(148px, 44vw, 208px);
-  aspect-ratio: 1;
-  transform: translateZ(0) scale(1);
-  will-change: transform, opacity;
-}
-
-.published-strip-loading-orb-drift,
-.published-strip-loading-orb {
+.strip-entrance-color-source {
   position: absolute;
-  inset: 0;
-}
-
-.published-strip-loading-orb-drift {
-  animation: published-strip-orb-drift 5.2s ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-.published-strip-loading-orb {
-  isolation: isolate;
-}
-
-.published-strip-loading-orb-glow,
-.published-strip-loading-orb-vapor,
-.published-strip-loading-orb-surface {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 44% 56% 52% 48% / 49% 43% 57% 51%;
-}
-
-.published-strip-loading-orb-glow {
-  transform: translate3d(-1%, 2%, 0) scale(1.28);
-  filter: blur(30px) saturate(1.24);
-  opacity: 0.34;
-  object-fit: cover;
-  animation: published-strip-orb-glow-drift 4.4s ease-in-out infinite alternate;
-  will-change: transform, opacity;
-}
-
-.published-strip-loading-orb-vapor {
-  z-index: -1;
-  object-fit: cover;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-
-.published-strip-loading-orb-vapor.is-far {
-  border-radius: 58% 42% 37% 63% / 45% 60% 40% 55%;
-  transform: translate3d(-13%, 8%, 0) scale(0.82);
-  filter: blur(24px) saturate(1.32);
-  opacity: 0.2;
-  animation: published-strip-orb-vapor-far 5.8s ease-in-out infinite alternate;
-}
-
-.published-strip-loading-orb-vapor.is-near {
-  border-radius: 39% 61% 57% 43% / 63% 41% 59% 37%;
-  transform: translate3d(12%, -9%, 0) scale(0.72);
-  filter: blur(17px) saturate(1.18);
-  opacity: 0.25;
-  animation: published-strip-orb-vapor-near 4.9s ease-in-out infinite alternate;
-}
-
-.published-strip-loading-orb-surface {
-  z-index: 1;
-  overflow: hidden;
-  transform: translateZ(0) scale3d(0.98, 1.04, 1);
-  opacity: 0.7;
-  box-shadow:
-    inset 0 0 42px rgba(255, 255, 255, 0.16),
-    inset 12px -16px 34px rgba(0, 0, 0, 0.2),
-    0 0 58px rgba(255, 255, 255, 0.08);
-  animation: published-strip-orb-breathe 5.6s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.published-strip-loading-orb-surface img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform: translate3d(-2%, -1%, 0) scale(1.17);
-  filter: saturate(0.84) contrast(0.86) brightness(0.9);
-  object-fit: cover;
-  animation: published-strip-orb-image-drift 6.8s ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-.published-strip-loading-orb-grain,
-.published-strip-loading-orb-sheen,
-.published-strip-loading-orb-membrane {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.published-strip-loading-orb-grain {
-  transform: scale(1.08);
-  mix-blend-mode: soft-light;
-  opacity: 0.34;
-}
-
-.published-strip-loading-orb-grain rect {
-  width: 100%;
-  height: 100%;
-  fill: rgba(255, 255, 255, 0.74);
-}
-
-.published-strip-loading-orb-sheen {
-  background:
-    radial-gradient(ellipse at 31% 24%, rgba(255, 255, 255, 0.34), transparent 33%),
-    radial-gradient(ellipse at 74% 73%, transparent 23%, rgba(0, 0, 0, 0.25) 100%),
-    radial-gradient(ellipse at 82% 34%, rgba(255, 255, 255, 0.1), transparent 26%);
-  mix-blend-mode: screen;
-  opacity: 0.66;
-  animation: published-strip-orb-sheen-drift 4.8s ease-in-out infinite alternate;
-  will-change: transform, opacity;
-}
-
-.published-strip-loading-orb-membrane {
-  border: 1px solid rgba(255, 255, 255, 0.17);
-  border-radius: inherit;
-  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08);
-}
-
-.published-strip-loading-orb-burst-ring {
-  position: absolute;
-  z-index: 2;
-  inset: -3%;
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  border-radius: 43% 57% 48% 52% / 54% 41% 59% 46%;
-  transform: translateZ(0) scale(0.84);
+  width: 1px;
+  height: 1px;
   opacity: 0;
   pointer-events: none;
+}
+
+.strip-entrance-atmosphere {
+  position: absolute;
+  z-index: -1;
+  width: min(92vw, 620px);
+  height: min(72svh, 620px);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 28% 52%, var(--entrance-a), transparent 61%),
+    radial-gradient(ellipse at 72% 48%, var(--entrance-c), transparent 62%);
+  filter: blur(48px);
+  opacity: 0.16;
+  transform: translateZ(0);
+  animation: strip-entrance-atmosphere 4.8s ease-in-out infinite alternate;
+}
+
+.strip-entrance-stage {
+  position: relative;
+  width: clamp(190px, 54vw, 270px);
+  height: clamp(240px, 36svh, 350px);
+  transform: translate3d(0, -3svh, 0);
+  perspective: 900px;
   will-change: transform, opacity;
 }
 
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-stage {
-  animation: published-strip-orb-release 1200ms linear both;
+.strip-entrance-lane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  --lane-color: var(--entrance-a);
+  --lane-tilt: -9deg;
+  --lane-lift: 18px;
+  --lane-exit: -76%;
+  --lane-delay: 0ms;
 }
 
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-drift {
+.strip-entrance-lane[data-lane="0"] { left: 0; }
+.strip-entrance-lane[data-lane="1"] {
+  left: 35%;
+  --lane-color: var(--entrance-b);
+  --lane-tilt: 1deg;
+  --lane-lift: -16px;
+  --lane-exit: 0%;
+  --lane-delay: 90ms;
+}
+.strip-entrance-lane[data-lane="2"] {
+  left: 70%;
+  --lane-color: var(--entrance-c);
+  --lane-tilt: 9deg;
+  --lane-lift: 12px;
+  --lane-exit: 76%;
+  --lane-delay: 180ms;
+}
+
+.strip-entrance-arrival {
+  height: 100%;
+  transform-origin: 50% 80%;
+  animation: strip-entrance-unfold 1000ms var(--lane-delay)
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.strip-entrance-ribbon {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--lane-color);
+  background-image: linear-gradient(100deg,
+    rgba(255,255,255,0.46) 0%, rgba(255,255,255,0.04) 20%,
+    transparent 44%, rgba(0,0,0,0.24) 100%);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.24), 0 22px 48px rgba(0,0,0,0.28);
+  transform: translate3d(0, var(--lane-lift), 0) rotate(var(--lane-tilt));
+  transform-origin: 50% 60%;
+  transition: background-color 650ms ease;
+  animation: strip-entrance-sway 3600ms calc(1000ms + var(--lane-delay))
+    ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.strip-entrance-light {
+  position: absolute;
+  inset: -60% -100%;
+  background: linear-gradient(170deg, transparent 36%, rgba(255,255,255,0.48) 49%, transparent 61%);
+  opacity: 0.4;
+  transform: translate3d(0, -30%, 0);
+  animation: strip-entrance-light 3800ms var(--lane-delay) ease-in-out infinite;
+  pointer-events: none;
+}
+
+.strip-entrance-wordmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% + clamp(120px, 18svh, 175px) + 40px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.38em;
+  padding-left: 0.38em;
+  text-align: center;
+  opacity: 0.62;
+  animation: strip-entrance-wordmark 900ms 350ms both;
+}
+
+.strip-entrance.is-revealing {
+  pointer-events: none;
+}
+.strip-entrance:not(.has-palette) .strip-entrance-arrival,
+.strip-entrance:not(.has-palette) .strip-entrance-atmosphere,
+.strip-entrance:not(.has-palette) .strip-entrance-wordmark {
+  animation: none;
+  opacity: 0;
+}
+.strip-entrance.is-revealing::before {
+  animation: strip-entrance-backdrop var(--entrance-release) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.strip-entrance.is-revealing .strip-entrance-stage {
+  animation: strip-entrance-open var(--entrance-release) cubic-bezier(0.55, 0, 0.2, 1) both;
+}
+.strip-entrance.is-revealing .strip-entrance-lane {
+  animation: strip-entrance-part var(--entrance-release) cubic-bezier(0.55, 0, 0.2, 1) both;
+}
+.strip-entrance.is-revealing .strip-entrance-lane[data-lane="1"] {
+  animation-name: strip-entrance-center;
+}
+.strip-entrance.is-revealing .strip-entrance-ribbon,
+.strip-entrance.is-revealing .strip-entrance-light {
   animation-play-state: paused;
 }
-
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-surface {
-  animation: published-strip-orb-membrane-rupture 1200ms linear both;
+.strip-entrance.is-revealing .strip-entrance-atmosphere {
+  animation: strip-entrance-wash var(--entrance-release) ease-out both;
+}
+.strip-entrance.is-revealing .strip-entrance-wordmark {
+  animation: strip-entrance-wordmark-out 300ms ease-out both;
 }
 
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-glow {
-  animation: published-strip-orb-glow-release 1200ms linear both;
+@keyframes strip-entrance-unfold {
+  0% { opacity: 0; transform: translate3d(0, 65px, 0) rotateX(50deg) scale3d(0.75, 0.28, 1); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) rotateX(0deg) scale3d(1, 1, 1); }
 }
-
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-vapor.is-far {
-  animation: published-strip-orb-vapor-far-release 1200ms linear both;
+@keyframes strip-entrance-sway {
+  0% { transform: translate3d(0, var(--lane-lift), 0) rotate(var(--lane-tilt)); }
+  100% { transform: translate3d(0, calc(var(--lane-lift) * -0.45), 0) rotate(calc(var(--lane-tilt) * -0.45)); }
 }
-
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-vapor.is-near {
-  animation: published-strip-orb-vapor-near-release 1200ms linear both;
+@keyframes strip-entrance-light {
+  0%, 12% { transform: translate3d(0, -30%, 0); opacity: 0; }
+  40% { opacity: 0.48; }
+  78%, 100% { transform: translate3d(0, 35%, 0); opacity: 0; }
 }
-
-.published-strip-loading.is-revealing
-  .published-strip-loading-orb-burst-ring {
-  animation: published-strip-orb-burst-ring 1200ms linear both;
+@keyframes strip-entrance-atmosphere {
+  from { opacity: 0.10; transform: scale(0.92); }
+  to { opacity: 0.22; transform: scale(1.12); }
 }
-
-@keyframes published-strip-orb-drift {
-  0% {
-    transform: translate3d(-7px, 5px, 0) rotate(-1.8deg);
-  }
-  100% {
-    transform: translate3d(8px, -7px, 0) rotate(2.2deg);
-  }
+@keyframes strip-entrance-wordmark {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 0.62; transform: translateY(0); }
 }
-
-@keyframes published-strip-orb-breathe {
-  0% {
-    border-radius: 44% 56% 52% 48% / 49% 43% 57% 51%;
-    transform: translateZ(0) scale3d(0.965, 1.035, 1) rotate(-0.6deg);
-    opacity: 0.65;
-  }
-  32% {
-    border-radius: 53% 47% 43% 57% / 42% 56% 44% 58%;
-    transform: translate3d(2px, -2px, 0) scale3d(1.035, 0.975, 1) rotate(0.7deg);
-    opacity: 0.76;
-  }
-  66% {
-    border-radius: 47% 53% 59% 41% / 57% 46% 54% 43%;
-    transform: translate3d(-2px, 1px, 0) scale3d(0.985, 1.045, 1) rotate(-0.35deg);
-    opacity: 0.79;
-  }
-  100% {
-    border-radius: 44% 56% 52% 48% / 49% 43% 57% 51%;
-    transform: translateZ(0) scale3d(0.965, 1.035, 1) rotate(-0.6deg);
-    opacity: 0.65;
-  }
+@keyframes strip-entrance-open {
+  0% { transform: translate3d(0, -3svh, 0) scale(1); opacity: 1; }
+  15% { transform: translate3d(0, -3svh, 0) scale(0.96); opacity: 1; }
+  62% { opacity: 0.94; }
+  100% { transform: translate3d(0, -3svh, 0) scale(7); opacity: 0; }
 }
-
-@keyframes published-strip-orb-glow-drift {
-  from {
-    transform: translate3d(-5%, 4%, 0) scale(1.22);
-    opacity: 0.28;
-  }
-  to {
-    transform: translate3d(5%, -4%, 0) scale(1.42);
-    opacity: 0.4;
-  }
+@keyframes strip-entrance-part {
+  0%, 15% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(var(--lane-exit), 0, 0); }
 }
-
-@keyframes published-strip-orb-vapor-far {
-  from {
-    transform: translate3d(-15%, 10%, 0) scale(0.72) rotate(-8deg);
-    opacity: 0.14;
-  }
-  to {
-    transform: translate3d(-3%, 1%, 0) scale(1.08) rotate(7deg);
-    opacity: 0.26;
-  }
+@keyframes strip-entrance-center {
+  0%, 15% { transform: translate3d(0, 0, 0); opacity: 1; }
+  65% { opacity: 0.5; }
+  100% { transform: translate3d(0, -26%, 0); opacity: 0; }
 }
-
-@keyframes published-strip-orb-vapor-near {
-  from {
-    transform: translate3d(14%, -10%, 0) scale(0.66) rotate(9deg);
-    opacity: 0.18;
-  }
-  to {
-    transform: translate3d(4%, 4%, 0) scale(0.98) rotate(-6deg);
-    opacity: 0.3;
-  }
+@keyframes strip-entrance-backdrop {
+  0%, 22% { opacity: 1; }
+  64% { opacity: 0.38; }
+  100% { opacity: 0; }
 }
-
-@keyframes published-strip-orb-image-drift {
-  from {
-    transform: translate3d(-3%, -2%, 0) scale(1.17) rotate(-0.8deg);
-  }
-  to {
-    transform: translate3d(3%, 2%, 0) scale(1.24) rotate(0.9deg);
-  }
+@keyframes strip-entrance-wash {
+  0% { opacity: 0.16; transform: scale(1); }
+  38% { opacity: 0.3; }
+  100% { opacity: 0; transform: scale(2.2); }
 }
-
-@keyframes published-strip-orb-sheen-drift {
-  from {
-    transform: translate3d(-3%, -2%, 0) scale(1);
-    opacity: 0.56;
-  }
-  to {
-    transform: translate3d(5%, 4%, 0) scale(1.09);
-    opacity: 0.72;
-  }
-}
-
-@keyframes published-strip-orb-release {
-  0% {
-    transform: translateZ(0) scale(1);
-    opacity: 1;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.7, 1);
-  }
-  11% {
-    transform: translateZ(0) scale3d(0.93, 0.9, 1);
-    opacity: 1;
-    animation-timing-function: cubic-bezier(0.14, 0.8, 0.22, 1);
-  }
-  27% {
-    transform: translateZ(0) scale3d(1.13, 1.18, 1);
-    opacity: 1;
-    animation-timing-function: cubic-bezier(0.18, 0.76, 0.28, 1);
-  }
-  43% {
-    transform: translateZ(0) scale3d(1.5, 1.42, 1);
-    opacity: 0.92;
-    animation-timing-function: cubic-bezier(0.12, 0.72, 0.24, 1);
-  }
-  66% {
-    transform: translateZ(0) scale3d(3.1, 2.85, 1);
-    opacity: 0.38;
-  }
-  100% {
-    transform: translateZ(0) scale3d(9.2, 8.5, 1);
-    opacity: 0;
-  }
-}
-
-@keyframes published-strip-orb-membrane-rupture {
-  0% {
-    transform: translateZ(0) scale3d(0.98, 1.04, 1);
-    opacity: 0.72;
-  }
-  11% {
-    transform: translateZ(0) scale3d(1.04, 0.93, 1);
-    opacity: 0.8;
-  }
-  27% {
-    transform: translateZ(0) scale3d(0.96, 1.08, 1);
-    opacity: 0.84;
-  }
-  43% {
-    transform: translate3d(2%, -1%, 0) scale3d(1.18, 1.08, 1);
-    opacity: 0.5;
-  }
-  58%,
-  100% {
-    transform: translate3d(6%, -4%, 0) scale3d(1.62, 1.42, 1);
-    opacity: 0;
-  }
-}
-
-@keyframes published-strip-orb-glow-release {
-  0%,
-  11% {
-    transform: translate3d(-1%, 2%, 0) scale(1.28);
-    opacity: 0.34;
-  }
-  43% {
-    transform: translate3d(2%, -1%, 0) scale(1.72);
-    opacity: 0.56;
-  }
-  100% {
-    transform: translate3d(8%, -5%, 0) scale(3.4);
-    opacity: 0;
-  }
-}
-
-@keyframes published-strip-orb-vapor-far-release {
-  0%,
-  11% {
-    transform: translate3d(-12%, 8%, 0) scale(0.82) rotate(-5deg);
-    opacity: 0.2;
-  }
-  43% {
-    transform: translate3d(-22%, 15%, 0) scale(1.48) rotate(-13deg);
-    opacity: 0.48;
-  }
-  100% {
-    transform: translate3d(-42%, 31%, 0) scale(2.7) rotate(-24deg);
-    opacity: 0;
-  }
-}
-
-@keyframes published-strip-orb-vapor-near-release {
-  0%,
-  11% {
-    transform: translate3d(12%, -9%, 0) scale(0.72) rotate(7deg);
-    opacity: 0.25;
-  }
-  43% {
-    transform: translate3d(24%, -18%, 0) scale(1.4) rotate(15deg);
-    opacity: 0.52;
-  }
-  100% {
-    transform: translate3d(46%, -34%, 0) scale(2.55) rotate(27deg);
-    opacity: 0;
-  }
-}
-
-@keyframes published-strip-orb-burst-ring {
-  0%,
-  21% {
-    transform: translateZ(0) scale(0.82);
-    opacity: 0;
-  }
-  34% {
-    transform: translateZ(0) scale(1.06);
-    opacity: 0.46;
-  }
-  63%,
-  100% {
-    transform: translateZ(0) scale3d(2.3, 2.08, 1);
-    opacity: 0;
-  }
-}
-
-@keyframes published-strip-loading-backdrop-release {
-  0%,
-  18% {
-    opacity: 1;
-  }
-  45% {
-    opacity: 0.78;
-  }
-  100% {
-    opacity: 0;
-  }
+@keyframes strip-entrance-wordmark-out {
+  to { opacity: 0; transform: translateY(-8px); }
 }
 
 html.published-content-loading,
@@ -2192,40 +1981,24 @@ html.published-content-loading body {
   overflow: hidden;
   background: #000000 !important;
 }
-
 html.published-content-loading .top-safe-area-anchor {
   background: #000000 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .published-strip-load-gate.is-ready {
-    transition-duration: 280ms;
-  }
-
-  .published-strip-loading-orb-drift,
-  .published-strip-loading-orb-glow,
-  .published-strip-loading-orb-vapor,
-  .published-strip-loading-orb-surface,
-  .published-strip-loading-orb-surface img,
-  .published-strip-loading-orb-sheen,
-  .published-strip-loading-orb-burst-ring {
+  .strip-entrance *, .strip-entrance.is-revealing * {
     animation: none !important;
+    transition: none !important;
   }
-
-  .published-strip-loading.is-revealing
-    .published-strip-loading-orb-stage {
-    animation: published-strip-orb-dissolve 280ms ease-out both;
+  .strip-entrance.is-revealing {
+    animation: strip-entrance-fade 280ms ease-out both;
   }
-
-  .published-strip-loading.is-revealing::before {
-    animation: published-strip-loading-backdrop-release 280ms ease-out both;
+  .strip-entrance.is-revealing::before {
+    animation: none;
   }
 }
-
-@keyframes published-strip-orb-dissolve {
-  to {
-    opacity: 0;
-  }
+@keyframes strip-entrance-fade {
+  to { opacity: 0; }
 }
 
 .sticker-block {
