@@ -6714,11 +6714,8 @@ export default function Home() {
     const canvasMinHeight = stickerFloor > 0 ? `${stickerFloor}px` : undefined;
     const canvasStyle = {
       ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
-      ...(endingFollowsText
-        ? {
-            backgroundColor:
-              trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND,
-          }
+      ...(showsEndingCard
+        ? { backgroundColor: sourceEndingStyle.backgroundColor }
         : {}),
     } satisfies CSSProperties;
 

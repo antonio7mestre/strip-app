@@ -1233,6 +1233,11 @@ html.library-scroll-top-locked .library-mode {
     0 -6px 20px rgba(0, 0, 0, 0.08);
 }
 
+.editor-mode .strip-ending-card {
+  min-height: 0;
+  padding-bottom: 12px;
+}
+
 .published-strip.has-trailing-media .published-bottom-sheet,
 .strip-canvas.has-trailing-media > .strip-ending-card {
   margin-top: calc(-1 * var(--iphone-panel-radius));
