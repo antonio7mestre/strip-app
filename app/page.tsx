@@ -55,6 +55,10 @@ import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
+import {
+  getSafeAreaPaintViewport,
+  shouldUseFooterSafeAreaColor,
+} from "@/app/lib/footer-safe-area";
 
 type TextBlock = {
   id: string;
@@ -3787,12 +3791,17 @@ export default function Home() {
   );
 
   useEffect(() => {
-    document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
-      "content",
-      topSafeAreaColor,
-    );
-    document.documentElement.style.setProperty("--top-safe-area-color", topSafeAreaColor);
-    document.documentElement.style.backgroundColor = topSafeAreaColor;
+    const root = document.documentElement;
+    // The footer's layout effect already chose the visible edge. A later
+    // passive top-color effect must not overwrite that decision on route load.
+    if (!root.matches(".published-bottom-canvas-active, .published-bottom-sheet-canvas-active, .published-bottom-pocket-active")) {
+      document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
+        "content",
+        topSafeAreaColor,
+      );
+    }
+    root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
+    root.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
 
   useLayoutEffect(() => {
@@ -3808,6 +3817,7 @@ export default function Home() {
     let syncFrame: number | null = null;
     let bottomIsActive: boolean | null = null;
     let intersectionObserver: IntersectionObserver | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     const setBottomIsActive = (isActive: boolean) => {
       if (isActive === bottomIsActive) return;
@@ -3820,7 +3830,8 @@ export default function Home() {
       );
     };
 
-    // Re-evaluate both edges as Safari expands or collapses its viewport.
+    // Include the area painted behind Safari, and retain the bottom color
+    // until the entire footer has cleared that area.
     const syncSafeArea = () => {
       syncFrame = null;
       if (
@@ -3832,14 +3843,14 @@ export default function Home() {
         return;
       }
 
-      const viewport = window.visualViewport;
-      const viewportTop = viewport?.offsetTop ?? 0;
-      const viewportBottom =
-        viewportTop + (viewport?.height ?? window.innerHeight);
-      const bounds = bottomSheet.getBoundingClientRect();
-      setBottomIsActive(
-        bounds.top < viewportBottom && bounds.bottom > viewportTop,
+      const paintViewport = getSafeAreaPaintViewport(
+        window.innerHeight,
+        root.clientHeight,
+        window.visualViewport,
       );
+      setBottomIsActive(shouldUseFooterSafeAreaColor(
+        bottomSheet.getBoundingClientRect(), paintViewport, bottomIsActive === true,
+      ));
     };
 
     const scheduleSafeAreaSync = () => {
@@ -3850,9 +3861,16 @@ export default function Home() {
     if (bottomSheet && typeof IntersectionObserver !== "undefined") {
       intersectionObserver = new IntersectionObserver(scheduleSafeAreaSync, {
         threshold: 0,
+        rootMargin: "32px 0px",
       });
       intersectionObserver.observe(bottomSheet);
     }
+    if (bottomSheet && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(scheduleSafeAreaSync);
+      resizeObserver.observe(bottomSheet);
+      if (bottomSheet.parentElement) resizeObserver.observe(bottomSheet.parentElement);
+    }
+    window.addEventListener("pageshow", scheduleSafeAreaSync);
     window.addEventListener("scroll", scheduleSafeAreaSync, { passive: true });
     window.addEventListener("resize", scheduleSafeAreaSync, { passive: true });
     window.visualViewport?.addEventListener(
@@ -3870,6 +3888,8 @@ export default function Home() {
     return () => {
       if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
       intersectionObserver?.disconnect();
+      resizeObserver?.disconnect();
+      window.removeEventListener("pageshow", scheduleSafeAreaSync);
       window.removeEventListener("scroll", scheduleSafeAreaSync);
       window.removeEventListener("resize", scheduleSafeAreaSync);
       window.visualViewport?.removeEventListener(
