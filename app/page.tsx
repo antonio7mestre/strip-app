@@ -55,10 +55,7 @@ import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
-import {
-  getSafeAreaPaintViewport,
-  shouldUseFooterSafeAreaColor,
-} from "@/app/lib/footer-safe-area";
+import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 
 type TextBlock = {
   id: string;
@@ -3804,112 +3801,14 @@ export default function Home() {
     root.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
 
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    const themeColor = document.querySelector<HTMLMetaElement>(
-      "#strip-theme-color",
-    );
-    const bottomSheet = document.querySelector<HTMLElement>(
-      ".published-mode .published-bottom-sheet",
-    );
-    const bottomColor = visibleEndingStyle.backgroundColor;
-
-    let syncFrame: number | null = null;
-    let bottomIsActive: boolean | null = null;
-    let intersectionObserver: IntersectionObserver | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-
-    const setBottomIsActive = (isActive: boolean) => {
-      if (isActive === bottomIsActive) return;
-      bottomIsActive = isActive;
-      root.classList.toggle("published-bottom-canvas-active", isActive);
-      root.style.setProperty("--bottom-safe-area-color", bottomColor);
-      themeColor?.setAttribute(
-        "content",
-        isActive ? bottomColor : topSafeAreaColor,
-      );
-    };
-
-    // Include the area painted behind Safari, and retain the bottom color
-    // until the entire footer has cleared that area.
-    const syncSafeArea = () => {
-      syncFrame = null;
-      if (
-        view !== "published" ||
-        !publishedContentCanReveal ||
-        !bottomSheet
-      ) {
-        setBottomIsActive(false);
-        return;
-      }
-
-      const paintViewport = getSafeAreaPaintViewport(
-        window.innerHeight,
-        root.clientHeight,
-        window.visualViewport,
-      );
-      setBottomIsActive(shouldUseFooterSafeAreaColor(
-        bottomSheet.getBoundingClientRect(), paintViewport, bottomIsActive === true,
-      ));
-    };
-
-    const scheduleSafeAreaSync = () => {
-      if (syncFrame !== null) return;
-      syncFrame = window.requestAnimationFrame(syncSafeArea);
-    };
-
-    if (bottomSheet && typeof IntersectionObserver !== "undefined") {
-      intersectionObserver = new IntersectionObserver(scheduleSafeAreaSync, {
-        threshold: 0,
-        rootMargin: "32px 0px",
-      });
-      intersectionObserver.observe(bottomSheet);
-    }
-    if (bottomSheet && typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(scheduleSafeAreaSync);
-      resizeObserver.observe(bottomSheet);
-      if (bottomSheet.parentElement) resizeObserver.observe(bottomSheet.parentElement);
-    }
-    window.addEventListener("pageshow", scheduleSafeAreaSync);
-    window.addEventListener("scroll", scheduleSafeAreaSync, { passive: true });
-    window.addEventListener("resize", scheduleSafeAreaSync, { passive: true });
-    window.visualViewport?.addEventListener(
-      "scroll",
-      scheduleSafeAreaSync,
-      { passive: true },
-    );
-    window.visualViewport?.addEventListener(
-      "resize",
-      scheduleSafeAreaSync,
-      { passive: true },
-    );
-    syncSafeArea();
-
-    return () => {
-      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
-      intersectionObserver?.disconnect();
-      resizeObserver?.disconnect();
-      window.removeEventListener("pageshow", scheduleSafeAreaSync);
-      window.removeEventListener("scroll", scheduleSafeAreaSync);
-      window.removeEventListener("resize", scheduleSafeAreaSync);
-      window.visualViewport?.removeEventListener(
-        "scroll",
-        scheduleSafeAreaSync,
-      );
-      window.visualViewport?.removeEventListener(
-        "resize",
-        scheduleSafeAreaSync,
-      );
-      root.classList.remove("published-bottom-canvas-active");
-      root.style.setProperty("--bottom-safe-area-color", DEFAULT_BACKGROUND);
-      themeColor?.setAttribute("content", topSafeAreaColor);
-    };
-  }, [
-    publishedContentCanReveal,
-    topSafeAreaColor,
-    view,
-    visibleEndingStyle.backgroundColor,
-  ]);
+  useLayoutEffect(() => installFooterSafeAreaColor({
+    enabled: view === "published" && publishedContentCanReveal,
+    sheet: document.querySelector<HTMLElement>(".published-mode .published-bottom-sheet"),
+    topColor: topSafeAreaColor,
+    bottomColor: visibleEndingStyle.backgroundColor,
+    defaultColor: DEFAULT_BACKGROUND,
+    activeClassName: "published-bottom-canvas-active",
+  }), [publishedContentCanReveal, topSafeAreaColor, view, visibleEndingStyle.backgroundColor]);
 
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;
