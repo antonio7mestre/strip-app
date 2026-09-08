@@ -8380,12 +8380,6 @@ export default function Home() {
         "--ending-button-foreground": contrastColor(
           visibleEndingStyle.buttonColor,
         ),
-        ...(publishedEndsWithText
-          ? {
-              backgroundColor:
-                trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND,
-            }
-          : {}),
       } as CSSProperties;
       return (
         <>

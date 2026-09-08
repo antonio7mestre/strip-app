@@ -1621,6 +1621,10 @@ html.library-scroll-top-locked .library-mode {
   overflow: visible;
 }
 
+.strip-ending-card.is-selected {
+  box-shadow: none;
+}
+
 .strip-ending-card.is-selected::before {
   position: absolute;
   z-index: 33;
