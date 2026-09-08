@@ -8,7 +8,8 @@ test("queued Safari scroll updates cannot cancel the spring or leave the endpoin
   const f = fixture();
   f.frame();
   f.emit("touchstart", [100]);
-  f.window.scrollY = -300;
+  f.emit("touchmove", [1000]);
+  f.frame(100);
   f.emit("touchend");
   let previous = f.visualY();
   for (let n = 0; n < 100; n++) {
@@ -33,6 +34,65 @@ test("normal page scrolling remains native until a cancelable drag reaches the a
   assert.equal(f.emit("touchmove", [170]).defaultPrevented, true);
   assert.equal(f.window.scrollY, 59);
   assert.ok(f.visualY() > -59);
+  f.cleanup();
+});
+
+test("an extra-long pull keeps the same resistance while Safari resizes its controls", () => {
+  const f = fixture();
+  f.frame();
+  f.emit("touchstart", [100]);
+  for (const [height, distance] of [[800, 200], [900, 600], [750, 900], [800, 2000]]) {
+    f.window.innerHeight = height;
+    f.frame();
+    f.emit("touchmove", [100 + distance]);
+    assert.ok(Math.abs(f.visualY() + 59 - f.rubberBand(distance, 800)) < 1e-7);
+  }
+  f.cleanup();
+});
+
+test("queued scroll updates on either side of the anchor do not release an owned pull", () => {
+  const f = fixture();
+  f.frame();
+  f.emit("touchstart", [100]);
+  f.emit("touchmove", [800]);
+  const pulled = f.visualY();
+  for (const y of [-140, 0, 110, 59]) {
+    f.window.scrollY = y;
+    f.emit("scroll");
+    assert.ok(Math.abs(f.visualY() - pulled) < 1e-7);
+  }
+  f.frame(100);
+  f.emit("touchend");
+  let previous = f.visualY();
+  for (let n = 0; n < 60; n++) {
+    if (n < 10) f.window.scrollY = n % 2 ? 110 : -100;
+    f.emit("scroll");
+    f.frame();
+    assert.ok(f.visualY() <= previous + 1e-7);
+    previous = f.visualY();
+  }
+  assert.equal(f.visualY(), -59);
+  f.cleanup();
+});
+
+test("a fast native fling returns entirely on the native scroll path, never a transformed handoff", () => {
+  const f = fixture({ scrollY: 500, resetScroll: false });
+  f.emit("touchstart", [100]);
+  f.emit("touchend");
+  f.frame();
+  f.window.scrollY = 100;
+  f.emit("scroll");
+  f.frame();
+  f.window.scrollY = 40;
+  f.emit("scroll");
+  assert.equal(f.writes.at(-1).behavior, "smooth");
+  assert.equal(f.frames.size, 0);
+  assert.equal(f.styles.has("--leading-media-return-y"), false);
+  const writes = f.writes.length;
+  for (let n = 0; n < 4; n++) f.emit("scroll");
+  assert.equal(f.writes.length, writes, "queued events cannot restart native recovery");
+  for (let n = 0; n < 120; n++) f.frame();
+  assert.equal(f.visualY(), -59);
   f.cleanup();
 });
 
@@ -85,6 +145,7 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
   let sequence = 0;
   let time = 0;
   let editorOwns = false;
+  let nativeTarget = null;
   const target = (name) => ({
     addEventListener(type, callback, options) {
       assert.equal(options.passive, type !== "touchmove");
@@ -93,6 +154,8 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
     removeEventListener(type) { listeners.delete(name + ":" + type); },
   });
   const root = {
+    scrollHeight: 6000,
+    clientHeight: 800,
     style: {
       setProperty(name, value) { styles.set(name, value); },
       removeProperty(name) { styles.delete(name); },
@@ -110,7 +173,11 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
   };
   const window = {
     ...target("window"), scrollY, innerHeight: 800,
-    scrollTo(options) { writes.push(options); this.scrollY = options.top; },
+    scrollTo(options) {
+      writes.push(options);
+      nativeTarget = options.behavior === "smooth" ? options.top : null;
+      if (nativeTarget === null) this.scrollY = options.top;
+    },
     requestAnimationFrame(callback) { frames.set(++sequence, callback); return sequence; },
     cancelAnimationFrame(id) { frames.delete(id); },
   };
@@ -126,6 +193,7 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
     blockEditor(value) { editorOwns = value; },
     visualY() { return -window.scrollY + parseFloat(styles.get("--leading-media-return-y") ?? "0"); },
     emit(type, touches = [], cancelable = true) {
+      if (["touchstart", "wheel", "keydown"].includes(type)) nativeTarget = null;
       const event = {
         touches: touches.map((clientY) => ({ clientY })), cancelable, defaultPrevented: false,
         preventDefault() { this.defaultPrevented = true; },
@@ -135,6 +203,14 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
     },
     frame(ms = 1000 / 60) {
       time += ms;
+      if (nativeTarget !== null) {
+        window.scrollY += (nativeTarget - window.scrollY) * 0.3;
+        if (Math.abs(nativeTarget - window.scrollY) < 0.01) {
+          window.scrollY = nativeTarget;
+          nativeTarget = null;
+        }
+        listeners.get("window:scroll")?.();
+      }
       const pending = [...frames];
       frames.clear();
       for (const [, callback] of pending) callback(time);
@@ -200,7 +276,8 @@ test("a release inside the small top gap returns immediately without waiting for
     f.window.scrollY = y;
     f.emit("touchend");
     assert.ok(Math.abs(f.visualY() + y) < 1e-9);
-    assert.equal(f.frames.size, 1);
+    assert.equal(f.frames.size, 0);
+    assert.equal(f.writes.at(-1).behavior, "smooth");
     for (let n = 0; n < 120; n++) f.frame();
     assert.equal(f.visualY(), -59);
     f.cleanup();
@@ -230,7 +307,8 @@ test("catching a return freezes it in place and releasing resumes from that exac
   const f = fixture();
   f.frame();
   f.emit("touchstart", [100]);
-  f.window.scrollY = -500;
+  f.emit("touchmove", [1100]);
+  f.frame(100);
   f.emit("touchend");
   f.frame(120);
   const caught = f.visualY();
@@ -251,7 +329,8 @@ test("reversing a caught return hands the remaining upward drag back to scrollin
   const f = fixture();
   f.frame();
   f.emit("touchstart", [100]);
-  f.window.scrollY = -100;
+  f.emit("touchmove", [400]);
+  f.frame(100);
   f.emit("touchend");
   f.frame(200);
   f.emit("touchstart", [400]);
@@ -277,6 +356,18 @@ test("normal scrolling below the top and Safari viewport changes do not trigger 
   f.cleanup();
 });
 
+test("the compositor bounce is disabled ahead of the top, but retained at the bottom", () => {
+  const f = fixture();
+  f.frame();
+  assert.ok(f.classes.has("leading-media-top-edge"));
+  for (const [y, expected] of [[500, true], [2000, false], [5200, false], [300, true]]) {
+    f.window.scrollY = y;
+    f.emit("scroll");
+    assert.equal(f.classes.has("leading-media-top-edge"), expected);
+  }
+  f.cleanup();
+});
+
 test("editor anchors and keyboard interactions override the return without frozen transforms", () => {
   const f = fixture();
   f.frame();
@@ -286,7 +377,8 @@ test("editor anchors and keyboard interactions override the return without froze
   assert.equal(f.frames.size, 0);
   f.blockEditor(false);
   f.emit("scroll");
-  assert.equal(f.frames.size, 1);
+  assert.equal(f.writes.at(-1).behavior, "smooth");
+  f.blockEditor(true);
   f.window.scrollY = 600;
   f.emit("scroll");
   assert.equal(f.frames.size, 0);
@@ -321,9 +413,9 @@ test("forced offset has enough range, and the return never transforms the fixed 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /html\.leading-image-inset-active \.app-shell\.has-leading-image \{\s*min-height: calc\(100lvh \+ var\(--leading-image-inset\)\)/);
   assert.match(css, /html\.leading-image-inset-active \.has-leading-image \.strip-canvas \{\s*margin-top: 0;\s*padding-top: 0;/);
-  assert.match(css, /html\.leading-media-return-active \.has-leading-image > \.editor-canvas,\s*html\.leading-media-return-active \.has-leading-image > \.published-strip/);
+  assert.match(css, /html\.leading-image-inset-active \.has-leading-image > \.editor-canvas,\s*html\.leading-image-inset-active \.has-leading-image > \.published-strip/);
   assert.doesNotMatch(css, /leading-media-return-active[^{]*\.composer-dock/);
-  assert.doesNotMatch(source, /setTimeout\(|behavior: "smooth"|addEventListener\("scrollend"/);
+  assert.doesNotMatch(source, /setTimeout\(|addEventListener\("scrollend"/);
   assert.doesNotMatch(css, /scroll-snap-type/);
 });
 
@@ -349,7 +441,8 @@ test("multi-touch is never prevented, and cancellation returns only after the la
   f.emit("touchend", [130]);
   assert.equal(f.frames.size, 0);
   f.emit("touchcancel");
-  assert.equal(f.frames.size, 1);
+  assert.equal(f.frames.size, 0);
+  assert.equal(f.writes.at(-1).behavior, "smooth");
   for (let n = 0; n < 120; n++) f.frame();
   assert.equal(f.visualY(), -59);
   f.cleanup();

@@ -50,6 +50,18 @@ export function installLeadingMediaTop({
   let rawPullDistance = 0;
   let lastMoveAt = 0;
   let pullVelocity = 0;
+  let pullDimension = window.innerHeight;
+  let nativeReturnActive = false;
+  let topEdgeMode = false;
+  const syncTopEdgeMode = () => {
+    const remaining = root.scrollHeight - root.clientHeight - window.scrollY;
+    const next = inset > 0 && (returnFrame !== null || ownsPull ||
+      window.scrollY <= inset + 4 ||
+      (window.scrollY < inset + window.innerHeight && remaining > window.innerHeight / 2));
+    if (next === topEdgeMode) return;
+    topEdgeMode = next;
+    root.classList.toggle("leading-media-top-edge", next);
+  };
   const releaseReloadScroll = () => {
     if (ownsReloadScroll && root.dataset.stripReloadScroll === "manual") {
       history.scrollRestoration = "auto";
@@ -66,10 +78,12 @@ export function installLeadingMediaTop({
     document.removeEventListener("keydown", cancelEntry, true);
   };
   const clearReturn = () => {
+    if (nativeReturnActive) window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
     if (returnFrame !== null) window.cancelAnimationFrame(returnFrame);
     returnFrame = null;
     returnDistance = 0;
     caughtReturn = false;
+    nativeReturnActive = false;
     root.classList.remove("leading-media-return-active");
     root.style.removeProperty("--leading-media-return-y");
   };
@@ -85,9 +99,18 @@ export function installLeadingMediaTop({
     ".editor-mode.is-typing, .image-block.is-height-cropping, .sticker-block.is-transforming",
   ));
   const startReturn = (initialVelocity = 0) => {
-    if (inset <= 0 || !armed || touchCount > 0 || returnFrame !== null || editorOwnsPosition()) return;
+    if (inset <= 0 || !armed || touchCount > 0 || returnFrame !== null || nativeReturnActive || editorOwnsPosition()) return;
     const distance = returnDistance > 0 ? returnDistance : inset - window.scrollY;
     if (distance <= 0.1) return;
+
+    if (returnDistance <= 0) {
+      // A native fling stays on Safari's compositor. Mixing an immediate
+      // scrollTo with a transformed page can paint those two changes in
+      // different frames. One native animation needs no compensating layer.
+      nativeReturnActive = true;
+      window.scrollTo({ top: inset, left: 0, behavior: "smooth" });
+      return;
+    }
 
     // Top pulls keep the real scroll position at the media anchor throughout.
     // A native scroll reaching this edge gets the same pixel-preserving handoff.
@@ -97,7 +120,7 @@ export function installLeadingMediaTop({
     const startedAt = performance.now();
     const tick = (now: number) => {
       returnFrame = null;
-      if (editorOwnsPosition() || window.scrollY > inset + 2) {
+      if (editorOwnsPosition()) {
         clearReturn();
         return;
       }
@@ -135,12 +158,17 @@ export function installLeadingMediaTop({
     lastTouchY = event.touches[0]?.clientY ?? 0;
     lastMoveAt = performance.now();
     pullVelocity = 0;
+    // Safari changes innerHeight as its controls move. One gesture must keep
+    // one resistance curve, including a long pull while those controls expand.
+    pullDimension = window.innerHeight;
+    nativeReturnActive = false;
+    syncTopEdgeMode();
     // A fresh touch catches the moving spring at its current visual position.
     if (returnFrame !== null) window.cancelAnimationFrame(returnFrame);
     returnFrame = null;
     caughtReturn = returnDistance > 0;
     ownsPull = caughtReturn;
-    rawPullDistance = inverseRubberBand(returnDistance, window.innerHeight);
+    rawPullDistance = inverseRubberBand(returnDistance, pullDimension);
   };
   const handleTouchMove = (event: TouchEvent) => {
     if (event.touches.length !== 1 || editorOwnsPosition()) return;
@@ -156,6 +184,7 @@ export function installLeadingMediaTop({
       if (delta <= 0 || window.scrollY - delta > inset || !event.cancelable) return;
       rawPullDistance = inset - window.scrollY;
       ownsPull = true;
+      syncTopEdgeMode();
     }
     if (!event.cancelable) return;
     event.preventDefault();
@@ -166,8 +195,8 @@ export function installLeadingMediaTop({
       window.scrollTo({ top: inset - rawPullDistance, left: 0, behavior: "auto" });
       pullVelocity = 0;
     } else {
-      const next = leadingMediaRubberBand(rawPullDistance, window.innerHeight);
-      window.scrollTo({ top: inset, left: 0, behavior: "auto" });
+      const next = leadingMediaRubberBand(rawPullDistance, pullDimension);
+      if (window.scrollY !== inset) window.scrollTo({ top: inset, left: 0, behavior: "auto" });
       paintReturn(next);
       pullVelocity = 0.65 * ((next - previousDistance) * 1000 / elapsed) + 0.35 * pullVelocity;
     }
@@ -189,18 +218,29 @@ export function installLeadingMediaTop({
     startReturn(velocity);
   };
   const handleScroll = () => {
-    if (returnFrame !== null || caughtReturn) {
-      // An editor anchor, keyboard, or fresh native scroll owns its new target.
-      // Do not leave a frozen translation behind or fight that navigation.
-      if (editorOwnsPosition() || window.scrollY > inset + 2) clearReturn();
+    syncTopEdgeMode();
+    if (nativeReturnActive) {
+      if (window.scrollY >= inset - 0.5 || editorOwnsPosition()) nativeReturnActive = false;
+      return;
+    }
+    if (returnFrame !== null || caughtReturn || (ownsPull && rawPullDistance > 0)) {
+      // A queued compositor update is not a new gesture. Keep the current
+      // visible position even when Safari briefly reports either side of the
+      // anchor. Only actual new input or an editor operation can interrupt it.
+      if (editorOwnsPosition()) clearReturn();
       else paintReturn(returnDistance);
       return;
     }
     startReturn();
   };
+  const interruptReturn = () => {
+    clearReturn();
+    ownsPull = false;
+  };
 
   // Entry gets one placement and one frame for route restoration. No delayed
-  // retries, scrollend checkpoints, or competing browser smooth-scroll calls.
+  // retries or scrollend checkpoints. Native and direct-pull recovery never
+  // run at the same time.
   if (resetScroll || ownsReloadScroll) {
     placeAtAnchor();
     entryFrame = window.requestAnimationFrame(() => {
@@ -213,11 +253,14 @@ export function installLeadingMediaTop({
     document.addEventListener("keydown", cancelEntry, { passive: true, capture: true });
   }
   if (inset > 0) {
+    syncTopEdgeMode();
     document.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
     document.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
     document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
     document.addEventListener("touchcancel", handleTouchEnd, { passive: true, capture: true });
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("wheel", interruptReturn, { passive: true });
+    window.addEventListener("keydown", interruptReturn, { passive: true });
   }
 
   return () => {
@@ -228,10 +271,13 @@ export function installLeadingMediaTop({
     document.removeEventListener("touchend", handleTouchEnd, true);
     document.removeEventListener("touchcancel", handleTouchEnd, true);
     window.removeEventListener("scroll", handleScroll);
+    window.removeEventListener("wheel", interruptReturn);
+    window.removeEventListener("keydown", interruptReturn);
     document.removeEventListener("pointerdown", cancelEntry, true);
     document.removeEventListener("wheel", cancelEntry, true);
     document.removeEventListener("keydown", cancelEntry, true);
     root.classList.remove("leading-image-inset-active");
+    root.classList.remove("leading-media-top-edge");
     root.style.removeProperty("--leading-image-inset");
   };
 }

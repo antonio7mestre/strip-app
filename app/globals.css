@@ -1493,9 +1493,18 @@ html.leading-image-inset-active body {
   overscroll-behavior-y: contain;
 }
 
-/* Only the reading surface joins the spring, never the fixed composer. */
-html.leading-media-return-active .has-leading-image > .editor-canvas,
-html.leading-media-return-active .has-leading-image > .published-strip {
+/* Near the leading edge there is one elastic motion, not a compositor bounce
+ * underneath a second JavaScript spring. Elsewhere Safari keeps its bounce. */
+html.leading-image-inset-active.leading-media-top-edge,
+html.leading-image-inset-active.leading-media-top-edge body {
+  overscroll-behavior-y: none;
+}
+
+/* Keep the reading surface on the same layer before, during and after a pull.
+ * Promoting an entire long Strip mid-fling can expose an unpainted frame.
+ * The fixed composer stays outside this layer. */
+html.leading-image-inset-active .has-leading-image > .editor-canvas,
+html.leading-image-inset-active .has-leading-image > .published-strip {
   translate: 0 var(--leading-media-return-y, 0px);
   will-change: translate;
 }
