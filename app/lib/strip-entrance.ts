@@ -9,6 +9,34 @@ export function entranceLoadPercent(settled: number, total: number) {
   return Math.min(99, Math.floor(Math.max(0, settled) / total * 100));
 }
 
+/** Show every integer, but never invent progress beyond settled media. */
+export function startEntranceCounter(onChange: (value: number) => void) {
+  let value = 0, target = 0, frame = 0, disposed = false;
+  let lastStep: number | null = null;
+  const schedule = () => {
+    if (!disposed && !frame && value < target) frame = requestAnimationFrame(tick);
+  };
+  function tick(now: number) {
+    frame = 0;
+    if (disposed) return;
+    if (value < target && (lastStep === null || now - lastStep >= 24)) {
+      // Never catch up by skipping numbers after a slow frame or hidden tab.
+      value++;
+      lastStep = now;
+      onChange(value);
+    }
+    schedule();
+  }
+  return {
+    setTarget(next: number) {
+      if (!Number.isFinite(next)) return;
+      target = Math.max(value, Math.min(100, Math.floor(next)));
+      schedule();
+    },
+    dispose() { disposed = true; cancelAnimationFrame(frame); frame = 0; },
+  };
+}
+
 export function normalizeEntranceColor(value: string) {
   const hex = value.trim().replace(/^#/, "");
   if (/^[0-9a-f]{3}$/i.test(hex)) return "#" + [...hex].map(char => char + char).join("").toUpperCase();

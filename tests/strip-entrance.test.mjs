@@ -6,7 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia } from "../app/lib/strip-entrance.ts";
+import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
 import { startScribble } from "../app/lib/scribble-entrance.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
@@ -62,7 +62,7 @@ const exports = {};
 runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
-  ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia } : name === "@/app/lib/scribble-entrance"
+  ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { startScribble } : require(name) });
 test("renders one accessible status and one flat ink canvas, without ribbons or extra media", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
@@ -76,8 +76,9 @@ test("renders one accessible status and one flat ink canvas, without ribbons or 
   assert.match(html, /--entrance-a:#FF3366/);
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /STRIP LOADING\.\.\./);
-  assert.match(html, /aria-valuenow="97"/);
-  assert.match(html, />97%<\/span>/);
+  assert.match(html, /data-load-progress="97"/);
+  assert.match(html, /aria-valuenow="0"/);
+  assert.match(html, />0%<\/span>/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
 test("readiness and timeout preserve the loading contract", () => {
@@ -107,6 +108,34 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(componentSource,/entranceLoadPercent\(settledAssets, totalAssets\)/);
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
   assert.match(css,/font-variant-numeric: tabular-nums/);
+  const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
+  assert.match(readoutCss,/color: #fff;/);
+  assert.match(readoutCss,/text-shadow: 0 1px 3px rgba\(0, 0, 0, 0.2\)/);
+  assert.doesNotMatch(readoutCss,/mix-blend-mode/);
+  assert.match(componentSource,/ready=\{revealing && displayPercent === 100\}/);
+});
+
+test("the readout counts every percentage once, pauses at real progress, and cleans up", () => {
+  const queue=new Map(),seen=[]; let id=0;
+  globalThis.requestAnimationFrame=fn=>{queue.set(++id,fn);return id;};
+  globalThis.cancelAnimationFrame=id=>queue.delete(id);
+  const tick=now=>{const tasks=[...queue.values()];queue.clear();tasks.forEach(fn=>fn(now));};
+  const counter=startEntranceCounter(value=>seen.push(value));
+  try {
+    counter.setTarget(25);
+    for(let t=0;t<=1200;t+=16) tick(t);
+    assert.deepEqual(seen,Array.from({length:25},(_,i)=>i+1));
+    assert.equal(queue.size,0);
+    tick(90000);assert.equal(seen.length,25);
+    counter.setTarget(97); tick(90016);
+    assert.equal(seen.at(-1),26);
+    counter.setTarget(100);
+    for(let t=90032;t<95000;t+=16)tick(t);
+    assert.deepEqual(seen,Array.from({length:100},(_,i)=>i+1));
+    assert.equal(queue.size,0);
+    counter.dispose();counter.setTarget(100);tick(100000);
+    assert.equal(seen.length,100);
+  } finally {counter.dispose();delete globalThis.requestAnimationFrame;delete globalThis.cancelAnimationFrame;}
 });
 test("the reveal only animates the overlay, never the actual strip or footer", () => {
   const entranceCss = css.slice(css.indexOf(".published-strip-load-gate {"), css.indexOf(".sticker-block {"));

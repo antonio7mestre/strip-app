@@ -1823,7 +1823,7 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: 0.08em;
-  mix-blend-mode: difference;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   pointer-events: none;
 }
 .strip-entrance-percent {

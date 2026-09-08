@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia } from "@/app/lib/strip-entrance";
+import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface, startScribble } from "@/app/lib/scribble-entrance";
 
 type Cover = { kind: "image"; src: string } | { kind: "color"; color: string };
@@ -59,6 +59,13 @@ export function StripEntrance({
   const settledCallback = useRef(onCoverSettled);
   const [sampledColors, setSampledColors] = useState<string[]>([]);
   const [paletteSampled, setPaletteSampled] = useState(false);
+  const [displayPercent, setDisplayPercent] = useState(0);
+  const counterRef = useRef<ReturnType<typeof startEntranceCounter> | null>(null);
+  useLayoutEffect(() => {
+    const counter = startEntranceCounter(setDisplayPercent);
+    counterRef.current = counter;
+    return () => { counter.dispose(); counterRef.current = null; };
+  }, []);
   // The parent can rerender as media arrives, without restarting the animation.
   useEffect(() => { settledCallback.current = onCoverSettled; }, [onCoverSettled]);
   useLayoutEffect(() => {
@@ -99,6 +106,7 @@ export function StripEntrance({
   const palette = makeEntrancePalette(authored, sampledColors);
   const hasPalette = cover.kind === "color" || blocks.some(block => block.type === "text") || paletteSampled;
   const loadPercent = entranceLoadPercent(settledAssets, totalAssets);
+  useLayoutEffect(() => { counterRef.current?.setTarget(loadPercent); }, [loadPercent]);
   const style = {
     "--entrance-a": palette[0],
     "--entrance-b": palette[1],
@@ -107,7 +115,7 @@ export function StripEntrance({
 
   return (
     <div ref={surfaceRef} className={`published-strip-loading strip-entrance ${hasPalette ? "has-palette" : ""} ${revealing ? "is-revealing" : ""}`}
-      style={style} role="status" aria-label="Loading Strip">
+      style={style} role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       {cover.kind === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img ref={coverRef} className="strip-entrance-color-source" src={cover.src} alt=""
@@ -126,11 +134,11 @@ export function StripEntrance({
           onError={() => settledCallback.current()}
         />
       ) : null}
-      {hasPalette ? <InkCanvas palette={palette} ready={revealing} onComplete={onExitComplete} /> : null}
+      {hasPalette ? <InkCanvas palette={palette} ready={revealing && displayPercent === 100} onComplete={onExitComplete} /> : null}
       <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
-        aria-valuemin={0} aria-valuemax={100} aria-valuenow={loadPercent}>
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
         <span aria-hidden="true">STRIP LOADING...</span>
-        <span className="strip-entrance-percent" aria-hidden="true">{loadPercent}%</span>
+        <span className="strip-entrance-percent" aria-hidden="true">{displayPercent}%</span>
       </div>
     </div>
   );
