@@ -51,6 +51,10 @@ import {
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
+import {
+  installLeadingMediaTop,
+  scrollAfterLeadingInsetChange,
+} from "@/app/lib/leading-media-top";
 
 type TextBlock = {
   id: string;
@@ -3317,7 +3321,6 @@ export default function Home() {
   const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
-  const suppressLeadingImageSettleUntilTouchRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
   const blockReorderReleaseFrameRef = useRef<number | null>(null);
   const blockReorderOverflowAnchorRef = useRef<{
@@ -3718,8 +3721,6 @@ export default function Home() {
 
     const offset = calculateLeadingImageOffset();
     leadingImageInsetRef.current = offset;
-    root.style.setProperty("--leading-image-inset", `${offset}px`);
-    root.classList.toggle("leading-image-inset-active", offset > 0);
     const ownsReloadScroll =
       initialRouteReady &&
       stripIsVisible &&
@@ -3728,141 +3729,15 @@ export default function Home() {
       skipLeadingImagePlacementOnReorderRef.current && !ownsReloadScroll;
     skipLeadingImagePlacementOnReorderRef.current = false;
 
-    const placeLeadingImageAtAnchor = () => {
-      if (offset > 0) {
-        window.scrollTo({ top: offset, left: 0, behavior: "auto" });
-        return;
-      }
-      if (ownsReloadScroll) {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      }
-    };
-
-    let anchorFrame: number | null = null;
-    if (!skipInitialAnchor) {
-      placeLeadingImageAtAnchor();
-      anchorFrame = window.requestAnimationFrame(placeLeadingImageAtAnchor);
-    }
-    let releaseFrame: number | null = null;
-    let releaseTimer: number | null = null;
-
-    if (ownsReloadScroll) {
-      releaseFrame = window.requestAnimationFrame(() => {
-        placeLeadingImageAtAnchor();
-        releaseTimer = window.setTimeout(() => {
-          placeLeadingImageAtAnchor();
-          history.scrollRestoration = "auto";
-          delete root.dataset.stripReloadScroll;
-        }, 0);
-      });
-    }
-
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (!event.persisted) placeLeadingImageAtAnchor();
-    };
-    window.addEventListener("pageshow", handlePageShow);
+    const removeLeadingMediaTop = installLeadingMediaTop({
+      inset: offset,
+      resetScroll: !skipInitialAnchor && (offset > 0 || ownsReloadScroll),
+      ownsReloadScroll,
+    });
 
     return () => {
-      if (anchorFrame !== null) window.cancelAnimationFrame(anchorFrame);
-      if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
-      if (releaseTimer !== null) window.clearTimeout(releaseTimer);
-      window.removeEventListener("pageshow", handlePageShow);
-      if (ownsReloadScroll && root.dataset.stripReloadScroll === "manual") {
-        history.scrollRestoration = "auto";
-        delete root.dataset.stripReloadScroll;
-      }
+      removeLeadingMediaTop();
       leadingImageInsetRef.current = 0;
-      root.classList.remove("leading-image-inset-active");
-      root.style.removeProperty("--leading-image-inset");
-    };
-  }, [hasLeadingImage, initialRouteReady, view]);
-
-  useEffect(() => {
-    const stripIsVisible =
-      view === "edit" || view === "preview" || view === "published";
-    if (!initialRouteReady || !hasLeadingImage || !stripIsVisible) return;
-
-    let settleFrame: number | null = null;
-    let settleTimer: number | null = null;
-    let touchIsActive = false;
-    let settleIsArmed = !suppressLeadingImageSettleUntilTouchRef.current;
-    suppressLeadingImageSettleUntilTouchRef.current = false;
-
-    const clearPendingSettle = () => {
-      if (settleFrame !== null) window.cancelAnimationFrame(settleFrame);
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleFrame = null;
-      settleTimer = null;
-    };
-
-    const settleLeadingImageAtAnchor = () => {
-      if (touchIsActive || !settleIsArmed) return;
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleTimer = null;
-      settleFrame = window.requestAnimationFrame(() => {
-        settleFrame = null;
-        const anchor = leadingImageInsetRef.current;
-        const leadingMedia = document.querySelector<HTMLElement>(
-          ".strip-canvas > .image-block, .strip-canvas > .video-block",
-        );
-        if (anchor <= 0 || !leadingMedia) return;
-
-        const mediaBounds = leadingMedia.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-        const topEdgeIsInAnchorZone =
-          mediaBounds.bottom > 0 &&
-          mediaBounds.top < viewportHeight &&
-          mediaBounds.top >= -anchor - 1;
-        if (!topEdgeIsInAnchorZone || Math.abs(window.scrollY - anchor) <= 0.5) {
-          return;
-        }
-        window.scrollTo({ top: anchor, left: 0, behavior: "smooth" });
-      });
-    };
-
-    const scheduleSettleFallback = (delay: number) => {
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(settleLeadingImageAtAnchor, delay);
-    };
-
-    const handleTouchStart = () => {
-      settleIsArmed = true;
-      touchIsActive = true;
-      clearPendingSettle();
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length > 0) return;
-      touchIsActive = false;
-      scheduleSettleFallback(360);
-    };
-
-    const handleNativeReboundScroll = () => {
-      if (touchIsActive) return;
-      scheduleSettleFallback(90);
-    };
-
-    document.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-    });
-    document.addEventListener("touchend", handleTouchEnd, {
-      passive: true,
-    });
-    document.addEventListener("touchcancel", handleTouchEnd, {
-      passive: true,
-    });
-    window.addEventListener("scroll", handleNativeReboundScroll, {
-      passive: true,
-    });
-    window.addEventListener("scrollend", settleLeadingImageAtAnchor);
-
-    return () => {
-      clearPendingSettle();
-      document.removeEventListener("touchstart", handleTouchStart);
-      document.removeEventListener("touchend", handleTouchEnd);
-      document.removeEventListener("touchcancel", handleTouchEnd);
-      window.removeEventListener("scroll", handleNativeReboundScroll);
-      window.removeEventListener("scrollend", settleLeadingImageAtAnchor);
     };
   }, [hasLeadingImage, initialRouteReady, view]);
 
@@ -4692,6 +4567,7 @@ export default function Home() {
     const root = document.documentElement;
     const body = document.body;
     const scrollTop = window.scrollY;
+    const leadingInsetBeforeReorder = leadingImageInsetRef.current;
     if (!blockReorderOverflowAnchorRef.current) {
       blockReorderOverflowAnchorRef.current = {
         root: root.style.overflowAnchor,
@@ -4716,8 +4592,10 @@ export default function Home() {
         blocks[0]?.type !== "image" &&
         blocks[0]?.type !== "video" &&
         (nextTopBlock?.type === "image" || nextTopBlock?.type === "video");
-      skipLeadingImagePlacementOnReorderRef.current = mediaWillBecomeTop;
-      suppressLeadingImageSettleUntilTouchRef.current = mediaWillBecomeTop;
+      const mediaWillLeaveTop =
+        (blocks[0]?.type === "image" || blocks[0]?.type === "video") &&
+        nextTopBlock?.type !== "image" && nextTopBlock?.type !== "video";
+      skipLeadingImagePlacementOnReorderRef.current = mediaWillBecomeTop || mediaWillLeaveTop;
     }
 
     flushSync(() => {
@@ -4729,9 +4607,14 @@ export default function Home() {
     });
 
     const restoreViewport = () => {
-      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = scrollTop;
-      document.body.scrollTop = scrollTop;
+      const top = scrollAfterLeadingInsetChange(
+        scrollTop,
+        leadingInsetBeforeReorder,
+        leadingImageInsetRef.current,
+      );
+      window.scrollTo({ top, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
     };
 
     restoreViewport();

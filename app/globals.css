@@ -291,10 +291,6 @@ textarea:focus-visible,
   background: var(--black);
 }
 
-.app-shell.has-leading-image {
-  min-height: calc(100lvh + var(--leading-image-inset));
-}
-
 html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   min-height: calc(100lvh + var(--text-first-scroll-release, 62px));
 }
@@ -1478,6 +1474,18 @@ html.library-scroll-top-locked .library-mode {
 .strip-canvas {
   position: relative;
   min-height: inherit;
+}
+
+/* Put the image at the old scroll-offset position in layout instead. The real
+ * scroll boundary stays at zero, so Safari owns the entire pull and rebound. */
+html.leading-image-inset-active .has-leading-image > .editor-canvas,
+html.leading-image-inset-active .has-leading-image > .published-strip {
+  display: flow-root;
+}
+
+html.leading-image-inset-active .has-leading-image .strip-canvas {
+  margin-top: calc(-1 * var(--leading-image-inset));
+  padding-top: 0;
 }
 
 .strip-canvas.has-ending-card {
@@ -4189,12 +4197,6 @@ html.page-color-picking * {
     margin-top: calc(-1 * env(safe-area-inset-top));
     margin-bottom: 0;
     padding-top: 0;
-  }
-
-  html.leading-image-inset-active .editor-mode.has-leading-image .strip-canvas,
-  html.leading-image-inset-active .preview-mode.has-leading-image .strip-canvas,
-  html.leading-image-inset-active .published-mode.has-leading-image .strip-canvas {
-    margin-top: 0;
   }
 
   .app-shell::after {
