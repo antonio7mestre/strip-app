@@ -1241,11 +1241,6 @@ html.library-scroll-top-locked .library-mode {
 .published-strip.has-trailing-media .published-bottom-sheet,
 .strip-canvas.has-trailing-media > .strip-ending-card {
   margin-top: calc(-1 * var(--iphone-panel-radius));
-  background: color-mix(
-    in srgb,
-    var(--ending-background, #ffffff) 28%,
-    transparent
-  );
 }
 
 .strip-end-sheet-controls {
@@ -1635,8 +1630,8 @@ html.library-scroll-top-locked .library-mode {
   z-index: 33;
   top: 0;
   right: 0;
+  bottom: 0;
   left: 0;
-  height: var(--iphone-panel-radius);
   border: 2px solid var(--ending-foreground, #000000);
   border-bottom: 0;
   border-radius: inherit;
