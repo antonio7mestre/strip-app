@@ -16,6 +16,15 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
   const classes = new Set();
   const writes = [];
   let sequence = 0;
+  let time = 0;
+  let editorOwns = false;
+  const target = (name) => ({
+    addEventListener(type, callback, options) {
+      assert.equal(options.passive, type !== "touchmove");
+      listeners.set(name + ":" + type, callback);
+    },
+    removeEventListener(type) { listeners.delete(name + ":" + type); },
+  });
   const root = {
     style: {
       setProperty(name, value) { styles.set(name, value); },
@@ -23,145 +32,257 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
     },
     classList: {
       toggle(name, active) { if (active) classes.add(name); else classes.delete(name); },
+      add(name) { classes.add(name); },
       remove(name) { classes.delete(name); },
     },
     dataset: reload ? { stripReloadScroll: "manual" } : {},
   };
   const document = {
-    documentElement: root,
-    addEventListener(type, callback, options) {
-      assert.equal(options.passive, true, "initial input must not block native gestures");
-      listeners.set(type, callback);
-    },
-    removeEventListener(type) { listeners.delete(type); },
+    ...target("document"), documentElement: root,
+    querySelector: () => editorOwns ? {} : null,
   };
   const window = {
-    scrollY,
+    ...target("window"), scrollY, innerHeight: 800,
     scrollTo(options) { writes.push(options); this.scrollY = options.top; },
     requestAnimationFrame(callback) { frames.set(++sequence, callback); return sequence; },
     cancelAnimationFrame(id) { frames.delete(id); },
   };
   const history = { scrollRestoration: reload ? "manual" : "auto" };
   const exported = {};
-  runInNewContext(compiled, { exports: exported, window, document, history });
+  runInNewContext(compiled, { exports: exported, window, document, history, performance: { now: () => time } });
   const cleanup = exported.installLeadingMediaTop({ inset, resetScroll, ownsReloadScroll: reload });
   return {
     window, root, styles, classes, frames, listeners, writes, history, cleanup,
+    sample: exported.sampleLeadingMediaReturn,
     remap: exported.scrollAfterLeadingInsetChange,
-    emit(type) { listeners.get(type)?.({}); },
-    frame() {
+    blockEditor(value) { editorOwns = value; },
+    visualY() { return -window.scrollY + parseFloat(styles.get("--leading-media-return-y") ?? "0"); },
+    emit(type, touches = []) {
+      const event = {
+        touches: touches.map((clientY) => ({ clientY })), cancelable: true, defaultPrevented: false,
+        preventDefault() { this.defaultPrevented = true; },
+      };
+      listeners.get((type === "scroll" ? "window:" : "document:") + type)?.(event);
+      return event;
+    },
+    frame(ms = 1000 / 60) {
+      time += ms;
       const pending = [...frames];
       frames.clear();
-      for (const [, callback] of pending) callback();
+      for (const [, callback] of pending) callback(time);
     },
   };
 }
 
-test("the same image tuck is established in layout, at native scroll zero", () => {
+test("a photo-first page is genuinely scrolled under the safe area, not moved above the document", () => {
   for (const inset of [47, 54, 59, 62]) {
-    const f = fixture({ inset });
-    assert.equal(f.styles.get("--leading-image-inset"), `${inset}px`);
+    const f = fixture({ inset, reload: true });
+    assert.equal(f.styles.get("--leading-image-inset"), inset + "px");
     assert.ok(f.classes.has("leading-image-inset-active"));
-    assert.equal(f.window.scrollY, 0);
+    assert.equal(f.window.scrollY, inset);
     f.frame();
-    assert.equal(f.writes.length, 1, "no extra correction when already at the native top");
-    assert.equal(f.writes[0].behavior, "auto");
-    assert.equal(f.writes[0].top, 0);
-    assert.equal(f.frames.size + f.listeners.size, 0);
+    assert.equal(f.writes.length, 1);
+    assert.equal(f.visualY(), -inset);
+    assert.equal(f.history.scrollRestoration, "auto");
     f.cleanup();
   }
 });
 
-test("even a very long native bounce is never intercepted or followed by a second scroll", () => {
-  const f = fixture();
-  f.frame();
-  const initialWrites = f.writes.length;
+test("deep native pulls are untouched under the finger and return in one continuous spring", () => {
   for (const depth of [1, 60, 250, 1200]) {
-    f.emit("touchstart");
-    for (const y of [-depth, -depth * 0.8, -depth * 0.4, -depth * 0.1, -0.25, 0]) {
-      f.window.scrollY = y;
-      for (const type of ["scroll", "touchend", "resize", "scrollend", "scrollend"]) f.emit(type);
+    for (const fps of [30, 60, 120]) {
+      const f = fixture();
       f.frame();
-      assert.equal(f.window.scrollY, y, "Safari's subpixel bounce trajectory is untouched");
-      assert.equal(f.writes.length, initialWrites);
+      const before = f.writes.length;
+      f.emit("touchstart", [100]);
+      for (const y of [30, 0, -depth / 2, -depth]) {
+        f.window.scrollY = y;
+        f.emit("scroll");
+        assert.equal(f.emit("touchmove", [100 - y]).defaultPrevented, false);
+        f.frame(1000 / fps);
+        assert.equal(f.writes.length, before, "native dragging is never clamped");
+      }
+      const visualAtRelease = f.visualY();
+      f.emit("touchend");
+      assert.equal(f.visualY(), visualAtRelease, "handoff cannot jump a pixel");
+      assert.equal(f.window.scrollY, 59);
+      let previous = f.visualY();
+      for (let n = 0; n < fps * 2; n++) {
+        f.emit("scroll");
+        f.emit("scrollend");
+        f.frame(1000 / fps);
+        assert.ok(f.visualY() <= previous + 1e-9, "no reversal or second checkpoint");
+        assert.ok(f.visualY() >= -59, "no overshoot beyond the locked endpoint");
+        previous = f.visualY();
+      }
+      assert.equal(f.visualY(), -59);
+      assert.equal(f.writes.length, before + 1, "one coordinate handoff, no subsequent scroll corrections");
+      assert.equal(f.frames.size, 0);
+      assert.equal(f.styles.has("--leading-media-return-y"), false);
+      f.cleanup();
     }
   }
-  assert.equal(f.frames.size + f.listeners.size, 0);
 });
 
-test("mounting during an existing rubber-band never clamps Safari's negative offset", () => {
-  const f = fixture({ scrollY: -400, reload: true });
-  f.window.scrollY = -250;
+test("a release inside the small top gap returns immediately without waiting for scrollend", () => {
+  for (const y of [0, 12, 40, 58.5]) {
+    const f = fixture();
+    f.frame();
+    f.emit("touchstart", [100]);
+    f.window.scrollY = y;
+    f.emit("touchend");
+    assert.ok(Math.abs(f.visualY() + y) < 1e-9);
+    assert.equal(f.frames.size, 1);
+    for (let n = 0; n < 120; n++) f.frame();
+    assert.equal(f.visualY(), -59);
+    f.cleanup();
+  }
+});
+
+test("the analytic return has no frame-rate dependence or long-pull overshoot", () => {
+  const f = fixture({ inset: 0, resetScroll: false });
+  for (const distance of [1, 59, 500, 4000]) {
+    assert.equal(f.sample(distance, 0).distance, distance);
+    assert.equal(Math.abs(f.sample(distance, 0).velocity), 0);
+    let previous = distance;
+    for (let time = 0.01; time < 2; time += 0.01) {
+      const value = f.sample(distance, time);
+      assert.ok(value.distance < previous);
+      assert.ok(value.distance >= 0);
+      assert.ok(value.velocity <= 0);
+      previous = value.distance;
+    }
+    assert.ok(previous < 0.1);
+  }
+  assert.equal(f.frames.size + f.listeners.size, 0);
+  f.cleanup();
+});
+
+test("catching a return freezes it in place and releasing resumes from that exact position", () => {
+  const f = fixture();
   f.frame();
-  assert.equal(f.window.scrollY, -250);
-  assert.equal(f.writes.length, 0);
+  f.emit("touchstart", [100]);
+  f.window.scrollY = -500;
+  f.emit("touchend");
+  f.frame(120);
+  const caught = f.visualY();
+  f.emit("touchstart", [250]);
+  f.frame(500);
+  assert.equal(f.visualY(), caught);
+  assert.equal(f.emit("touchmove", [300]).defaultPrevented, true);
+  assert.ok(f.visualY() > caught);
+  const released = f.visualY();
+  f.emit("touchend");
+  assert.equal(f.visualY(), released);
+  for (let n = 0; n < 120; n++) f.frame();
+  assert.equal(f.visualY(), -59);
+  f.cleanup();
+});
+
+test("reversing a caught return hands the remaining upward drag back to scrolling", () => {
+  const f = fixture();
+  f.frame();
+  f.emit("touchstart", [100]);
+  f.window.scrollY = -100;
+  f.emit("touchend");
+  f.frame(200);
+  f.emit("touchstart", [400]);
+  f.emit("touchmove", [0]);
+  assert.ok(f.window.scrollY > 59);
+  assert.equal(f.styles.has("--leading-media-return-y"), false);
+  f.emit("touchend");
+  assert.equal(f.frames.size, 0);
+  f.cleanup();
+});
+
+test("normal scrolling below the top and Safari viewport changes do not trigger a return", () => {
+  const f = fixture();
+  f.frame();
+  const writes = f.writes.length;
+  for (const y of [250, 600, 900, 200]) {
+    f.window.scrollY = y;
+    for (const event of ["scroll", "resize", "scrollend"]) f.emit(event);
+    f.frame();
+  }
+  assert.equal(f.writes.length, writes);
+  assert.equal(f.frames.size, 0);
+  f.cleanup();
+});
+
+test("editor anchors and keyboard interactions override the return without frozen transforms", () => {
+  const f = fixture();
+  f.frame();
+  f.blockEditor(true);
+  f.window.scrollY = 0;
+  f.emit("scroll");
+  assert.equal(f.frames.size, 0);
+  f.blockEditor(false);
+  f.emit("scroll");
+  assert.equal(f.frames.size, 1);
+  f.window.scrollY = 600;
+  f.emit("scroll");
+  assert.equal(f.frames.size, 0);
+  assert.equal(f.visualY(), -600);
+  f.cleanup();
+});
+
+test("reordering preserves scroll position and does not arm a correction until the next gesture", () => {
+  const f = fixture({ scrollY: 20, resetScroll: false });
+  f.emit("scroll");
+  assert.equal(f.writes.length + f.frames.size, 0);
+  for (const [before, after] of [[0, 59], [59, 0], [59, 59]]) {
+    assert.equal(f.remap(450, before, after), 450);
+  }
+  f.cleanup();
+});
+
+test("route cleanup cancels frames and removes every listener and temporary style", () => {
+  const f = fixture({ reload: true });
+  f.emit("touchstart", [100]);
+  f.window.scrollY = -400;
+  f.emit("touchend");
+  f.cleanup();
+  f.window.scrollY = 200;
+  f.frame();
+  assert.equal(f.window.scrollY, 200);
+  assert.equal(f.frames.size + f.listeners.size + f.styles.size + f.classes.size, 0);
   assert.equal(f.history.scrollRestoration, "auto");
 });
 
-test("starting any input before the entry frame cancels pending placement immediately", () => {
+test("forced offset has enough range, and the return never transforms the fixed toolbar", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /html\.leading-image-inset-active \.app-shell\.has-leading-image \{\s*min-height: calc\(100lvh \+ var\(--leading-image-inset\)\)/);
+  assert.match(css, /html\.leading-image-inset-active \.has-leading-image \.strip-canvas \{\s*margin-top: 0;\s*padding-top: 0;/);
+  assert.match(css, /html\.leading-media-return-active \.has-leading-image > \.editor-canvas,\s*html\.leading-media-return-active \.has-leading-image > \.published-strip/);
+  assert.doesNotMatch(css, /leading-media-return-active[^{]*\.composer-dock/);
+  assert.doesNotMatch(source, /setTimeout\(|behavior: "smooth"|addEventListener\("scrollend"/);
+  assert.doesNotMatch(css, /scroll-snap-type/);
+});
+
+test("new input cancels the route-entry retry before it can reposition a live gesture", () => {
   for (const type of ["touchstart", "pointerdown", "wheel", "keydown"]) {
     const f = fixture({ reload: true });
-    f.emit(type);
-    f.window.scrollY = -400;
+    f.emit(type, [100]);
+    f.window.scrollY = -200;
     f.frame();
-    assert.equal(f.window.scrollY, -400);
+    assert.equal(f.window.scrollY, -200);
     assert.equal(f.writes.length, 1);
-    assert.equal(f.frames.size + f.listeners.size, 0);
     assert.equal(f.history.scrollRestoration, "auto");
-    assert.equal(f.root.dataset.stripReloadScroll, undefined);
+    f.cleanup();
   }
 });
 
-test("route-entry retry handles a late route reset, then permanently gives control back", () => {
-  const f = fixture({ reload: true });
-  f.window.scrollY = 300;
+test("multi-touch is never prevented, and cancellation returns only after the last finger lifts", () => {
+  const f = fixture();
   f.frame();
-  assert.equal(f.window.scrollY, 0);
-  assert.equal(f.writes.length, 2);
-  assert.equal(f.history.scrollRestoration, "auto");
-  f.window.scrollY = 830;
-  f.emit("pageshow");
-  f.emit("scrollend");
-  f.frame();
-  assert.equal(f.window.scrollY, 830, "history restoration and reading position are not reset later");
-});
-
-test("reordering preserves position instead of triggering a top reset", () => {
-  const f = fixture({ resetScroll: false });
-  assert.equal(f.window.scrollY, 450);
-  assert.equal(f.writes.length + f.frames.size + f.listeners.size, 0);
-  for (const [before, after] of [[0, 59], [59, 0], [59, 59]]) {
-    const y = f.remap(450, before, after);
-    assert.equal(-after - y, -before - 450, "visual position is identical after the layout inset changes");
-  }
-  assert.equal(f.remap(20, 0, 59), 0, "no negative synthetic scroll debt");
-});
-
-test("text-first and non-iPhone pages do not gain the media layout or reset", () => {
-  const f = fixture({ inset: 0, resetScroll: false });
-  assert.equal(f.classes.size, 0);
-  assert.equal(f.window.scrollY, 450);
-  assert.equal(f.writes.length + f.frames.size + f.listeners.size, 0);
-});
-
-test("leaving the route clears the inset, cancels entry work, and restores reload ownership", () => {
-  const f = fixture({ reload: true });
+  f.emit("touchstart", [100, 150]);
+  f.window.scrollY = -100;
+  assert.equal(f.emit("touchmove", [130, 200]).defaultPrevented, false);
+  f.emit("touchend", [130]);
+  assert.equal(f.frames.size, 0);
+  f.emit("touchcancel");
+  assert.equal(f.frames.size, 1);
+  for (let n = 0; n < 120; n++) f.frame();
+  assert.equal(f.visualY(), -59);
   f.cleanup();
-  f.window.scrollY = 125;
-  f.frame();
-  assert.equal(f.window.scrollY, 125);
-  assert.equal(f.frames.size + f.listeners.size + f.classes.size + f.styles.size, 0);
-  assert.equal(f.history.scrollRestoration, "auto");
-});
-
-test("layout keeps native bounce enabled and removes every old forced-settle checkpoint", () => {
-  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(css, /html\.leading-image-inset-active \.has-leading-image \.strip-canvas \{\s*margin-top: calc\(-1 \* var\(--leading-image-inset\)\);\s*padding-top: 0;/);
-  assert.match(css, /html\.leading-image-inset-active \.has-leading-image > \.published-strip \{\s*display: flow-root;/);
-  assert.match(css, /overscroll-behavior-y: auto/);
-  assert.doesNotMatch(css, /min-height: calc\(100lvh \+ var\(--leading-image-inset\)\)/);
-  assert.doesNotMatch(page, /settleLeadingImageAtAnchor|scheduleSettleFallback|handleNativeReboundScroll|suppressLeadingImageSettleUntilTouch/);
-  assert.doesNotMatch(source, /setTimeout\(|behavior: "smooth"|preventDefault\(|addEventListener\("scroll/);
-  assert.doesNotMatch(css, /scroll-snap-type/);
 });

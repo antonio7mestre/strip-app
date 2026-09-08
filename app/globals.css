@@ -1476,16 +1476,22 @@ html.library-scroll-top-locked .library-mode {
   min-height: inherit;
 }
 
-/* Put the image at the old scroll-offset position in layout instead. The real
- * scroll boundary stays at zero, so Safari owns the entire pull and rebound. */
-html.leading-image-inset-active .has-leading-image > .editor-canvas,
-html.leading-image-inset-active .has-leading-image > .published-strip {
-  display: flow-root;
+/* Safari needs a real scroll offset to draw the first media under its top UI.
+ * Reserve that range even for a Strip shorter than the viewport. */
+html.leading-image-inset-active .app-shell.has-leading-image {
+  min-height: calc(100lvh + var(--leading-image-inset));
 }
 
 html.leading-image-inset-active .has-leading-image .strip-canvas {
-  margin-top: calc(-1 * var(--leading-image-inset));
+  margin-top: 0;
   padding-top: 0;
+}
+
+/* Only the reading surface joins the spring, never the fixed composer. */
+html.leading-media-return-active .has-leading-image > .editor-canvas,
+html.leading-media-return-active .has-leading-image > .published-strip {
+  translate: 0 var(--leading-media-return-y, 0px);
+  will-change: translate;
 }
 
 .strip-canvas.has-ending-card {
