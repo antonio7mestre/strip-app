@@ -1,5 +1,14 @@
 export type EntrancePalette = [string, string, string];
 
+/** Real completed media checks, including decoded cover and video first frames.
+ * Failed media settles too, so a broken asset cannot strand the loader. */
+export function entranceLoadPercent(settled: number, total: number) {
+  if (!Number.isFinite(total) || total < 0 || !Number.isFinite(settled)) return 0;
+  if (total === 0) return 100;
+  if (settled >= total) return 100;
+  return Math.min(99, Math.floor(Math.max(0, settled) / total * 100));
+}
+
 export function normalizeEntranceColor(value: string) {
   const hex = value.trim().replace(/^#/, "");
   if (/^[0-9a-f]{3}$/i.test(hex)) return "#" + [...hex].map(char => char + char).join("").toUpperCase();

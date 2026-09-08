@@ -25,16 +25,22 @@ test("the paint surface follows the existing anchor without scrolling or retaini
     setAttribute: (name, value) => attributes.set(name, value),
   };
   globalThis.document = {getElementById: () => theme};
-  const host={style:{top:"",height:""},closest:()=>({})};
+  const properties = new Map();
+  const host={style:{top:"",height:"",getPropertyValue:name=>properties.get(name),setProperty:(name,value)=>properties.set(name,value)},closest:()=>({})};
   const dispose=installScribbleSurface(host);
   try {
     assert.equal(attributes.has("name"), false);
     theme.setAttribute("content", "#FF00FF");
-    assert.deepEqual(host.style,{top:"-62px",height:"896px"});
+    assert.deepEqual([host.style.top,host.style.height],["-62px","904px"]);
+    assert.equal(properties.get("--entrance-label-bottom"),"152px");
     window.scrollY=62; nextFrame();
-    assert.deepEqual(host.style,{top:"0px",height:"896px"});
+    assert.deepEqual([host.style.top,host.style.height],["0px","904px"]);
     window.innerHeight=754;viewportEvents.get("resize")();
-    assert.equal(host.style.height,"896px");
+    assert.equal(host.style.height,"904px");
+    assert.equal(properties.get("--entrance-label-bottom"),"112px");
+    window.visualViewport.height=680; window.visualViewport.offsetTop=4;
+    viewportEvents.get("scroll")();
+    assert.equal(properties.get("--entrance-label-bottom"),"182px");
     const lateScroll=events.get("scroll");
     dispose();window.scrollY=500;lateScroll();
     assert.equal(host.style.top,"0px");
@@ -52,14 +58,23 @@ test("the paint surface follows the existing anchor without scrolling or retaini
 
 test("iPhone zero-inset reports still paint behind the notch and browser toolbar", () => {
   const base = { viewportHeight:714, screenWidth:414, screenHeight:896, landscape:false, isPhone:true, safeTop:0, scrollY:0 };
-  assert.deepEqual(scribbleSurfaceBounds(base), {top:-62,height:896});
-  assert.deepEqual(scribbleSurfaceBounds({...base,scrollY:62}), {top:0,height:896});
-  assert.deepEqual(scribbleSurfaceBounds({...base,safeTop:70}), {top:-70,height:896});
+  assert.deepEqual(scribbleSurfaceBounds(base), {top:-62,height:904});
+  assert.deepEqual(scribbleSurfaceBounds({...base,scrollY:62}), {top:0,height:904});
+  assert.deepEqual(scribbleSurfaceBounds({...base,safeTop:70}), {top:-70,height:904});
 });
 test("portrait and landscape use the matching screen edge, not desktop monitor height", () => {
   const base = { viewportHeight:350,screenWidth:414,screenHeight:896,landscape:true,isPhone:true,safeTop:0,scrollY:0 };
-  assert.deepEqual(scribbleSurfaceBounds(base), {top:0,height:414});
-  assert.deepEqual(scribbleSurfaceBounds({...base,isPhone:false,screenHeight:2160,viewportHeight:800}), {top:0,height:800});
+  assert.deepEqual(scribbleSurfaceBounds(base), {top:0,height:422});
+  assert.deepEqual(scribbleSurfaceBounds({...base,isPhone:false,screenHeight:2160,viewportHeight:800}), {top:0,height:808});
+});
+
+test("fractional viewport edges retain at least eight pixels of real painted overscan", () => {
+  for (const viewportHeight of [714,714.33,834.67,852,896.5]) {
+    const bounds=scribbleSurfaceBounds({viewportHeight,screenWidth:414,screenHeight:896,landscape:false,isPhone:true,safeTop:0,scrollY:62});
+    assert.ok(bounds.height>=896+8);
+    assert.ok(bounds.height-62-viewportHeight>=8);
+    assert.equal(bounds.height,Math.ceil(bounds.height));
+  }
 });
 
 test("starts as a tiny knot and draws a repeatable, bounded pen journey", () => {
@@ -185,7 +200,7 @@ function harness({ reduced = false, canvasFails = false } = {}) {
       while (now < end) { now = Math.min(end, now + 16); this.tick(now); }
     },
     resize(width, height) { bounds = { width, height }; resized(); },
-    motion(value) { media.matches = value; listeners.get("change")(); },
+    motion(value) { media.matches = value; listeners.get("change")?.(); },
     clean() {
       animation.dispose();
       delete globalThis.window; delete globalThis.requestAnimationFrame;
@@ -277,28 +292,33 @@ test("the final sweep cannot fade through assets that became unready", () => {
   } finally { h.clean(); }
 });
 
-test("reduced motion skips scrawling, honors readiness, and fades gently", () => {
+test("the requested entrance always draws and sweeps even with reduced motion enabled", () => {
   const h = harness({ reduced: true });
   try {
     h.tick(0);
-    assert.equal(h.host.dataset.inkPhase, "covered");
-    assert.equal(h.queue.size, 0);
-    h.animation.setReady(true); h.tick(3000); h.tick(3140);
+    assert.equal(h.host.dataset.inkPhase, "drawing");
+    assert.equal(h.queue.size, 1);
+    h.animation.setReady(true); h.advance(SCRIBBLE_DRAW_MS);
+    assert.ok(h.strokes>1000);
+    assert.equal(h.host.dataset.inkPhase,"sweeping");
+    h.motion(false);h.motion(true);
+    h.advance(SCRIBBLE_SWEEP_MS + SCRIBBLE_FADE_MS/2);
     assert.equal(Number(h.host.style.opacity), 0.5);
-    h.tick(3280);
+    h.advance(SCRIBBLE_FADE_MS/2);
     assert.equal(h.done, 1);
+    assert.equal(h.listeners,0);
   } finally { h.clean(); }
 });
 
-test("canvas failure and a reduced-motion preference change cannot trap the loader", () => {
-  for (const canvasFails of [false, true]) {
-    const h = harness({ canvasFails });
-    try {
-      h.tick(0); h.motion(true);
-      h.animation.setReady(true); h.tick(1000); h.tick(1280);
-      assert.equal(h.done, 1);
-    } finally { h.clean(); }
-  }
+test("canvas failure still waits for media and exits without trapping the page", () => {
+  const h = harness({canvasFails:true});
+  try {
+    h.tick(0); h.advance(1000);
+    assert.equal(h.host.dataset.inkPhase,"covered");
+    assert.equal(h.queue.size,0); assert.equal(h.done,0);
+    h.animation.setReady(true); h.advance(16 + SCRIBBLE_FADE_MS);
+    assert.equal(h.done,1);
+  } finally { h.clean(); }
 });
 
 test("unmount cancels drawing and removes observers and listeners", () => {

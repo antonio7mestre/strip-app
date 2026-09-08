@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { makeEntrancePalette, sampleEntranceMedia } from "@/app/lib/strip-entrance";
+import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia } from "@/app/lib/strip-entrance";
 import { installScribbleSurface, startScribble } from "@/app/lib/scribble-entrance";
 
 type Cover = { kind: "image"; src: string } | { kind: "color"; color: string };
@@ -32,6 +32,8 @@ export function StripEntrance({
   blocks,
   endingStyle,
   mediaReady,
+  settledAssets,
+  totalAssets,
   revealing,
   onCoverSettled,
   onExitComplete,
@@ -40,6 +42,8 @@ export function StripEntrance({
   blocks: PaletteBlock[];
   endingStyle: { backgroundColor: string; buttonColor: string };
   mediaReady: boolean;
+  settledAssets: number;
+  totalAssets: number;
   revealing: boolean;
   onCoverSettled: () => void;
   onExitComplete: () => void;
@@ -94,6 +98,7 @@ export function StripEntrance({
   ];
   const palette = makeEntrancePalette(authored, sampledColors);
   const hasPalette = cover.kind === "color" || blocks.some(block => block.type === "text") || paletteSampled;
+  const loadPercent = entranceLoadPercent(settledAssets, totalAssets);
   const style = {
     "--entrance-a": palette[0],
     "--entrance-b": palette[1],
@@ -122,6 +127,11 @@ export function StripEntrance({
         />
       ) : null}
       {hasPalette ? <InkCanvas palette={palette} ready={revealing} onComplete={onExitComplete} /> : null}
+      <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={loadPercent}>
+        <span aria-hidden="true">STRIP LOADING...</span>
+        <span className="strip-entrance-percent" aria-hidden="true">{loadPercent}%</span>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 export const SCRIBBLE_DRAW_MS = 2600;
 export const SCRIBBLE_SWEEP_MS = 720;
 export const SCRIBBLE_FADE_MS = 650;
-export const SCRIBBLE_REDUCED_FADE_MS = 280;
 
 /** Safari 26 may report zero safe insets and a viewport shorter than the glass.
  * Use the screen only on iPhone, and only for this non-interactive paint layer. */
@@ -14,7 +13,9 @@ export function scribbleSurfaceBounds({
   const phoneHeight = landscape ? Math.min(screenWidth, screenHeight) : Math.max(screenWidth, screenHeight);
   const phoneTop = isPhone && !landscape ? Math.min(62, Math.max(47, Math.min(screenWidth, screenHeight) * 0.154)) : 0;
   const inset = Math.max(safeTop, phoneTop);
-  return { top: scrollY - inset, height: Math.max(viewportHeight + inset, isPhone ? phoneHeight : 0) };
+  // Overscan the physical edge, not a separate colored safe-area patch. Safari's
+  // fractional viewport/compositor rounding must never expose the next block.
+  return { top: scrollY - inset, height: Math.ceil(Math.max(viewportHeight + inset, isPhone ? phoneHeight : 0)) + 8 };
 }
 
 export function installScribbleSurface(host: HTMLElement) {
@@ -38,6 +39,12 @@ export function installScribbleSurface(host: HTMLElement) {
     const top = size.top + "px", height = size.height + "px";
     if (host.style.top !== top) host.style.top = top;
     if (host.style.height !== height) host.style.height = height;
+    const viewport = window.visualViewport;
+    const visibleBottom = Math.min(window.innerHeight, (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0));
+    const labelBottom = Math.max(24, size.height + size.top - window.scrollY - visibleBottom + 24) + "px";
+    if (host.style.getPropertyValue("--entrance-label-bottom") !== labelBottom) {
+      host.style.setProperty("--entrance-label-bottom", labelBottom);
+    }
   };
   sync();
   // The parent's existing leading-media anchor runs in the same layout commit.
@@ -46,6 +53,7 @@ export function installScribbleSurface(host: HTMLElement) {
   window.addEventListener("scroll", sync, { passive: true });
   window.addEventListener("resize", sync, { passive: true });
   window.visualViewport?.addEventListener("resize", sync);
+  window.visualViewport?.addEventListener("scroll", sync);
   return () => {
     if (disposed) return;
     disposed = true;
@@ -53,6 +61,7 @@ export function installScribbleSurface(host: HTMLElement) {
     window.removeEventListener("scroll", sync);
     window.removeEventListener("resize", sync);
     window.visualViewport?.removeEventListener("resize", sync);
+    window.visualViewport?.removeEventListener("scroll", sync);
     if (themeName && !theme?.hasAttribute("name")) theme?.setAttribute("name", themeName);
   };
 }
@@ -187,8 +196,8 @@ export function startScribble(
   onComplete: () => void,
 ) {
   const context = canvas.getContext("2d");
-  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  let reduced = motion.matches;
+  // Product choice: this entrance always draws, including with Reduce Motion.
+  // Other motion preferences in the editor and navigation remain unchanged.
   let stopped = false, completed = false, ready = false, covered = false;
   let frame = 0, previousFrame: number | null = null, fadeStarted: number | null = null;
   let elapsed = 0, sweepElapsed = 0, sweepFrom: number | null = null, extensions = 0;
@@ -216,13 +225,6 @@ export function startScribble(
     context.fillRect(0, 0, width, height);
     context.globalCompositeOperation = "source-over";
   };
-  const paintReduced = () => {
-    if (!context) return;
-    context.clearRect(0, 0, width, height);
-    drawn = 0;
-    drawTo(110);
-    fillBehind();
-  };
   const resize = () => {
     if (stopped) return;
     const bounds = host.getBoundingClientRect();
@@ -239,11 +241,8 @@ export function startScribble(
     if (sweepFrom !== null) journey.finish(sweepFrom);
     segments = journey.segments;
     drawn = 0;
-    if (reduced) paintReduced();
-    else {
-      drawTo(sweepFrom === null ? previousDrawn : sweepFrom + Math.floor(clamp(sweepElapsed / SCRIBBLE_SWEEP_MS) * (segments.length - sweepFrom)));
-      if (covered) fillBehind();
-    }
+    drawTo(sweepFrom === null ? previousDrawn : sweepFrom + Math.floor(clamp(sweepElapsed / SCRIBBLE_SWEEP_MS) * (segments.length - sweepFrom)));
+    if (covered) fillBehind();
   };
   const schedule = () => {
     if (!frame && !stopped && !completed) frame = requestAnimationFrame(tick);
@@ -255,9 +254,8 @@ export function startScribble(
     const delta = previousFrame === null ? 0 : Math.min(64, Math.max(0, now - previousFrame));
     previousFrame = now;
     if (!covered) {
-      if (reduced || !context) {
+      if (!context) {
         progress = 1;
-        if (reduced) paintReduced();
       } else if (sweepFrom === null) {
         elapsed += delta;
         const target = Math.floor(elapsed / SCRIBBLE_DRAW_MS * 1200);
@@ -286,7 +284,7 @@ export function startScribble(
     if (covered && ready) {
       if (fadeStarted === null) fadeStarted = now;
       host.dataset.inkPhase = "fading";
-      const fade = clamp((now - fadeStarted) / (reduced ? SCRIBBLE_REDUCED_FADE_MS : SCRIBBLE_FADE_MS));
+      const fade = clamp((now - fadeStarted) / SCRIBBLE_FADE_MS);
       host.style.opacity = String(1 - fade * fade * (3 - 2 * fade));
       if (fade === 1) {
         completed = true;
@@ -294,22 +292,15 @@ export function startScribble(
         return;
       }
     }
-    // Normal motion stays alive until assets settle and the final sweep ends.
-    // Reduced motion remains still while waiting, without a polling loop.
+    // Keep drawing until assets settle and the final sweep ends.
     if (!covered || ready) schedule();
   }
-  const onMotionChange = () => {
-    reduced = motion.matches;
-    resize();
-    schedule();
-  };
   host.dataset.inkPhase = "drawing";
   host.style.opacity = "1";
   host.dataset.inkColor = ink;
   resize();
   const observer = new ResizeObserver(resize);
   observer.observe(host);
-  motion.addEventListener("change", onMotionChange);
   schedule();
   return {
     setReady(value: boolean) { ready = value; schedule(); },
@@ -317,7 +308,6 @@ export function startScribble(
       stopped = true;
       cancelAnimationFrame(frame);
       observer.disconnect();
-      motion.removeEventListener("change", onMotionChange);
     },
   };
 }

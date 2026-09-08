@@ -6,7 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia } from "../app/lib/strip-entrance.ts";
+import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia } from "../app/lib/strip-entrance.ts";
 import { startScribble } from "../app/lib/scribble-entrance.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
@@ -62,21 +62,25 @@ const exports = {};
 runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
-  ? { makeEntrancePalette, sampleEntranceMedia } : name === "@/app/lib/scribble-entrance"
+  ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia } : name === "@/app/lib/scribble-entrance"
     ? { startScribble } : require(name) });
 test("renders one accessible status and one flat ink canvas, without ribbons or extra media", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
     mediaReady: true, revealing: false, onCoverSettled() {}, onExitComplete() {},
+    settledAssets:97,totalAssets:100,
   }));
   assert.equal((html.match(/<canvas/g) ?? []).length, 1);
   assert.equal((html.match(/role="status"/g) ?? []).length, 1);
   assert.match(html, /--entrance-a:#FF3366/);
   assert.match(html, /aria-label="Loading Strip"/);
+  assert.match(html, /STRIP LOADING\.\.\./);
+  assert.match(html, /aria-valuenow="97"/);
+  assert.match(html, />97%<\/span>/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
-test("readiness, timeout, and reduced motion preserve the loading contract", () => {
+test("readiness and timeout preserve the loading contract", () => {
   assert.match(page, /publishedAssetsReady && publishedMinimumElapsed/);
   assert.match(page, /PUBLISHED_MEDIA_LOAD_TIMEOUT_MS/);
   assert.match(page, /onExitComplete=\{\(\) => setPublishedLoaderDismissedKey\(publishedStripLoadKey\)\}/);
@@ -85,6 +89,24 @@ test("readiness, timeout, and reduced motion preserve the loading contract", () 
   assert.match(componentSource, /if \(!mounted.current\) return/);
   assert.match(componentSource, /if \(revealing\) frozen.current = true/);
   assert.doesNotMatch(componentSource, /scrollTo|scrollBy|new Image|fetch\(/);
+});
+
+test("the percentage follows completed assets and never rounds unfinished loading to 100", () => {
+  assert.equal(entranceLoadPercent(0,10),0);
+  assert.equal(entranceLoadPercent(1,4),25);
+  assert.equal(entranceLoadPercent(97,100),97);
+  assert.equal(entranceLoadPercent(999,1000),99);
+  assert.equal(entranceLoadPercent(1000,1000),100);
+  assert.equal(entranceLoadPercent(0,0),100);
+  assert.equal(entranceLoadPercent(-1,10),0);
+  assert.equal(entranceLoadPercent(NaN,10),0);
+  assert.equal(entranceLoadPercent(1,Infinity),0);
+  for(let i=1;i<=100;i++) assert.ok(entranceLoadPercent(i,100)>=entranceLoadPercent(i-1,100));
+  assert.match(page,/settledAssets=\{publishedAssetIds.filter/);
+  assert.match(page,/openedPublishedStrip.cover.kind === "image" && publishedCoverReady/);
+  assert.match(componentSource,/entranceLoadPercent\(settledAssets, totalAssets\)/);
+  assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
+  assert.match(css,/font-variant-numeric: tabular-nums/);
 });
 test("the reveal only animates the overlay, never the actual strip or footer", () => {
   const entranceCss = css.slice(css.indexOf(".published-strip-load-gate {"), css.indexOf(".sticker-block {"));

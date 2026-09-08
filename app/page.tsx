@@ -8224,6 +8224,9 @@ export default function Home() {
                 blocks={publishedBlocks}
                 endingStyle={visibleEndingStyle}
                 mediaReady={publishedContentReady}
+                settledAssets={publishedAssetIds.filter((id) => mediaLoadStatus[id] !== undefined).length +
+                  (openedPublishedStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}
+                totalAssets={publishedAssetIds.length + (openedPublishedStrip.cover.kind === "image" ? 1 : 0)}
                 revealing={publishedLoaderPhase === "revealing"}
                 onCoverSettled={() => setPublishedCoverSettledKey(publishedStripLoadKey)}
                 onExitComplete={() => setPublishedLoaderDismissedKey(publishedStripLoadKey)}
