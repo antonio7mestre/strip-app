@@ -4936,7 +4936,9 @@ export default function Home() {
       markup: currentControls?.innerHTML ?? "",
       layoutClass: currentControls?.classList.contains("app-navigation-controls")
         ? "app-navigation-controls"
-        : "",
+        : currentControls?.classList.contains("dock-action-controls")
+          ? "dock-action-controls"
+          : "",
     };
   };
 
@@ -7942,7 +7944,7 @@ export default function Home() {
           className="composer-dock title-setup-dock publish-flow-dock"
         >
           {dockTransitionLayer}
-          <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+          <div className={`${currentDockControlsClass} dock-action-controls`} key={`dock-controls:${view}`}>
             <button
               className="dock-icon-button publish-flow-button publish-flow-back-button"
               type="button"
@@ -8325,7 +8327,7 @@ export default function Home() {
           }`}
         >
           {dockTransitionLayer}
-          <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
+          <div className={`${currentDockControlsClass} dock-action-controls`} key={`dock-controls:${view}`}>
             <button
               className="dock-icon-button publish-flow-button publish-flow-back-button"
               type="button"
@@ -8774,7 +8776,7 @@ export default function Home() {
         {dockTransitionLayer}
         {heightCropSession ? (
           <div
-            className={`${currentDockControlsClass} height-crop-dock-controls`}
+            className={`${currentDockControlsClass} dock-action-controls height-crop-dock-controls`}
             key="height-crop-controls"
           >
             <button

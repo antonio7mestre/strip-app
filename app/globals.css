@@ -2370,6 +2370,9 @@ html.published-content-loading .top-safe-area-anchor {
 
 .composer-dock {
   --dock-browser-extension: max(0px, calc(100lvh - 100dvh));
+  --dock-padding-left: max(12px, env(safe-area-inset-left));
+  --dock-padding-right: max(12px, env(safe-area-inset-right));
+  --dock-controls-width: min(calc(100% - 24px), 536px);
   position: fixed;
   z-index: 30;
   right: 0;
@@ -2386,10 +2389,10 @@ html.published-content-loading .top-safe-area-anchor {
   justify-content: center;
   gap: 4px;
   overflow: hidden;
-  padding: 12px max(12px, env(safe-area-inset-right))
+  padding: 12px var(--dock-padding-right)
     calc(
       182px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
-    ) max(12px, env(safe-area-inset-left));
+    ) var(--dock-padding-left);
   transform: none;
   border: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
@@ -2423,7 +2426,7 @@ html.published-content-loading .top-safe-area-anchor {
 }
 
 .main-composer-dock .dock-controls-current {
-  width: min(calc(100% - 24px), 536px);
+  width: var(--dock-controls-width);
   justify-content: space-between;
   gap: 0;
 }
@@ -2534,10 +2537,6 @@ html.published-content-loading .top-safe-area-anchor {
 }
 
 .main-composer-dock .height-crop-dock-controls {
-  width: min(100%, var(--bottom-action-tray-max-width));
-  justify-content: stretch;
-  gap: 8px;
-  padding-inline: 12px;
   animation: height-crop-handles-reveal 180ms ease-out both;
 }
 
@@ -3235,7 +3234,8 @@ html.published-content-loading .top-safe-area-anchor {
   width: min(100%, var(--bottom-action-tray-max-width));
 }
 
-.publish-flow-dock .publish-flow-button {
+.publish-flow-dock .publish-flow-button,
+.dock-action-controls .publish-flow-button {
   width: 0;
   min-width: 0;
   flex: 1 1 0;
@@ -3246,6 +3246,31 @@ html.published-content-loading .top-safe-area-anchor {
 
 .publish-flow-back-button {
   background: rgba(0, 0, 0, 0.06);
+}
+
+/* Two-button steps share the main editor row's edges, not the small tool tray. */
+.composer-dock .dock-action-controls {
+  display: grid;
+  width: var(--dock-controls-width);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-inline: 0;
+}
+
+.composer-dock .dock-action-controls > button {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding-inline: 12px;
+}
+
+/* Outgoing rows are absolute, so include the dock padding in their insets. */
+.composer-dock .dock-action-controls.dock-controls-outgoing {
+  right: calc(var(--dock-padding-right) + 12px);
+  left: calc(var(--dock-padding-left) + 12px);
+  width: auto;
+  max-width: 536px;
+  margin-inline: auto;
 }
 
 .main-composer-dock.is-shifted,
@@ -3829,11 +3854,7 @@ html.published-content-loading .top-safe-area-anchor {
 }
 
 @media (max-width: 430px) {
-  .main-composer-dock .dock-controls-current {
-    gap: 0;
-  }
-
-  .main-composer-dock .dock-icon-button:not(.publish-strip-button) {
+  .main-composer-dock .dock-icon-button:not(.publish-strip-button):not(.publish-flow-button) {
     width: 43px;
     flex-basis: 43px;
   }
@@ -4183,8 +4204,8 @@ html.page-color-picking * {
 
 @media (min-width: 720px) {
   .composer-dock {
-    padding-right: max(20px, env(safe-area-inset-right));
-    padding-left: max(20px, env(safe-area-inset-left));
+    --dock-padding-right: max(20px, env(safe-area-inset-right));
+    --dock-padding-left: max(20px, env(safe-area-inset-left));
   }
 }
 
