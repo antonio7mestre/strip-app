@@ -1238,9 +1238,14 @@ html.library-scroll-top-locked .library-mode {
   padding-bottom: 12px;
 }
 
-.published-strip.has-trailing-media .published-bottom-sheet,
-.strip-canvas.has-trailing-media > .strip-ending-card {
-  margin-top: calc(-1 * var(--iphone-panel-radius));
+.media-edge-extension {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: var(--iphone-panel-radius);
+  pointer-events: none;
 }
 
 .strip-end-sheet-controls {
@@ -2258,13 +2263,6 @@ html.published-content-loading .top-safe-area-anchor {
   color: #ffffff;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-
-.published-strip.has-trailing-video
-  .strip-canvas
-  > .video-block:last-of-type
-  .video-audio-toggle {
-  bottom: calc(10px + var(--iphone-panel-radius));
 }
 
 .video-audio-toggle svg {

@@ -50,6 +50,7 @@ import {
   DEFAULT_STRIP_ENDING_STYLE,
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
+import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 
 type TextBlock = {
   id: string;
@@ -2190,6 +2191,7 @@ function StripVideoBlock({
   cropEditing = false,
   croppedHeight,
   heightCropHandles,
+  extendBottomEdge = false,
 }: {
   block: VideoBlock;
   isEditing: boolean;
@@ -2213,6 +2215,7 @@ function StripVideoBlock({
   cropEditing?: boolean;
   croppedHeight?: number;
   heightCropHandles?: ReactNode;
+  extendBottomEdge?: boolean;
 }) {
   const cropViewportHeight = cropEditing ? cropSourceHeight : croppedHeight;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -2349,6 +2352,13 @@ function StripVideoBlock({
       </div>
       {controls}
       {heightCropHandles}
+      {extendBottomEdge ? (
+        <MediaEdgeExtension
+          src={block.src}
+          cropTop={cropEditing ? 0 : cropTop}
+          cropHeight={cropViewportHeight}
+        />
+      ) : null}
       {showAudioToggle ? (
         <button
           className="video-audio-toggle"
@@ -6698,7 +6708,7 @@ export default function Home() {
     const trailingFlowBlock = [...sourceBlocks]
       .reverse()
       .find((block) => block.type !== "sticker");
-    const endingOverlapsMedia =
+    const endingFollowsMedia =
       showsEndingCard &&
       (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
     const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
@@ -6713,7 +6723,7 @@ export default function Home() {
     return (
       <div
         className={`strip-canvas ${showsEndingCard ? "has-ending-card" : ""} ${
-          endingOverlapsMedia ? "has-trailing-media" : ""
+          endingFollowsMedia ? "has-trailing-media" : ""
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
@@ -6957,6 +6967,13 @@ export default function Home() {
               {isEditing && heightCrop
                 ? renderHeightCropHandles(block, heightCrop)
                 : null}
+              {trailingFlowBlock?.id === block.id ? (
+                <MediaEdgeExtension
+                  src={block.src}
+                  cropTop={heightCrop?.isEditing ? 0 : heightCrop?.top}
+                  cropHeight={cropViewportHeight}
+                />
+              ) : null}
             </figure>
           );
         }
@@ -7037,6 +7054,7 @@ export default function Home() {
           <StripVideoBlock
             key={block.id}
             block={block}
+            extendBottomEdge={trailingFlowBlock?.id === block.id}
             isEditing={isEditing}
             isSelected={selectedBlockId === block.id}
             muted={
