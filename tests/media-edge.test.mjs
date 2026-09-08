@@ -52,3 +52,21 @@ test("reflects the edge vertically and reuses the existing video frame", () => {
   ]);
   assert.equal(video.currentTime, 12.5);
 });
+
+test("the seam overlap copies the original orientation and starts reflection at the real bottom", () => {
+  const calls = [];
+  const context = {
+    setTransform: (...args) => calls.push(["transform", ...args]),
+    drawImage: (...args) => calls.push(["draw", ...args]),
+  };
+  const media = {};
+  paintMediaEdge(context, media, 1000, { top: 1890, height: 110 }, 800, 90, {
+    height: 2, sourceHeight: 2.5,
+  });
+  assert.deepEqual(calls, [
+    ["transform", 1, 0, 0, 1, 0, 0],
+    ["draw", media, 0, 1997.5, 1000, 2.5, 0, 0, 800, 2],
+    ["transform", 1, 0, 0, -1, 0, 90],
+    ["draw", media, 0, 1890, 1000, 110, 0, 0, 800, 88],
+  ]);
+});

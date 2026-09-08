@@ -10,7 +10,7 @@ const compiled = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
 ).outputText;
 
-function fixture({ frameCallbacks = true } = {}) {
+function fixture({ frameCallbacks = true, seamOverlap = 0 } = {}) {
   class Target {
     listeners = new Map();
     addEventListener(name, callback) { this.listeners.set(name, callback); }
@@ -39,7 +39,7 @@ function fixture({ frameCallbacks = true } = {}) {
   const canvas = {
     width: 300, height: 150, parentElement: block,
     getContext: () => ({ resetTransform() {}, clearRect() {}, setTransform() {}, drawImage() { paints++; } }),
-    getBoundingClientRect: () => ({ width: 400, height: 44 }),
+    getBoundingClientRect: () => ({ top: 800 - seamOverlap, width: 400, height: 44 + seamOverlap }),
   };
   const document = new Target();
   document.hidden = false;
@@ -86,7 +86,7 @@ test("video edge stays synchronized, sleeps offscreen, and cleans up on unmount"
   const f = fixture();
   assert.equal(f.frames.size, 1);
   assert.equal(f.animations.size, 0);
-  assert.equal(f.canvas.width, 800, "caps the decorative canvas density");
+  assert.equal(f.canvas.width, 1200, "matches the original image on a 3x Retina display");
   const [id, callback] = [...f.frames][0];
   f.frames.delete(id);
   const before = f.paints();
@@ -133,14 +133,27 @@ test("crop changes repaint even without CSS transition events", () => {
   f.unmount();
 });
 
-test("the extension sits below the source and never intercepts input", () => {
+test("a matching source-edge overlap seals the join without moving the footer", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const rule = css.match(/\.media-edge-extension \{([^}]+)\}/)[1];
   assert.match(rule, /position: absolute/);
-  assert.match(rule, /top: 100%/);
-  assert.match(rule, /height: var\(--iphone-panel-radius\)/);
+  assert.match(rule, /--media-edge-overlap: 1px/);
+  assert.match(rule, /top: calc\(100% - var\(--media-edge-overlap\)\)/);
+  assert.match(rule, /height: calc\(var\(--iphone-panel-radius\) \+ var\(--media-edge-overlap\)\)/);
   assert.match(rule, /pointer-events: none/);
   assert.doesNotMatch(css, /margin-top: calc\(-1 \* var\(--iphone-panel-radius\)\)/);
+  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: none;/);
+});
+
+test("the seam is repainted with both original and mirrored pixels at fractional positions", () => {
+  for (const seamOverlap of [1, 1.25, 1.5]) {
+    const f = fixture({ seamOverlap });
+    const before = f.paints();
+    f.cropChanged();
+    assert.equal(f.paints(), before + 2);
+    assert.equal(f.canvas.height, Math.round((44 + seamOverlap) * 3));
+    f.unmount();
+  }
 });
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");

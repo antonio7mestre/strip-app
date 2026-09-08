@@ -39,23 +39,31 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
       const viewportBounds = viewport!.getBoundingClientRect();
       const bounds = canvas!.getBoundingClientRect();
       const bottom = Math.min(viewportBounds.bottom, mediaBounds.bottom);
+      const overlap = Math.max(0, Math.min(bounds.height, bottom - bounds.top));
       const slice = getMediaEdgeSlice({
         sourceHeight,
         renderedHeight: mediaBounds.height,
         visibleBottom: bottom - mediaBounds.top,
         visibleHeight: bottom - Math.max(viewportBounds.top, mediaBounds.top),
-        extensionHeight: bounds.height,
+        extensionHeight: bounds.height - overlap,
       });
       if (!slice || bounds.width <= 0) return;
 
       // A small decorative strip, not a second video player or full-frame copy.
-      const density = Math.min(window.devicePixelRatio || 1, 2);
+      // Match Retina image pixels at the join, including 3x iPhone displays.
+      const density = Math.min(window.devicePixelRatio || 1, 3);
       const width = Math.max(1, Math.round(bounds.width * density));
       const height = Math.max(1, Math.round(bounds.height * density));
       if (canvas!.width !== width) canvas!.width = width;
       if (canvas!.height !== height) canvas!.height = height;
       try {
-        paintMediaEdge(context!, media!, sourceWidth, slice, width, height);
+        paintMediaEdge(context!, media!, sourceWidth, slice, width, height, {
+          height: Math.min(height - 1, Math.round(overlap * height / bounds.height)),
+          sourceHeight: Math.min(
+            slice.top + slice.height,
+            overlap * sourceHeight / mediaBounds.height,
+          ),
+        });
       } catch {
         // Media may briefly be unavailable during a source change or seek.
       }

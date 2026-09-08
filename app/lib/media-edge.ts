@@ -25,8 +25,17 @@ export function paintMediaEdge(
   slice: { top: number; height: number },
   width: number,
   height: number,
+  overlap: { height: number; sourceHeight: number } = { height: 0, sourceHeight: 0 },
 ) {
-  // The original bottom pixel meets its reflected copy at the seam.
+  // Copy the real edge into the overlap before reflecting below it. This seals
+  // fractional CSS-pixel gaps without replacing any original content with a mirror.
+  if (overlap.height > 0 && overlap.sourceHeight > 0) {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.drawImage(
+      media, 0, slice.top + slice.height - overlap.sourceHeight,
+      sourceWidth, overlap.sourceHeight, 0, 0, width, overlap.height,
+    );
+  }
   context.setTransform(1, 0, 0, -1, 0, height);
-  context.drawImage(media, 0, slice.top, sourceWidth, slice.height, 0, 0, width, height);
+  context.drawImage(media, 0, slice.top, sourceWidth, slice.height, 0, 0, width, height - overlap.height);
 }

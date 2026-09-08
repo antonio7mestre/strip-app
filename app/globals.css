@@ -1228,9 +1228,7 @@ html.library-scroll-top-locked .library-mode {
   corner-shape: squircle;
   background: var(--ending-background, #ffffff);
   color: var(--ending-foreground, #000000);
-  box-shadow:
-    0 -20px 56px rgba(0, 0, 0, 0.14),
-    0 -6px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .editor-mode .strip-ending-card {
@@ -1252,12 +1250,13 @@ html.library-scroll-top-locked .library-mode {
 }
 
 .media-edge-extension {
+  --media-edge-overlap: 1px;
   position: absolute;
-  top: 100%;
+  top: calc(100% - var(--media-edge-overlap));
   left: 0;
   display: block;
   width: 100%;
-  height: var(--iphone-panel-radius);
+  height: calc(var(--iphone-panel-radius) + var(--media-edge-overlap));
   pointer-events: none;
 }
 
