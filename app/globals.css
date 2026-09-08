@@ -1236,6 +1236,11 @@ html.library-scroll-top-locked .library-mode {
 .published-strip.has-trailing-media .published-bottom-sheet,
 .strip-canvas.has-trailing-media > .strip-ending-card {
   margin-top: calc(-1 * var(--iphone-panel-radius));
+  background: color-mix(
+    in srgb,
+    var(--ending-background, #ffffff) 28%,
+    transparent
+  );
 }
 
 .strip-end-sheet-controls {
