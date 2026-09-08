@@ -54,15 +54,23 @@ export type InkSegment = {
   from: [number, number];
   to: [number, number];
   width: number;
-  color: number;
 };
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
-/** A repeatable pen journey, not a scaled-up image. Coordinates are viewport-local. */
-export function makeScribble(width: number, height: number): InkSegment[] {
+/** Choose once: the authored accent or dominant media color, never changing ink mid-stroke. */
+export function chooseScribbleColor(palette: readonly string[]) {
+  const color = palette.find(value => /^#[0-9a-f]{6}$/i.test(value)) ?? "#3155FF";
+  const rgb = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16));
+  const lightness = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+  const lift = Math.max(0, (100 - lightness) / (255 - lightness || 1));
+  return "#" + rgb.map(value => Math.round(value + (255 - value) * lift)
+    .toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+
+/** New seed per entrance, retained by the controller across every resize. */
+export function makeScribble(width: number, height: number, seed = Math.floor(Math.random() * 4294967296)): InkSegment[] {
   const w = Math.max(1, width), h = Math.max(1, height);
-  let seed = 7319;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
@@ -71,9 +79,27 @@ export function makeScribble(width: number, height: number): InkSegment[] {
   const cx = w / 2, cy = h / 2;
   const step = Math.max(16, Math.min(w, h) * 0.085);
   let previous: [number, number] = [cx, cy];
-  let previousWidth = 2.3;
-  let pass = 0;
-  const travel = (target: [number, number], penWidth: number, color: number, wobble: number) => {
+  let previousWidth = 1.8;
+  let tangent = random() * Math.PI * 2;
+  const wander = (target: [number, number], penWidth: number) => {
+    const origin = previous;
+    const reach = Math.hypot(target[0] - origin[0], target[1] - origin[1]);
+    const handle = Math.max(6, reach * (0.28 + random() * 0.15));
+    const first = [origin[0] + Math.cos(tangent) * handle, origin[1] + Math.sin(tangent) * handle];
+    tangent = Math.atan2(target[1] - origin[1], target[0] - origin[0]) + (random() - 0.5) * 2.4;
+    const last = [target[0] - Math.cos(tangent) * handle, target[1] - Math.sin(tangent) * handle];
+    for (let j = 1; j <= 40; j++) {
+      const t = j / 40, u = 1 - t;
+      const point: [number, number] = [0, 1].map(axis =>
+        u ** 3 * origin[axis] + 3 * u * u * t * first[axis]
+        + 3 * u * t * t * last[axis] + t ** 3 * target[axis],
+      ) as [number, number];
+      segments.push({ from: previous, to: point, width: previousWidth + (penWidth - previousWidth) * t });
+      previous = point;
+    }
+    previousWidth = penWidth;
+  };
+  const travel = (target: [number, number], penWidth: number, wobble: number) => {
     const origin = previous;
     const phase = random() * Math.PI * 2;
     for (let j = 1; j <= 40; j++) {
@@ -87,31 +113,66 @@ export function makeScribble(width: number, height: number): InkSegment[] {
         origin[1] + (target[1] - origin[1]) * t,
       ];
       const width = previousWidth + (penWidth - previousWidth) * t;
-      segments.push({ from: previous, to: point, width: width * (0.92 + random() * 0.16), color });
+      segments.push({ from: previous, to: point, width });
       previous = point;
     }
     previousWidth = penWidth;
-    pass++;
   };
-  // A small back-and-forth scribble grows into long up/down strokes.
-  for (let i = 0; i < 30; i++) {
-    const growth = Math.pow(i / 29, 1.85);
-    const direction = i % 2 === 0 ? -1 : 1;
-    const target: [number, number] = [
-      i === 29 ? -step : cx + Math.sin(i * 1.71) * (7 + growth * w * 0.55),
-      cy + direction * (8 + growth * (h / 2 + step)),
-    ];
-    travel(target, 2.3 + growth * growth * step * 1.7,
-      [0, 0, 1, 0, 2, 0][Math.floor(i / 3) % 6], 0.7 + growth * step * 0.2);
+  const angle = random() * Math.PI * 2;
+  for (let i = 0; i < 6; i++) {
+    const turn = angle + i * (2 + random() * 0.6);
+    const radius = 5 + i * 1.5;
+    wander([cx + Math.cos(turn) * radius, cy + Math.sin(turn) * radius], 2 + i * 0.4);
   }
-  // Keep that same up/down journey going across the page. The marker has now
-  // broadened enough that neighboring strokes meet, including every corner.
+  // Shuffle two visits to every cell. This feels freehand but cannot remain
+  // trapped in a central knot. The curve's tangent carries through every join.
+  const cells = Array.from({ length: 24 }, (_, index) => index % 12);
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  cells.forEach((cell, index) => {
+    const spread = Math.min(1, 0.25 + index * 0.13);
+    const x = ((cell % 3) + 0.12 + random() * 0.76) / 3 * w;
+    const y = (Math.floor(cell / 3) + 0.12 + random() * 0.76) / 4 * h;
+    wander([cx + (x - cx) * spread, cy + (y - cy) * spread],
+      4 + Math.pow((index + 1) / cells.length, 1.5) * step * 0.85);
+  });
+  // The SAME line becomes a broad marker and paints vertically, edge to edge.
+  // The connector reaches outside the glass before the first full-height pass.
+  wander([-step, -step * 2], step * 2.3);
+  let pass = 0;
   for (let x = -step; x <= w + step * 2; x += step) {
-    const direction = pass % 2 === 0 ? -1 : 1;
-    const target: [number, number] = [x, direction === -1 ? -step * 2 : h + step * 2];
-    travel(target, step * 2.3, [0, 1, 0, 2, 0][Math.floor(pass / 2) % 5], step * 0.12);
+    travel([x, pass++ % 2 === 0 ? h + step * 2 : -step * 2], step * 2.3 + pass * 0.15, step * 0.12);
   }
   return segments;
+}
+
+/** Short, drawing-synchronized taps. No timers, catch-up bursts, or activation tricks. */
+export function createScribbleHaptics(device: {
+  vibrate: (duration: number) => boolean; active: () => boolean; visible: () => boolean;
+}) {
+  const marks = [0.025, 0.14, 0.27, 0.42, 0.59, 0.77, 0.94];
+  let next = 0, last = -Infinity, buzzing = false, disabled = false;
+  const stop = () => {
+    if (!buzzing) return;
+    buzzing = false;
+    try { device.vibrate(0); } catch { disabled = true; }
+  };
+  return {
+    stop,
+    update(now: number, progress: number, allowed: boolean) {
+      if (!allowed || progress >= 1 || !device.visible()) { stop(); return; }
+      let due = false;
+      while (next < marks.length && progress >= marks[next]) { next++; due = true; }
+      if (!due || disabled || now - last < 220 || !device.active()) return;
+      try {
+        buzzing = device.vibrate(4 + next);
+        last = now;
+        if (!buzzing) disabled = true;
+      } catch { disabled = true; }
+    },
+  };
 }
 
 export function scribbleProgress(elapsed: number) {
@@ -133,16 +194,19 @@ export function startScribble(
   let frame = 0, started: number | null = null, fadeStarted: number | null = null;
   let segments: InkSegment[] = [], drawn = 0, progress = 0;
   let width = 1, height = 1;
-  const ink = [...palette].sort((a, b) => {
-    const lightness = (color: string) => parseInt(color.slice(1, 3), 16) * 0.2126
-      + parseInt(color.slice(3, 5), 16) * 0.7152 + parseInt(color.slice(5, 7), 16) * 0.0722;
-    return lightness(b) - lightness(a);
+  const ink = chooseScribbleColor(palette);
+  const seed = Math.floor(Math.random() * 4294967296);
+  const haptics = createScribbleHaptics({
+    vibrate: duration => typeof navigator !== "undefined" && typeof navigator.vibrate === "function"
+      ? navigator.vibrate(duration) : false,
+    active: () => typeof navigator !== "undefined" && navigator.userActivation?.hasBeenActive === true,
+    visible: () => typeof document !== "undefined" && document.visibilityState === "visible",
   });
   const drawTo = (target: number) => {
     if (!context) return;
     for (; drawn < target; drawn++) {
       const segment = segments[drawn];
-      context.strokeStyle = ink[segment.color] ?? ink[0];
+      context.strokeStyle = ink;
       context.lineWidth = segment.width;
       context.beginPath();
       context.moveTo(...segment.from);
@@ -153,7 +217,7 @@ export function startScribble(
   const fillBehind = () => {
     if (!context) return;
     context.globalCompositeOperation = "destination-over";
-    context.fillStyle = ink[0];
+    context.fillStyle = ink;
     context.fillRect(0, 0, width, height);
     context.globalCompositeOperation = "source-over";
   };
@@ -174,7 +238,7 @@ export function startScribble(
     canvas.height = Math.ceil(height * ratio);
     context?.setTransform(ratio, 0, 0, ratio, 0, 0);
     if (context) { context.lineCap = "round"; context.lineJoin = "round"; }
-    segments = makeScribble(width, height);
+    segments = makeScribble(width, height, seed);
     drawn = 0;
     if (reduced) paintReduced();
     else { drawTo(Math.floor(progress * segments.length)); if (covered) fillBehind(); }
@@ -191,6 +255,7 @@ export function startScribble(
       if (reduced) paintReduced();
       else drawTo(Math.floor(progress * segments.length));
       host.dataset.inkProgress = progress.toFixed(3);
+      haptics.update(now, progress, !reduced && Boolean(context));
       if (progress >= 1) {
         covered = true;
         fillBehind();
@@ -213,11 +278,15 @@ export function startScribble(
   }
   const onMotionChange = () => {
     reduced = motion.matches;
+    if (reduced) haptics.stop();
     resize();
     schedule();
   };
+  const onVisibilityChange = () => { if (document.visibilityState !== "visible") haptics.stop(); };
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibilityChange);
   host.dataset.inkPhase = "drawing";
   host.style.opacity = "1";
+  host.dataset.inkColor = ink;
   resize();
   const observer = new ResizeObserver(resize);
   observer.observe(host);
@@ -227,9 +296,11 @@ export function startScribble(
     setReady(value: boolean) { ready = value; schedule(); },
     dispose() {
       stopped = true;
+      haptics.stop();
       cancelAnimationFrame(frame);
       observer.disconnect();
       motion.removeEventListener("change", onMotionChange);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibilityChange);
     },
   };
 }

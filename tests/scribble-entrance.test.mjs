@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { makeScribble, scribbleProgress, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_DRAW_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+import { makeScribble, chooseScribbleColor, createScribbleHaptics, scribbleProgress, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_DRAW_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
 
 
 test("the paint surface follows the existing anchor without scrolling or retaining listeners", () => {
@@ -51,8 +51,8 @@ test("portrait and landscape use the matching screen edge, not desktop monitor h
 });
 
 test("starts as a tiny knot and draws a repeatable, bounded pen journey", () => {
-  const path = makeScribble(393, 852);
-  assert.deepEqual(path, makeScribble(393, 852));
+  const path = makeScribble(393, 852, 7319);
+  assert.deepEqual(path, makeScribble(393, 852, 7319));
   assert.ok(path.length < 3000);
   for (const segment of path.slice(0, 100)) {
     assert.ok(Math.abs(segment.to[0] - 393 / 2) < 22);
@@ -61,7 +61,6 @@ test("starts as a tiny knot and draws a repeatable, bounded pen journey", () => 
   for (const segment of path) {
     assert.ok(segment.width > 0);
     assert.ok([...segment.from, ...segment.to, segment.width].every(Number.isFinite));
-    assert.ok([0, 1, 2].includes(segment.color));
   }
   assert.ok(new Set(path.map(segment => segment.width)).size > 100);
 });
@@ -80,16 +79,77 @@ test("finishing strokes cover every sampled edge and corner on phone, landscape,
   }
 });
 
-test("one continuous pen stroke moves predominantly up and down", () => {
+test("one continuous pen stroke wanders freely then paints vertically, thickening throughout", () => {
   const path = makeScribble(393, 852);
   let vertical = 0, horizontal = 0;
   for (let index = 0; index < path.length; index++) {
     const segment = path[index];
     if (index) assert.deepEqual(segment.from, path[index - 1].to);
-    vertical += Math.abs(segment.to[1] - segment.from[1]);
-    horizontal += Math.abs(segment.to[0] - segment.from[0]);
+    if (index) assert.ok(segment.width >= path[index - 1].width - 1e-10);
+    if (index >= 1240) {
+      vertical += Math.abs(segment.to[1] - segment.from[1]);
+      horizontal += Math.abs(segment.to[0] - segment.from[0]);
+    }
   }
   assert.ok(vertical > horizontal * 4);
+});
+
+test("every entrance gets a new journey, while a retained seed survives resize", () => {
+  const paths = Array.from({ length: 12 }, () => makeScribble(393, 852));
+  assert.equal(new Set(paths.map(path => JSON.stringify(path.slice(0, 1200)))).size, 12);
+  assert.deepEqual(makeScribble(393, 852, 47), makeScribble(393, 852, 47));
+  assert.notDeepEqual(makeScribble(393, 852, 47), makeScribble(393, 852, 48));
+});
+
+test("random wandering visits all quarters before the final overtaking passes", () => {
+  for (let seed = 0; seed < 150; seed++) {
+    const path = makeScribble(393, 852, seed).slice(240, 1200);
+    const quarters = new Set(path.map(s => `${s.to[0] < 196.5}:${s.to[1] < 426}`));
+    assert.equal(quarters.size, 4, `seed ${seed} must roam across the page`);
+    assert.ok(Math.min(...path.map(s => s.to[0])) < 393 * 0.22);
+    assert.ok(Math.max(...path.map(s => s.to[0])) > 393 * 0.78);
+    assert.ok(Math.min(...path.map(s => s.to[1])) < 852 * 0.22);
+    assert.ok(Math.max(...path.map(s => s.to[1])) > 852 * 0.78);
+  }
+});
+
+test("one strip-derived ink color is frozen, with dark colors lifted for the black canvas", () => {
+  assert.equal(chooseScribbleColor(["#EC6350", "#99CC00"]), "#EC6350");
+  assert.equal(chooseScribbleColor(["#000000"]), "#646464");
+  assert.equal(chooseScribbleColor(["bad", "#FFFFFF"]), "#FFFFFF");
+  assert.match(chooseScribbleColor([]), /^#[0-9A-F]{6}$/);
+  const h = harness();
+  try {
+    h.tick(0); h.tick(1300); h.resize(852, 393); h.tick(2600);
+    assert.deepEqual([...h.colors], ["#EC6350"]);
+  } finally { h.clean(); }
+});
+
+test("haptics are short, drawing-synchronized, gated by activation, and cancel on exit", () => {
+  const pulses = [];
+  let active = false, visible = true;
+  const h = createScribbleHaptics({ vibrate: ms => { pulses.push(ms); return true; }, active: () => active, visible: () => visible });
+  h.update(0, 0.03, true);
+  assert.deepEqual(pulses, []);
+  active = true;
+  h.update(500, 0.15, true); h.update(510, 0.28, true);
+  assert.deepEqual(pulses, [6]);
+  h.update(1000, 0.9, true);
+  assert.deepEqual(pulses, [6, 10]); // Frame gaps never replay missed pulses.
+  visible = false; h.update(1100, 0.92, true);
+  assert.deepEqual(pulses, [6, 10, 0]);
+  visible = true; h.update(1500, 0.96, true); h.stop(); h.stop();
+  assert.deepEqual(pulses, [6, 10, 0, 11, 0]);
+});
+
+test("unsupported, denied, reduced-motion, or throwing haptics never interrupt loading", () => {
+  for (const fails of [false, true]) {
+    let calls = 0;
+    const h = createScribbleHaptics({ vibrate: () => { calls++; if (fails) throw Error("unsupported"); return false; }, active: () => true, visible: () => true });
+    h.update(100, 0.03, false); assert.equal(calls, 0);
+    h.update(200, 0.15, true); h.update(1000, 0.8, true); h.stop();
+    assert.equal(calls, 1);
+  }
 });
 
 test("drawing progress is continuous, monotonic, and clamped", () => {
@@ -107,6 +167,7 @@ function harness({ reduced = false, canvasFails = false } = {}) {
   const queue = new Map(), listeners = new Map();
   let id = 0, resized, disconnected = false, strokes = 0, fills = 0, done = 0;
   let bounds = { width: 393, height: 852 };
+  const colors = new Set();
   const media = { matches: reduced, addEventListener: (name, fn) => listeners.set(name, fn),
     removeEventListener: name => listeners.delete(name) };
   globalThis.window = { matchMedia: () => media, devicePixelRatio: 3 };
@@ -118,11 +179,11 @@ function harness({ reduced = false, canvasFails = false } = {}) {
     disconnect() { disconnected = true; }
   };
   const context = { setTransform() {}, beginPath() {}, moveTo() {}, lineTo() {}, clearRect() {},
-    stroke() { strokes++; }, fillRect() { fills++; } };
+    stroke() { strokes++; colors.add(this.strokeStyle); }, fillRect() { fills++; colors.add(this.fillStyle); } };
   const canvas = { width: 0, height: 0, getContext: () => canvasFails ? null : context };
   const host = { dataset: {}, style: {}, getBoundingClientRect: () => bounds };
   const animation = startScribble(canvas, host, ["#EC6350", "#99CC00", "#2244AA"], () => done++);
-  return { animation, host, canvas, queue,
+  return { animation, host, canvas, queue, colors,
     get done() { return done; }, get strokes() { return strokes; }, get fills() { return fills; },
     get disconnected() { return disconnected; }, get listeners() { return listeners.size; },
     tick(now) { const pending = [...queue.values()]; queue.clear(); pending.forEach(callback => callback(now)); },
