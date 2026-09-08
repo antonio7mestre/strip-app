@@ -89,6 +89,15 @@ test("even a very long native bounce is never intercepted or followed by a secon
   assert.equal(f.frames.size + f.listeners.size, 0);
 });
 
+test("mounting during an existing rubber-band never clamps Safari's negative offset", () => {
+  const f = fixture({ scrollY: -400, reload: true });
+  f.window.scrollY = -250;
+  f.frame();
+  assert.equal(f.window.scrollY, -250);
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.history.scrollRestoration, "auto");
+});
+
 test("starting any input before the entry frame cancels pending placement immediately", () => {
   for (const type of ["touchstart", "pointerdown", "wheel", "keydown"]) {
     const f = fixture({ reload: true });

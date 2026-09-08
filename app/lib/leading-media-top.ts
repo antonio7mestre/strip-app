@@ -21,7 +21,7 @@ export function installLeadingMediaTop({
     }
   };
   const placeAtNativeTop = () => {
-    if (resetScroll && !userHasControl && Math.abs(window.scrollY) > 0.5) {
+    if (resetScroll && !userHasControl && window.scrollY > 0.5) {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     }
   };
