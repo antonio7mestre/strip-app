@@ -93,4 +93,7 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   assert.doesNotMatch(entranceCss, /gradient|box-shadow|filter:|ribbon|@keyframes/);
   assert.match(componentSource, /animation.dispose\(\)/);
   assert.match(componentSource, /controller.current\?\.setReady\(ready\)/);
+  assert.match(entranceCss, /--entrance-safe-top: env\(safe-area-inset-top\)/);
+  assert.doesNotMatch(entranceCss, /html.published-content-loading[\s\S]*background:/);
+  assert.match(componentSource, /installScribbleSurface\(surface\)/);
 });

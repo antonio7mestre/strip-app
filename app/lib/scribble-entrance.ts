@@ -2,6 +2,54 @@ export const SCRIBBLE_DRAW_MS = 2600;
 export const SCRIBBLE_FADE_MS = 650;
 export const SCRIBBLE_REDUCED_FADE_MS = 280;
 
+/** Safari 26 may report zero safe insets and a viewport shorter than the glass.
+ * Use the screen only on iPhone, and only for this non-interactive paint layer. */
+export function scribbleSurfaceBounds({
+  viewportHeight, screenWidth, screenHeight, landscape, isPhone, safeTop, scrollY,
+}: {
+  viewportHeight: number; screenWidth: number; screenHeight: number;
+  landscape: boolean; isPhone: boolean; safeTop: number; scrollY: number;
+}) {
+  const phoneHeight = landscape ? Math.min(screenWidth, screenHeight) : Math.max(screenWidth, screenHeight);
+  const phoneTop = isPhone && !landscape ? Math.min(62, Math.max(47, Math.min(screenWidth, screenHeight) * 0.154)) : 0;
+  const inset = Math.max(safeTop, phoneTop);
+  return { top: scrollY - inset, height: Math.max(viewportHeight + inset, isPhone ? phoneHeight : 0) };
+}
+
+export function installScribbleSurface(host: HTMLElement) {
+  let disposed = false;
+  const sync = () => {
+    if (disposed) return;
+    const safeTop = parseFloat(getComputedStyle(host).getPropertyValue("--entrance-safe-top")) || 0;
+    const size = scribbleSurfaceBounds({
+      viewportHeight: window.innerHeight,
+      screenWidth: window.screen.width, screenHeight: window.screen.height,
+      landscape: window.innerWidth > window.innerHeight,
+      isPhone: /iPhone|iPod/.test(navigator.userAgent),
+      safeTop, scrollY: window.scrollY,
+    });
+    const top = size.top + "px", height = size.height + "px";
+    if (host.style.top !== top) host.style.top = top;
+    if (host.style.height !== height) host.style.height = height;
+  };
+  sync();
+  // The parent's existing leading-media anchor runs in the same layout commit.
+  // Match its final position before painting, without moving the page ourselves.
+  const frame = requestAnimationFrame(sync);
+  window.addEventListener("scroll", sync, { passive: true });
+  window.addEventListener("resize", sync, { passive: true });
+  window.visualViewport?.addEventListener("resize", sync);
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    cancelAnimationFrame(frame);
+    window.removeEventListener("scroll", sync);
+    window.removeEventListener("resize", sync);
+    window.visualViewport?.removeEventListener("resize", sync);
+  };
+}
+
+
 export type InkSegment = {
   from: [number, number];
   to: [number, number];

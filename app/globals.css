@@ -1762,9 +1762,15 @@ html.leading-image-inset-active .has-leading-image > .published-strip {
   pointer-events: auto;
 }
 .published-strip-loading {
-  position: fixed;
+  --entrance-safe-top: env(safe-area-inset-top);
+  /* Like the strip's leading media, draw into the unsafe area as document
+     content. A viewport-fixed canvas is clipped at Safari's content edges. */
+  position: absolute;
   z-index: 50;
-  inset: 0;
+  top: calc(-1 * env(safe-area-inset-top));
+  left: calc(-1 * env(safe-area-inset-left));
+  width: calc(100% + env(safe-area-inset-left) + env(safe-area-inset-right));
+  height: calc(100lvh + env(safe-area-inset-top) + env(safe-area-inset-bottom));
   overflow: hidden;
   isolation: isolate;
   touch-action: none;
@@ -1791,10 +1797,6 @@ html.leading-image-inset-active .has-leading-image > .published-strip {
 html.published-content-loading,
 html.published-content-loading body {
   overflow: hidden;
-  background: #000000 !important;
-}
-html.published-content-loading .top-safe-area-anchor {
-  background: #000000 !important;
 }
 
 .sticker-block {

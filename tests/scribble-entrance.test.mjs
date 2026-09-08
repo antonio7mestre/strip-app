@@ -1,6 +1,54 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { makeScribble, scribbleProgress, startScribble, SCRIBBLE_DRAW_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+import { makeScribble, scribbleProgress, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_DRAW_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+
+
+test("the paint surface follows the existing anchor without scrolling or retaining listeners", () => {
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const events = new Map(), viewportEvents = new Map();
+  let nextFrame, cancelled = false;
+  globalThis.window = {
+    innerWidth:414,innerHeight:714,screen:{width:414,height:896},scrollY:0,
+    addEventListener:(name,callback)=>events.set(name,callback),
+    removeEventListener:name=>events.delete(name),
+    visualViewport:{addEventListener:(name,callback)=>viewportEvents.set(name,callback),removeEventListener:name=>viewportEvents.delete(name)},
+  };
+  Object.defineProperty(globalThis,"navigator",{configurable:true,value:{userAgent:"iPhone"}});
+  globalThis.getComputedStyle=()=>({getPropertyValue:()=>"0px"});
+  globalThis.requestAnimationFrame=callback=>{nextFrame=callback;return 12;};
+  globalThis.cancelAnimationFrame=id=>{assert.equal(id,12);cancelled=true;};
+  const host={style:{top:"",height:""}};
+  const dispose=installScribbleSurface(host);
+  try {
+    assert.deepEqual(host.style,{top:"-62px",height:"896px"});
+    window.scrollY=62; nextFrame();
+    assert.deepEqual(host.style,{top:"0px",height:"896px"});
+    window.innerHeight=754;viewportEvents.get("resize")();
+    assert.equal(host.style.height,"896px");
+    const lateScroll=events.get("scroll");
+    dispose();window.scrollY=500;lateScroll();
+    assert.equal(host.style.top,"0px");
+    assert.equal(events.size,0);assert.equal(viewportEvents.size,0);assert.ok(cancelled);
+  } finally {
+    dispose();
+    delete globalThis.window;delete globalThis.getComputedStyle;
+    delete globalThis.requestAnimationFrame;delete globalThis.cancelAnimationFrame;
+    if(originalNavigator)Object.defineProperty(globalThis,"navigator",originalNavigator);
+    else delete globalThis.navigator;
+  }
+});
+
+test("iPhone zero-inset reports still paint behind the notch and browser toolbar", () => {
+  const base = { viewportHeight:714, screenWidth:414, screenHeight:896, landscape:false, isPhone:true, safeTop:0, scrollY:0 };
+  assert.deepEqual(scribbleSurfaceBounds(base), {top:-62,height:896});
+  assert.deepEqual(scribbleSurfaceBounds({...base,scrollY:62}), {top:0,height:896});
+  assert.deepEqual(scribbleSurfaceBounds({...base,safeTop:70}), {top:-70,height:896});
+});
+test("portrait and landscape use the matching screen edge, not desktop monitor height", () => {
+  const base = { viewportHeight:350,screenWidth:414,screenHeight:896,landscape:true,isPhone:true,safeTop:0,scrollY:0 };
+  assert.deepEqual(scribbleSurfaceBounds(base), {top:0,height:414});
+  assert.deepEqual(scribbleSurfaceBounds({...base,isPhone:false,screenHeight:2160,viewportHeight:800}), {top:0,height:800});
+});
 
 test("starts as a tiny knot and draws a repeatable, bounded pen journey", () => {
   const path = makeScribble(393, 852);

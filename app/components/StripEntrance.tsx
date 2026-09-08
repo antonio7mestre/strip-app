@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { makeEntrancePalette, sampleEntranceMedia } from "@/app/lib/strip-entrance";
-import { startScribble } from "@/app/lib/scribble-entrance";
+import { installScribbleSurface, startScribble } from "@/app/lib/scribble-entrance";
 
 type Cover = { kind: "image"; src: string } | { kind: "color"; color: string };
 type PaletteBlock = { type: string; backgroundColor?: string; textColor?: string };
@@ -45,6 +45,11 @@ export function StripEntrance({
   onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const surface = surfaceRef.current;
+    if (surface) return installScribbleSurface(surface);
+  }, []);
   const mounted = useRef(false);
   const frozen = useRef(false);
   const settledCallback = useRef(onCoverSettled);
@@ -96,7 +101,7 @@ export function StripEntrance({
   } as CSSProperties;
 
   return (
-    <div className={`published-strip-loading strip-entrance ${hasPalette ? "has-palette" : ""} ${revealing ? "is-revealing" : ""}`}
+    <div ref={surfaceRef} className={`published-strip-loading strip-entrance ${hasPalette ? "has-palette" : ""} ${revealing ? "is-revealing" : ""}`}
       style={style} role="status" aria-label="Loading Strip">
       {cover.kind === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
