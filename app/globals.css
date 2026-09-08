@@ -1487,6 +1487,12 @@ html.leading-image-inset-active .has-leading-image .strip-canvas {
   padding-top: 0;
 }
 
+/* Keep native scrolling and bounce, but never reload a Strip on a deep pull. */
+html.leading-image-inset-active,
+html.leading-image-inset-active body {
+  overscroll-behavior-y: contain;
+}
+
 /* Only the reading surface joins the spring, never the fixed composer. */
 html.leading-media-return-active .has-leading-image > .editor-canvas,
 html.leading-media-return-active .has-leading-image > .published-strip {

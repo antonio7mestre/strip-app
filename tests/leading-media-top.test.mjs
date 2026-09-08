@@ -4,6 +4,73 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
+test("queued Safari scroll updates cannot cancel the spring or leave the endpoint at zero", () => {
+  const f = fixture();
+  f.frame();
+  f.emit("touchstart", [100]);
+  f.window.scrollY = -300;
+  f.emit("touchend");
+  let previous = f.visualY();
+  for (let n = 0; n < 100; n++) {
+    f.window.scrollY = n < 25 ? Math.max(0, 59 - n * 8) : f.window.scrollY;
+    f.emit("scroll");
+    f.frame();
+    assert.ok(f.visualY() <= previous + 1e-6, "the visible spring never restarts");
+    previous = f.visualY();
+  }
+  assert.equal(f.window.scrollY, 59);
+  assert.equal(f.visualY(), -59);
+  assert.equal(f.frames.size, 0);
+  f.cleanup();
+});
+
+test("normal page scrolling remains native until a cancelable drag reaches the anchor", () => {
+  const f = fixture({ scrollY: 500, resetScroll: false });
+  f.emit("touchstart", [100]);
+  assert.equal(f.emit("touchmove", [130]).defaultPrevented, false);
+  f.window.scrollY = 80;
+  f.frame();
+  assert.equal(f.emit("touchmove", [170]).defaultPrevented, true);
+  assert.equal(f.window.scrollY, 59);
+  assert.ok(f.visualY() > -59);
+  f.cleanup();
+});
+
+test("noncancelable native drags and multi-touch are never intercepted", () => {
+  const f = fixture();
+  f.frame();
+  f.emit("touchstart", [100]);
+  assert.equal(f.emit("touchmove", [600], false).defaultPrevented, false);
+  f.window.scrollY = 0;
+  f.emit("touchend");
+  for (let n = 0; n < 120; n++) f.frame();
+  assert.equal(f.visualY(), -59);
+  f.cleanup();
+});
+
+test("elastic resistance has no hard distance checkpoint and velocity joins the same spring", () => {
+  const f = fixture({ inset: 0, resetScroll: false });
+  let previous = 0;
+  for (const distance of [1, 10, 100, 500, 2000, 20000]) {
+    const next = f.rubberBand(distance, 800);
+    assert.ok(next > previous && next < 800);
+    previous = next;
+  }
+  for (const velocity of [-3000, -50, 0, 100, 800]) {
+    assert.equal(f.sample(200, 0, velocity).distance, 200);
+    assert.ok(Math.abs(f.sample(200, 2, velocity).distance) < 0.1);
+    for (let t = 0; t < 2; t += 0.01) assert.ok(f.sample(200, t, velocity).distance >= 0);
+  }
+  f.cleanup();
+});
+
+test("leading media disables pull-to-refresh without changing the other page scroll behavior", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /html\.leading-image-inset-active,\s*html\.leading-image-inset-active body\s*\{\s*overscroll-behavior-y: contain;/);
+  assert.doesNotMatch(source, /touch-action.*none|overflow.*hidden/);
+});
+
+
 const source = readFileSync(new URL("../app/lib/leading-media-top.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
@@ -54,12 +121,13 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
   return {
     window, root, styles, classes, frames, listeners, writes, history, cleanup,
     sample: exported.sampleLeadingMediaReturn,
+    rubberBand: exported.leadingMediaRubberBand,
     remap: exported.scrollAfterLeadingInsetChange,
     blockEditor(value) { editorOwns = value; },
     visualY() { return -window.scrollY + parseFloat(styles.get("--leading-media-return-y") ?? "0"); },
-    emit(type, touches = []) {
+    emit(type, touches = [], cancelable = true) {
       const event = {
-        touches: touches.map((clientY) => ({ clientY })), cancelable: true, defaultPrevented: false,
+        touches: touches.map((clientY) => ({ clientY })), cancelable, defaultPrevented: false,
         preventDefault() { this.defaultPrevented = true; },
       };
       listeners.get((type === "scroll" ? "window:" : "document:") + type)?.(event);
@@ -88,20 +156,20 @@ test("a photo-first page is genuinely scrolled under the safe area, not moved ab
   }
 });
 
-test("deep native pulls are untouched under the finger and return in one continuous spring", () => {
+test("deep top pulls keep one real anchor and return in one continuous spring", () => {
   for (const depth of [1, 60, 250, 1200]) {
     for (const fps of [30, 60, 120]) {
       const f = fixture();
       f.frame();
-      const before = f.writes.length;
       f.emit("touchstart", [100]);
-      for (const y of [30, 0, -depth / 2, -depth]) {
-        f.window.scrollY = y;
-        f.emit("scroll");
-        assert.equal(f.emit("touchmove", [100 - y]).defaultPrevented, false);
+      for (const distance of [depth / 4, depth / 2, depth]) {
         f.frame(1000 / fps);
-        assert.equal(f.writes.length, before, "native dragging is never clamped");
+        assert.equal(f.emit("touchmove", [100 + distance]).defaultPrevented, true);
+        assert.equal(f.window.scrollY, 59, "Safari cannot start a competing bounce or refresh");
+        assert.ok(Math.abs(f.visualY() - (-59 + f.rubberBand(distance, 800))) < 1e-7);
       }
+      f.frame(100);
+      const before = f.writes.length;
       const visualAtRelease = f.visualY();
       f.emit("touchend");
       assert.equal(f.visualY(), visualAtRelease, "handoff cannot jump a pixel");
@@ -116,7 +184,7 @@ test("deep native pulls are untouched under the finger and return in one continu
         previous = f.visualY();
       }
       assert.equal(f.visualY(), -59);
-      assert.equal(f.writes.length, before + 1, "one coordinate handoff, no subsequent scroll corrections");
+      assert.equal(f.writes.length, before + 1, "no repeated scroll corrections during the spring");
       assert.equal(f.frames.size, 0);
       assert.equal(f.styles.has("--leading-media-return-y"), false);
       f.cleanup();
