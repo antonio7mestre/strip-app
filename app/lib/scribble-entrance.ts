@@ -1,4 +1,6 @@
 export const SCRIBBLE_DRAW_MS = 2600;
+export const SCRIBBLE_ENTRY_MS = 260;
+const SCRIBBLE_ENTRY_SEGMENTS = 120;
 export const SCRIBBLE_SWEEP_MS = 720;
 export const SCRIBBLE_FADE_MS = 650;
 
@@ -88,6 +90,12 @@ export function chooseScribbleColor(palette: readonly string[]) {
 /** New seed per entrance, retained by the controller across every resize. */
 export function createScribbleJourney(width: number, height: number, seed = Math.floor(Math.random() * 4294967296)) {
   const w = Math.max(1, width), h = Math.max(1, height);
+  // Independent randomness keeps the entry from reshuffling the later journey.
+  let entrySeed = (seed ^ 0x9e3779b9) >>> 0;
+  const entryRandom = () => {
+    entrySeed = (Math.imul(entrySeed, 1664525) + 1013904223) >>> 0;
+    return entrySeed / 4294967296;
+  };
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
@@ -98,6 +106,21 @@ export function createScribbleJourney(width: number, height: number, seed = Math
   let previous: [number, number] = [cx, cy];
   let previousWidth = 1.8;
   let tangent = random() * Math.PI * 2;
+  const entryOrigin: [number, number] = [-(24 + w * 0.18 * entryRandom()), h * (0.15 + 0.7 * entryRandom())];
+  const entryFirst = [w * (0.06 + 0.22 * entryRandom()), h * (0.1 + 0.8 * entryRandom())];
+  const entryHandle = Math.min(w, h) * (0.14 + 0.18 * entryRandom());
+  const entryLast = [cx - Math.cos(tangent) * entryHandle, cy - Math.sin(tangent) * entryHandle];
+  previous = entryOrigin;
+  for (let j = 1; j <= SCRIBBLE_ENTRY_SEGMENTS; j++) {
+    const t = j / SCRIBBLE_ENTRY_SEGMENTS, u = 1 - t;
+    const point: [number, number] = [0, 1].map(axis =>
+      u ** 3 * entryOrigin[axis] + 3 * u * u * t * entryFirst[axis]
+      + 3 * u * t * t * entryLast[axis] + t ** 3 * [cx, cy][axis],
+    ) as [number, number];
+    segments.push({ from: previous, to: point, width: previousWidth });
+    previous = point;
+  }
+  // The incoming tangent meets the opening strokes smoothly, with no pen lift.
   const wander = (target: [number, number], penWidth: number) => {
     const origin = previous;
     const reach = Math.hypot(target[0] - origin[0], target[1] - origin[1]);
@@ -135,11 +158,13 @@ export function createScribbleJourney(width: number, height: number, seed = Math
     }
     previousWidth = penWidth;
   };
-  const angle = random() * Math.PI * 2;
+  let turn = random() * Math.PI * 2;
   for (let i = 0; i < 6; i++) {
-    const turn = angle + i * (2 + random() * 0.6);
-    const radius = 5 + i * 1.5;
-    wander([cx + Math.cos(turn) * radius, cy + Math.sin(turn) * radius], 2 + i * 0.4);
+    turn += 2 + random() * 0.6;
+    // Open out immediately instead of circling a tiny knot at the center.
+    const radiusX = w * (0.12 + i * 0.05);
+    const radiusY = h * (0.08 + i * 0.045);
+    wander([cx + Math.cos(turn) * radiusX, cy + Math.sin(turn) * radiusY], 2 + i * 0.4);
   }
   let rounds = 0, finished = false;
   const extend = () => {
@@ -152,7 +177,7 @@ export function createScribbleJourney(width: number, height: number, seed = Math
       [cells[i], cells[j]] = [cells[j], cells[i]];
     }
     cells.forEach((cell, index) => {
-      const spread = rounds ? 1 : Math.min(1, 0.25 + index * 0.13);
+      const spread = rounds ? 1 : Math.min(1, 0.65 + index * 0.07);
       const x = ((cell % 3) + 0.12 + random() * 0.76) / 3 * w;
       const y = (Math.floor(cell / 3) + 0.12 + random() * 0.76) / 4 * h;
       const growth = 1 - Math.exp(-(rounds + (index + 1) / cells.length) * 0.55);
@@ -261,8 +286,8 @@ export function startScribble(
         const target = Math.floor(elapsed / SCRIBBLE_DRAW_MS * 1200);
         while (target > segments.length) { journey.extend(); extensions++; }
         drawTo(target);
-        progress = Math.min(0.6, elapsed / SCRIBBLE_DRAW_MS * 0.6);
-        if (ready && elapsed >= SCRIBBLE_DRAW_MS) {
+        progress = Math.min(0.6, elapsed / (SCRIBBLE_ENTRY_MS + SCRIBBLE_DRAW_MS) * 0.6);
+        if (ready && elapsed >= SCRIBBLE_ENTRY_MS + SCRIBBLE_DRAW_MS) {
           sweepFrom = drawn;
           journey.finish(drawn);
           host.dataset.inkPhase = "sweeping";

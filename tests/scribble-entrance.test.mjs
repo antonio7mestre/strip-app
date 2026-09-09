@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { makeScribble, createScribbleJourney, chooseScribbleColor, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_DRAW_MS, SCRIBBLE_SWEEP_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+import { makeScribble, createScribbleJourney, chooseScribbleColor, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_ENTRY_MS, SCRIBBLE_DRAW_MS, SCRIBBLE_SWEEP_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+
+const DRAW_WITH_ENTRY_MS = SCRIBBLE_ENTRY_MS + SCRIBBLE_DRAW_MS;
+const ENTRY_SEGMENTS = 120;
 
 
 test("the paint surface follows the existing anchor without scrolling or retaining listeners", () => {
@@ -77,19 +80,50 @@ test("fractional viewport edges retain at least eight pixels of real painted ove
   }
 });
 
-test("starts as a tiny knot and draws a repeatable, bounded pen journey", () => {
+test("enters from offscreen left, then opens into a repeatable, bounded pen journey", () => {
   const path = makeScribble(393, 852, 7319);
   assert.deepEqual(path, makeScribble(393, 852, 7319));
   assert.ok(path.length < 3000);
-  for (const segment of path.slice(0, 100)) {
-    assert.ok(Math.abs(segment.to[0] - 393 / 2) < 22);
-    assert.ok(Math.abs(segment.to[1] - 852 / 2) < 22);
-  }
+  assert.ok(path[0].from[0] < -path[0].width);
+  assert.deepEqual(path[ENTRY_SEGMENTS - 1].to, [393 / 2, 852 / 2]);
   for (const segment of path) {
     assert.ok(segment.width > 0);
     assert.ok([...segment.from, ...segment.to, segment.width].every(Number.isFinite));
   }
   assert.ok(new Set(path.map(segment => segment.width)).size > 100);
+});
+
+test("the opening strokes spread across the page instead of bunching at the center", () => {
+  for (const [w, h] of [[393, 852], [852, 393], [1440, 900], [320, 1024]]) {
+    for (let seed = 0; seed < 150; seed++) {
+      const opening = createScribbleJourney(w, h, seed).segments.slice(ENTRY_SEGMENTS, ENTRY_SEGMENTS + 240);
+      const xs = opening.map(s => s.to[0]), ys = opening.map(s => s.to[1]);
+      assert.ok(Math.max(...xs) - Math.min(...xs) > w * 0.32, `opening width, seed ${seed}`);
+      assert.ok(Math.max(...ys) - Math.min(...ys) > h * 0.25, `opening height, seed ${seed}`);
+      const ends = opening.filter((_, i) => i % 40 === 39);
+      assert.ok(ends.every(s => Math.hypot((s.to[0] - w/2)/w, (s.to[1] - h/2)/h) >= 0.079));
+    }
+  }
+});
+
+test("randomized lead-ins cross the left edge once and stay continuous on every viewport", () => {
+  for (const [w, h] of [[393, 852], [852, 393], [1440, 900], [320, 1024]]) {
+    const starts = new Set(), curves = new Set();
+    for (let seed = 0; seed < 150; seed++) {
+      const path = createScribbleJourney(w, h, seed).segments;
+      const entry = path.slice(0, ENTRY_SEGMENTS);
+      starts.add(entry[0].from[1]); curves.add(JSON.stringify(entry));
+      assert.ok(entry[0].from[0] + entry[0].width / 2 < 0);
+      assert.equal(entry.filter(s => s.from[0] < 0 && s.to[0] >= 0).length, 1);
+      assert.ok(entry.every(s => s.to[1] > 0 && s.to[1] < h));
+      for (let i = 1; i <= ENTRY_SEGMENTS; i++) assert.deepEqual(path[i].from, path[i - 1].to);
+      const incoming = entry.at(-1), outgoing = path[ENTRY_SEGMENTS];
+      const a = [incoming.to[0] - incoming.from[0], incoming.to[1] - incoming.from[1]];
+      const b = [outgoing.to[0] - outgoing.from[0], outgoing.to[1] - outgoing.from[1]];
+      assert.ok((a[0] * b[0] + a[1] * b[1]) / (Math.hypot(...a) * Math.hypot(...b)) > 0.98);
+    }
+    assert.equal(starts.size, 150); assert.equal(curves.size, 150);
+  }
 });
 
 test("finishing strokes cover every sampled edge and corner on phone, landscape, and desktop", () => {
@@ -113,7 +147,7 @@ test("one continuous pen stroke wanders freely then paints vertically, thickenin
     const segment = path[index];
     if (index) assert.deepEqual(segment.from, path[index - 1].to);
     if (index) assert.ok(segment.width >= path[index - 1].width - 1e-10);
-    if (index >= 1240) {
+    if (index >= ENTRY_SEGMENTS + 1240) {
       vertical += Math.abs(segment.to[1] - segment.from[1]);
       horizontal += Math.abs(segment.to[0] - segment.from[0]);
     }
@@ -130,7 +164,7 @@ test("every entrance gets a new journey, while a retained seed survives resize",
 
 test("random wandering visits all quarters before the final overtaking passes", () => {
   for (let seed = 0; seed < 150; seed++) {
-    const path = makeScribble(393, 852, seed).slice(240, 1200);
+    const path = makeScribble(393, 852, seed).slice(ENTRY_SEGMENTS + 240, ENTRY_SEGMENTS + 1200);
     const quarters = new Set(path.map(s => `${s.to[0] < 196.5}:${s.to[1] < 426}`));
     assert.equal(quarters.size, 4, `seed ${seed} must roam across the page`);
     assert.ok(Math.min(...path.map(s => s.to[0])) < 393 * 0.22);
@@ -213,7 +247,7 @@ test("never fades before the page is fully inked, then completes exactly once", 
   const h = harness();
   try {
     h.animation.setReady(true);
-    h.tick(0); h.advance(SCRIBBLE_DRAW_MS - 1);
+    h.tick(0); h.advance(DRAW_WITH_ENTRY_MS - 1);
     assert.equal(h.host.dataset.inkPhase, "drawing");
     assert.equal(h.host.style.opacity, "1");
     h.advance(1);
@@ -236,7 +270,7 @@ test("never fades before the page is fully inked, then completes exactly once", 
 test("slow assets keep drawing without covering or fading, then trigger one final sweep", () => {
   const h = harness();
   try {
-    h.tick(0); h.advance(SCRIBBLE_DRAW_MS);
+    h.tick(0); h.advance(DRAW_WITH_ENTRY_MS);
     const previous = h.strokes;
     h.advance(10000);
     assert.ok(h.strokes > previous + 4000);
@@ -284,7 +318,7 @@ test("returning from a suspended tab cannot skip all wandering or the final swee
 test("the final sweep cannot fade through assets that became unready", () => {
   const h = harness();
   try {
-    h.tick(0); h.animation.setReady(true); h.advance(SCRIBBLE_DRAW_MS);
+    h.tick(0); h.animation.setReady(true); h.advance(DRAW_WITH_ENTRY_MS);
     h.animation.setReady(false); h.advance(SCRIBBLE_SWEEP_MS + 1000);
     assert.equal(h.host.style.opacity, "1"); assert.equal(h.done, 0);
     h.animation.setReady(true); h.advance(16 + SCRIBBLE_FADE_MS);
@@ -298,7 +332,7 @@ test("the requested entrance always draws and sweeps even with reduced motion en
     h.tick(0);
     assert.equal(h.host.dataset.inkPhase, "drawing");
     assert.equal(h.queue.size, 1);
-    h.animation.setReady(true); h.advance(SCRIBBLE_DRAW_MS);
+    h.animation.setReady(true); h.advance(DRAW_WITH_ENTRY_MS);
     assert.ok(h.strokes>1000);
     assert.equal(h.host.dataset.inkPhase,"sweeping");
     h.motion(false);h.motion(true);
