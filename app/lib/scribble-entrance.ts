@@ -215,6 +215,36 @@ export function makeScribble(width: number, height: number, seed?: number): InkS
   return journey.segments;
 }
 
+/** A flat ribbon lit from the upper left, using only shades of the ink. */
+export function createScribbleInk(ink: string) {
+  const rgb = [1, 3, 5].map(index => parseInt(ink.slice(index, index + 2), 16));
+  const shade = (amount: number) => "#" + rgb.map(value =>
+    Math.round(amount < 0 ? value * (1 + amount) : value + (255 - value) * amount)
+      .toString(16).padStart(2, "0")).join("");
+  return (context: CanvasRenderingContext2D, segment: InkSegment, preceding?: InkSegment) => {
+    const origin = preceding?.from ?? segment.from;
+    const dx = segment.to[0] - origin[0], dy = segment.to[1] - origin[1];
+    const length = Math.hypot(dx, dy);
+    if (length < 0.001) return ink;
+    const nx = -dy / length, ny = dx / length;
+    const x = (segment.from[0] + segment.to[0]) / 2, y = (segment.from[1] + segment.to[1]) / 2;
+    const radius = segment.width / 2;
+    const light = nx * -0.6 + ny * -0.8;
+    const gradient = context.createLinearGradient(x - nx * radius, y - ny * radius, x + nx * radius, y + ny * radius);
+    // Keep the broad face completely flat. Only the thin cut edges catch light
+    // or shade; a curved cross-stroke gradient would make this look tubular.
+    const face = shade(0.015 + Math.abs(light) * 0.10);
+    const left = shade(0.02 - light * 0.26), right = shade(0.02 + light * 0.26);
+    gradient.addColorStop(0, left);
+    gradient.addColorStop(0.075, left);
+    gradient.addColorStop(0.075, face);
+    gradient.addColorStop(0.925, face);
+    gradient.addColorStop(0.925, right);
+    gradient.addColorStop(1, right);
+    return gradient;
+  };
+}
+
 export function startScribble(
   canvas: HTMLCanvasElement,
   host: HTMLElement,
@@ -231,17 +261,18 @@ export function startScribble(
   let segments: InkSegment[] = [], drawn = 0, progress = 0;
   let width = 1, height = 1;
   const ink = chooseScribbleColor(palette);
+  const shadeInk = createScribbleInk(ink);
   const seed = Math.floor(Math.random() * 4294967296);
   const drawTo = (target: number) => {
     if (!context) return;
     for (; drawn < target; drawn++) {
       const segment = segments[drawn];
-      context.strokeStyle = ink;
+      const preceding = segments[drawn - 1];
+      context.strokeStyle = shadeInk(context, segment, preceding);
       context.lineWidth = segment.width;
       context.beginPath();
       // Include the preceding segment so the bend is joined without a gap.
       // Only the advancing tip is capped, with the marker's flat cut edge.
-      const preceding = segments[drawn - 1];
       context.moveTo(...(preceding?.from ?? segment.from));
       if (preceding) context.lineTo(...segment.from);
       context.lineTo(...segment.to);

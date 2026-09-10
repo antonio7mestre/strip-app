@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { makeScribble, createScribbleJourney, chooseScribbleColor, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_ENTRY_MS, SCRIBBLE_DRAW_MS, SCRIBBLE_SWEEP_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
+import { makeScribble, createScribbleJourney, chooseScribbleColor, createScribbleInk, startScribble, scribbleSurfaceBounds, installScribbleSurface, SCRIBBLE_ENTRY_MS, SCRIBBLE_DRAW_MS, SCRIBBLE_SWEEP_MS, SCRIBBLE_FADE_MS } from "../app/lib/scribble-entrance.ts";
 
 const DRAW_WITH_ENTRY_MS = SCRIBBLE_ENTRY_MS + SCRIBBLE_DRAW_MS;
 const ENTRY_SEGMENTS = 120;
@@ -194,7 +194,12 @@ test("one strip-derived ink color is frozen, with dark colors lifted for the bla
   const h = harness();
   try {
     h.tick(0); h.tick(1300); h.resize(852, 393); h.tick(2600);
-    assert.deepEqual([...h.colors], ["#EC6350"]);
+    assert.equal(h.host.dataset.inkColor, "#EC6350");
+    const rgb = value => [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16));
+    const base = rgb("#EC6350");
+    for (const gradient of h.colors) for (const [, color] of gradient.stops) {
+      assert.ok(rgb(color).every((v, i) => v >= Math.round(base[i] * 0.76) && v <= Math.round(base[i] + (255 - base[i]) * 0.28)));
+    }
   } finally { h.clean(); }
 });
 
@@ -217,6 +222,38 @@ test("extended waiting and a mid-curve final sweep never lift the pen or recolor
   assert.equal(journey.segments.length, length);
 });
 
+function gradientContext() {
+  return { createLinearGradient(...coordinates) {
+    return { coordinates, stops: [], addColorStop(offset, color) { this.stops.push([offset, color]); } };
+  } };
+}
+
+test("ribbon ink has a broad flat face and thin cut edges, with stable world-space lighting", () => {
+  const context = gradientContext(), shade = createScribbleInk("#3155FF");
+  const segment = { from: [10, 20], to: [50, 70], width: 16 };
+  const forward = shade(context, segment);
+  const backward = shade(context, { ...segment, from: segment.to, to: segment.from });
+  assert.deepEqual(forward.coordinates, [...backward.coordinates.slice(2), ...backward.coordinates.slice(0, 2)]);
+  assert.deepEqual(forward.stops.map(s => s[1]), backward.stops.map(s => s[1]).reverse());
+  assert.deepEqual(forward.stops.map(s => s[0]), [0, 0.075, 0.075, 0.925, 0.925, 1]);
+  assert.equal(forward.stops[2][1], forward.stops[3][1]);
+  assert.equal(new Set(forward.stops.map(s => s[1])).size, 3);
+  assert.equal(shade(context, { ...segment, to: segment.from }), "#3155FF");
+});
+
+test("lighting remains finite and within the authored hue for dark, white, and vivid ink", () => {
+  for (const ink of ["#646464", "#FFFFFF", "#003CFF", "#FF4FA3"]) {
+    const shade = createScribbleInk(ink), context = gradientContext();
+    const path = makeScribble(393, 852, 81);
+    for (let i = 0; i < path.length; i++) {
+      const gradient = shade(context, path[i], path[i - 1]);
+      if (typeof gradient === "string") continue;
+      assert.ok(gradient.coordinates.every(Number.isFinite));
+      assert.ok(gradient.stops.every(([, color]) => /^#[0-9a-f]{6}$/.test(color)));
+    }
+  }
+});
+
 function harness({ reduced = false, canvasFails = false, recordPaths = false } = {}) {
   const queue = new Map(), listeners = new Map();
   let id = 0, resized, disconnected = false, strokes = 0, fills = 0, done = 0, now = 0;
@@ -234,7 +271,7 @@ function harness({ reduced = false, canvasFails = false, recordPaths = false } =
   };
   const paths = [];
   let points = [];
-  const context = { setTransform() {}, beginPath() { points = []; },
+  const context = { ...gradientContext(), setTransform() {}, beginPath() { points = []; },
     moveTo(...point) { if (recordPaths) points.push(point); },
     lineTo(...point) { if (recordPaths) points.push(point); }, clearRect() {},
     stroke() {
