@@ -103,11 +103,12 @@ export function createScribbleJourney(width: number, height: number, seed = Math
   const segments: InkSegment[] = [];
   const cx = w / 2, cy = h / 2;
   const step = Math.max(16, Math.min(w, h) * 0.085);
+  const startWidth = Math.max(8, Math.min(14, Math.min(w, h) * 0.025));
   let previous: [number, number] = [cx, cy];
-  let previousWidth = 1.8;
+  let previousWidth = startWidth;
   let tangent = random() * Math.PI * 2;
-  const entryOrigin: [number, number] = [-(24 + w * 0.18 * entryRandom()), h * (0.15 + 0.7 * entryRandom())];
-  const entryFirst = [w * (0.06 + 0.22 * entryRandom()), h * (0.1 + 0.8 * entryRandom())];
+  const entryOrigin: [number, number] = [w * (0.15 + 0.7 * entryRandom()), h + 24 + h * 0.12 * entryRandom()];
+  const entryFirst = [w * (0.1 + 0.8 * entryRandom()), h * (0.72 + 0.22 * entryRandom())];
   const entryHandle = Math.min(w, h) * (0.14 + 0.18 * entryRandom());
   const entryLast = [cx - Math.cos(tangent) * entryHandle, cy - Math.sin(tangent) * entryHandle];
   previous = entryOrigin;
@@ -164,7 +165,7 @@ export function createScribbleJourney(width: number, height: number, seed = Math
     // Open out immediately instead of circling a tiny knot at the center.
     const radiusX = w * (0.12 + i * 0.05);
     const radiusY = h * (0.08 + i * 0.045);
-    wander([cx + Math.cos(turn) * radiusX, cy + Math.sin(turn) * radiusY], 2 + i * 0.4);
+    wander([cx + Math.cos(turn) * radiusX, cy + Math.sin(turn) * radiusY], startWidth + 0.5 + i * 0.65);
   }
   let rounds = 0, finished = false;
   const extend = () => {
@@ -181,7 +182,7 @@ export function createScribbleJourney(width: number, height: number, seed = Math
       const x = ((cell % 3) + 0.12 + random() * 0.76) / 3 * w;
       const y = (Math.floor(cell / 3) + 0.12 + random() * 0.76) / 4 * h;
       const growth = 1 - Math.exp(-(rounds + (index + 1) / cells.length) * 0.55);
-      wander([cx + (x - cx) * spread, cy + (y - cy) * spread], 4 + step * 0.36 * growth);
+      wander([cx + (x - cx) * spread, cy + (y - cy) * spread], startWidth + 4 + step * 0.36 * growth);
     });
     rounds++;
   };
@@ -238,7 +239,11 @@ export function startScribble(
       context.strokeStyle = ink;
       context.lineWidth = segment.width;
       context.beginPath();
-      context.moveTo(...segment.from);
+      // Include the preceding segment so the bend is joined without a gap.
+      // Only the advancing tip is capped, with the marker's flat cut edge.
+      const preceding = segments[drawn - 1];
+      context.moveTo(...(preceding?.from ?? segment.from));
+      if (preceding) context.lineTo(...segment.from);
       context.lineTo(...segment.to);
       context.stroke();
     }
@@ -259,7 +264,7 @@ export function startScribble(
     canvas.width = Math.ceil(width * ratio);
     canvas.height = Math.ceil(height * ratio);
     context?.setTransform(ratio, 0, 0, ratio, 0, 0);
-    if (context) { context.lineCap = "round"; context.lineJoin = "round"; }
+    if (context) { context.lineCap = "butt"; context.lineJoin = "round"; }
     const previousDrawn = drawn;
     journey = createScribbleJourney(width, height, seed);
     for (let i = 0; i < extensions; i++) journey.extend();

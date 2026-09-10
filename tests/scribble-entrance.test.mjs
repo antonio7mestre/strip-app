@@ -80,11 +80,12 @@ test("fractional viewport edges retain at least eight pixels of real painted ove
   }
 });
 
-test("enters from offscreen left, then opens into a repeatable, bounded pen journey", () => {
+test("enters from below the page, then opens into a repeatable, bounded marker journey", () => {
   const path = makeScribble(393, 852, 7319);
   assert.deepEqual(path, makeScribble(393, 852, 7319));
   assert.ok(path.length < 3000);
-  assert.ok(path[0].from[0] < -path[0].width);
+  assert.ok(path[0].from[1] > 852 + path[0].width);
+  assert.ok(path[0].width >= 8);
   assert.deepEqual(path[ENTRY_SEGMENTS - 1].to, [393 / 2, 852 / 2]);
   for (const segment of path) {
     assert.ok(segment.width > 0);
@@ -106,16 +107,17 @@ test("the opening strokes spread across the page instead of bunching at the cent
   }
 });
 
-test("randomized lead-ins cross the left edge once and stay continuous on every viewport", () => {
+test("randomized lead-ins cross the bottom edge once and stay continuous on every viewport", () => {
   for (const [w, h] of [[393, 852], [852, 393], [1440, 900], [320, 1024]]) {
     const starts = new Set(), curves = new Set();
     for (let seed = 0; seed < 150; seed++) {
       const path = createScribbleJourney(w, h, seed).segments;
       const entry = path.slice(0, ENTRY_SEGMENTS);
-      starts.add(entry[0].from[1]); curves.add(JSON.stringify(entry));
-      assert.ok(entry[0].from[0] + entry[0].width / 2 < 0);
-      assert.equal(entry.filter(s => s.from[0] < 0 && s.to[0] >= 0).length, 1);
-      assert.ok(entry.every(s => s.to[1] > 0 && s.to[1] < h));
+      starts.add(entry[0].from[0]); curves.add(JSON.stringify(entry));
+      assert.ok(entry[0].from[1] - entry[0].width / 2 > h);
+      assert.equal(entry.filter(s => s.from[1] > h && s.to[1] <= h).length, 1);
+      assert.ok(entry.every(s => s.to[0] > 0 && s.to[0] < w));
+      assert.ok(entry[0].to[1] < entry[0].from[1]);
       for (let i = 1; i <= ENTRY_SEGMENTS; i++) assert.deepEqual(path[i].from, path[i - 1].to);
       const incoming = entry.at(-1), outgoing = path[ENTRY_SEGMENTS];
       const a = [incoming.to[0] - incoming.from[0], incoming.to[1] - incoming.from[1]];
@@ -123,6 +125,16 @@ test("randomized lead-ins cross the left edge once and stay continuous on every 
       assert.ok((a[0] * b[0] + a[1] * b[1]) / (Math.hypot(...a) * Math.hypot(...b)) > 0.98);
     }
     assert.equal(starts.size, 150); assert.equal(curves.size, 150);
+  }
+});
+
+test("the marker starts broad and never thins during entry, wandering, or the sweep", () => {
+  for (const [w, h] of [[1, 1], [320, 1024], [393, 852], [852, 393], [1440, 900]]) {
+    for (let seed = 0; seed < 30; seed++) {
+      const path = makeScribble(w, h, seed);
+      assert.ok(path[0].width >= 8 && path[0].width <= 14);
+      for (let i = 1; i < path.length; i++) assert.ok(path[i].width >= path[i - 1].width - 1e-10);
+    }
   }
 });
 
@@ -205,7 +217,7 @@ test("extended waiting and a mid-curve final sweep never lift the pen or recolor
   assert.equal(journey.segments.length, length);
 });
 
-function harness({ reduced = false, canvasFails = false } = {}) {
+function harness({ reduced = false, canvasFails = false, recordPaths = false } = {}) {
   const queue = new Map(), listeners = new Map();
   let id = 0, resized, disconnected = false, strokes = 0, fills = 0, done = 0, now = 0;
   let bounds = { width: 393, height: 852 };
@@ -220,12 +232,19 @@ function harness({ reduced = false, canvasFails = false } = {}) {
     observe() {}
     disconnect() { disconnected = true; }
   };
-  const context = { setTransform() {}, beginPath() {}, moveTo() {}, lineTo() {}, clearRect() {},
-    stroke() { strokes++; colors.add(this.strokeStyle); }, fillRect() { fills++; colors.add(this.fillStyle); } };
+  const paths = [];
+  let points = [];
+  const context = { setTransform() {}, beginPath() { points = []; },
+    moveTo(...point) { if (recordPaths) points.push(point); },
+    lineTo(...point) { if (recordPaths) points.push(point); }, clearRect() {},
+    stroke() {
+      strokes++; colors.add(this.strokeStyle);
+      if (recordPaths) paths.push({ points, cap: this.lineCap, join: this.lineJoin, width: this.lineWidth });
+    }, fillRect() { fills++; colors.add(this.fillStyle); } };
   const canvas = { width: 0, height: 0, getContext: () => canvasFails ? null : context };
   const host = { dataset: {}, style: {}, getBoundingClientRect: () => bounds };
   const animation = startScribble(canvas, host, ["#EC6350", "#99CC00", "#2244AA"], () => done++);
-  return { animation, host, canvas, queue, colors,
+  return { animation, host, canvas, queue, colors, paths,
     get done() { return done; }, get strokes() { return strokes; }, get fills() { return fills; },
     get disconnected() { return disconnected; }, get listeners() { return listeners.size; },
     tick(now) { const pending = [...queue.values()]; queue.clear(); pending.forEach(callback => callback(now)); },
@@ -242,6 +261,27 @@ function harness({ reduced = false, canvasFails = false } = {}) {
     },
   };
 }
+
+test("flat marker tips retain joined bends without gaps, including after resize", () => {
+  const h = harness({ recordPaths: true });
+  try {
+    h.tick(0); h.advance(1600);
+    for (const path of h.paths) {
+      assert.equal(path.cap, "butt");
+      assert.equal(path.join, "round");
+      assert.ok(path.width >= 8);
+    }
+    assert.equal(h.paths[0].points.length, 2);
+    for (let i = 1; i < h.paths.length; i++) {
+      assert.equal(h.paths[i].points.length, 3);
+      assert.deepEqual(h.paths[i].points.slice(0, 2), h.paths[i - 1].points.slice(-2));
+    }
+    const before = h.paths.length;
+    h.resize(852, 393);
+    assert.ok(h.paths.length > before);
+    assert.ok(h.paths.slice(before).every(path => path.cap === "butt" && path.join === "round"));
+  } finally { h.clean(); }
+});
 
 test("never fades before the page is fully inked, then completes exactly once", () => {
   const h = harness();
