@@ -172,6 +172,22 @@ test("one center square is present immediately, followed by one new square per b
   } finally { h.clean(); }
 });
 
+test("squares arrive eight times faster without depending on screen refresh rate", () => {
+  assert.equal(SQUARE_STEP_MS, 2);
+  assert.equal(SQUARE_FILL_MS, 260);
+  assert.equal(SCRIBBLE_FADE_MS, 650);
+  for (const frameMs of [8, 16, 32]) {
+    const h = harness();
+    try {
+      h.tick(0);
+      for (let t = frameMs; t <= 960; t += frameMs) h.tick(t);
+      assert.equal(h.count, 481);
+      assert.equal(h.host.style.opacity, "1");
+      assert.equal(h.done, 0);
+    } finally { h.clean(); }
+  }
+});
+
 test("a pre-paint safe-area resize keeps only the centered first square", () => {
   const h = harness();
   try {
@@ -190,7 +206,7 @@ test("slow loading keeps adding individual squares with no early cover or fade",
     let count = h.count;
     for (let t = 16; t <= 30000; t += 16) {
       h.tick(t);
-      assert.ok(h.count === count || h.count === count + 1);
+      assert.ok(h.count >= count && h.count <= count + 16 / SQUARE_STEP_MS);
       count = h.count;
       assert.equal(h.host.dataset.inkPhase, "drawing");
       assert.equal(h.host.style.opacity, "1");
@@ -289,13 +305,13 @@ test("resize redraws the current state synchronously and does not restart the se
   } finally { h.clean(); }
 });
 
-test("a suspended tab cannot dump multiple waiting squares in a single frame", () => {
+test("a suspended tab only catches up a bounded 32ms of waiting squares", () => {
   const h = harness();
   try {
     h.tick(0); h.advance(SQUARE_STEP_MS - 1);
     const count = h.count;
     h.tick(90000);
-    assert.equal(h.count, count + 1);
+    assert.equal(h.count, count + 32 / SQUARE_STEP_MS);
     assert.equal(h.host.style.opacity, "1");
     assert.equal(h.host.dataset.inkPhase, "drawing");
   } finally { h.clean(); }

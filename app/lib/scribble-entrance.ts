@@ -1,4 +1,4 @@
-export const SQUARE_STEP_MS = 16;
+export const SQUARE_STEP_MS = 2;
 export const SQUARE_FILL_MS = 260;
 export const SCRIBBLE_FADE_MS = 650;
 
@@ -173,7 +173,7 @@ export function startScribble(
   function tick(now: number) {
     frame = 0;
     if (stopped || completed) return;
-    // A resumed tab or slow frame must not dump a queue of waiting squares.
+    // Bound elapsed time after a suspended tab; waiting paint has its own cap.
     const delta = previousFrame === null ? 0 : Math.min(64, Math.max(0, now - previousFrame));
     previousFrame = now;
     if (!covered) {
@@ -182,11 +182,14 @@ export function startScribble(
           fillFrom = drawn;
           host.dataset.inkPhase = "sweeping";
         } else {
-          waitElapsed += delta;
+          // Paint every elapsed beat instead of capping at one square per frame.
+          // Limit catch-up to 32ms so a resumed tab never dumps the whole grid.
+          waitElapsed += Math.min(delta, 32);
           if (waitElapsed >= SQUARE_STEP_MS) {
+            const count = Math.floor(waitElapsed / SQUARE_STEP_MS);
             waitElapsed %= SQUARE_STEP_MS;
             // Leave the final tile for readiness, even during an unusually long wait.
-            drawTo(Math.min(drawn + 1, squares.length - 1));
+            drawTo(Math.min(drawn + count, squares.length - 1));
           }
         }
       } else {
