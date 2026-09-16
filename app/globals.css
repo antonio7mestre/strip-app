@@ -1000,7 +1000,7 @@ html.library-scroll-top-locked .library-mode {
 
 .library-mode .strip-library,
 .library-mode .library-add-button {
-  transition: opacity 360ms ease;
+  transition: opacity 620ms ease;
 }
 .library-mode.is-opening-strip .strip-library,
 .library-mode.is-opening-strip .library-add-button {
@@ -1837,7 +1837,7 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   background: #000;
 }
 .strip-entrance.is-from-library .strip-entrance-backdrop {
-  animation: cover-backdrop-in 420ms ease both;
+  animation: cover-backdrop-in 620ms ease both;
 }
 @keyframes cover-backdrop-in {
   from { opacity: 0; }

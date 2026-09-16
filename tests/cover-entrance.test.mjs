@@ -5,7 +5,7 @@ import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, captureCoverDock, dro
 
 test("portrait, landscape and square covers stay centered, uncropped, with room for the bar", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
-    for (const ratio of [0.2, 0.75, 1, 1.5, 5, NaN, 0]) {
+    for (const ratio of [0.75, 0.8, 1, 1.5, 5, NaN, 0]) {
       const box = coverEntranceLayout(w, h, offset, ratio);
       assert.ok(Math.abs(box.left + box.width / 2 - w / 2) < 0.01);
       assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.01);
@@ -16,6 +16,36 @@ test("portrait, landscape and square covers stay centered, uncropped, with room 
     }
   }
 });
+test("all poster shapes enlarge to the same shared width and retain their proportions", () => {
+  for (const [w, h, offset] of [[393, 714, 0], [393, 842, 0], [1440, 900, 15]]) {
+    const expectedWidth = coverEntranceLayout(w, h, offset, 1).width;
+    for (const ratio of [0.2, 0.75, 0.8, 1, 1.5, 5]) {
+      const box = coverEntranceLayout(w, h, offset, ratio);
+      assert.equal(box.width, expectedWidth);
+      assert.equal(box.height, expectedWidth / ratio);
+      assert.equal(box.left + box.width / 2, w / 2);
+      assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.001);
+    }
+  }
+});
+
+test("the tray drops immediately while cover arrival reveals the loading bar", () => {
+  const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(component, /holdCoverDock/);
+  assert.match(component, /return dropCoverDock\([^;]+setDockDropped\(true\)/);
+  const dockEffect = component.slice(component.indexOf("if (!surfaceRef.current || !dockRef.current"), component.indexOf("const stage = stageRef.current"));
+  assert.doesNotMatch(dockEffect, /centered/);
+  assert.match(dockEffect, /\[initialDock\]/);
+  assert.match(component, /setTarget\(centered \? loadPercent : 0\)/);
+  assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
+  assert.match(component, /requestPending \|\| !dockDropped/);
+  assert.match(component, /scale\(\$\{initialOrigin.width \/ target.width\}/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, new RegExp(`animation: cover-backdrop-in ${COVER_MOVE_MS}ms`));
+  assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
+  assert.match(css, /\.strip-entrance.is-centered \.strip-entrance-progress \{ opacity: 1; \}/);
+});
+
 test("the square bar is deterministic, monotonic and never full before real completion", () => {
   assert.equal(coverProgressCells(0), 0);
   assert.equal(coverProgressCells(50), 12);
@@ -74,19 +104,20 @@ test("dock capture includes the exact controls, geometry and Safari corner treat
 });
 
 test("one document-painted dock edge crosses the whole glass, not just the visual viewport", () => {
-  let pending, cancelled = 0;
+  let pending, cancelled = 0, done = 0;
   globalThis.requestAnimationFrame = callback => { pending = callback; return 3; };
   globalThis.cancelAnimationFrame = () => { cancelled++; };
   const surface = { top: -62, bottom: 820, left: 0 };
   const host = { getBoundingClientRect: () => surface };
   const dock = { style: { setProperty(name, value) { this[name] = value; } } };
   const origin = { left: 0, top: 650, width: 402, height: 284, padding: "12px 20px 222px", borderRadius: "44px", cornerShape: "squircle", boxShadow: "none", markup: "" };
-  const dispose = dropCoverDock(host, dock, origin);
+  const started = performance.now();
+  const dispose = dropCoverDock(host, dock, origin, () => done++);
   try {
     assert.equal(Number.parseFloat(dock.style.top) + surface.top, 650);
     let last = 650;
     for (let t = 0; t <= COVER_DOCK_DROP_MS; t += 10) {
-      pending(t);
+      pending(started + t + 1);
       const edge = Number.parseFloat(dock.style.top) + surface.top;
       assert.ok(edge >= last, "no stops or upward jumps");
       assert.equal(dock.style.transform, undefined, "do not create a fixed compositor snapshot");
@@ -94,7 +125,9 @@ test("one document-painted dock edge crosses the whole glass, not just the visua
     }
     assert.ok(last > surface.bottom, "clear all paint behind Safari, not just innerHeight");
     assert.equal(dock.style.visibility, "hidden");
+    assert.equal(done, 1);
     const late = pending, before = dock.style.top;
-    dispose(); late(1000); assert.equal(dock.style.top, before); assert.equal(cancelled, 1);
+    dispose(); late(started + 1000); assert.equal(dock.style.top, before); assert.equal(cancelled, 1);
+    assert.equal(done, 1);
   } finally { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
 });

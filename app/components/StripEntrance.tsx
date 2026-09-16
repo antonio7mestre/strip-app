@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
@@ -26,6 +27,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
   const [centered, setCentered] = useState(!origin);
+  const [dockDropped, setDockDropped] = useState(!dock);
   const [aspectRatio, setAspectRatio] = useState(() => origin ? origin.width / origin.height
     : cover.kind === "image" ? cover.aspectRatio ?? 1
       : cover.shape === "portrait" ? 3 / 4 : cover.shape === "landscape" ? 4 / 3 : 1);
@@ -63,7 +65,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
 
   useLayoutEffect(() => {
     if (!surfaceRef.current || !dockRef.current || !initialDock) return;
-    return dropCoverDock(surfaceRef.current, dockRef.current, initialDock);
+    return dropCoverDock(surfaceRef.current, dockRef.current, initialDock, () => setDockDropped(true));
   }, [initialDock]);
 
   useLayoutEffect(() => {
@@ -95,8 +97,12 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
     const animation = visual.animate([
       { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})` },
       { transform: "translate3d(0, 0, 0) scale(1, 1)" },
-    ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "both" });
-    animation.onfinish = () => { if (mounted.current) setCentered(true); animation.cancel(); };
+    ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "both" });
+    animation.onfinish = () => {
+      // Reveal the loading bar on arrival, without another render-frame delay.
+      if (mounted.current) flushSync(() => setCentered(true));
+      animation.cancel();
+    };
     return () => { animation.onfinish = null; animation.cancel(); };
   }, [initialOrigin]);
 
@@ -107,7 +113,8 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
     return () => { counter.dispose(); counterRef.current = null; };
   }, []);
   const loadPercent = requestPending ? 0 : entranceLoadPercent(settledAssets, totalAssets);
-  useLayoutEffect(() => { counterRef.current?.setTarget(loadPercent); }, [loadPercent]);
+  // The tray leaves immediately; start the bar once its poster reaches the center.
+  useLayoutEffect(() => { counterRef.current?.setTarget(centered ? loadPercent : 0); }, [loadPercent, centered]);
 
   useEffect(() => {
     if (ink || requestPending) return;
@@ -142,9 +149,9 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
 
   useLayoutEffect(() => {
     const host = surfaceRef.current;
-    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending) return;
+    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !dockDropped) return;
     return fadeCoverEntrance(host, () => completeCallback.current());
-  }, [revealing, displayPercent, centered, requestPending]);
+  }, [revealing, displayPercent, centered, requestPending, dockDropped]);
 
   const filled = coverProgressCells(displayPercent);
   return (

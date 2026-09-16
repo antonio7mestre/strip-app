@@ -16,17 +16,24 @@ export function captureCoverDock(dock: HTMLElement | null): CoverDockOrigin | un
     cornerShape: style.getPropertyValue("corner-shape"), boxShadow: style.boxShadow };
 }
 
+function sizeCoverDock(dock: HTMLElement, origin: CoverDockOrigin) {
+  Object.assign(dock.style, { width: origin.width + "px", height: origin.height + "px",
+    padding: origin.padding, borderRadius: origin.borderRadius, boxShadow: origin.boxShadow, visibility: "visible" });
+  if (origin.cornerShape) dock.style.setProperty("corner-shape", origin.cornerShape);
+}
+
 /** Move document paint, not a fixed compositor layer. Safari must repaint the
  * same white surface behind its controls as the navigation leaves the glass. */
-export function dropCoverDock(host: HTMLElement, dock: HTMLElement, origin: CoverDockOrigin) {
-  let frame = 0, started: number | null = null, disposed = false, lastTop = origin.top;
-  Object.assign(dock.style, { width: origin.width + "px", height: origin.height + "px",
-    padding: origin.padding, borderRadius: origin.borderRadius, boxShadow: origin.boxShadow });
-  if (origin.cornerShape) dock.style.setProperty("corner-shape", origin.cornerShape);
+export function dropCoverDock(host: HTMLElement, dock: HTMLElement, origin: CoverDockOrigin, onComplete?: () => void) {
+  // Use the rendering clock so Safari starts moving on the first available frame.
+  const timelineTime = typeof document === "undefined" ? null : document.timeline.currentTime;
+  const started = typeof timelineTime === "number" ? timelineTime : performance.now();
+  let frame = 0, disposed = false, lastTop = origin.top;
+  sizeCoverDock(dock, origin);
   const paint = (progress: number) => {
     const surface = host.getBoundingClientRect();
-    // Smooth acceleration and settling, with one shared edge through the safe area.
-    const eased = progress * progress * (3 - 2 * progress);
+    // Start immediately, then ease out through the whole safe area.
+    const eased = 1 - Math.pow(1 - progress, 3);
     lastTop = Math.max(lastTop, origin.top + Math.max(0, surface.bottom + 8 - origin.top) * eased);
     dock.style.left = origin.left - surface.left + "px";
     dock.style.top = lastTop - surface.top + "px";
@@ -34,21 +41,20 @@ export function dropCoverDock(host: HTMLElement, dock: HTMLElement, origin: Cove
   paint(0);
   const tick = (now: number) => {
     if (disposed) return;
-    started ??= now;
     const progress = Math.min(1, Math.max(0, (now - started) / COVER_DOCK_DROP_MS));
     paint(progress);
     if (progress < 1) frame = requestAnimationFrame(tick);
-    else dock.style.visibility = "hidden";
+    else { dock.style.visibility = "hidden"; onComplete?.(); }
   };
   frame = requestAnimationFrame(tick);
   return () => { disposed = true; cancelAnimationFrame(frame); };
 }
 
-/** Fit the whole cover, keeping the image itself centered above its readout. */
+/** One shared poster width for every shape, with portrait-safe room on short screens. */
 export function coverEntranceLayout(width: number, height: number, offsetTop: number, aspectRatio: number) {
   const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
   const w = Math.max(1, width), h = Math.max(1, height);
-  const coverWidth = Math.min(320, w * 0.74, h * 0.56 * ratio);
+  const coverWidth = Math.min(320, w * 0.74, h * 0.42);
   const coverHeight = coverWidth / ratio;
   return { left: (w - coverWidth) / 2, top: offsetTop + (h - coverHeight) / 2,
     width: coverWidth, height: coverHeight };
