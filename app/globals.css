@@ -1000,7 +1000,7 @@ html.library-scroll-top-locked .library-mode {
 
 .library-mode .strip-library,
 .library-mode .library-add-button {
-  transition: opacity 620ms ease;
+  transition: opacity 1400ms ease;
 }
 .library-mode.is-opening-strip .strip-library,
 .library-mode.is-opening-strip .library-add-button {
@@ -1062,7 +1062,7 @@ html.library-scroll-top-locked .library-mode {
   width: 100%;
   padding: 2.25%;
   border-radius: 2.4%;
-  background: #fafaf8 url("/cover-sticker-backing.png") center / 100% 100% no-repeat;
+  background: #f8f6ef url("/cover-sticker-paper.webp") center / 100% 100% no-repeat;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.18), 0 4px 9px rgba(0, 0, 0, 0.12);
   backface-visibility: hidden;
 }
@@ -1854,7 +1854,7 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   background: #000;
 }
 .strip-entrance.is-from-library .strip-entrance-backdrop {
-  animation: cover-backdrop-in 620ms ease both;
+  animation: cover-backdrop-in 1400ms ease both;
 }
 @keyframes cover-backdrop-in {
   from { opacity: 0; }
@@ -1890,7 +1890,52 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
 .strip-entrance-cover-face {
   height: 100%;
 }
-.strip-entrance-cover-face { background: #000; }
+.strip-entrance-cover-face { position: relative; background: #000; }
+.cover-sticker-snapshot { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cover-sticker-spinner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.strip-entrance-cover .cover-sticker-front,
+.cover-sticker-rear {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.strip-entrance-cover .cover-sticker-front {
+  transform: translateZ(0.35px);
+}
+.cover-sticker-rear {
+  border-radius: 2.4%;
+  background: #e5dfd0 url("/cover-sticker-back.webp") center / 100% 100% no-repeat;
+  transform: rotateY(180deg) translateZ(0.35px);
+  box-shadow: inset 0 0 0 0.7px #b5af9f;
+}
+.cover-sticker-canvas {
+  position: absolute;
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  visibility: hidden;
+}
+.cover-sticker-date {
+  position: absolute;
+  right: 7%;
+  bottom: 8%;
+  width: 39%;
+  max-height: 14%;
+  color: #25241f;
+  opacity: .9;
+  transform: rotate(-3deg);
+}
+.strip-entrance:not(.is-centered) .cover-sticker-canvas[data-ready="true"] { visibility: visible; }
+.strip-entrance:not(.is-centered) .cover-sticker-canvas[data-ready="true"] + .cover-sticker-spinner { visibility: hidden; }
 /* A home cover is already visible. Only a raw page load needs a fade-in. */
 .strip-entrance:not(.is-from-library) .strip-entrance-cover { opacity: 0; }
 .strip-entrance-cover img {

@@ -5,18 +5,21 @@ import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, stickerAspectRatio, stickerLiftKeyframes, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { startStickerFlight, STICKER_RELEASE, STICKER_LAND } from "@/app/lib/sticker-flight";
+import { stickerDate, markerDateStrokes, paintStickerDate } from "@/app/lib/sticker-date";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
 type PaletteBlock = { type: string; backgroundColor?: string; textColor?: string };
 
 export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledAssets, totalAssets,
-  revealing, requestPending = false, origin, dock, onCoverSettled, onExitComplete,
+  revealing, requestPending = false, origin, dock, publishedAt, onCoverSettled, onExitComplete,
 }: {
   cover: Cover; blocks: PaletteBlock[];
   endingStyle: { backgroundColor: string; buttonColor: string };
   mediaReady: boolean; settledAssets: number; totalAssets: number; revealing: boolean;
   requestPending?: boolean; origin?: CoverOrigin; dock?: CoverDockOrigin;
+  publishedAt?: number;
   onCoverSettled: () => void; onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
@@ -24,9 +27,13 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const stageRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
   const stickerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const snapshotRef = useRef<HTMLCanvasElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
+  const date = stickerDate(publishedAt);
+  const dateStrokes = markerDateStrokes(date);
   const [centered, setCentered] = useState(!origin);
   const [dockDropped, setDockDropped] = useState(!dock);
   const [coverReady, setCoverReady] = useState(cover.kind === "color");
@@ -94,31 +101,57 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   }, [aspectRatio]);
 
   useLayoutEffect(() => {
+    const canvas = snapshotRef.current, image = initialOrigin?.image;
+    if (!canvas || !image?.naturalWidth) return;
+    canvas.width = Math.min(1024, image.naturalWidth);
+    canvas.height = Math.round(canvas.width * image.naturalHeight / image.naturalWidth);
+    canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+  }, [initialOrigin]);
+
+  useLayoutEffect(() => {
     const visual = visualRef.current;
     if (!initialOrigin || !visual) return;
     const target = visual.getBoundingClientRect();
     if (!visual.animate || !target.width || !target.height) { setCentered(true); return; }
     const animation = visual.animate([
       { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})` },
+      { offset: STICKER_RELEASE, transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})`, easing: "cubic-bezier(0.3, 0.1, 0.2, 1)" },
+      { offset: STICKER_LAND, transform: "translate3d(0, 0, 0) scale(1, 1)" },
       { transform: "translate3d(0, 0, 0) scale(1, 1)" },
-    ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "both" });
+    ], { duration: COVER_MOVE_MS, easing: "linear", fill: "both" });
     const side = initialOrigin.left + initialOrigin.width / 2 < window.innerWidth / 2 ? -1 : 1;
     const lift = stickerRef.current?.animate(stickerLiftKeyframes(side), {
-      duration: COVER_MOVE_MS, easing: "ease-in-out", fill: "both",
+      duration: COVER_MOVE_MS, easing: "linear", fill: "both",
     });
-    // Share the tray's rendering clock, including a busy first paint.
-    const started = document.timeline.currentTime;
-    if (typeof started === "number") {
-      animation.startTime = started;
-      if (lift) lift.startTime = started;
-    }
+    // Keep the original cover pinned until the flexible material is painted.
+    // The rest of home and its tray still start leaving immediately on click.
+    animation.pause(); animation.currentTime = 0;
+    if (lift) { lift.pause(); lift.currentTime = 0; }
+    const beginMotion = () => {
+      // Safari's timeline can still hold the previous frame after compiling
+      // the material. Use now so the first peel frame is never skipped.
+      const started = performance.now();
+      animation.play(); animation.startTime = started;
+      if (lift) { lift.play(); lift.startTime = started; }
+      return started;
+    };
+    const stopFlight = canvasRef.current ? startStickerFlight(canvasRef.current, {
+      image: initialOrigin.image ?? coverRef.current, color: cover.kind === "color" ? cover.color : "#000000",
+      width: target.width, height: target.height, side,
+      onReady: beginMotion, duration: COVER_MOVE_MS,
+      paintDate: (context, width, height) => paintStickerDate(context, date, width, height),
+    }) : undefined;
+    if (!canvasRef.current) beginMotion();
     animation.onfinish = () => {
       // Reveal the loading bar on arrival, without another render-frame delay.
       if (mounted.current) flushSync(() => setCentered(true));
       animation.cancel();
       lift?.cancel();
+      stopFlight?.();
     };
-    return () => { animation.onfinish = null; animation.cancel(); lift?.cancel(); };
+    return () => { animation.onfinish = null; animation.cancel(); lift?.cancel(); stopFlight?.(); };
+    // The flight owns the original home cover through the reader handoff.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOrigin]);
 
   const coverSrc = cover.kind === "image" ? cover.src : null;
@@ -206,14 +239,25 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
         aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}>
-          <div className="cover-sticker" ref={stickerRef}>
-            <div className="strip-entrance-cover-face"
-              style={cover.kind === "color" ? { backgroundColor: cover.color }
-                : coverUnavailable && !initialOrigin ? { backgroundColor: ink ?? chosenInk } : undefined}>
-              {cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
-              ) : null}
+          {initialOrigin ? <canvas className="cover-sticker-canvas" ref={canvasRef} aria-hidden="true" /> : null}
+          <div className="cover-sticker-spinner" ref={stickerRef}>
+            <div className="cover-sticker cover-sticker-front cover-sticker-body-front">
+              <div className="strip-entrance-cover-face"
+                style={cover.kind === "color" ? { backgroundColor: cover.color }
+                  : coverUnavailable && !initialOrigin ? { backgroundColor: ink ?? chosenInk } : undefined}>
+                {cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
+                ) : null}
+                {initialOrigin?.image ? <canvas className="cover-sticker-snapshot" ref={snapshotRef} aria-hidden="true" /> : null}
+              </div>
+            </div>
+            <div className="cover-sticker-rear cover-sticker-body-rear" aria-hidden="true">
+              {date ? <svg className="cover-sticker-date" viewBox={`0 -2 ${(dateStrokes.at(-1)?.x ?? 0) + 20} 32`}>
+                {dateStrokes.map((stroke, index) => <path key={index} d={stroke.path}
+                  transform={`translate(${stroke.x} ${stroke.y}) rotate(${stroke.rotation})`}
+                  fill="none" stroke="currentColor" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}
+              </svg> : null}
             </div>
           </div>
         </div>

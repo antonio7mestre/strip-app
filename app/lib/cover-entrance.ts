@@ -1,4 +1,4 @@
-export const COVER_MOVE_MS = 620;
+export const COVER_MOVE_MS = 1400;
 export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
@@ -10,18 +10,18 @@ export function stickerAspectRatio(mediaRatio: number) {
   return 1 / (0.955 / ratio + 0.045);
 }
 
-/** Matches the thin paper lift authored in design/cover-sticker.blend.
- * Keep this on the inner sheet so the outer FLIP starts at the exact card bounds. */
+/** A small lift for browsers without a flexible 3D surface. Never turn the
+ * sticker over: the leading edge curls in the primary mesh renderer. */
 export function stickerLiftKeyframes(direction: number): Keyframe[] {
   const side = direction < 0 ? -1 : 1;
-  return [
-    { offset: 0, transform: "perspective(700px) translateZ(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg)" },
-    { offset: 0.32, transform: `perspective(700px) translateZ(12px) rotateX(-7deg) rotateY(${5 * side}deg) rotateZ(${-1.4 * side}deg)` },
-    { offset: 0.65, transform: `perspective(700px) translateZ(4px) rotateX(2deg) rotateY(${-side}deg) rotateZ(${0.35 * side}deg)` },
-    { offset: 1, transform: "perspective(700px) translateZ(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg)" },
-  ];
+  return Array.from({ length: 41 }, (_, i) => {
+    const t = i / 40, arc = i === 40 ? 0 : Math.sin(Math.PI * t);
+    const turn = -8 * side * arc;
+    return { offset: t, transform: `perspective(700px) translateZ(${(32 * arc).toFixed(3)}px) rotateX(${(-12 * arc).toFixed(3)}deg) rotateY(${turn.toFixed(3)}deg) rotateZ(${(-5 * side * Math.sin(2 * Math.PI * t)).toFixed(3)}deg)` };
+  });
 }
-export type CoverOrigin = { left: number; top: number; width: number; height: number };
+
+export type CoverOrigin = { left: number; top: number; width: number; height: number; image?: HTMLImageElement | null };
 export type CoverDockOrigin = CoverOrigin & { markup: string; padding: string; borderRadius: string; cornerShape: string; boxShadow: string };
 
 /** Capture only our own navigation markup, before hiding the live controls. */

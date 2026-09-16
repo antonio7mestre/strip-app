@@ -108,7 +108,7 @@ test("the square bar is deterministic, monotonic and never full before real comp
   for (let p = 1; p <= 100; p++) assert.ok(coverProgressCells(p) >= coverProgressCells(p - 1));
 });
 test("the final crossfade keeps its previous timing, is monotonic, and cleans up", () => {
-  assert.equal(COVER_MOVE_MS, 620); assert.equal(COVER_FADE_MS, 650);
+  assert.equal(COVER_MOVE_MS, 1400); assert.equal(COVER_FADE_MS, 650);
   let pending, done = 0;
   globalThis.requestAnimationFrame = callback => { pending = callback; return 7; };
   globalThis.cancelAnimationFrame = () => { pending = null; };

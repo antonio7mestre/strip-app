@@ -5668,7 +5668,8 @@ export default function Home() {
     const cover = button.querySelector<HTMLElement>(".library-cover-frame");
     const bounds = cover?.getBoundingClientRect();
     const origin = bounds && bounds.width > 0 && bounds.height > 0
-      ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } : undefined;
+      ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height,
+        image: cover?.querySelector<HTMLImageElement>("img") } : undefined;
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
     const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
@@ -7113,6 +7114,7 @@ export default function Home() {
     ? createPortal(
       <StripEntrance key={entranceStrip.id}
         cover={entranceStrip.cover}
+        publishedAt={entranceStrip.publishedAt}
         origin={openingCover?.origin}
         dock={openingCover?.dock}
         requestPending={view !== "published"}
@@ -7437,6 +7439,7 @@ export default function Home() {
       <>
         {coverEntranceLayer}
         {legacyTransitionLayer}
+        <link rel="preload" as="image" href="/cover-sticker-back.webp" />
         <main
           inert={openingCover !== null}
           className={`app-shell library-mode ${openingCover ? "is-opening-strip" : ""} ${

@@ -9,6 +9,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
+import * as stickerFlight from "../app/lib/sticker-flight.ts";
+import * as stickerDate from "../app/lib/sticker-date.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -64,7 +66,9 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
-    ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance : require(name) });
+    ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
+      : name === "@/app/lib/sticker-flight" ? stickerFlight
+        : name === "@/app/lib/sticker-date" ? stickerDate : require(name) });
 test("renders a centered cover and 24 square progress cells, without a full-screen drawing", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
@@ -148,7 +152,10 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   const entranceCss = css.slice(css.indexOf(".published-strip-load-gate {"), css.indexOf(".sticker-block {"));
   assert.doesNotMatch(entranceCss, /published-strip-orb/);
   assert.match(entranceCss, /\.published-strip-load-gate \{[\s\S]*?visibility: visible;[\s\S]*?opacity: 1;/);
-  assert.doesNotMatch(entranceCss.replace(/\/\*[\s\S]*?\*\//g, ""), /gradient|box-shadow|filter:|ribbon/);
+  // Paper shading belongs to the turning cover, never to the page reveal.
+  const revealCss = entranceCss.replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/[^{}]*cover-sticker[^{}]*\{[^}]*\}/g, "");
+  assert.doesNotMatch(revealCss, /gradient|box-shadow|filter:|ribbon/);
   assert.match(componentSource, /animation.cancel\(\)/);
   assert.match(componentSource, /fadeCoverEntrance\(host/);
   assert.match(entranceCss, /--entrance-safe-top: env\(safe-area-inset-top\)/);
