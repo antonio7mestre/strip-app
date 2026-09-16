@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
@@ -28,6 +28,9 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const [initialDock] = useState(dock);
   const [centered, setCentered] = useState(!origin);
   const [dockDropped, setDockDropped] = useState(!dock);
+  const [coverReady, setCoverReady] = useState(cover.kind === "color");
+  const [coverVisible, setCoverVisible] = useState(Boolean(origin));
+  const [coverFailed, setCoverFailed] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(() => origin ? origin.width / origin.height
     : cover.kind === "image" ? cover.aspectRatio ?? 1
       : cover.shape === "portrait" ? 3 / 4 : cover.shape === "landscape" ? 4 / 3 : 1);
@@ -106,6 +109,34 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
     return () => { animation.onfinish = null; animation.cancel(); };
   }, [initialOrigin]);
 
+  const coverSrc = cover.kind === "image" ? cover.src : null;
+  useLayoutEffect(() => {
+    const image = coverRef.current;
+    if (!image) return;
+    return watchCoverImage(image, () => {
+      if (!mounted.current) return;
+      if (!initialOrigin && image.naturalWidth && image.naturalHeight) setAspectRatio(image.naturalWidth / image.naturalHeight);
+      setSampledColors(sampleEntranceMedia(image));
+      setPaletteSampled(true);
+      setCoverReady(true);
+      settledCallback.current();
+    }, () => {
+      setCoverFailed(true);
+      setPaletteSampled(true);
+      setCoverReady(true);
+      settledCallback.current();
+    });
+  }, [coverSrc, initialOrigin]);
+
+  // Retain the reader's existing timeout recovery if a cover request never settles.
+  const coverUnavailable = coverFailed || (!initialOrigin && revealing && !coverReady);
+  const coverReadyToAppear = coverReady || coverUnavailable;
+
+  useLayoutEffect(() => {
+    if (initialOrigin || !coverReadyToAppear || !visualRef.current) return;
+    return fadeInCover(visualRef.current, () => setCoverVisible(true));
+  }, [initialOrigin, coverReadyToAppear]);
+
   const counterRef = useRef<ReturnType<typeof startEntranceCounter> | null>(null);
   useLayoutEffect(() => {
     const counter = startEntranceCounter(setDisplayPercent);
@@ -114,7 +145,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   }, []);
   const loadPercent = requestPending ? 0 : entranceLoadPercent(settledAssets, totalAssets);
   // The tray leaves immediately; start the bar once its poster reaches the center.
-  useLayoutEffect(() => { counterRef.current?.setTarget(centered ? loadPercent : 0); }, [loadPercent, centered]);
+  useLayoutEffect(() => { counterRef.current?.setTarget(centered && coverVisible ? loadPercent : 0); }, [loadPercent, centered, coverVisible]);
 
   useEffect(() => {
     if (ink || requestPending) return;
@@ -149,13 +180,13 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
 
   useLayoutEffect(() => {
     const host = surfaceRef.current;
-    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !dockDropped) return;
+    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !dockDropped || !coverVisible) return;
     return fadeCoverEntrance(host, () => completeCallback.current());
-  }, [revealing, displayPercent, centered, requestPending, dockDropped]);
+  }, [revealing, displayPercent, centered, requestPending, dockDropped, coverVisible]);
 
   const filled = coverProgressCells(displayPercent);
   return (
-    <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""}`}
+    <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
       style={{ "--entrance-a": ink ?? chosenInk } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
@@ -163,20 +194,11 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
         aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}
-          style={cover.kind === "color" ? { backgroundColor: cover.color } : undefined}>
-          {cover.kind === "image" ? (
+          style={cover.kind === "color" ? { backgroundColor: cover.color }
+            : coverUnavailable && !initialOrigin ? { backgroundColor: ink ?? chosenInk } : undefined}>
+          {cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync"
-              onLoad={event => {
-                const image = event.currentTarget;
-                void image.decode().catch(() => {}).then(() => {
-                  if (!mounted.current) return;
-                  if (!initialOrigin && image.naturalWidth && image.naturalHeight) setAspectRatio(image.naturalWidth / image.naturalHeight);
-                  setSampledColors(sampleEntranceMedia(image));
-                  setPaletteSampled(true);
-                  settledCallback.current();
-                });
-              }} onError={() => { setPaletteSampled(true); settledCallback.current(); }} />
+            <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
           ) : null}
         </div>
         <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"

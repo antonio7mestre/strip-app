@@ -1870,6 +1870,8 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   background: #000;
   will-change: transform;
 }
+/* A home cover is already visible. Only a raw page load needs a fade-in. */
+.strip-entrance:not(.is-from-library) .strip-entrance-cover { opacity: 0; }
 .strip-entrance-cover img {
   display: block;
   width: 100%;
@@ -1894,7 +1896,7 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   transition: opacity 180ms ease;
   pointer-events: none;
 }
-.strip-entrance.is-centered .strip-entrance-progress { opacity: 1; }
+.strip-entrance.is-centered.is-cover-visible .strip-entrance-progress { opacity: 1; }
 .strip-entrance-squares {
   display: grid;
   flex: 1;

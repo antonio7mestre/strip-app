@@ -2,6 +2,7 @@ export const COVER_MOVE_MS = 620;
 export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
+export const COVER_APPEAR_MS = 180;
 export type CoverOrigin = { left: number; top: number; width: number; height: number };
 export type CoverDockOrigin = CoverOrigin & { markup: string; padding: string; borderRadius: string; cornerShape: string; boxShadow: string };
 
@@ -63,6 +64,42 @@ export function coverEntranceLayout(width: number, height: number, offsetTop: nu
 export function coverProgressCells(percent: number) {
   const progress = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
   return progress === 100 ? COVER_PROGRESS_CELLS : Math.floor(progress / 100 * COVER_PROGRESS_CELLS);
+}
+
+/** Also handle cached images whose load event happened before hydration. */
+export function watchCoverImage(image: HTMLImageElement, onReady: () => void, onError: () => void) {
+  let disposed = false, settling = false;
+  const fail = () => { if (!disposed && !settling) { settling = true; onError(); } };
+  const ready = async () => {
+    if (disposed || settling) return;
+    settling = true;
+    await image.decode().catch(() => {});
+    if (!disposed) { if (image.naturalWidth > 0) onReady(); else onError(); }
+  };
+  image.addEventListener("load", ready);
+  image.addEventListener("error", fail);
+  if (image.complete) { if (image.naturalWidth > 0) void ready(); else fail(); }
+  return () => {
+    disposed = true;
+    image.removeEventListener("load", ready);
+    image.removeEventListener("error", fail);
+  };
+}
+
+/** Direct loads only: show decoded pixels before releasing the progress bar. */
+export function fadeInCover(cover: HTMLElement, onComplete: () => void) {
+  let frame = 0, started: number | null = null, disposed = false;
+  cover.style.opacity = "0";
+  const tick = (now: number) => {
+    if (disposed) return;
+    started ??= now;
+    const t = Math.max(0, Math.min(1, (now - started) / COVER_APPEAR_MS));
+    cover.style.opacity = String(1 - Math.pow(1 - t, 3));
+    if (t < 1) frame = requestAnimationFrame(tick);
+    else onComplete();
+  };
+  frame = requestAnimationFrame(tick);
+  return () => { disposed = true; cancelAnimationFrame(frame); };
 }
 
 /** Keep the existing 650ms crossfade and expose its phase for Safari edge tint. */

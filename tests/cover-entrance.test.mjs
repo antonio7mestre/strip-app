@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance } from "../app/lib/cover-entrance.ts";
+import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
 
 test("portrait, landscape and square covers stay centered, uncropped, with room for the bar", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
@@ -36,14 +36,66 @@ test("the tray drops immediately while cover arrival reveals the loading bar", (
   const dockEffect = component.slice(component.indexOf("if (!surfaceRef.current || !dockRef.current"), component.indexOf("const stage = stageRef.current"));
   assert.doesNotMatch(dockEffect, /centered/);
   assert.match(dockEffect, /\[initialDock\]/);
-  assert.match(component, /setTarget\(centered \? loadPercent : 0\)/);
+  assert.match(component, /setTarget\(centered && coverVisible \? loadPercent : 0\)/);
+  assert.match(component, /\[coverVisible, setCoverVisible\] = useState\(Boolean\(origin\)\)/);
+  assert.match(component, /if \(initialOrigin \|\| !coverReadyToAppear \|\| !visualRef.current\) return/);
   assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
   assert.match(component, /requestPending \|\| !dockDropped/);
   assert.match(component, /scale\(\$\{initialOrigin.width \/ target.width\}/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, new RegExp(`animation: cover-backdrop-in ${COVER_MOVE_MS}ms`));
   assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
-  assert.match(css, /\.strip-entrance.is-centered \.strip-entrance-progress \{ opacity: 1; \}/);
+  assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-progress \{ opacity: 1; \}/);
+  assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-cover \{ opacity: 0; \}/);
+});
+
+test("a raw-load cover finishes its quick fade before releasing progress", () => {
+  let pending, done = 0;
+  globalThis.requestAnimationFrame = fn => { pending = fn; return 1; };
+  globalThis.cancelAnimationFrame = () => {};
+  const cover = { style: {} };
+  const cancel = fadeInCover(cover, () => { assert.equal(cover.style.opacity, "1"); done++; });
+  try {
+    assert.equal(COVER_APPEAR_MS, 180);
+    assert.equal(cover.style.opacity, "0");
+    pending(0); pending(90);
+    assert.ok(Number(cover.style.opacity) > 0 && Number(cover.style.opacity) < 1);
+    assert.equal(done, 0);
+    pending(180); assert.equal(done, 1);
+    const late = pending;
+    cancel(); late(1000); assert.equal(done, 1);
+  } finally { cancel(); delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+});
+
+test("cover readiness waits for decoded pixels, including already-cached images", async () => {
+  for (const cached of [false, true]) {
+    let decoded, ready = 0, errors = 0;
+    const events = new Map();
+    const image = { complete: cached, naturalWidth: 1200,
+      decode: () => new Promise(resolve => { decoded = resolve; }),
+      addEventListener: (name, fn) => events.set(name, fn),
+      removeEventListener: name => events.delete(name) };
+    const dispose = watchCoverImage(image, () => ready++, () => errors++);
+    if (!cached) events.get("load")();
+    assert.equal(ready, 0);
+    decoded(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ready, 1); assert.equal(errors, 0);
+    events.get("load")(); assert.equal(ready, 1, "no duplicate readiness");
+    dispose(); assert.equal(events.size, 0);
+  }
+});
+
+test("failed covers recover and late decoding cannot mutate an exited loader", async () => {
+  let decoded, ready = 0, errors = 0;
+  const events = new Map();
+  const image = { complete: false, naturalWidth: 1200,
+    decode: () => new Promise(resolve => { decoded = resolve; }),
+    addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name) };
+  let dispose = watchCoverImage(image, () => ready++, () => errors++);
+  events.get("error")(); assert.equal(errors, 1); dispose();
+  dispose = watchCoverImage(image, () => ready++, () => errors++);
+  events.get("load")(); dispose(); decoded(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ready, 0); assert.equal(errors, 1);
 });
 
 test("the square bar is deterministic, monotonic and never full before real completion", () => {
