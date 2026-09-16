@@ -7,7 +7,8 @@ import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
-import { startScribble } from "../app/lib/scribble-entrance.ts";
+import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
+import * as coverEntrance from "../app/lib/cover-entrance.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -63,19 +64,21 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
-    ? { startScribble } : require(name) });
-test("renders one accessible status and one flat ink canvas, without ribbons or extra media", () => {
+    ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance : require(name) });
+test("renders a centered cover and 24 square progress cells, without a full-screen drawing", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
     mediaReady: true, revealing: false, onCoverSettled() {}, onExitComplete() {},
     settledAssets:97,totalAssets:100,
   }));
-  assert.equal((html.match(/<canvas/g) ?? []).length, 1);
+  assert.equal((html.match(/<canvas/g) ?? []).length, 0);
   assert.equal((html.match(/role="status"/g) ?? []).length, 1);
-  assert.match(html, /--entrance-a:#FF3366/);
+  assert.ok(html.includes(`--entrance-a:${chooseScribbleColor(makeEntrancePalette(["#FF3366", "#FFFFFF", "#000000"], []))}`));
   assert.match(html, /aria-label="Loading Strip"/);
-  assert.match(html, /STRIP LOADING\.\.\./);
+  assert.match(html, /strip-entrance-cover/);
+  assert.match(html, /strip-entrance-squares/);
+  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 24);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
   assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
@@ -84,11 +87,11 @@ test("renders one accessible status and one flat ink canvas, without ribbons or 
 test("readiness and timeout preserve the loading contract", () => {
   assert.match(page, /publishedAssetsReady && publishedMinimumElapsed/);
   assert.match(page, /PUBLISHED_MEDIA_LOAD_TIMEOUT_MS/);
-  assert.match(page, /onExitComplete=\{\(\) => setPublishedLoaderDismissedKey\(publishedStripLoadKey\)\}/);
+  assert.match(page, /setPublishedLoaderDismissedKey\(entranceStrip.id\)/);
   assert.doesNotMatch(page, /PUBLISHED_LOADING_RELEASE_MS/);
   assert.match(componentSource, /cancelAnimationFrame\(frame\)/);
   assert.match(componentSource, /if \(!mounted.current\) return/);
-  assert.match(componentSource, /if \(revealing\) frozen.current = true/);
+  assert.match(componentSource, /if \(!hasPalette \|\| ink\) return/);
   assert.doesNotMatch(componentSource, /scrollTo|scrollBy|new Image|fetch\(/);
 });
 
@@ -104,19 +107,19 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.equal(entranceLoadPercent(1,Infinity),0);
   for(let i=1;i<=100;i++) assert.ok(entranceLoadPercent(i,100)>=entranceLoadPercent(i-1,100));
   assert.match(page,/settledAssets=\{publishedAssetIds.filter/);
-  assert.match(page,/openedPublishedStrip.cover.kind === "image" && publishedCoverReady/);
+  assert.match(page,/entranceStrip.cover.kind === "image" && publishedCoverReady/);
   assert.match(componentSource,/entranceLoadPercent\(settledAssets, totalAssets\)/);
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
   assert.match(css,/font-variant-numeric: tabular-nums/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
   assert.match(readoutCss,/color: #fff;/);
-  assert.match(readoutCss,/text-shadow: 0 1px 3px rgba\(0, 0, 0, 0.2\)/);
-  assert.match(readoutCss,/justify-content: center;/);
-  assert.match(readoutCss,/gap: 0.5em;/);
+  assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
+  assert.match(readoutCss,/right: 0;/);
+  assert.match(readoutCss,/gap: 14px;/);
   assert.match(readoutCss,/white-space: nowrap;/);
   assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*width: 3ch;\s*text-align: right;/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
-  assert.match(componentSource,/ready=\{revealing && displayPercent === 100\}/);
+  assert.match(componentSource,/!revealing \|\| displayPercent !== 100 \|\| !centered \|\| requestPending/);
 });
 
 test("the readout counts every percentage once, pauses at real progress, and cleans up", () => {
@@ -145,19 +148,19 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   const entranceCss = css.slice(css.indexOf(".published-strip-load-gate {"), css.indexOf(".sticker-block {"));
   assert.doesNotMatch(entranceCss, /published-strip-orb/);
   assert.match(entranceCss, /\.published-strip-load-gate \{[\s\S]*?visibility: visible;[\s\S]*?opacity: 1;/);
-  assert.doesNotMatch(entranceCss.replace(/\/\*[\s\S]*?\*\//g, ""), /gradient|box-shadow|filter:|ribbon|@keyframes/);
-  assert.match(componentSource, /animation.dispose\(\)/);
-  assert.match(componentSource, /controller.current\?\.setReady\(ready\)/);
+  assert.doesNotMatch(entranceCss.replace(/\/\*[\s\S]*?\*\//g, ""), /gradient|box-shadow|filter:|ribbon/);
+  assert.match(componentSource, /animation.cancel\(\)/);
+  assert.match(componentSource, /fadeCoverEntrance\(host/);
   assert.match(entranceCss, /--entrance-safe-top: env\(safe-area-inset-top\)/);
   assert.doesNotMatch(entranceCss, /html.published-content-loading[^}]*background:/);
-  assert.match(componentSource, /installScribbleSurface\(surface\)/);
+  assert.match(componentSource, /installScribbleSurface\(host\)/);
 });
 
-test("text-first reader reveals the real edge underneath its opaque canvas before fading", () => {
-  assert.match(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance:not\(\[data-ink-phase="fading"\]\)\) body\s*\{\s*background: #000 !important;/);
-  assert.match(css, /\.published-mode\.has-leading-text:has\(\.strip-entrance:not\(\[data-ink-phase="fading"\]\)\) > \.top-safe-area-anchor\s*\{\s*display: none;/);
+test("text-first reader reveals the real edge underneath its opaque cover surface before fading", () => {
+  assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) body\s*\{\s*background: #000 !important;/);
+  assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) \.published-mode\.has-leading-text > \.top-safe-area-anchor\s*\{\s*display: none;/);
   assert.doesNotMatch(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body/);
-  assert.match(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color 650ms ease-in-out;/);
+  assert.match(css, /html:has\(\.published-mode\.has-leading-text\):has\(\.cover-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color 650ms ease-in-out;/);
   assert.match(css, /padding-top: calc\(var\(--leading-image-inset\) \+ env\(safe-area-inset-top\)\)/);
   assert.match(page, /hasLeadingImage \|\| \(view === "published" && hasLeadingText\)/);
   const anchorEffect = page.slice(page.indexOf("const calculateLeadingImageOffset"), page.indexOf("const calculateLeadingImageOffset") + 2500);

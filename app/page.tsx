@@ -52,6 +52,7 @@ import {
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
+import { COVER_MOVE_MS, type CoverOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
@@ -3237,6 +3238,11 @@ export default function Home() {
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
+  const [openingCover, setOpeningCover] = useState<{
+    strip: PublishedStripSummary; origin?: CoverOrigin;
+  } | null>(null);
+  const openingCoverRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
   const [openingDraftId, setOpeningDraftId] = useState<string | null>(null);
   const [openingPublishedEditor, setOpeningPublishedEditor] = useState(false);
   const [openedPublishedStrip, setOpenedPublishedStrip] =
@@ -4904,6 +4910,9 @@ export default function Home() {
   const resetTransientNavigationState = () => {
     const root = document.documentElement;
     pageTransitionInFlightRef.current = false;
+    openingCoverRequestRef.current?.abort();
+    openingCoverRequestRef.current = null;
+    setOpeningCover(null);
     cancelDockTransitionSchedule();
     setOpeningStripId(null);
     setOpeningDraftId(null);
@@ -5653,20 +5662,52 @@ export default function Home() {
   const openSettings = () => openLibrarySection("settings");
   const returnToLibrary = () => openLibrarySection("library");
 
-  const openPublishedStrip = async (strip: PublishedStripSummary) => {
+  const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLButtonElement) => {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
-    setOpeningStripId(strip.id);
-    setViewedStrips((current) => [
-      { ...strip, viewedAt: Date.now() },
-      ...current.filter((viewedStrip) => viewedStrip.id !== strip.id),
-    ]);
     pageTransitionInFlightRef.current = true;
+    const cover = button.querySelector<HTMLElement>(".library-cover");
+    const bounds = cover?.getBoundingClientRect();
+    const origin = bounds && bounds.width > 0 && bounds.height > 0
+      ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } : undefined;
+    const controller = new AbortController();
+    openingCoverRequestRef.current = controller;
+    flushSync(() => {
+      setOpeningStripId(strip.id);
+      setOpeningCover({ strip, origin });
+      setOpenedPublishedStrip(null);
+      setPublishedCoverSettledKey(null);
+      setPublishedLoaderDismissedKey(null);
+      setMediaLoadStatus({});
+    });
+    const timeout = window.setTimeout(() => controller.abort(), PUBLISHED_MEDIA_LOAD_TIMEOUT_MS);
     try {
-      await fetch("/api/auth/session", { cache: "no-store" });
+      // Fetch while the existing home cover moves. Keep the same overlay mounted
+      // when the reader appears underneath it, rather than navigating away.
+      const [data] = await Promise.all([
+        fetch(`/api/strips/${encodeURIComponent(strip.id)}`, { cache: "no-store", signal: controller.signal })
+          .then(async response => {
+            if (!response.ok) throw new Error("Published Strip request failed");
+            return await response.json() as { strip: PublishedStripDetail };
+          }),
+        new Promise<void>(resolve => window.setTimeout(resolve, COVER_MOVE_MS + 40)),
+      ]);
+      if (controller.signal.aborted || openingCoverRequestRef.current !== controller) return;
+      setViewedStrips(current => [{ ...strip, viewedAt: Date.now() }, ...current.filter(item => item.id !== strip.id)]);
+      setBrowserPath(`/strip/${encodeURIComponent(strip.id)}`);
+      flushSync(() => {
+        setOpenedPublishedStrip(data.strip);
+        setView("published");
+      });
     } catch {
-      // The published Strip remains public if session promotion is unavailable.
+      if (openingCoverRequestRef.current !== controller) return;
+      setOpeningCover(null);
+      setOpeningStripId(null);
+      pageTransitionInFlightRef.current = false;
+      setNotice("Couldn’t open this Strip. Try again.");
+    } finally {
+      window.clearTimeout(timeout);
+      if (openingCoverRequestRef.current === controller) openingCoverRequestRef.current = null;
     }
-    window.location.assign(publicStripUrl(strip));
   };
 
   const returnToLibraryFromPublished = async () => {
@@ -7066,6 +7107,29 @@ export default function Home() {
     );
   }
 
+  const entranceStrip = openingCover?.strip ?? openedPublishedStrip;
+  const coverEntranceLayer = entranceStrip && (openingCover || publishedLoaderIsVisible) && typeof document !== "undefined"
+    ? createPortal(
+      <StripEntrance key={entranceStrip.id}
+        cover={entranceStrip.cover}
+        origin={openingCover?.origin}
+        requestPending={view !== "published"}
+        blocks={openedPublishedStrip?.blocks ?? []}
+        endingStyle={openedPublishedStrip?.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE}
+        mediaReady={view === "published" && publishedContentReady}
+        settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
+          (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}
+        totalAssets={publishedAssetIds.length + (entranceStrip.cover.kind === "image" ? 1 : 0)}
+        revealing={view === "published" && publishedLoaderPhase === "revealing"}
+        onCoverSettled={() => setPublishedCoverSettledKey(entranceStrip.id)}
+        onExitComplete={() => {
+          setPublishedLoaderDismissedKey(entranceStrip.id);
+          setOpeningCover(null);
+          setOpeningStripId(null);
+          pageTransitionInFlightRef.current = false;
+        }}
+      />, document.body, "strip-cover-entrance") : null;
+
   if (!initialRouteReady) {
     return <main className="app-shell route-loading-mode" aria-busy="true" />;
   }
@@ -7308,17 +7372,17 @@ export default function Home() {
             : undefined;
       return (
         <div
-          className="library-card is-library-card-entering"
+          className={`library-card is-library-card-entering ${openingStripId === strip.id ? "is-opening-cover" : ""}`}
           key={strip.id}
           style={{ "--library-item-order": Math.min(itemOrder, 8) } as CSSProperties}
         >
           <button
             className="library-card-open-button"
             type="button"
-            onClick={() =>
+            onClick={(event) =>
               isDraft
                 ? void openDraft(strip)
-                : openPublishedStrip(strip)
+                : void openPublishedStrip(strip, event.currentTarget)
             }
             disabled={
               isDraft ? openingDraftId === strip.id : openingStripId === strip.id
@@ -7367,9 +7431,11 @@ export default function Home() {
 
     return (
       <>
+        {coverEntranceLayer}
         {legacyTransitionLayer}
         <main
-          className={`app-shell library-mode ${
+          inert={openingCover !== null}
+          className={`app-shell library-mode ${openingCover ? "is-opening-strip" : ""} ${
             isDraftLibrary ? "drafts-library-mode" : ""
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
@@ -8185,6 +8251,7 @@ export default function Home() {
       } as CSSProperties;
       return (
         <>
+          {coverEntranceLayer}
           {legacyTransitionLayer}
           <main
             className={`app-shell reader-mode published-mode ${
@@ -8231,21 +8298,6 @@ export default function Home() {
                 />
               </footer>
             </article>
-            {publishedLoaderIsVisible ? (
-              <StripEntrance
-                key={publishedStripLoadKey}
-                cover={openedPublishedStrip.cover}
-                blocks={publishedBlocks}
-                endingStyle={visibleEndingStyle}
-                mediaReady={publishedContentReady}
-                settledAssets={publishedAssetIds.filter((id) => mediaLoadStatus[id] !== undefined).length +
-                  (openedPublishedStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}
-                totalAssets={publishedAssetIds.length + (openedPublishedStrip.cover.kind === "image" ? 1 : 0)}
-                revealing={publishedLoaderPhase === "revealing"}
-                onCoverSettled={() => setPublishedCoverSettledKey(publishedStripLoadKey)}
-                onExitComplete={() => setPublishedLoaderDismissedKey(publishedStripLoadKey)}
-              />
-            ) : null}
             {notice ? <div className="notice">{notice}</div> : null}
           </main>
         </>

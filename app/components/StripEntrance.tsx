@@ -2,143 +2,174 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
-import { installScribbleSurface, startScribble } from "@/app/lib/scribble-entrance";
+import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
+import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, type CoverOrigin } from "@/app/lib/cover-entrance";
 
-type Cover = { kind: "image"; src: string } | { kind: "color"; color: string };
+type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
+  | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
 type PaletteBlock = { type: string; backgroundColor?: string; textColor?: string };
 
-function InkCanvas({ palette, ready, onComplete }: {
-  palette: string[]; ready: boolean; onComplete: () => void;
-}) {
-  // Once the pen touches down, arriving photos must not recolor old strokes.
-  const [ink] = useState(palette);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const controller = useRef<ReturnType<typeof startScribble> | null>(null);
-  const complete = useRef(onComplete);
-  useLayoutEffect(() => { complete.current = onComplete; }, [onComplete]);
-  useLayoutEffect(() => {
-    const element = canvas.current;
-    if (!element?.parentElement) return;
-    const animation = startScribble(element, element.parentElement, ink, () => complete.current());
-    controller.current = animation;
-    return () => { animation.dispose(); controller.current = null; };
-  }, [ink]);
-  useLayoutEffect(() => { controller.current?.setReady(ready); }, [ready]);
-  return <canvas ref={canvas} className="strip-entrance-ink" aria-hidden="true" />;
-}
-
-export function StripEntrance({
-  cover,
-  blocks,
-  endingStyle,
-  mediaReady,
-  settledAssets,
-  totalAssets,
-  revealing,
-  onCoverSettled,
-  onExitComplete,
+export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledAssets, totalAssets,
+  revealing, requestPending = false, origin, onCoverSettled, onExitComplete,
 }: {
-  cover: Cover;
-  blocks: PaletteBlock[];
+  cover: Cover; blocks: PaletteBlock[];
   endingStyle: { backgroundColor: string; buttonColor: string };
-  mediaReady: boolean;
-  settledAssets: number;
-  totalAssets: number;
-  revealing: boolean;
-  onCoverSettled: () => void;
-  onExitComplete: () => void;
+  mediaReady: boolean; settledAssets: number; totalAssets: number; revealing: boolean;
+  requestPending?: boolean; origin?: CoverOrigin;
+  onCoverSettled: () => void; onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const surface = surfaceRef.current;
-    if (surface) return installScribbleSurface(surface);
-  }, []);
-  const mounted = useRef(false);
-  const frozen = useRef(false);
-  const settledCallback = useRef(onCoverSettled);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const visualRef = useRef<HTMLDivElement>(null);
+  const [initialOrigin] = useState(origin);
+  const [centered, setCentered] = useState(!origin);
+  const [aspectRatio, setAspectRatio] = useState(() => origin ? origin.width / origin.height
+    : cover.kind === "image" ? cover.aspectRatio ?? 1
+      : cover.shape === "portrait" ? 3 / 4 : cover.shape === "landscape" ? 4 / 3 : 1);
   const [sampledColors, setSampledColors] = useState<string[]>([]);
   const [paletteSampled, setPaletteSampled] = useState(false);
   const [displayPercent, setDisplayPercent] = useState(0);
+  const [ink, setInk] = useState<string | null>(null);
+  const mounted = useRef(false);
+  const settledCallback = useRef(onCoverSettled);
+  const completeCallback = useRef(onExitComplete);
+  useLayoutEffect(() => {
+    settledCallback.current = onCoverSettled;
+    completeCallback.current = onExitComplete;
+  }, [onCoverSettled, onExitComplete]);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  // Keep one surface across the home-to-reader handoff, including safe areas.
+  useLayoutEffect(() => {
+    const host = surfaceRef.current;
+    if (!host) return;
+    const removeSurface = installScribbleSurface(host);
+    const theme = document.getElementById("strip-theme-color");
+    const name = theme?.getAttribute("name");
+    if (name) theme?.removeAttribute("name");
+    document.documentElement.classList.add("cover-entrance-active");
+    return () => {
+      removeSurface();
+      document.documentElement.classList.remove("cover-entrance-active");
+      if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const sync = () => {
+      const viewport = window.visualViewport;
+      const layout = coverEntranceLayout(window.innerWidth, viewport?.height ?? window.innerHeight,
+        viewport?.offsetTop ?? 0, aspectRatio);
+      Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
+        width: layout.width + "px", height: layout.height + "px" });
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    window.visualViewport?.addEventListener("resize", sync);
+    window.visualViewport?.addEventListener("scroll", sync);
+    return () => {
+      window.removeEventListener("resize", sync);
+      window.visualViewport?.removeEventListener("resize", sync);
+      window.visualViewport?.removeEventListener("scroll", sync);
+    };
+  }, [aspectRatio]);
+
+  useLayoutEffect(() => {
+    const visual = visualRef.current;
+    if (!initialOrigin || !visual) return;
+    const target = visual.getBoundingClientRect();
+    if (!visual.animate || !target.width || !target.height) { setCentered(true); return; }
+    const animation = visual.animate([
+      { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})` },
+      { transform: "translate3d(0, 0, 0) scale(1, 1)" },
+    ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "both" });
+    animation.onfinish = () => { if (mounted.current) setCentered(true); animation.cancel(); };
+    return () => { animation.onfinish = null; animation.cancel(); };
+  }, [initialOrigin]);
+
   const counterRef = useRef<ReturnType<typeof startEntranceCounter> | null>(null);
   useLayoutEffect(() => {
     const counter = startEntranceCounter(setDisplayPercent);
     counterRef.current = counter;
     return () => { counter.dispose(); counterRef.current = null; };
   }, []);
-  // The parent can rerender as media arrives, without restarting the animation.
-  useEffect(() => { settledCallback.current = onCoverSettled; }, [onCoverSettled]);
-  useLayoutEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
+  const loadPercent = requestPending ? 0 : entranceLoadPercent(settledAssets, totalAssets);
+  useLayoutEffect(() => { counterRef.current?.setTarget(loadPercent); }, [loadPercent]);
+
   useEffect(() => {
-    if (frozen.current) return;
+    if (ink || requestPending) return;
     const frame = requestAnimationFrame(() => {
       const groups: string[][] = [];
       if (coverRef.current?.complete) groups.push(sampleEntranceMedia(coverRef.current));
       if (mediaReady) {
         const media = document.querySelectorAll<HTMLImageElement | HTMLVideoElement>(
-          ".published-strip .image-block img, .published-strip .video-block video",
-        );
-        // Reuse decoded elements already on the strip. No duplicate video or download.
+          ".published-strip .image-block img, .published-strip .video-block video");
         [...media].slice(0, 3).forEach(element => groups.push(sampleEntranceMedia(element)));
       }
-      // Interleave the samples so one cover cannot crowd out all the strip's media.
-      const colors = Array.from({ length: 5 }, (_, index) =>
-        groups.flatMap(group => group[index] ? [group[index]] : []),
-      ).flat();
+      const colors = Array.from({ length: 5 }, (_, i) => groups.flatMap(group => group[i] ? [group[i]] : [])).flat();
       if (colors.length) setSampledColors(colors);
       if (colors.length || mediaReady) setPaletteSampled(true);
-      if (revealing) frozen.current = true;
     });
     return () => cancelAnimationFrame(frame);
-  }, [mediaReady, revealing]);
-
+  }, [mediaReady, requestPending, ink]);
   const authored = [
     ...(cover.kind === "color" ? [cover.color] : []),
     ...blocks.flatMap(block => block.type === "text"
-      ? [block.backgroundColor, block.textColor].filter((value): value is string => Boolean(value))
-      : []),
-    endingStyle.backgroundColor,
-    endingStyle.buttonColor,
+      ? [block.backgroundColor, block.textColor].filter((color): color is string => Boolean(color)) : []),
+    endingStyle.backgroundColor, endingStyle.buttonColor,
   ];
   const palette = makeEntrancePalette(authored, sampledColors);
-  const hasPalette = cover.kind === "color" || blocks.some(block => block.type === "text") || paletteSampled;
-  const loadPercent = entranceLoadPercent(settledAssets, totalAssets);
-  useLayoutEffect(() => { counterRef.current?.setTarget(loadPercent); }, [loadPercent]);
-  const style = {
-    "--entrance-a": palette[0],
-    "--entrance-b": palette[1],
-    "--entrance-c": palette[2],
-  } as CSSProperties;
+  const hasPalette = !requestPending && (cover.kind === "color" || blocks.some(block => block.type === "text") || paletteSampled);
+  const chosenInk = chooseScribbleColor(palette);
+  useEffect(() => {
+    if (!hasPalette || ink) return;
+    const frame = requestAnimationFrame(() => setInk(chosenInk));
+    return () => cancelAnimationFrame(frame);
+  }, [hasPalette, ink, chosenInk]);
 
+  useLayoutEffect(() => {
+    const host = surfaceRef.current;
+    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending) return;
+    return fadeCoverEntrance(host, () => completeCallback.current());
+  }, [revealing, displayPercent, centered, requestPending]);
+
+  const filled = coverProgressCells(displayPercent);
   return (
-    <div ref={surfaceRef} className={`published-strip-loading strip-entrance ${hasPalette ? "has-palette" : ""} ${revealing ? "is-revealing" : ""}`}
-      style={style} role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
-      {cover.kind === "image" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img ref={coverRef} className="strip-entrance-color-source" src={cover.src} alt=""
-          aria-hidden="true" fetchPriority="high" decoding="async"
-          onLoad={event => {
-            const image = event.currentTarget;
-            void image.decode().catch(() => {}).then(() => {
-              if (!mounted.current) return;
-              if (!frozen.current) {
-                setSampledColors(sampleEntranceMedia(image));
-                setPaletteSampled(true);
-              }
-              settledCallback.current();
-            });
-          }}
-          onError={() => settledCallback.current()}
-        />
-      ) : null}
-      {hasPalette ? <InkCanvas palette={palette} ready={revealing && displayPercent === 100} onComplete={onExitComplete} /> : null}
-      <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
-        aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
-        <span aria-hidden="true">STRIP LOADING...</span>
-        <span className="strip-entrance-percent" aria-hidden="true"><span className="strip-entrance-percent-value">{displayPercent}</span>%</span>
+    <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""}`}
+      style={{ "--entrance-a": ink ?? chosenInk } as CSSProperties}
+      role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
+      <div className="strip-entrance-backdrop" />
+      <div className="strip-entrance-stage" ref={stageRef}>
+        <div className="strip-entrance-cover" ref={visualRef}
+          style={cover.kind === "color" ? { backgroundColor: cover.color } : undefined}>
+          {cover.kind === "image" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync"
+              onLoad={event => {
+                const image = event.currentTarget;
+                void image.decode().catch(() => {}).then(() => {
+                  if (!mounted.current) return;
+                  if (!initialOrigin && image.naturalWidth && image.naturalHeight) setAspectRatio(image.naturalWidth / image.naturalHeight);
+                  setSampledColors(sampleEntranceMedia(image));
+                  setPaletteSampled(true);
+                  settledCallback.current();
+                });
+              }} onError={() => { setPaletteSampled(true); settledCallback.current(); }} />
+          ) : null}
+        </div>
+        <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
+          <div className="strip-entrance-squares" aria-hidden="true">
+            {Array.from({ length: COVER_PROGRESS_CELLS }, (_, index) => <span key={index} className={index < filled ? "is-filled" : ""} />)}
+          </div>
+          <span className="strip-entrance-percent" aria-hidden="true"><span className="strip-entrance-percent-value">{displayPercent}</span>%</span>
+        </div>
       </div>
     </div>
   );
