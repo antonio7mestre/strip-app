@@ -3,6 +3,24 @@ export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
+
+/** The paper rim is 2.25% of the outer width on every side. */
+export function stickerAspectRatio(mediaRatio: number) {
+  const ratio = Number.isFinite(mediaRatio) && mediaRatio > 0 ? mediaRatio : 1;
+  return 1 / (0.955 / ratio + 0.045);
+}
+
+/** Matches the thin paper lift authored in design/cover-sticker.blend.
+ * Keep this on the inner sheet so the outer FLIP starts at the exact card bounds. */
+export function stickerLiftKeyframes(direction: number): Keyframe[] {
+  const side = direction < 0 ? -1 : 1;
+  return [
+    { offset: 0, transform: "perspective(700px) translateZ(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg)" },
+    { offset: 0.32, transform: `perspective(700px) translateZ(12px) rotateX(-7deg) rotateY(${5 * side}deg) rotateZ(${-1.4 * side}deg)` },
+    { offset: 0.65, transform: `perspective(700px) translateZ(4px) rotateX(2deg) rotateY(${-side}deg) rotateZ(${0.35 * side}deg)` },
+    { offset: 1, transform: "perspective(700px) translateZ(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg)" },
+  ];
+}
 export type CoverOrigin = { left: number; top: number; width: number; height: number };
 export type CoverDockOrigin = CoverOrigin & { markup: string; padding: string; borderRadius: string; cornerShape: string; boxShadow: string };
 

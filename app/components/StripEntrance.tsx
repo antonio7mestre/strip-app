@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, stickerAspectRatio, stickerLiftKeyframes, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
@@ -23,6 +23,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const surfaceRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
+  const stickerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
@@ -32,8 +33,8 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const [coverVisible, setCoverVisible] = useState(Boolean(origin));
   const [coverFailed, setCoverFailed] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(() => origin ? origin.width / origin.height
-    : cover.kind === "image" ? cover.aspectRatio ?? 1
-      : cover.shape === "portrait" ? 3 / 4 : cover.shape === "landscape" ? 4 / 3 : 1);
+    : stickerAspectRatio(cover.kind === "image" ? cover.aspectRatio ?? 1
+      : cover.shape === "portrait" ? 4 / 5 : cover.shape === "landscape" ? 3 / 2 : 1));
   const [sampledColors, setSampledColors] = useState<string[]>([]);
   const [paletteSampled, setPaletteSampled] = useState(false);
   const [displayPercent, setDisplayPercent] = useState(0);
@@ -101,12 +102,23 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})` },
       { transform: "translate3d(0, 0, 0) scale(1, 1)" },
     ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "both" });
+    const side = initialOrigin.left + initialOrigin.width / 2 < window.innerWidth / 2 ? -1 : 1;
+    const lift = stickerRef.current?.animate(stickerLiftKeyframes(side), {
+      duration: COVER_MOVE_MS, easing: "ease-in-out", fill: "both",
+    });
+    // Share the tray's rendering clock, including a busy first paint.
+    const started = document.timeline.currentTime;
+    if (typeof started === "number") {
+      animation.startTime = started;
+      if (lift) lift.startTime = started;
+    }
     animation.onfinish = () => {
       // Reveal the loading bar on arrival, without another render-frame delay.
       if (mounted.current) flushSync(() => setCentered(true));
       animation.cancel();
+      lift?.cancel();
     };
-    return () => { animation.onfinish = null; animation.cancel(); };
+    return () => { animation.onfinish = null; animation.cancel(); lift?.cancel(); };
   }, [initialOrigin]);
 
   const coverSrc = cover.kind === "image" ? cover.src : null;
@@ -115,7 +127,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
     if (!image) return;
     return watchCoverImage(image, () => {
       if (!mounted.current) return;
-      if (!initialOrigin && image.naturalWidth && image.naturalHeight) setAspectRatio(image.naturalWidth / image.naturalHeight);
+      if (!initialOrigin && image.naturalWidth && image.naturalHeight) setAspectRatio(stickerAspectRatio(image.naturalWidth / image.naturalHeight));
       setSampledColors(sampleEntranceMedia(image));
       setPaletteSampled(true);
       setCoverReady(true);
@@ -193,13 +205,17 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
         aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
-        <div className="strip-entrance-cover" ref={visualRef}
-          style={cover.kind === "color" ? { backgroundColor: cover.color }
-            : coverUnavailable && !initialOrigin ? { backgroundColor: ink ?? chosenInk } : undefined}>
-          {cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
-          ) : null}
+        <div className="strip-entrance-cover" ref={visualRef}>
+          <div className="cover-sticker" ref={stickerRef}>
+            <div className="strip-entrance-cover-face"
+              style={cover.kind === "color" ? { backgroundColor: cover.color }
+                : coverUnavailable && !initialOrigin ? { backgroundColor: ink ?? chosenInk } : undefined}>
+              {cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
           aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>

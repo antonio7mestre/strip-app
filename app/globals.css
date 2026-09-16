@@ -1007,6 +1007,7 @@ html.library-scroll-top-locked .library-mode {
   opacity: 0;
   pointer-events: none;
 }
+.library-card.is-opening-cover .library-cover-frame,
 .library-card.is-opening-cover .library-cover {
   visibility: hidden;
 }
@@ -1053,6 +1054,22 @@ html.library-scroll-top-locked .library-mode {
   width: 100%;
   overflow: hidden;
   background: #141414;
+}
+
+/* Reusable matte paper rendered in Blender, with live cover artwork on top. */
+.cover-sticker {
+  position: relative;
+  width: 100%;
+  padding: 2.25%;
+  border-radius: 2.4%;
+  background: #fafaf8 url("/cover-sticker-backing.png") center / 100% 100% no-repeat;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.18), 0 4px 9px rgba(0, 0, 0, 0.12);
+  backface-visibility: hidden;
+}
+.cover-sticker .library-cover,
+.strip-entrance-cover-face {
+  border-radius: 1px;
+  overflow: hidden;
 }
 
 .library-cover-image img {
@@ -1866,10 +1883,14 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   width: 100%;
   height: 100%;
   transform-origin: 0 0;
-  overflow: hidden;
-  background: #000;
+  overflow: visible;
   will-change: transform;
 }
+.strip-entrance-cover .cover-sticker,
+.strip-entrance-cover-face {
+  height: 100%;
+}
+.strip-entrance-cover-face { background: #000; }
 /* A home cover is already visible. Only a raw page load needs a fade-in. */
 .strip-entrance:not(.is-from-library) .strip-entrance-cover { opacity: 0; }
 .strip-entrance-cover img {

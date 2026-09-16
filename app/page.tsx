@@ -5665,7 +5665,7 @@ export default function Home() {
   const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLButtonElement) => {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
-    const cover = button.querySelector<HTMLElement>(".library-cover");
+    const cover = button.querySelector<HTMLElement>(".library-cover-frame");
     const bounds = cover?.getBoundingClientRect();
     const origin = bounds && bounds.width > 0 && bounds.height > 0
       ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } : undefined;
@@ -7391,6 +7391,7 @@ export default function Home() {
             }
             aria-label={`Open ${cardTitle}`}
           >
+            <div className={`library-cover-frame${isDraft ? "" : " cover-sticker"}`}>
             <div
               className={`library-cover library-cover-${strip.cover.kind} ${
                 strip.cover.kind === "color"
@@ -7411,6 +7412,7 @@ export default function Home() {
                   decoding="async"
                 />
               ) : null}
+            </div>
             </div>
             <h2>{cardTitle}</h2>
           </button>
