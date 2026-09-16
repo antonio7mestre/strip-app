@@ -1917,8 +1917,9 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
 }
 .cover-sticker-canvas {
   position: absolute;
-  left: -50%;
-  top: -50%;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 200%;
   height: 200%;
   pointer-events: none;
@@ -1926,12 +1927,17 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
 }
 .cover-sticker-date {
   position: absolute;
-  right: 7%;
-  bottom: 8%;
-  width: 39%;
-  max-height: 14%;
+  left: 6.5%;
+  top: 7.5%;
+  width: 26%;
+  max-height: 10%;
   color: #25241f;
   opacity: .9;
+  transform: rotate(2.6deg);
+}
+.cover-sticker-rear[data-peel-side="left"] .cover-sticker-date {
+  left: auto;
+  right: 6.5%;
   transform: rotate(-3deg);
 }
 .strip-entrance:not(.is-centered) .cover-sticker-canvas[data-ready="true"] { visibility: visible; }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stickerAspectRatio, stickerLiftKeyframes } from "../app/lib/cover-entrance.ts";
 import { stickerMesh, stickerPoint, stickerTilt, stickerPeelAmount } from "../app/lib/sticker-flight.ts";
-import { stickerDate, markerDateStrokes } from "../app/lib/sticker-date.ts";
+import { stickerDate, markerDateStrokes, stickerDatePlacement } from "../app/lib/sticker-date.ts";
 
 test("the marker date uses the original publication date, not today's date", () => {
   assert.equal(stickerDate(Date.UTC(2026,8,8,14)), "9/8/26");
@@ -31,6 +31,26 @@ test("paper backing preserves the full artwork's ratio at every poster size", ()
   }
   assert.equal(stickerAspectRatio(NaN), 1);
   assert.equal(stickerAspectRatio(0), 1);
+});
+
+test("the smaller marker date follows the revealed top corner on both backs", () => {
+  for (const [width, height] of [[300,300],[300,450],[300,150]]) {
+    for (const date of ["9/8/26", "12/31/25"]) {
+      const left = stickerDatePlacement(date,width,height,-1);
+      const right = stickerDatePlacement(date,width,height,1);
+      const textWidth = (markerDateStrokes(date).at(-1).x + 19) * left.scale;
+      assert.equal(left.y,height*.075);
+      assert.equal(right.y,left.y);
+      assert.equal(left.scale,right.scale);
+      assert.ok(textWidth <= width*.26+.001);
+      assert.ok(left.x > width*.6, "left-front peel exposes the right of the readable back");
+      assert.ok(right.x < width*.1, "right-front peel exposes the left of the readable back");
+      assert.ok(Math.abs(left.x+right.x+textWidth-width)<.001);
+    }
+  }
+  const component=readFileSync(new URL("../app/components/StripEntrance.tsx",import.meta.url),"utf8");
+  assert.match(component,/paintStickerDate\(context, date, width, height, side\)/);
+  assert.match(component,/data-peel-side=\{peelSide < 0 \? "left" : "right"\}/);
 });
 
 test("the sticker gently lifts without spinning and lands exactly flat", () => {
@@ -81,13 +101,24 @@ test("the whole sticker releases before travel, then presses down progressively"
 });
 
 test("the peel preserves material length rather than scaling or squashing the sheet", () => {
+  const nx=.782,ny=Math.sqrt(1-nx*nx),half=150/nx;
+  const sample=(i,time)=>{const along=(i/500*2-1)*half;return stickerPoint(.5+along*nx/300,.5-along*ny/300,time,1,300,300);};
   for (const time of [.15,.32,.5,.85]) {
-    let distance=0,previous=stickerPoint(0,.5,time,-1,300,300);
+    let distance=0,previous=sample(0,time);
     for(let i=1;i<=500;i++){
-      const point=stickerPoint(i/500,.5,time,-1,300,300);
+      const point=sample(i,time);
       distance+=Math.hypot(...point.map((value,j)=>value-previous[j]));previous=point;
     }
-    assert.ok(Math.abs(distance-300)<3, `material length changed at ${time}: ${distance}`);
+    assert.ok(Math.abs(distance-half*2)<4, `material length changed at ${time}: ${distance}`);
+  }
+});
+
+test("top outside corners lift before the bottom edge, mirrored by home column", () => {
+  for(const side of [-1,1]){
+    const outside=side<0?0:1;
+    assert.ok(stickerPoint(outside,0,.10,side,300,300)[2]>5);
+    assert.equal(stickerPoint(outside,1,.10,side,300,300)[2],0);
+    assert.equal(stickerPoint(1-outside,1,.20,side,300,300)[2],0);
   }
 });
 

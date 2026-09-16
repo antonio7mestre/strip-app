@@ -32,6 +32,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const dockRef = useRef<HTMLDivElement>(null);
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
+  const [peelSide] = useState(() => origin && origin.left + origin.width / 2 < window.innerWidth / 2 ? -1 : 1);
   const date = stickerDate(publishedAt);
   const dateStrokes = markerDateStrokes(date);
   const [centered, setCentered] = useState(!origin);
@@ -119,7 +120,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       { offset: STICKER_LAND, transform: "translate3d(0, 0, 0) scale(1, 1)" },
       { transform: "translate3d(0, 0, 0) scale(1, 1)" },
     ], { duration: COVER_MOVE_MS, easing: "linear", fill: "both" });
-    const side = initialOrigin.left + initialOrigin.width / 2 < window.innerWidth / 2 ? -1 : 1;
+    const side = peelSide;
     const lift = stickerRef.current?.animate(stickerLiftKeyframes(side), {
       duration: COVER_MOVE_MS, easing: "linear", fill: "both",
     });
@@ -139,7 +140,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       image: initialOrigin.image ?? coverRef.current, color: cover.kind === "color" ? cover.color : "#000000",
       width: target.width, height: target.height, side,
       onReady: beginMotion, duration: COVER_MOVE_MS,
-      paintDate: (context, width, height) => paintStickerDate(context, date, width, height),
+      paintDate: (context, width, height) => paintStickerDate(context, date, width, height, side),
     }) : undefined;
     if (!canvasRef.current) beginMotion();
     animation.onfinish = () => {
@@ -252,7 +253,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
                 {initialOrigin?.image ? <canvas className="cover-sticker-snapshot" ref={snapshotRef} aria-hidden="true" /> : null}
               </div>
             </div>
-            <div className="cover-sticker-rear cover-sticker-body-rear" aria-hidden="true">
+            <div className="cover-sticker-rear cover-sticker-body-rear" data-peel-side={peelSide < 0 ? "left" : "right"} aria-hidden="true">
               {date ? <svg className="cover-sticker-date" viewBox={`0 -2 ${(dateStrokes.at(-1)?.x ?? 0) + 20} 32`}>
                 {dateStrokes.map((stroke, index) => <path key={index} d={stroke.path}
                   transform={`translate(${stroke.x} ${stroke.y}) rotate(${stroke.rotation})`}

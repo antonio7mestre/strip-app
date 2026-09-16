@@ -26,18 +26,23 @@ export function stickerPeelAmount(t: number) {
 // A moving adhesion boundary. The remaining attached portion stays exactly
 // still until it releases, then the same curve unrolls onto its new position.
 export function stickerPoint(u: number, v: number, t: number, side: number, width: number, height: number) {
-  const edge = side < 0 ? 1 - u : u;
-  let x = (u - .5) * width;
-  const y = (.5 - v) * height;
+  const direction = side < 0 ? -1 : 1;
+  const nx = direction * .782, ny = Math.sqrt(1 - .782 ** 2);
+  let x = (u - .5) * width, y = (.5 - v) * height;
+  const span = Math.abs(nx) * width + ny * height;
+  const across = (-ny * direction * x + Math.abs(nx) * y) / span;
   const peeled = stickerPeelAmount(t);
-  const free = Math.max(0, peeled - .10 * Math.sin(Math.PI * peeled) * v);
-  const distance = Math.max(0, edge - (1 - free)) * width;
-  const radius = width * (.035 + .375 * free);
+  // The contact line advances diagonally from the top outside corner. A little
+  // uneven tension across it prevents a manufactured, perfectly cylindrical curl.
+  const boundary = span * (.5 - peeled) + span * .022 * Math.sin(across * 5) * Math.sin(Math.PI * peeled);
+  const distance = Math.max(0, nx * x + ny * y - boundary);
+  const radius = span * (.035 + .375 * peeled) * (1 + .09 * Math.sin(across * 5 + 1.2));
   const curved = radius * Math.sin(distance / radius);
-  x += (side < 0 ? -1 : 1) * (curved - distance);
-  const wave = Math.sin(Math.PI * distance / Math.max(1, free * width)) * Math.sin(v * 4.6 - t * 5);
-  let z = radius * (1 - Math.cos(distance / radius)) + width * .012 * free * wave;
-  if (t <= 0 || t >= 1) { x = (u - .5) * width; z = 0; }
+  x += nx * (curved - distance);
+  y += ny * (curved - distance);
+  const wave = Math.sin(Math.PI * distance / Math.max(1, peeled * span)) * Math.sin(across * 4.6 - t * 5);
+  let z = radius * (1 - Math.cos(distance / radius)) + span * .009 * peeled * wave;
+  if (t <= 0 || t >= 1) { x = (u - .5) * width; y = (.5 - v) * height; z = 0; }
   return [x, y, z];
 }
 
@@ -133,11 +138,14 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error("Sticker program unavailable");
     gl.useProgram(program);
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.ceil(width * 2 * dpr); canvas.height = Math.ceil(height * 2 * dpr);
+    // Square overscan leaves room for a diagonal peel on wide/short covers.
+    const extent = Math.max(width, height) * 2;
+    const dpr = Math.min(2, window.devicePixelRatio || 1, 1600 / extent);
+    canvas.style.width = extent + "px"; canvas.style.height = extent + "px";
+    canvas.width = Math.ceil(extent * dpr); canvas.height = Math.ceil(extent * dpr);
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.enable(gl.DEPTH_TEST);
-    gl.uniform2f(gl.getUniformLocation(program, "size"), width, height);
+    gl.uniform2f(gl.getUniformLocation(program, "size"), extent / 2, extent / 2);
     const texture = (name: string, unit: number, stock: HTMLImageElement, isFront: boolean) => {
       const surface = document.createElement("canvas");
       surface.width = Math.ceil(width * 2); surface.height = Math.ceil(height * 2);

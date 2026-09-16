@@ -31,13 +31,22 @@ export function markerDateStrokes(date: string) {
   });
 }
 
-export function paintStickerDate(context: CanvasRenderingContext2D, date: string, width: number, height: number) {
+export function stickerDatePlacement(date: string, width: number, height: number, side: number) {
+  const lineWidth = (markerDateStrokes(date).at(-1)?.x ?? 0) + 19;
+  const scale = Math.min(width * .26 / lineWidth, height * .1 / 28);
+  // The readable back is horizontally reversed relative to the artwork.
+  // Keep the date in the top corner that is actually being peeled toward us.
+  return { x: side < 0 ? width * .935 - lineWidth * scale : width * .065,
+    y: height * .075, scale, rotation: side < 0 ? -.055 : .045 };
+}
+
+export function paintStickerDate(context: CanvasRenderingContext2D, date: string, width: number, height: number, side = 1) {
   if (!date) return;
-  const strokes = markerDateStrokes(date), lineWidth = strokes.at(-1)!.x + 19;
-  const scale = Math.min(width * .39 / lineWidth, height * .14 / 28);
+  const strokes = markerDateStrokes(date);
+  const placement = stickerDatePlacement(date, width, height, side);
   context.save();
-  context.translate(width * .93 - lineWidth * scale, height * .92 - 27 * scale);
-  context.rotate(-.055); context.scale(scale, scale);
+  context.translate(placement.x, placement.y);
+  context.rotate(placement.rotation); context.scale(placement.scale, placement.scale);
   context.lineCap = "round"; context.lineJoin = "round";
   for (const [index, stroke] of strokes.entries()) {
     context.save(); context.translate(stroke.x, stroke.y); context.rotate(stroke.rotation * Math.PI / 180);
