@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stickerAspectRatio, stickerLiftKeyframes } from "../app/lib/cover-entrance.ts";
-import { stickerMesh, stickerPoint, stickerTilt, stickerPeelAmount, stickerFlightPhase } from "../app/lib/sticker-flight.ts";
+import { stickerMesh, stickerPoint, stickerTilt, stickerPeelAmount, stickerFlightPhase, HOME_STICKER_MOTION } from "../app/lib/sticker-flight.ts";
 import { stickerDate, markerDateStrokes, stickerDatePlacement } from "../app/lib/sticker-date.ts";
 
 test("the marker date uses the original publication date, not today's date", () => {
@@ -116,17 +116,41 @@ test("the whole sticker releases before travel, then presses down progressively"
   }
 });
 
-test("the peel preserves material length rather than scaling or squashing the sheet", () => {
+test("the peel preserves material length at both motion strengths", () => {
   const nx=.782,ny=Math.sqrt(1-nx*nx),half=150/nx;
-  const sample=(i,time)=>{const along=(i/500*2-1)*half;return stickerPoint(.5+along*nx/300,.5-along*ny/300,time,1,300,300);};
-  for (const time of [.15,.32,.5,.85]) {
-    let distance=0,previous=sample(0,time);
+  const sample=(i,time,strength)=>{const along=(i/500*2-1)*half;return stickerPoint(.5+along*nx/300,.5-along*ny/300,time,1,300,300,strength);};
+  for (const strength of [1,HOME_STICKER_MOTION]) for (const time of [.15,.32,.5,.85]) {
+    let distance=0,previous=sample(0,time,strength);
     for(let i=1;i<=500;i++){
-      const point=sample(i,time);
+      const point=sample(i,time,strength);
       distance+=Math.hypot(...point.map((value,j)=>value-previous[j]));previous=point;
     }
     assert.ok(Math.abs(distance-half*2)<4, `material length changed at ${time}: ${distance}`);
   }
+});
+
+test("home motion is gentler but still fully releases and lands without changing direct loads", () => {
+  assert.equal(HOME_STICKER_MOTION,.85);
+  for(const side of [-1,1]) for(const [width,height] of [[300,300],[300,375],[300,200]]){
+    const outside=side<0?0:1;
+    const full=stickerPoint(outside,0,.5,side,width,height);
+    const soft=stickerPoint(outside,0,.5,side,width,height,HOME_STICKER_MOTION);
+    const rest=stickerPoint(outside,0,0,side,width,height);
+    assert.ok(Math.abs(soft[0]-rest[0])<Math.abs(full[0]-rest[0]),"less pull-back at the top corner");
+    assert.ok(soft[2]>0,"the corner still releases");
+    assert.equal(stickerTilt(.5,side,HOME_STICKER_MOTION),stickerTilt(.5,side)*HOME_STICKER_MOTION);
+    for(const [u,v] of [[0,0],[0,1],[1,0],[1,1],[.5,.5]]){
+      assert.deepEqual(stickerPoint(u,v,0,side,width,height,HOME_STICKER_MOTION),stickerPoint(u,v,1,side,width,height,HOME_STICKER_MOTION));
+      assert.deepEqual(stickerPoint(u,v,.94,side,width,height),stickerPoint(u,v,.94,side,width,height,1));
+    }
+    const frames=stickerLiftKeyframes(side,HOME_STICKER_MOTION);
+    assert.match(frames[20].transform,/translateZ\(27.200px\)/);
+    assert.deepEqual(frames.map(f=>f.offset),stickerLiftKeyframes(side).map(f=>f.offset));
+  }
+  const component=readFileSync(new URL("../app/components/StripEntrance.tsx",import.meta.url),"utf8");
+  const direct=component.slice(component.indexOf("if (initialOrigin || !coverReadyToAppear"));
+  assert.match(component,/motionStrength: HOME_STICKER_MOTION/);
+  assert.doesNotMatch(direct,/motionStrength:|HOME_STICKER_MOTION/);
 });
 
 test("top outside corners lift before the bottom edge, mirrored by home column", () => {
@@ -162,7 +186,7 @@ test("home handoff captures and hides the complete backing, not only the image",
   assert.doesNotMatch(flight,/\brim\b|materialBlend|cover-sticker-paper.webp/);
   assert.match(css, /url\("\/cover-sticker-back.webp"\)/);
   assert.match(page, /rel="preload" as="image" href="\/cover-sticker-back.webp"/);
-  assert.match(component, /stickerRef.current\?\.animate\(stickerLiftKeyframes\(side\)/);
+  assert.match(component, /stickerRef.current\?\.animate\(stickerLiftKeyframes\(side, HOME_STICKER_MOTION\)/);
   assert.match(component, /startStickerFlight\(canvasRef.current/);
   assert.match(component, /animation.cancel\(\); lift\?\.cancel\(\); stopFlight\?\.\(\)/);
   assert.match(component, /lift.startTime = started/);

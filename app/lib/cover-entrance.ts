@@ -12,12 +12,12 @@ export function stickerAspectRatio(mediaRatio: number) {
 
 /** A small lift for browsers without a flexible 3D surface. Never turn the
  * sticker over: the leading edge curls in the primary mesh renderer. */
-export function stickerLiftKeyframes(direction: number): Keyframe[] {
+export function stickerLiftKeyframes(direction: number, strength = 1): Keyframe[] {
   const side = direction < 0 ? -1 : 1;
   return Array.from({ length: 41 }, (_, i) => {
-    const t = i / 40, arc = i === 40 ? 0 : Math.sin(Math.PI * t);
+    const t = i / 40, arc = i === 40 ? 0 : Math.sin(Math.PI * t) * strength;
     const turn = -8 * side * arc;
-    return { offset: t, transform: `perspective(700px) translateZ(${(32 * arc).toFixed(3)}px) rotateX(${(-12 * arc).toFixed(3)}deg) rotateY(${turn.toFixed(3)}deg) rotateZ(${(-5 * side * Math.sin(2 * Math.PI * t)).toFixed(3)}deg)` };
+    return { offset: t, transform: `perspective(700px) translateZ(${(32 * arc).toFixed(3)}px) rotateX(${(-12 * arc).toFixed(3)}deg) rotateY(${turn.toFixed(3)}deg) rotateZ(${(-5 * side * strength * Math.sin(2 * Math.PI * t)).toFixed(3)}deg)` };
   });
 }
 

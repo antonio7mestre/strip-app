@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { COVER_MOVE_MS, DIRECT_STICKER_SETTLE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, stickerAspectRatio, stickerLiftKeyframes, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
-import { startStickerFlight, STICKER_RELEASE, STICKER_LAND } from "@/app/lib/sticker-flight";
+import { startStickerFlight, STICKER_RELEASE, STICKER_LAND, HOME_STICKER_MOTION } from "@/app/lib/sticker-flight";
 import { stickerDate, markerDateStrokes, paintStickerDate } from "@/app/lib/sticker-date";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
@@ -121,7 +121,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       { transform: "translate3d(0, 0, 0) scale(1, 1)" },
     ], { duration: COVER_MOVE_MS, easing: "linear", fill: "both" });
     const side = peelSide;
-    const lift = stickerRef.current?.animate(stickerLiftKeyframes(side), {
+    const lift = stickerRef.current?.animate(stickerLiftKeyframes(side, HOME_STICKER_MOTION), {
       duration: COVER_MOVE_MS, easing: "linear", fill: "both",
     });
     // Keep the original cover pinned until the flexible material is painted.
@@ -139,6 +139,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
     const stopFlight = canvasRef.current ? startStickerFlight(canvasRef.current, {
       image: initialOrigin.image ?? coverRef.current, color: cover.kind === "color" ? cover.color : "#000000",
       width: target.width, height: target.height, side,
+      motionStrength: HOME_STICKER_MOTION,
       onReady: beginMotion, duration: COVER_MOVE_MS,
       paintDate: (context, width, height) => paintStickerDate(context, date, width, height, side),
     }) : undefined;

@@ -1,6 +1,7 @@
 /** A single flexible sheet, not individually hinged panels. No 3D runtime. */
 export const STICKER_RELEASE = .32;
 export const STICKER_LAND = .70;
+export const HOME_STICKER_MOTION = .85;
 
 /** Direct opens begin with the same sticker already lifted, then press down. */
 export function stickerFlightPhase(progress: number, start = 0) {
@@ -19,9 +20,9 @@ export function stickerMesh(columns = 32, rows = 32) {
 }
 
 /** Side is the cover's position in the home grid. The outer edge leads. */
-export function stickerTilt(progress: number, side: number) {
+export function stickerTilt(progress: number, side: number, strength = 1) {
   const carried = Math.min(1, Math.max(0, (progress - STICKER_RELEASE) / (STICKER_LAND - STICKER_RELEASE)));
-  return -(side < 0 ? -1 : 1) * Math.PI / 180 * 8 * Math.sin(Math.PI * carried) ** 2;
+  return -(side < 0 ? -1 : 1) * Math.PI / 180 * 8 * strength * Math.sin(Math.PI * carried) ** 2;
 }
 
 export function stickerPeelAmount(t: number) {
@@ -31,7 +32,7 @@ export function stickerPeelAmount(t: number) {
 
 // A moving adhesion boundary. The remaining attached portion stays exactly
 // still until it releases, then the same curve unrolls onto its new position.
-export function stickerPoint(u: number, v: number, t: number, side: number, width: number, height: number) {
+export function stickerPoint(u: number, v: number, t: number, side: number, width: number, height: number, strength = 1) {
   const direction = side < 0 ? -1 : 1;
   const nx = direction * .782, ny = Math.sqrt(1 - .782 ** 2);
   let x = (u - .5) * width, y = (.5 - v) * height;
@@ -42,7 +43,8 @@ export function stickerPoint(u: number, v: number, t: number, side: number, widt
   // uneven tension across it prevents a manufactured, perfectly cylindrical curl.
   const boundary = span * (.5 - peeled) + span * .022 * Math.sin(across * 5) * Math.sin(Math.PI * peeled);
   const distance = Math.max(0, nx * x + ny * y - boundary);
-  const radius = span * (.035 + .375 * peeled) * (1 + .09 * Math.sin(across * 5 + 1.2));
+  // Open the bend without shortening the paper or changing its release point.
+  const radius = span * (.035 + .375 * peeled) * (1 + .09 * Math.sin(across * 5 + 1.2)) * (1 + (1 - strength) * .3);
   const curved = radius * Math.sin(distance / radius);
   x += nx * (curved - distance);
   y += ny * (curved - distance);
@@ -59,20 +61,21 @@ uniform vec2 size;
 uniform float turn;
 uniform float phase;
 uniform float carried;
+uniform float motionStrength;
 out vec2 vUv;
 out vec3 vPosition;
 void main() {
   float arc = pow(sin(3.14159265 * carried), 2.0);
-  float sway = 0.035 * sign(turn) * sin(3.14159265 * carried);
+  float sway = 0.035 * motionStrength * sign(turn) * sin(3.14159265 * carried);
   vec3 p = position;
   p.xy = mat2(cos(sway), sin(sway), -sin(sway), cos(sway)) * p.xy;
   p.xz = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * p.xz;
-  float pitch = -0.2 * arc;
+  float pitch = -0.2 * motionStrength * arc;
   p.yz = mat2(cos(pitch), sin(pitch), -sin(pitch), cos(pitch)) * p.yz;
-  p.z += 38.0 * arc;
+  p.z += 38.0 * motionStrength * arc;
   vPosition = p;
   vUv = uv;
-  gl_Position = vec4(p.xy / size, -p.z / 1000.0, 1.0 - p.z / 700.0);
+  gl_Position = vec4(p.xy / size, -p.z / 1000.0, 1.0 - p.z * motionStrength / 700.0);
 }`;
 const fragmentSource = `#version 300 es
 precision highp float;
@@ -105,11 +108,13 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
   image: HTMLImageElement | null; color: string; width: number; height: number;
   side: number; onReady: () => number; duration: number;
   phaseStart?: number;
+  motionStrength?: number;
   paintDate: (context: CanvasRenderingContext2D, width: number, height: number) => void;
 }) {
   let stopped = false, raf = 0;
   let release = () => {};
   const { width, height, side, duration } = options;
+  const strength = options.motionStrength ?? 1;
   let started: number | null = null;
   const begin = () => {
     if (!stopped && started === null) started = options.onReady();
@@ -145,6 +150,7 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error("Sticker program unavailable");
     gl.useProgram(program);
+    gl.uniform1f(gl.getUniformLocation(program, "motionStrength"), strength);
     // Square overscan leaves room for a diagonal peel on wide/short covers.
     const extent = Math.max(width, height) * 2;
     const dpr = Math.min(2, window.devicePixelRatio || 1, 1600 / extent);
@@ -192,9 +198,9 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
       if (stopped) return;
       const progress = Math.min(1, Math.max(0, (Number(document.timeline.currentTime) - flightStart) / duration));
       const t = stickerFlightPhase(progress, options.phaseStart);
-      for (let i = 0; i < mesh.points.length; i += 2) positions.set(stickerPoint(mesh.points[i], mesh.points[i + 1], t, side, width, height), i / 2 * 3);
+      for (let i = 0; i < mesh.points.length; i += 2) positions.set(stickerPoint(mesh.points[i], mesh.points[i + 1], t, side, width, height, strength), i / 2 * 3);
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); gl.bufferSubData(gl.ARRAY_BUFFER, 0, positions);
-      gl.uniform1f(turn, stickerTilt(t, side)); gl.uniform1f(phase, t);
+      gl.uniform1f(turn, stickerTilt(t, side, strength)); gl.uniform1f(phase, t);
       gl.uniform1f(carried, Math.min(1, Math.max(0, (t - STICKER_RELEASE) / (STICKER_LAND - STICKER_RELEASE))));
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.drawElements(gl.TRIANGLES, mesh.indices.length, gl.UNSIGNED_SHORT, 0);
