@@ -2222,9 +2222,49 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   background: transparent;
 }
 
-.main-composer-dock.is-inline-preview {
-  transform: translate3d(0, 100%, 0);
-  opacity: 0;
+.preview-dock-mount {
+  display: contents;
+}
+
+/* Measure the destination before paint, then remove the fixed element entirely. */
+.preview-dock-mount[data-measuring] > .composer-dock {
+  visibility: hidden;
+  animation: none;
+  transition: none;
+}
+
+/* Bound layout overflow to the existing document. Ink can still reach past the
+   physical screen edge without adding scroll space at the bottom of the strip. */
+.preview-dock-boundary {
+  position: absolute;
+  contain: layout paint;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  width: 100%;
+  overflow: clip;
+  overflow-clip-margin: 256px;
+  pointer-events: none;
+}
+
+.preview-dock-surface {
+  --entrance-safe-top: env(safe-area-inset-top, 0px);
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.composer-dock.preview-motion-dock {
+  position: absolute;
+  right: auto;
+  bottom: auto;
+  min-height: 0;
+  transform: none;
+  animation: none;
+  transition: none;
+  will-change: auto;
   pointer-events: none;
 }
 

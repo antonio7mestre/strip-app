@@ -26,16 +26,26 @@ function sizeCoverDock(dock: HTMLElement, origin: CoverDockOrigin) {
 /** Move document paint, not a fixed compositor layer. Safari must repaint the
  * same white surface behind its controls as the navigation leaves the glass. */
 export function dropCoverDock(host: HTMLElement, dock: HTMLElement, origin: CoverDockOrigin, onComplete?: () => void) {
+  return moveCoverDock(host, dock, origin, "down", onComplete);
+}
+
+/** Preview uses the same complete surface, reversed on the way back to edit.
+ * An interrupted transition resumes from its painted edge, without a jump. */
+export function moveCoverDock(host: HTMLElement, dock: HTMLElement, origin: CoverDockOrigin,
+  direction: "down" | "up", onComplete?: () => void, fromTop?: number) {
   // Use the rendering clock so Safari starts moving on the first available frame.
   const timelineTime = typeof document === "undefined" ? null : document.timeline.currentTime;
   const started = typeof timelineTime === "number" ? timelineTime : performance.now();
-  let frame = 0, disposed = false, lastTop = origin.top;
+  const startTop = fromTop ?? (direction === "down" ? origin.top : host.getBoundingClientRect().bottom + 8);
+  let frame = 0, disposed = false, lastTop = startTop;
   sizeCoverDock(dock, origin);
   const paint = (progress: number) => {
     const surface = host.getBoundingClientRect();
     // Start immediately, then ease out through the whole safe area.
     const eased = 1 - Math.pow(1 - progress, 3);
-    lastTop = Math.max(lastTop, origin.top + Math.max(0, surface.bottom + 8 - origin.top) * eased);
+    const target = direction === "down" ? Math.max(startTop, surface.bottom + 8) : origin.top;
+    const nextTop = startTop + (target - startTop) * eased;
+    lastTop = direction === "down" ? Math.max(lastTop, nextTop) : Math.min(lastTop, nextTop);
     dock.style.left = origin.left - surface.left + "px";
     dock.style.top = lastTop - surface.top + "px";
   };
@@ -45,7 +55,7 @@ export function dropCoverDock(host: HTMLElement, dock: HTMLElement, origin: Cove
     const progress = Math.min(1, Math.max(0, (now - started) / COVER_DOCK_DROP_MS));
     paint(progress);
     if (progress < 1) frame = requestAnimationFrame(tick);
-    else { dock.style.visibility = "hidden"; onComplete?.(); }
+    else { if (direction === "down") dock.style.visibility = "hidden"; onComplete?.(); }
   };
   frame = requestAnimationFrame(tick);
   return () => { disposed = true; cancelAnimationFrame(frame); };

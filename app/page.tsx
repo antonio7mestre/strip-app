@@ -20,7 +20,6 @@ import {
   Check,
   Crop,
   Eye,
-  EyeOff,
   Files,
   GripHorizontal,
   House,
@@ -52,6 +51,7 @@ import {
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
+import { PreviewDock } from "@/app/components/PreviewDock";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
@@ -8455,7 +8455,7 @@ export default function Home() {
         />
       ) : null}
 
-      {!inlinePreview ? (
+      <PreviewDock preview={inlinePreview}>
       <footer
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
@@ -8492,7 +8492,6 @@ export default function Home() {
             className="dock-icon-button dock-tool-button"
             type="button"
             onClick={addText}
-            disabled={inlinePreview}
             aria-label="Add text"
           >
             <Type className="dock-glyph" aria-hidden="true" />
@@ -8501,7 +8500,6 @@ export default function Home() {
             className="dock-icon-button dock-tool-button"
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={inlinePreview}
             aria-label="Add photo or video"
           >
             <ImagePlus className="dock-glyph" aria-hidden="true" />
@@ -8525,7 +8523,6 @@ export default function Home() {
               }
               stickerInputRef.current?.click();
             }}
-            disabled={inlinePreview}
             aria-label="Add sticker"
           >
             <Sticker className="dock-glyph" aria-hidden="true" />
@@ -8542,15 +8539,11 @@ export default function Home() {
           <button
             className="dock-icon-button preview-toggle-button"
             type="button"
-            aria-label={inlinePreview ? "Exit preview" : "Preview Strip"}
-            aria-pressed={inlinePreview}
+            aria-label="Preview Strip"
+            aria-pressed={false}
             onClick={toggleInlinePreview}
           >
-            {inlinePreview ? (
-              <EyeOff className="dock-glyph" aria-hidden="true" />
-            ) : (
-              <Eye className="dock-glyph" aria-hidden="true" />
-            )}
+            <Eye className="dock-glyph" aria-hidden="true" />
           </button>
           <button
             className="dock-icon-button publish-icon-button publish-strip-button"
@@ -8564,7 +8557,7 @@ export default function Home() {
         </div>
         )}
       </footer>
-      ) : null}
+      </PreviewDock>
       {pendingDeleteBlock ? (
         <DeleteConfirmationModal
           title={`Delete this ${
