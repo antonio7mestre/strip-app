@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stickerAspectRatio, stickerLiftKeyframes } from "../app/lib/cover-entrance.ts";
-import { stickerMesh, stickerPoint, stickerTilt, stickerPeelAmount } from "../app/lib/sticker-flight.ts";
+import { stickerMesh, stickerPoint, stickerTilt, stickerPeelAmount, stickerFlightPhase } from "../app/lib/sticker-flight.ts";
 import { stickerDate, markerDateStrokes, stickerDatePlacement } from "../app/lib/sticker-date.ts";
 
 test("the marker date uses the original publication date, not today's date", () => {
@@ -21,16 +21,32 @@ test("the marker date uses the original publication date, not today's date", () 
   assert.match(flight, /texture\(back, vec2\(1.0 - vUv.x, vUv.y\)\)/, "writing is readable, not mirrored on the reverse");
 });
 
-test("paper backing preserves the full artwork's ratio at every poster size", () => {
+test("borderless stickers preserve the full artwork's ratio at every poster size", () => {
   for (const ratio of [0.2, 0.8, 1, 1.5, 5]) {
     for (const width of [160, 290.82, 320]) {
       const height = width / stickerAspectRatio(ratio);
-      const rim = width * 0.0225;
-      assert.ok(Math.abs((width - rim * 2) / (height - rim * 2) - ratio) < 1e-10);
+      assert.ok(Math.abs(width / height - ratio) < 1e-10);
     }
   }
   assert.equal(stickerAspectRatio(NaN), 1);
   assert.equal(stickerAspectRatio(0), 1);
+});
+
+test("direct entry gently presses a small corner down without changing the home peel", () => {
+  for(const progress of [0,.1,.4,.8,1]){
+    assert.equal(stickerFlightPhase(progress),progress);
+    assert.ok(Math.abs(stickerFlightPhase(progress,.9)-(.9+progress*.1))<1e-10);
+  }
+  assert.equal(stickerFlightPhase(0,.9),.9);
+  assert.equal(stickerFlightPhase(1,.9),1);
+  assert.ok(stickerPeelAmount(.9)<.27, "only a small corner starts lifted");
+  const component=readFileSync(new URL("../app/components/StripEntrance.tsx",import.meta.url),"utf8");
+  assert.match(component,/phaseStart: .9, duration: DIRECT_STICKER_SETTLE_MS/);
+  assert.match(component,/stickerLiftKeyframes\(peelSide\).slice\(36\)/);
+  assert.ok(component.includes('translate(8px, -12px) scale(.9)'), "starts smaller and close to its final position");
+  assert.match(component,/animation.pause\(\); animation.currentTime = 0/);
+  assert.match(component,/onReady: beginMotion, duration: COVER_MOVE_MS/);
+  assert.doesNotMatch(component,/openDirectCover|liftDirectCover|clipPath/);
 });
 
 test("the smaller marker date follows the revealed top corner on both backs", () => {
@@ -139,7 +155,11 @@ test("home handoff captures and hides the complete backing, not only the image",
   assert.match(page, /button.querySelector<HTMLElement>\("\.library-cover-frame"\)/);
   assert.match(page, /library-cover-frame\$\{isDraft \? "" : " cover-sticker"\}/);
   assert.match(css, /\.library-card.is-opening-cover \.library-cover-frame,/);
-  assert.match(css, /url\("\/cover-sticker-paper.webp"\)/);
+  assert.doesNotMatch(css, /url\("\/cover-sticker-paper.webp"\)/);
+  assert.match(css, /\.cover-sticker \{[^}]*padding: 0;[^}]*background: transparent;/);
+  const flight=readFileSync(new URL("../app/lib/sticker-flight.ts",import.meta.url),"utf8");
+  assert.match(flight,/context.drawImage\(options.image, 0, 0, w, h\)/);
+  assert.doesNotMatch(flight,/\brim\b|materialBlend|cover-sticker-paper.webp/);
   assert.match(css, /url\("\/cover-sticker-back.webp"\)/);
   assert.match(page, /rel="preload" as="image" href="\/cover-sticker-back.webp"/);
   assert.match(component, /stickerRef.current\?\.animate\(stickerLiftKeyframes\(side\)/);

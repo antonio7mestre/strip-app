@@ -2,6 +2,12 @@
 export const STICKER_RELEASE = .32;
 export const STICKER_LAND = .70;
 
+/** Direct opens begin with the same sticker already lifted, then press down. */
+export function stickerFlightPhase(progress: number, start = 0) {
+  const from = Math.max(0, Math.min(1, start));
+  return from + (1 - from) * Math.max(0, Math.min(1, progress));
+}
+
 export function stickerMesh(columns = 32, rows = 32) {
   const points: number[] = [], indices: number[] = [];
   for (let y = 0; y <= rows; y++) for (let x = 0; x <= columns; x++) points.push(x / columns, y / rows);
@@ -98,6 +104,7 @@ function stockImage(src: string) {
 export function startStickerFlight(canvas: HTMLCanvasElement, options: {
   image: HTMLImageElement | null; color: string; width: number; height: number;
   side: number; onReady: () => number; duration: number;
+  phaseStart?: number;
   paintDate: (context: CanvasRenderingContext2D, width: number, height: number) => void;
 }) {
   let stopped = false, raf = 0;
@@ -112,8 +119,8 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
   const fallbackTimer = window.setTimeout(begin, 600);
   const cleanup = () => { stopped = true; clearTimeout(fallbackTimer); cancelAnimationFrame(raf); release(); delete canvas.dataset.ready; };
   void (async () => {
-    const [paper, rear] = await Promise.all([
-      stockImage("/cover-sticker-paper.webp"), stockImage("/cover-sticker-back.webp"),
+    const [rear] = await Promise.all([
+      stockImage("/cover-sticker-back.webp"),
       options.image?.decode(),
     ]);
     if (stopped || (started !== null && Number(document.timeline.currentTime) - started >= duration)) return;
@@ -146,17 +153,16 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.enable(gl.DEPTH_TEST);
     gl.uniform2f(gl.getUniformLocation(program, "size"), extent / 2, extent / 2);
-    const texture = (name: string, unit: number, stock: HTMLImageElement, isFront: boolean) => {
+    const texture = (name: string, unit: number, isFront: boolean) => {
       const surface = document.createElement("canvas");
       surface.width = Math.ceil(width * 2); surface.height = Math.ceil(height * 2);
       const context = surface.getContext("2d")!;
-      const w = surface.width, h = surface.height, rim = w * .0225;
-      context.beginPath(); context.roundRect(0, 0, w, h, Math.min(w, h) * .024); context.clip();
-      context.drawImage(stock, 0, 0, w, h);
+      const w = surface.width, h = surface.height;
+      context.beginPath(); context.roundRect(0, 0, w, h, 2); context.clip();
       if (isFront) {
-        context.fillStyle = options.color; context.fillRect(rim, rim, w - rim * 2, h - rim * 2);
-        if (options.image) context.drawImage(options.image, rim, rim, w - rim * 2, h - rim * 2);
-      } else options.paintDate(context, w, h);
+        context.fillStyle = options.color; context.fillRect(0, 0, w, h);
+        if (options.image) context.drawImage(options.image, 0, 0, w, h);
+      } else { context.drawImage(rear, 0, 0, w, h); options.paintDate(context, w, h); }
       const tex = gl.createTexture()!;
       resources.push(() => gl.deleteTexture(tex));
       gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -167,7 +173,7 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.uniform1i(gl.getUniformLocation(program, name), unit);
     };
-    texture("front", 0, paper, true); texture("back", 1, rear, false);
+    texture("front", 0, true); texture("back", 1, false);
     const mesh = stickerMesh(), positions = new Float32Array(mesh.points.length / 2 * 3);
     const buffer = (target: number, data: Float32Array | Uint16Array, usage: number) => {
       const value = gl.createBuffer()!; resources.push(() => gl.deleteBuffer(value));
@@ -184,7 +190,8 @@ export function startStickerFlight(canvas: HTMLCanvasElement, options: {
     const flightStart = begin();
     const draw = () => {
       if (stopped) return;
-      const t = Math.min(1, Math.max(0, (Number(document.timeline.currentTime) - flightStart) / duration));
+      const progress = Math.min(1, Math.max(0, (Number(document.timeline.currentTime) - flightStart) / duration));
+      const t = stickerFlightPhase(progress, options.phaseStart);
       for (let i = 0; i < mesh.points.length; i += 2) positions.set(stickerPoint(mesh.points[i], mesh.points[i + 1], t, side, width, height), i / 2 * 3);
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); gl.bufferSubData(gl.ARRAY_BUFFER, 0, positions);
       gl.uniform1f(turn, stickerTilt(t, side)); gl.uniform1f(phase, t);

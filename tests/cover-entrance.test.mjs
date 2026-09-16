@@ -107,6 +107,13 @@ test("the square bar is deterministic, monotonic and never full before real comp
   assert.equal(coverProgressCells(-5), 0);
   for (let p = 1; p <= 100; p++) assert.ok(coverProgressCells(p) >= coverProgressCells(p - 1));
 });
+test("the first square blinks at zero without inventing loading progress", () => {
+  const component=readFileSync(new URL("../app/components/StripEntrance.tsx",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
+  assert.match(component,/displayPercent === 0 && index === 0 \? "is-waiting" : index < filled \? "is-filled" : ""/);
+  assert.match(css,/\.strip-entrance-squares span.is-waiting \{ animation: cover-square-wait 700ms ease-in-out infinite alternate; \}/);
+  assert.equal(coverProgressCells(0),0);
+});
 test("the final crossfade keeps its previous timing, is monotonic, and cleans up", () => {
   assert.equal(COVER_MOVE_MS, 1400); assert.equal(COVER_FADE_MS, 650);
   let pending, done = 0;

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, stickerAspectRatio, stickerLiftKeyframes, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, DIRECT_STICKER_SETTLE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, stickerAspectRatio, stickerLiftKeyframes, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { startStickerFlight, STICKER_RELEASE, STICKER_LAND } from "@/app/lib/sticker-flight";
 import { stickerDate, markerDateStrokes, paintStickerDate } from "@/app/lib/sticker-date";
 
@@ -35,7 +35,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
   const [peelSide] = useState(() => origin && origin.left + origin.width / 2 < window.innerWidth / 2 ? -1 : 1);
   const date = stickerDate(publishedAt);
   const dateStrokes = markerDateStrokes(date);
-  const [centered, setCentered] = useState(!origin);
+  const [centered, setCentered] = useState(false);
   const [dockDropped, setDockDropped] = useState(!dock);
   const [coverReady, setCoverReady] = useState(cover.kind === "color");
   const [coverVisible, setCoverVisible] = useState(Boolean(origin));
@@ -180,8 +180,45 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
 
   useLayoutEffect(() => {
     if (initialOrigin || !coverReadyToAppear || !visualRef.current) return;
-    return fadeInCover(visualRef.current, () => setCoverVisible(true));
-  }, [initialOrigin, coverReadyToAppear]);
+    const visual = visualRef.current, canvas = canvasRef.current;
+    const settle = () => {
+      if (!mounted.current) return;
+      visual.style.opacity = "1";
+      flushSync(() => { setCentered(true); setCoverVisible(true); });
+    };
+    if (!canvas || !visual.animate) return fadeInCover(visual, settle);
+    // A URL/reload has no home card to peel off. Bring in the very same
+    // flexible sticker with only a small corner lifted, then gently press it down.
+    const landing = visual.animate([
+      { opacity: 0, transform: "translate(8px, -12px) scale(.9)" },
+      { offset: .16, opacity: 1 },
+      { opacity: 1, transform: "translateY(0) scale(1)" },
+    ], { duration: DIRECT_STICKER_SETTLE_MS, easing: "ease-out", fill: "both" });
+    const lift = stickerRef.current?.animate(stickerLiftKeyframes(peelSide).slice(36)
+      .map(frame => ({ ...frame, offset: Math.max(0, Math.min(1, (Number(frame.offset) - .9) / .1)) })),
+      { duration: DIRECT_STICKER_SETTLE_MS, easing: "linear", fill: "both" });
+    landing.pause(); landing.currentTime = 0;
+    if (lift) { lift.pause(); lift.currentTime = 0; }
+    const target = visual.getBoundingClientRect();
+    // Read untransformed dimensions, since the suspended landing is scaled.
+    const size = getComputedStyle(visual);
+    const width = parseFloat(size.width) || target.width, height = parseFloat(size.height) || target.height;
+    const face = visual.querySelector<HTMLElement>(".strip-entrance-cover-face");
+    const stopFlight = startStickerFlight(canvas, {
+      image: coverUnavailable ? null : coverRef.current,
+      color: face ? getComputedStyle(face).backgroundColor : "#000000",
+      width, height, side: peelSide, phaseStart: .9, duration: DIRECT_STICKER_SETTLE_MS,
+      onReady: () => {
+        const started = performance.now();
+        landing.play(); landing.startTime = started;
+        if (lift) { lift.play(); lift.startTime = started; }
+        return started;
+      },
+      paintDate: (context, w, h) => paintStickerDate(context, date, w, h, peelSide),
+    });
+    landing.onfinish = () => { settle(); landing.cancel(); lift?.cancel(); stopFlight(); };
+    return () => { landing.onfinish = null; landing.cancel(); lift?.cancel(); stopFlight(); };
+  }, [initialOrigin, coverReadyToAppear, coverUnavailable, date, peelSide]);
 
   const counterRef = useRef<ReturnType<typeof startEntranceCounter> | null>(null);
   useLayoutEffect(() => {
@@ -232,7 +269,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
 
   const filled = coverProgressCells(displayPercent);
   return (
-    <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
+    <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : "is-direct-entry"} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
       style={{ "--entrance-a": ink ?? chosenInk } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
@@ -240,7 +277,7 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
         aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}>
-          {initialOrigin ? <canvas className="cover-sticker-canvas" ref={canvasRef} aria-hidden="true" /> : null}
+          <canvas className="cover-sticker-canvas" ref={canvasRef} aria-hidden="true" />
           <div className="cover-sticker-spinner" ref={stickerRef}>
             <div className="cover-sticker cover-sticker-front cover-sticker-body-front">
               <div className="strip-entrance-cover-face"
@@ -265,7 +302,8 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
         <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
           aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
           <div className="strip-entrance-squares" aria-hidden="true">
-            {Array.from({ length: COVER_PROGRESS_CELLS }, (_, index) => <span key={index} className={index < filled ? "is-filled" : ""} />)}
+            {Array.from({ length: COVER_PROGRESS_CELLS }, (_, index) => <span key={index}
+              className={displayPercent === 0 && index === 0 ? "is-waiting" : index < filled ? "is-filled" : ""} />)}
           </div>
           <span className="strip-entrance-percent" aria-hidden="true"><span className="strip-entrance-percent-value">{displayPercent}</span>%</span>
         </div>

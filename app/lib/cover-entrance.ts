@@ -3,11 +3,11 @@ export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
+export const DIRECT_STICKER_SETTLE_MS = 850;
 
-/** The paper rim is 2.25% of the outer width on every side. */
+/** Borderless artwork retains the original media's proportions. */
 export function stickerAspectRatio(mediaRatio: number) {
-  const ratio = Number.isFinite(mediaRatio) && mediaRatio > 0 ? mediaRatio : 1;
-  return 1 / (0.955 / ratio + 0.045);
+  return Number.isFinite(mediaRatio) && mediaRatio > 0 ? mediaRatio : 1;
 }
 
 /** A small lift for browsers without a flexible 3D surface. Never turn the

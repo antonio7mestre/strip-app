@@ -76,13 +76,14 @@ test("renders a centered cover and 24 square progress cells, without a full-scre
     mediaReady: true, revealing: false, onCoverSettled() {}, onExitComplete() {},
     settledAssets:97,totalAssets:100,
   }));
-  assert.equal((html.match(/<canvas/g) ?? []).length, 0);
+  assert.equal((html.match(/<canvas/g) ?? []).length, 1, "same flexible sticker surface for direct links");
   assert.equal((html.match(/role="status"/g) ?? []).length, 1);
   assert.ok(html.includes(`--entrance-a:${chooseScribbleColor(makeEntrancePalette(["#FF3366", "#FFFFFF", "#000000"], []))}`));
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
   assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 24);
+  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 23);
+  assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
   assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
