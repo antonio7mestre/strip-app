@@ -1010,13 +1010,6 @@ html.library-scroll-top-locked .library-mode {
 .library-card.is-opening-cover .library-cover {
   visibility: hidden;
 }
-.library-mode.is-opening-strip .composer-dock {
-  z-index: 60;
-  transform: translate3d(0, calc(100% + env(safe-area-inset-bottom) + 24px), 0);
-  transition: transform 420ms cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
 .library-card-delete-button {
   position: absolute;
   z-index: 2;
@@ -1850,13 +1843,24 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   from { opacity: 0; }
   to { opacity: 1; }
 }
+.strip-entrance .strip-entrance-dock {
+  position: absolute;
+  z-index: 2;
+  right: auto;
+  bottom: auto;
+  min-height: 0;
+  transform: none;
+  transition: none;
+  will-change: auto;
+  pointer-events: none;
+}
 .strip-entrance-stage {
   position: fixed;
   left: 13%;
   top: 25dvh;
   width: 74%;
   height: 50dvh;
-  z-index: 1;
+  z-index: 3;
 }
 .strip-entrance-cover {
   width: 100%;

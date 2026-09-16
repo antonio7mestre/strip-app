@@ -52,7 +52,7 @@ import {
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
-import { COVER_MOVE_MS, type CoverOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
@@ -3239,7 +3239,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingCover, setOpeningCover] = useState<{
-    strip: PublishedStripSummary; origin?: CoverOrigin;
+    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin;
   } | null>(null);
   const openingCoverRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
@@ -5671,9 +5671,10 @@ export default function Home() {
       ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } : undefined;
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
+    const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
     flushSync(() => {
       setOpeningStripId(strip.id);
-      setOpeningCover({ strip, origin });
+      setOpeningCover({ strip, origin, dock });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -7113,6 +7114,7 @@ export default function Home() {
       <StripEntrance key={entranceStrip.id}
         cover={entranceStrip.cover}
         origin={openingCover?.origin}
+        dock={openingCover?.dock}
         requestPending={view !== "published"}
         blocks={openedPublishedStrip?.blocks ?? []}
         endingStyle={openedPublishedStrip?.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE}
@@ -7599,7 +7601,9 @@ export default function Home() {
             </button>
           ) : null}
 
-          <footer
+          {/* Remove the fixed surface entirely: Safari retains its white
+              edge paint even with visibility:hidden or an offscreen transform. */}
+          {!openingCover ? <footer
             key="persistent-composer-dock"
             className="composer-dock app-navigation-dock"
           >
@@ -7658,7 +7662,7 @@ export default function Home() {
                 <span className="visually-hidden">Settings</span>
               </button>
             </nav>
-          </footer>
+          </footer> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal
               title="Delete this draft?"

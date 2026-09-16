@@ -3,26 +3,28 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, type CoverOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
 type PaletteBlock = { type: string; backgroundColor?: string; textColor?: string };
 
 export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledAssets, totalAssets,
-  revealing, requestPending = false, origin, onCoverSettled, onExitComplete,
+  revealing, requestPending = false, origin, dock, onCoverSettled, onExitComplete,
 }: {
   cover: Cover; blocks: PaletteBlock[];
   endingStyle: { backgroundColor: string; buttonColor: string };
   mediaReady: boolean; settledAssets: number; totalAssets: number; revealing: boolean;
-  requestPending?: boolean; origin?: CoverOrigin;
+  requestPending?: boolean; origin?: CoverOrigin; dock?: CoverDockOrigin;
   onCoverSettled: () => void; onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
   const [initialOrigin] = useState(origin);
+  const [initialDock] = useState(dock);
   const [centered, setCentered] = useState(!origin);
   const [aspectRatio, setAspectRatio] = useState(() => origin ? origin.width / origin.height
     : cover.kind === "image" ? cover.aspectRatio ?? 1
@@ -58,6 +60,11 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!surfaceRef.current || !dockRef.current || !initialDock) return;
+    return dropCoverDock(surfaceRef.current, dockRef.current, initialDock);
+  }, [initialDock]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -145,6 +152,8 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
       style={{ "--entrance-a": ink ?? chosenInk } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
+      {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
+        aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}
           style={cover.kind === "color" ? { backgroundColor: cover.color } : undefined}>
