@@ -104,3 +104,8 @@ test("static picker preserves the matching bottom action row",()=>{
  assert.match(page,/<footer className="composer-dock share-dock publish-flow-dock">\s*<div className="dock-controls dock-controls-current dock-action-controls">/);
  assert.doesNotMatch(page,/share-film|createInstagramStoryAsset/);
 });
+test("share page has one clear heading and no visible poster navigation metadata",()=>{
+ assert.match(page,/<h1 id="share-heading">Pick your story poster<\/h1>/);
+ assert.doesNotMatch(page,/STRIP \/ STORIES|poster-picker-navigation|poster-counter|Previous poster|Next poster/);
+ assert.match(picker,/aria-activedescendant/);assert.match(picker,/onPointerMove=\{move\}/);
+});

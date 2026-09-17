@@ -54,7 +54,6 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
-import { POSTER_DESIGNS } from "@/app/lib/share-posters";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
@@ -7430,21 +7429,12 @@ export default function Home() {
             aria-labelledby="share-heading"
           >
             <header className="share-heading">
-              <span>STRIP / STORIES</span>
-              <h1 id="share-heading">Pick your poster.</h1>
+              <h1 id="share-heading">Pick your story poster</h1>
             </header>
 
             <SharePosterPicker previews={posters.previews} index={posters.index} onSelect={posters.select} />
 
             <div className="poster-picker-meta">
-              <div className="poster-picker-navigation">
-                <button type="button" aria-label="Previous poster" disabled={posters.index === 0} onClick={() => posters.select(posters.index - 1)}>↑</button>
-                <div role="status" aria-live="polite">
-                  <span className="poster-counter">{String(posters.index + 1).padStart(2, "0")} / 10</span>
-                  <span>{POSTER_DESIGNS[posters.index].name}</span>
-                </div>
-                <button type="button" aria-label="Next poster" disabled={posters.index === 9} onClick={() => posters.select(posters.index + 1)}>↓</button>
-              </div>
               <p className="poster-swipe-hint">Swipe up to find your favorite</p>
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}
             <button
