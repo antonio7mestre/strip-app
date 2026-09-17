@@ -5672,6 +5672,10 @@ export default function Home() {
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
     const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
+    const publishedPath = `/strip/${encodeURIComponent(strip.id)}`;
+    // Safari snapshots the outgoing entry here. Save the untouched library,
+    // before its cover becomes the loading poster, so Back never replays it.
+    setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
       setOpeningCover({ strip, origin, dock });
@@ -5694,7 +5698,6 @@ export default function Home() {
       ]);
       if (controller.signal.aborted || openingCoverRequestRef.current !== controller) return;
       setViewedStrips(current => [{ ...strip, viewedAt: Date.now() }, ...current.filter(item => item.id !== strip.id)]);
-      setBrowserPath(`/strip/${encodeURIComponent(strip.id)}`);
       flushSync(() => {
         setOpenedPublishedStrip(data.strip);
         setView("published");
@@ -5703,8 +5706,14 @@ export default function Home() {
       if (openingCoverRequestRef.current !== controller) return;
       setOpeningCover(null);
       setOpeningStripId(null);
-      pageTransitionInFlightRef.current = false;
       setNotice("Couldn’t open this Strip. Try again.");
+      if (window.location.pathname === publishedPath) {
+        // Consume the entry reserved for this request. Keep the click gate
+        // closed until popstate, so a retry cannot race this pending Back.
+        window.history.back();
+      } else {
+        pageTransitionInFlightRef.current = false;
+      }
     } finally {
       window.clearTimeout(timeout);
       if (openingCoverRequestRef.current === controller) openingCoverRequestRef.current = null;
@@ -5728,8 +5737,11 @@ export default function Home() {
     if (authStatus === "loading" || initialRouteHandledRef.current) return;
     initialRouteHandledRef.current = true;
     let cancelled = false;
+    let routeRequestId = 0;
 
     const applyRoute = async () => {
+      const requestId = ++routeRequestId;
+      const routeIsCurrent = () => !cancelled && requestId === routeRequestId;
       try {
         const route = routeFromLocation(
           window.location.pathname,
@@ -5749,14 +5761,14 @@ export default function Home() {
             ) {
               throw new Error("Published route username mismatch");
             }
-            if (cancelled) return;
+            if (!routeIsCurrent()) return;
             setPublishedCoverSettledKey(null);
             setPublishedLoaderDismissedKey(null);
             setOpenedPublishedStrip(data.strip);
             setView("published");
             window.scrollTo({ top: 0, behavior: "auto" });
           } catch {
-            if (cancelled) return;
+            if (!routeIsCurrent()) return;
             setBrowserPath("/", true);
             setView("library");
             setAuthenticationRequired(authStatus !== "signed-in");
@@ -5803,7 +5815,7 @@ export default function Home() {
               `/api/drafts/${encodeURIComponent(route.id)}`,
               { cache: "no-store" },
             );
-            if (cancelled) return;
+            if (!routeIsCurrent()) return;
             if (response.status === 404) {
               setCurrentDraftId(route.id);
               setCurrentDraftCreatedAt(Date.now());
@@ -5814,7 +5826,7 @@ export default function Home() {
             } else {
               if (!response.ok) throw new Error("Draft route request failed");
               const data = (await response.json()) as { draft: DraftStripDetail };
-              if (cancelled) return;
+              if (!routeIsCurrent()) return;
               setCurrentDraftId(data.draft.id);
               setCurrentDraftCreatedAt(data.draft.createdAt);
               setEditingPublishedStripId(data.draft.publishedStripId ?? null);
@@ -5833,7 +5845,7 @@ export default function Home() {
             setView("edit");
             window.scrollTo({ top: 0, behavior: "auto" });
           } catch {
-            if (!cancelled) setNotice("Couldn’t open this draft. Try again.");
+            if (routeIsCurrent()) setNotice("Couldn’t open this draft. Try again.");
           }
           return;
         }
@@ -5844,18 +5856,18 @@ export default function Home() {
           });
           if (!response.ok) throw new Error("Published route request failed");
           const data = (await response.json()) as { strip: PublishedStripDetail };
-          if (cancelled) return;
+          if (!routeIsCurrent()) return;
           setOpenedPublishedStrip(data.strip);
           setView("share");
           window.scrollTo({ top: 0, behavior: "auto" });
         } catch {
-          if (cancelled) return;
+          if (!routeIsCurrent()) return;
           setBrowserPath("/", true);
           setView("library");
           setNotice("Couldn’t open this Strip.");
         }
       } finally {
-        if (!cancelled) setInitialRouteReady(true);
+        if (routeIsCurrent()) setInitialRouteReady(true);
       }
     };
 
