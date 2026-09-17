@@ -1,27 +1,9 @@
-export const COVER_MOVE_MS = 1400;
+export const COVER_MOVE_MS = 620;
 export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
-export const DIRECT_STICKER_SETTLE_MS = 850;
-
-/** Borderless artwork retains the original media's proportions. */
-export function stickerAspectRatio(mediaRatio: number) {
-  return Number.isFinite(mediaRatio) && mediaRatio > 0 ? mediaRatio : 1;
-}
-
-/** A small lift for browsers without a flexible 3D surface. Never turn the
- * sticker over: the leading edge curls in the primary mesh renderer. */
-export function stickerLiftKeyframes(direction: number, strength = 1): Keyframe[] {
-  const side = direction < 0 ? -1 : 1;
-  return Array.from({ length: 41 }, (_, i) => {
-    const t = i / 40, arc = i === 40 ? 0 : Math.sin(Math.PI * t) * strength;
-    const turn = -8 * side * arc;
-    return { offset: t, transform: `perspective(700px) translateZ(${(32 * arc).toFixed(3)}px) rotateX(${(-12 * arc).toFixed(3)}deg) rotateY(${turn.toFixed(3)}deg) rotateZ(${(-5 * side * strength * Math.sin(2 * Math.PI * t)).toFixed(3)}deg)` };
-  });
-}
-
-export type CoverOrigin = { left: number; top: number; width: number; height: number; image?: HTMLImageElement | null };
+export type CoverOrigin = { left: number; top: number; width: number; height: number };
 export type CoverDockOrigin = CoverOrigin & { markup: string; padding: string; borderRadius: string; cornerShape: string; boxShadow: string };
 
 /** Capture only our own navigation markup, before hiding the live controls. */
