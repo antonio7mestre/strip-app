@@ -11,7 +11,7 @@ function rule(selector) {
   return css.slice(start + selector.length + 2, css.indexOf("}", start));
 }
 
-test("all three two-button steps opt into the shared layout without changing actions", () => {
+test("all two-button steps opt into the shared layout without changing actions", () => {
   for (const [dock, handlers] of [
     ["title-setup-dock", ["returnToCoverSetup()", "publish()"]],
     ["publish-setup-dock", ["returnFromPublishSetup()", "continueToTitle"]],
@@ -25,6 +25,12 @@ test("all three two-button steps opt into the shared layout without changing act
   assert.match(page, /currentDockControlsClass\} dock-action-controls height-crop-dock-controls/);
   assert.match(page, /onClick=\{\(\) => finishHeightCrop\(false\)\}/);
   assert.match(page, /onClick=\{\(\) => finishHeightCrop\(true\)\}/);
+  const shareStart = page.indexOf('className="composer-dock share-dock publish-flow-dock"');
+  assert.ok(shareStart >= 0);
+  const shareFooter = page.slice(shareStart, page.indexOf("</footer>", shareStart));
+  assert.match(shareFooter, /dock-controls dock-controls-current dock-action-controls/);
+  assert.match(shareFooter, /returnToLibrary\(\)/);
+  assert.match(shareFooter, /shareStoryToInstagram\(\)/);
 });
 
 test("action rows and the main editor use exactly the same width and outer padding", () => {
