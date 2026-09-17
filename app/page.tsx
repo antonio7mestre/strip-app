@@ -52,6 +52,8 @@ import {
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
+import { ShareFilmPreview } from "@/app/components/ShareFilmPreview";
+import type { ShareFilmAssets } from "@/app/lib/share-film";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
@@ -751,54 +753,6 @@ function StripEndActions({
   );
 }
 
-function normalizeStoryColor(color: string, fallback = DEFAULT_BACKGROUND) {
-  const compact = color.trim().replace("#", "");
-  const expanded =
-    compact.length === 3
-      ? compact
-          .split("")
-          .map((channel) => `${channel}${channel}`)
-          .join("")
-      : compact;
-  return /^[0-9a-f]{6}$/i.test(expanded) ? `#${expanded.toUpperCase()}` : fallback;
-}
-
-function colorWithAlpha(color: string, alpha: number) {
-  const [red, green, blue] = colorChannels(normalizeStoryColor(color));
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function mixStoryColors(color: string, target: string, amount: number) {
-  const sourceChannels = colorChannels(normalizeStoryColor(color));
-  const targetChannels = colorChannels(normalizeStoryColor(target));
-  const mixed = sourceChannels.map((channel, index) =>
-    Math.round(channel + (targetChannels[index] - channel) * amount),
-  );
-  return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
-}
-
-function storyPalette(strip: PublishedStripDetail) {
-  const colors = strip.blocks.flatMap((block) =>
-    block.type === "text" && block.backgroundColor
-      ? [normalizeStoryColor(block.backgroundColor)]
-      : [],
-  );
-  if (strip.cover.kind === "color") {
-    colors.unshift(normalizeStoryColor(strip.cover.color));
-  }
-  return Array.from(new Set(colors)).slice(0, 4);
-}
-
-function loadStoryImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.decoding = "async";
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Story cover could not load"));
-    image.src = src;
-  });
-}
 
 function loadLibraryCoverAspectRatio(src: string) {
   return new Promise<number | null>((resolve) => {
@@ -841,188 +795,6 @@ async function prepareLibrarySummaries<
   return preparedItems;
 }
 
-function drawImageCover(
-  context: CanvasRenderingContext2D,
-  image: HTMLImageElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  const imageRatio = image.naturalWidth / image.naturalHeight;
-  const targetRatio = width / height;
-  const sourceWidth = imageRatio > targetRatio
-    ? image.naturalHeight * targetRatio
-    : image.naturalWidth;
-  const sourceHeight = imageRatio > targetRatio
-    ? image.naturalHeight
-    : image.naturalWidth / targetRatio;
-  const sourceX = (image.naturalWidth - sourceWidth) / 2;
-  const sourceY = (image.naturalHeight - sourceHeight) / 2;
-  context.drawImage(
-    image,
-    sourceX,
-    sourceY,
-    sourceWidth,
-    sourceHeight,
-    x,
-    y,
-    width,
-    height,
-  );
-}
-
-function drawCenteredStoryTitle(
-  context: CanvasRenderingContext2D,
-  title: string,
-  centerX: number,
-  top: number,
-  maxWidth: number,
-) {
-  const words = title.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let currentLine = "";
-  for (const word of words) {
-    const candidate = currentLine ? `${currentLine} ${word}` : word;
-    if (context.measureText(candidate).width <= maxWidth || !currentLine) {
-      currentLine = candidate;
-    } else {
-      lines.push(currentLine);
-      currentLine = word;
-      if (lines.length === 2) break;
-    }
-  }
-  if (currentLine && lines.length < 2) lines.push(currentLine);
-  if (lines.length === 2 && words.join(" ") !== lines.join(" ")) {
-    let lastLine = lines[1];
-    while (lastLine.length > 1 && context.measureText(`${lastLine}…`).width > maxWidth) {
-      lastLine = lastLine.slice(0, -1);
-    }
-    lines[1] = `${lastLine.trimEnd()}…`;
-  }
-  lines.forEach((line, index) => context.fillText(line, centerX, top + index * 72));
-}
-
-async function createInstagramStoryAsset(strip: PublishedStripDetail) {
-  const storyWidth = 1080;
-  const storyHeight = 1350;
-  const canvas = document.createElement("canvas");
-  canvas.width = storyWidth;
-  canvas.height = storyHeight;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Story canvas is unavailable");
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-
-  const palette = storyPalette(strip);
-  let coverImage: HTMLImageElement | null = null;
-  if (strip.cover.kind === "image") {
-    coverImage = await loadStoryImage(strip.cover.src);
-  }
-
-  const coverColor =
-    strip.cover.kind === "color"
-      ? normalizeStoryColor(strip.cover.color)
-      : palette[0] ?? "#3155FF";
-  const alternateColor = palette.find((color) => color !== coverColor);
-  const backgroundColor =
-    strip.cover.kind === "color"
-      ? alternateColor ??
-        mixStoryColors(
-          coverColor,
-          contrastColor(coverColor) === "#FFFFFF" ? "#FFFFFF" : "#000000",
-          0.22,
-        )
-      : DEFAULT_BACKGROUND;
-
-  context.fillStyle = backgroundColor;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-
-  if (coverImage) {
-    context.save();
-    context.filter = "blur(78px) saturate(0.92)";
-    drawImageCover(context, coverImage, -110, -110, 1300, 2140);
-    context.restore();
-    context.fillStyle = "rgba(0, 0, 0, 0.44)";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-  } else {
-    const wash = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-    wash.addColorStop(0, colorWithAlpha(coverColor, 0.12));
-    wash.addColorStop(0.62, "rgba(0, 0, 0, 0)");
-    wash.addColorStop(1, colorWithAlpha(contrastColor(backgroundColor), 0.08));
-    context.fillStyle = wash;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  const foreground = coverImage ? "#FFFFFF" : contrastColor(backgroundColor);
-  context.fillStyle = foreground;
-  context.textBaseline = "top";
-  context.textAlign = "left";
-  context.font = '700 38px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-  context.letterSpacing = "5px";
-  context.fillText("STRIP", 72, 64);
-  context.letterSpacing = "0px";
-
-  const maxCoverWidth = 820;
-  const maxCoverHeight = 760;
-  let coverWidth = maxCoverWidth;
-  let coverHeight = 730;
-  if (coverImage) {
-    const ratio = coverImage.naturalWidth / coverImage.naturalHeight;
-    coverWidth = Math.min(maxCoverWidth, maxCoverHeight * ratio);
-    coverHeight = coverWidth / ratio;
-    if (coverHeight > maxCoverHeight) {
-      coverHeight = maxCoverHeight;
-      coverWidth = coverHeight * ratio;
-    }
-  } else if (strip.cover.kind === "color") {
-    if (strip.cover.shape === "portrait") {
-      coverWidth = 570;
-      coverHeight = 760;
-    } else if (strip.cover.shape === "landscape") {
-      coverWidth = 820;
-      coverHeight = 590;
-    } else {
-      coverWidth = 730;
-      coverHeight = 730;
-    }
-  }
-  const coverX = (canvas.width - coverWidth) / 2;
-  const coverY = 150;
-  if (coverImage) {
-    context.drawImage(coverImage, coverX, coverY, coverWidth, coverHeight);
-  } else {
-    context.fillStyle = coverColor;
-    context.fillRect(coverX, coverY, coverWidth, coverHeight);
-  }
-
-  const titleTop = Math.min(storyHeight - 205, coverY + coverHeight + 52);
-  context.fillStyle = foreground;
-  context.textAlign = "center";
-  context.font = '600 56px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
-  drawCenteredStoryTitle(
-    context,
-    strip.title.trim() || "Untitled",
-    canvas.width / 2,
-    titleTop,
-    870,
-  );
-
-  const accentColors = palette.length > 0 ? palette : [coverColor];
-  const accentWidth = canvas.width / accentColors.length;
-  accentColors.forEach((color, index) => {
-    context.fillStyle = color;
-    context.fillRect(index * accentWidth, storyHeight - 14, accentWidth + 1, 14);
-  });
-
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (result) => (result ? resolve(result) : reject(new Error("Story image failed"))),
-      "image/png",
-    );
-  });
-  return blob;
-}
 
 function sampleVisualBottomColor(
   source: CanvasImageSource,
@@ -3256,6 +3028,11 @@ export default function Home() {
   const [storyAssetFile, setStoryAssetFile] = useState<File | null>(null);
   const [storyAssetUrl, setStoryAssetUrl] = useState("");
   const [storyAssetLoading, setStoryAssetLoading] = useState(false);
+  const [storyFilmAssets, setStoryFilmAssets] = useState<ShareFilmAssets | null>(null);
+  const [storyAssetProgress, setStoryAssetProgress] = useState(0);
+  const [storyAssetError, setStoryAssetError] = useState("");
+  const [storyAssetAttempt, setStoryAssetAttempt] = useState(0);
+  const [storyAssetStripId, setStoryAssetStripId] = useState("");
   const [view, setView] = useState<View>("library");
   const [libraryScrollInset, setLibraryScrollInset] = useState(0);
   const [initialRouteReady, setInitialRouteReady] = useState(false);
@@ -3797,41 +3574,55 @@ export default function Home() {
 
   useEffect(() => {
     if (view !== "share" || !openedPublishedStrip) return;
-    let cancelled = false;
+    const controller = new AbortController();
+    let dispose = () => {};
+    if (storyAssetObjectUrlRef.current) {
+      URL.revokeObjectURL(storyAssetObjectUrlRef.current);
+      storyAssetObjectUrlRef.current = "";
+    }
     setStoryAssetLoading(true);
+    setStoryAssetStripId(openedPublishedStrip.id);
     setStoryAssetFile(null);
     setStoryAssetUrl("");
+    setStoryFilmAssets(null);
+    setStoryAssetProgress(0);
+    setStoryAssetError("");
 
-    void createInstagramStoryAsset(openedPublishedStrip)
-      .then((blob) => {
-        if (cancelled) return;
-        if (storyAssetObjectUrlRef.current) {
-          URL.revokeObjectURL(storyAssetObjectUrlRef.current);
-        }
-        const filenameBase = (openedPublishedStrip.title.trim() || "untitled")
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .slice(0, 48) || "strip";
-        const file = new File([blob], `${filenameBase}-share.png`, {
-          type: "image/png",
-        });
-        const assetUrl = URL.createObjectURL(blob);
-        storyAssetObjectUrlRef.current = assetUrl;
-        setStoryAssetFile(file);
-        setStoryAssetUrl(assetUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setNotice("Couldn’t build your share image. Try again.");
-      })
-      .finally(() => {
-        if (!cancelled) setStoryAssetLoading(false);
+    void (async () => {
+      const { prepareShareFilm, exportShareFilm, disposeShareFilm } = await import("@/app/lib/share-film-export");
+      const assets = await prepareShareFilm(openedPublishedStrip, controller.signal);
+      dispose = () => disposeShareFilm(assets);
+      if (controller.signal.aborted) { dispose(); return; }
+      setStoryFilmAssets(assets);
+      const blob = await exportShareFilm(assets, controller.signal, value => {
+        if (!controller.signal.aborted) setStoryAssetProgress(value);
       });
+      if (controller.signal.aborted) return;
+      const filenameBase = (openedPublishedStrip.title.trim() || "untitled")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "strip";
+      const extension = blob.type.startsWith("video/mp4") ? "mp4" : "webm";
+      const file = new File([blob], `${filenameBase}-strip.${extension}`, { type: blob.type });
+      const assetUrl = URL.createObjectURL(blob);
+      storyAssetObjectUrlRef.current = assetUrl;
+      setStoryAssetFile(file);
+      setStoryAssetUrl(assetUrl);
+    })().catch((error: unknown) => {
+      if (!controller.signal.aborted) {
+        setStoryAssetError(error instanceof Error ? error.message : "Couldn’t make your video. Try again.");
+      }
+    }).finally(() => {
+      if (!controller.signal.aborted) setStoryAssetLoading(false);
+    });
 
     return () => {
-      cancelled = true;
+      controller.abort();
+      dispose();
+      if (storyAssetObjectUrlRef.current) {
+        URL.revokeObjectURL(storyAssetObjectUrlRef.current);
+        storyAssetObjectUrlRef.current = "";
+      }
     };
-  }, [openedPublishedStrip, view]);
+  }, [openedPublishedStrip, view, storyAssetAttempt]);
 
   useEffect(
     () => () => {
@@ -6119,12 +5910,12 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setNotice("Share image saved.");
+    setNotice("Share video saved.");
   };
 
   const shareStoryToInstagram = async () => {
-    if (!storyAssetFile) {
-      setNotice(storyAssetLoading ? "Finishing your share image…" : "Try again.");
+    if (!storyAssetFile || storyAssetStripId !== openedPublishedStrip?.id) {
+      setNotice(storyAssetLoading ? "Finishing your video…" : "Try again.");
       return;
     }
     const shareData: ShareData = { files: [storyAssetFile] };
@@ -7709,21 +7500,15 @@ export default function Home() {
               <h1 id="share-heading">Ready to share.</h1>
             </header>
 
-            <div className="story-asset-stage" aria-live="polite">
-              {storyAssetUrl ? (
-                <img
-                  className="story-asset-preview"
-                  src={storyAssetUrl}
-                  alt={`Share artwork for ${
-                    openedPublishedStrip.title || "Untitled"
-                  }`}
-                />
-              ) : (
-                <div className="story-asset-loading" aria-busy="true">
-                  <span />
-                  Preparing…
-                </div>
-              )}
+            <div className="story-asset-stage">
+              <ShareFilmPreview
+                assets={storyAssetStripId === openedPublishedStrip.id ? storyFilmAssets : null}
+                url={storyAssetStripId === openedPublishedStrip.id ? storyAssetUrl : ""}
+                title={openedPublishedStrip.title}
+                progress={storyAssetProgress}
+                error={storyAssetError}
+                onRetry={() => setStoryAssetAttempt(attempt => attempt + 1)}
+              />
             </div>
 
             <button
@@ -7749,11 +7534,11 @@ export default function Home() {
                 className="dock-icon-button publish-icon-button publish-flow-button share-story-button"
                 type="button"
                 onClick={() => void shareStoryToInstagram()}
-                disabled={storyAssetLoading || !storyAssetFile}
-                aria-label="Share Strip"
+                disabled={storyAssetLoading || !storyAssetFile || storyAssetStripId !== openedPublishedStrip.id}
+                aria-label="Share Strip video"
               >
                 <span>
-                  {storyAssetLoading ? "Preparing…" : "Share"}
+                  {storyAssetLoading ? "Preparing…" : "Share video"}
                 </span>
               </button>
             </div>
