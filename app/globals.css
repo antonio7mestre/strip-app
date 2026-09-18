@@ -2631,15 +2631,15 @@ html:has(.story-share-boundary) body {
 }
 
 .story-share-confirmation {
-  position: fixed;
+  position: absolute;
   z-index: 2147483646;
   left: 50%;
-  bottom: calc(108px + env(safe-area-inset-bottom));
-  width: min(400px, calc(100vw - 32px));
+  bottom: 0;
+  width: min(340px, calc(100% - 32px));
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 22px 18px 22px 26px;
+  gap: 8px;
+  padding: 12px 14px 12px 18px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   color: #111;
@@ -2649,12 +2649,12 @@ html:has(.story-share-boundary) body {
   animation: story-share-confirmation-in 280ms cubic-bezier(.16, 1, .3, 1);
 }
 .story-share-confirmation-lines { flex: 1; min-width: 0; }
-.story-share-confirmation p { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; letter-spacing: -0.025em; }
-.story-share-confirmation p + p { margin-top: 8px; }
-.story-share-confirmation p svg { flex: 0 0 22px; width: 22px; height: 22px; stroke-width: 2.5; }
-.story-share-confirmation small { display: block; margin: 8px 0 0 32px; font-size: 13px; }
-.story-share-confirmation button { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border: 0; border-radius: 50%; color: #111; background: rgba(0, 0, 0, .06); cursor: pointer; }
-.story-share-confirmation button svg { width: 18px; height: 18px; }
+.story-share-confirmation p { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.3; letter-spacing: -0.025em; }
+.story-share-confirmation p + p { margin-top: 6px; }
+.story-share-confirmation p svg { flex: 0 0 18px; width: 18px; height: 18px; stroke-width: 2.5; }
+.story-share-confirmation small { display: block; margin: 6px 0 0 26px; font-size: 12px; }
+.story-share-confirmation button { display: grid; place-items: center; flex: 0 0 32px; height: 32px; border: 0; border-radius: 50%; color: #111; background: rgba(0, 0, 0, .06); cursor: pointer; }
+.story-share-confirmation button svg { width: 16px; height: 16px; }
 .story-share-confirmation button:focus-visible { outline: 2px solid #111; outline-offset: 3px; }
 .story-share-confirmation .is-pending { animation: story-share-pending-spin 1s linear infinite; }
 @keyframes story-share-pending-spin { to { transform: rotate(360deg); } }
@@ -2693,6 +2693,7 @@ html:has(.story-share-boundary) body {
 .poster-option img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-touch-callout: none; }
 .poster-preparing { display: grid; height: 100%; place-items: center; color: #999; font-size: 12px; }
 .poster-picker-meta { text-align: center; display: grid; justify-items: center; gap: 5px; }
+.share-link-anchor { position: relative; display: grid; justify-items: center; width: 100%; }
 .poster-picker-meta .share-link-button { min-height: 36px; margin-top: 3px; font-size: 11px; }
 .poster-retry { border: 0; background: none; color: #fff; text-decoration: underline; font: inherit; font-size: 12px; }
 

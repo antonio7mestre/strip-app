@@ -44,7 +44,16 @@ test("confirmation is a prominent white pill with black copy and seven seconds t
  assert.match(source,/setStoryShareConfirmation\(null\), 7000/);
  assert.match(ui,/role="status" aria-live="polite" aria-atomic="true"/);
  assert.match(ui,/aria-label="Dismiss sharing confirmation"/);
- assert.match(source,/!storyShareSheetOpen && storyShareConfirmation \? createPortal/);
+ assert.match(source,/!storyShareSheetOpen && storyShareConfirmation \? \(/);
+});
+
+test("compact confirmation shares the Copy link anchor and bottom edge at every viewport size",()=>{
+ const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
+ const anchor=source.slice(source.indexOf('<div className="share-link-anchor">'),source.indexOf('<footer className="composer-dock share-dock'));
+ assert.match(anchor,/className="share-link-button"[\s\S]*<StoryShareConfirmation/);
+ assert.doesNotMatch(anchor,/createPortal/);
+ assert.match(css,/\.share-link-anchor\s*\{[^}]*position: relative;[^}]*width: 100%;/);
+ assert.match(css,/\.story-share-confirmation\s*\{[^}]*position: absolute;[^}]*bottom: 0;[^}]*width: min\(340px, calc\(100% - 32px\)\);[^}]*padding: 12px 14px 12px 18px;/);
 });
 
 test("real page handler shows image feedback immediately, then only confirms a resolved clipboard",async()=>{

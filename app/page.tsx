@@ -7403,6 +7403,7 @@ export default function Home() {
 
             <div className="poster-picker-meta">
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}
+            <div className="share-link-anchor">
             <button
               className="share-link-button"
               type="button"
@@ -7411,6 +7412,13 @@ export default function Home() {
               <Link2 aria-hidden="true" />
               <span>Copy link</span>
             </button>
+            {!storyShareSheetOpen && storyShareConfirmation ? (
+              <StoryShareConfirmation confirmation={storyShareConfirmation} onDismiss={() => {
+                storyShareAttemptRef.current++;
+                setStoryShareConfirmation(null);
+              }} />
+            ) : null}
+            </div>
             </div>
           </section>
 
@@ -7438,13 +7446,6 @@ export default function Home() {
           </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
-        {!storyShareSheetOpen && storyShareConfirmation ? createPortal(
-          <StoryShareConfirmation confirmation={storyShareConfirmation} onDismiss={() => {
-            storyShareAttemptRef.current++;
-            setStoryShareConfirmation(null);
-          }} />,
-          document.body,
-        ) : null}
         {typeof document !== "undefined" ? createPortal(
           <StoryShareBackdrop open={storyShareSheetOpen}>
             <div className="story-share-hint">
