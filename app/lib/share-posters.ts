@@ -9,7 +9,7 @@ export const POSTER_DESIGNS = [
   { id: "loud", name: "Cover story" },
   { id: "contact", name: "Contact sheet" },
   { id: "sideways", name: "Side note" },
-  { id: "billboard", name: "Off center" },
+  { id: "billboard", name: "Cut across" },
   { id: "booth", name: "Little receipt" },
   { id: "split", name: "Two of us" },
   { id: "scrapbook", name: "Loose ends" },
@@ -227,12 +227,20 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
       drawTitle(0, 0, 1100, 70, posterInk(second), "center"); c.restore();
       break;
     }
-    case 3: { // An off-center color plate, with the title in the upper margin.
-      const top = title ? 430 : 330, height = title ? 960 : 1060;
-      fill(second, 184, top - 60, 896, height + 120);
-      drawTitle(88, 245, 904, 140);
-      photo(0, 244, top, 748, height);
-      fill(third, 88, 1450, 128, 24);
+    case 3: { // Two cut-paper color fields, not a box inside another box.
+      fill(second);
+      c.fillStyle = accent;
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(1080, 0);
+      c.lineTo(1080, 700); c.lineTo(0, 1120); c.closePath(); c.fill();
+      if (third !== accent && third !== second) {
+        c.fillStyle = third;
+        c.beginPath(); c.moveTo(0, 1120); c.lineTo(1080, 700);
+        c.lineTo(1080, 728); c.lineTo(0, 1148); c.closePath(); c.fill();
+      }
+      drawTitle(88, photos.length ? 245 : 420, 904, 140);
+      // A photo bridges the diagonal. Image-free strips keep the pure color
+      // composition instead of drawing a fake photo-shaped placeholder.
+      if (photos.length) photo(0, 120, title ? 440 : 340, 840, title ? 980 : 1080);
       break;
     }
     case 4: { // A long paper insert. No receipt copy or numbering.
@@ -279,7 +287,7 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
     }
   }
   // Previews keep the real address; the saved story leaves a place for a link sticker.
-  c.fillStyle = posterInk([0, 1, 6, 7, 8].includes(index) ? second : accent);
+  c.fillStyle = posterInk([0, 1, 3, 6, 7, 8].includes(index) ? second : accent);
   c.font = '400 24px "Courier New", monospace';
   c.textAlign = "center"; c.textBaseline = "top";
   if (saved) drawLinkStickerHint(c, c.fillStyle);

@@ -204,6 +204,26 @@ test("every option uses multiple authored colors as components when available",(
   const colors=new Set(paints.map(p=>p.color));assert(colors.has(palette[0]));assert(colors.has(palette[1]));
  }
 });
+test("cut-across replaces the nested boxes with diagonal fields and no fake photo",()=>{
+ const {c,commands,paints}=context();
+ drawPoster(c,{title:"Love in the air",address:"antonio.striiip.com",palette:["#3155FF","#FF5100","#FF75BB"],photos:[]},3);
+ assert.equal(POSTER_DESIGNS[3].id,"billboard");
+ assert.equal(POSTER_DESIGNS[3].name,"Cut across");
+ assert.equal(commands.filter(command=>command[0]==="drawImage").length,0);
+ assert.deepEqual(paints.map(p=>p.args),[[0,0,1080,1920],[0,0,1080,1920]]);
+ assert(commands.some(command=>JSON.stringify(command)===JSON.stringify(["lineTo",1080,700])));
+ assert(commands.some(command=>JSON.stringify(command)===JSON.stringify(["lineTo",0,1120])));
+ assert.equal(commands.filter(command=>command[0]==="fill").length,2);
+ assert.deepEqual(commands.filter(command=>command[0]==="fillText").map(command=>command[1]),["Love in the air","antonio.striiip.com"]);
+});
+test("cut-across draws a full cover and uses readable footer ink on its new lower field",()=>{
+ const {c,commands}=context(),text=[];
+ const original=c.fillText;c.fillText=(value,...args)=>{text.push({value,ink:c.fillStyle});original(value,...args);};
+ drawPoster(c,{title:"Weekend",address:"me.striiip.com",palette:["#3155FF","#FFFFFF"],photos:[{source:{},width:1800,height:600}]},3);
+ assert.equal(commands.filter(command=>command[0]==="drawImage").length,1);
+ assert.deepEqual(text,[{value:"Weekend",ink:"#FFFFFF"},{value:"me.striiip.com",ink:"#000000"}]);
+ assert.equal(commands.filter(command=>command[0]==="fill").length,1);
+});
 test("static picker preserves the matching bottom action row",()=>{
  assert.match(page,/<SharePosterPicker previews=\{posters.previews\} index=\{posters.index\}/);
  assert.match(page,/<footer className="composer-dock share-dock publish-flow-dock">\s*<div className="dock-controls dock-controls-current dock-action-controls">/);
