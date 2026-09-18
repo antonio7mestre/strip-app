@@ -101,11 +101,11 @@ test("ref cleanup cancels observers, listeners, and late callbacks", () => {
   assert(f.observers.every(observer=>observer.targets.length===0));
 });
 
-test("only the editor card requires contact; the published in-flow footer is unchanged", () => {
+test("only the preview card requires contact; the published in-flow footer is unchanged", () => {
   const css = readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
   const page = readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
   assert.match(css,/\.strip-ending-card\[data-touches-block\]::after,/);
   assert.doesNotMatch(css,/\.strip-canvas\.has-trailing-text > \.strip-ending-card::after/);
   assert.match(css,/\.published-strip\.has-trailing-text > \.published-bottom-sheet::after/);
-  assert.match(page,/<section\s+ref=\{installEndingContact\}\s+className=\{`strip-block strip-ending-card/);
+  assert.match(page,/<section\s+ref=\{installEndingContact\}\s+className="strip-block strip-ending-card/);
 });

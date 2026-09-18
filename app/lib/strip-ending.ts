@@ -8,6 +8,32 @@ export const DEFAULT_STRIP_ENDING_STYLE: StripEndingStyle = {
   buttonColor: "#FFFFFF",
 };
 
+/** The last in-flow block determines the reader's monochrome action card. */
+export function automaticStripEndingStyle(
+  blocks: readonly { id: string; type: string; backgroundColor?: string }[],
+  mediaColors: Readonly<Record<string, string>> = {},
+): StripEndingStyle {
+  const last = [...blocks].reverse().find((block) => block.type !== "sticker");
+  if (!last) return { ...DEFAULT_STRIP_ENDING_STYLE };
+  const color = normalizeHexColor(
+    last.type === "text" ? last.backgroundColor : mediaColors[last.id],
+    "#000000",
+  );
+  const channels = [1, 3, 5].map((offset) => {
+    const value = Number.parseInt(color.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = channels.reduce(
+    (sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index],
+    0,
+  );
+  const backgroundColor = luminance > 0.179 ? "#000000" : "#FFFFFF";
+  return {
+    backgroundColor,
+    buttonColor: backgroundColor === "#000000" ? "#FFFFFF" : "#000000",
+  };
+}
+
 const STRIP_ENDING_RECORD_ID = "strip-ending";
 
 type StripEndingRecord = StripEndingStyle & {

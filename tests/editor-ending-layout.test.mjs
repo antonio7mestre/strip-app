@@ -16,7 +16,9 @@ function visit(node) {
 }
 visit(tree);
 
-test("short editors place the ending at the bottom for any final block type", () => {
+test("short previews place the ending at the bottom; edit mode has no card", () => {
+  assert.match(source, /const showsEndingCard = !isEditing && view !== "published";/);
+  assert.match(css, /\.editor-mode \.strip-canvas,\s*\.strip-canvas\.has-ending-card/);
   assert.match(css, /\.strip-canvas\.has-ending-card \{\s*display: flex;\s*flex-direction: column;/);
   const rule = css.match(/\.editor-mode \.strip-canvas\.has-ending-card > \.strip-ending-card \{([^}]+)\}/)?.[1];
   assert.ok(rule);
@@ -38,15 +40,15 @@ test("a first sticker cannot shrink the editor below the viewport", () => {
   assert.ok(minHeight);
   for (const inlinePreview of [false, true]) {
     for (const stickerFloor of [1, 180, 600, 1800]) {
-      assert.equal(runInNewContext(minHeight, {stickerFloor, showsEndingCard: true, inlinePreview}),
+      assert.equal(runInNewContext(minHeight, {stickerFloor, view: "edit", inlinePreview}),
         `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`);
     }
   }
-  assert.equal(runInNewContext(minHeight, {stickerFloor: 0, showsEndingCard: true, inlinePreview: false}), undefined);
+  assert.equal(runInNewContext(minHeight, {stickerFloor: 0, view: "edit", inlinePreview: false}), undefined);
 });
 
 test("published sticker floors and editor toolbar clearance stay unchanged", () => {
-  assert.equal(runInNewContext(minHeight, {stickerFloor: 180, showsEndingCard: false, inlinePreview: false}), "180px");
+  assert.equal(runInNewContext(minHeight, {stickerFloor: 180, view: "published", inlinePreview: false}), "180px");
   assert.match(css, /\.editor-mode \.strip-canvas \{[^}]*padding-bottom: calc\(148px \+ env\(safe-area-inset-bottom\)\);/);
   assert.match(css, /\.editor-mode \.strip-ending-card \{\s*min-height: 0;\s*padding-bottom: 12px;/);
 });

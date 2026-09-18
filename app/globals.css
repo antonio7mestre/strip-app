@@ -1562,11 +1562,13 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   will-change: translate;
 }
 
+.editor-mode .strip-canvas,
 .strip-canvas.has-ending-card {
   display: flex;
   flex-direction: column;
 }
 
+.editor-mode .strip-canvas > .strip-block:not(.sticker-block),
 .strip-canvas.has-ending-card > .strip-block:not(.sticker-block) {
   flex: 0 0 auto;
 }
@@ -1732,26 +1734,6 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
 
 .strip-ending-card {
   overflow: visible;
-}
-
-.strip-ending-card.is-selected,
-.strip-ending-card.is-after-selected-text {
-  box-shadow: none;
-}
-
-.strip-ending-card.is-selected::before {
-  position: absolute;
-  z-index: 33;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  border: 2px solid var(--ending-foreground, #000000);
-  border-bottom: 0;
-  border-radius: inherit;
-  corner-shape: inherit;
-  content: "";
-  pointer-events: none;
 }
 
 .strip-ending-card-inner {
@@ -3427,16 +3409,6 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   );
   clip-path: path(
     "M 0 0 H 336 C 329 0 324 5 324 12 V 30 C 324 44 312 56 298 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
-  );
-}
-
-.block-controls.is-ending-tray {
-  width: 160px;
-  -webkit-clip-path: path(
-    "M 0 0 H 160 C 153 0 148 5 148 12 V 30 C 148 44 136 56 122 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
-  );
-  clip-path: path(
-    "M 0 0 H 160 C 153 0 148 5 148 12 V 30 C 148 44 136 56 122 56 H 38 C 24 56 12 44 12 30 V 12 C 12 5 7 0 0 0 Z"
   );
 }
 

@@ -180,50 +180,33 @@ function evaluate(source, bindings = {}) {
   return exports;
 }
 
-test("both footer buttons select on first click and warn only after selection", () => {
-  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handleEditorEndingAction");
+test("preview buttons warn without selecting a removed editor block", () => {
+  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handlePreviewEndingAction");
   const actions = findNode((node) => ts.isFunctionDeclaration(node) && node.name?.text === "StripEndActions");
   for (const buttonIndex of [0, 1]) {
-    for (const endingIsSelected of [false, true]) {
-      let selections = 0;
-      let propagationStops = 0;
-      const notices = [];
-      const evaluated = evaluate(`export const ${handler.getText(pageTree)};\nexport ${actions.getText(pageTree)}`, {
-        endingIsSelected,
-        selectEndingBlock: () => selections++,
-        setNotice: (message) => notices.push(message),
-        Pencil: "pencil", Plus: "plus", Send: "send",
-      });
-      const tree = evaluated.StripEndActions({
-        primaryAction: "edit", primaryLabel: "Edit this Strip",
-        onPrimary: evaluated.handleEditorEndingAction, onShare: evaluated.handleEditorEndingAction,
-      });
-      tree.props.children[buttonIndex].props.onClick({ stopPropagation: () => propagationStops++ });
-      assert.equal(propagationStops, 1, "the same click must not also activate the container");
-      assert.equal(selections, endingIsSelected ? 0 : 1);
-      assert.deepEqual(notices, endingIsSelected ? ["Publish to use these buttons."] : []);
-    }
+    let propagationStops = 0;
+    const notices = [];
+    const evaluated = evaluate(`export const ${handler.getText(pageTree)};\nexport ${actions.getText(pageTree)}`, {
+      setNotice: (message) => notices.push(message),
+      Pencil: "pencil", Plus: "plus", Send: "send",
+    });
+    const tree = evaluated.StripEndActions({
+      primaryAction: "edit", primaryLabel: "Edit this Strip",
+      onPrimary: evaluated.handlePreviewEndingAction, onShare: evaluated.handlePreviewEndingAction,
+    });
+    tree.props.children[buttonIndex].props.onClick({ stopPropagation: () => propagationStops++ });
+    assert.equal(propagationStops, 1);
+    assert.deepEqual(notices, ["Publish to use these buttons."]);
   }
 });
 
-test("the footer suppresses its shadow only for its own selection or the final text selection", () => {
+test("the preview footer is not selectable and has no editing tools or shadow", () => {
   const footer = findNode((node) => ts.isJsxOpeningElement(node) && node.tagName.getText(pageTree) === "section" && node.attributes.getText(pageTree).includes("strip-ending-card strip-end-sheet"));
-  const className = footer.attributes.properties.find((property) => property.name?.getText(pageTree) === "className");
-  const expression = className.initializer.expression.getText(pageTree);
-  for (const [isEditing, endingFollowsText, selectedBlockId, expected] of [
-    [true, true, "last-text", true],
-    [true, true, "other-text", false],
-    [true, false, "last-text", false],
-    [false, true, "last-text", false],
-  ]) {
-    const result = evaluate(`export const className = ${expression};`, {
-      isEditing, endingFollowsText, selectedBlockId, endingIsSelected: false,
-      trailingFlowBlock: { id: "last-text" },
-    });
-    assert.equal(result.className.includes("is-after-selected-text"), expected);
-  }
+  const props = footer.attributes.getText(pageTree);
+  assert.doesNotMatch(props, /data-block-id|is-selected|onClick|tabIndex/);
+  assert.doesNotMatch(pageSource, /renderEndingControls|activeEndingTool|endingIsSelected/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.strip-ending-card\.is-selected,\s*\.strip-ending-card\.is-after-selected-text\s*\{\s*box-shadow: none;/);
+  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: none;/);
 });
 
 test("text corner fill is confined to the rounded cutouts in editor and live strips", () => {

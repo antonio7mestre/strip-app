@@ -47,6 +47,7 @@ import {
 } from "@/app/lib/username";
 import {
   DEFAULT_STRIP_ENDING_STYLE,
+  automaticStripEndingStyle,
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
@@ -126,7 +127,6 @@ type View =
   | "published";
 type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
 type TextTool = "font" | "background" | "color";
-type EndingTool = "background" | "button";
 type CoverColorShape = "portrait" | "square" | "landscape";
 type PublishedCover =
   | { kind: "image"; src: string; alt: string; aspectRatio?: number }
@@ -224,7 +224,6 @@ const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
 const STICKER_ENDING_BUTTON_BUFFER_PX = 18;
 const MIN_CROPPED_BLOCK_HEIGHT = 44;
-const STRIP_ENDING_BLOCK_ID = "strip-ending";
 const INLINE_PREVIEW_HISTORY_KEY = "stripInlinePreview";
 const AUTH_CODE_LENGTH = 6;
 
@@ -1044,8 +1043,6 @@ function BlockControls({
   onTextTool,
   activeTextTool,
   onHeightCrop,
-  onEndingTool,
-  activeEndingTool,
   onVideoAudio,
   videoMuted,
   surfaceColor,
@@ -1061,8 +1058,6 @@ function BlockControls({
   onTextTool?: (tool: TextTool) => void;
   activeTextTool?: TextTool | null;
   onHeightCrop?: () => void;
-  onEndingTool?: (tool: EndingTool) => void;
-  activeEndingTool?: EndingTool | null;
   onVideoAudio?: () => void;
   videoMuted?: boolean;
   surfaceColor?: string;
@@ -1071,9 +1066,7 @@ function BlockControls({
   showTopEdge?: boolean;
   closing?: boolean;
 }) {
-  const trayClass = onEndingTool
-    ? "is-ending-tray"
-    : onTextTool
+  const trayClass = onTextTool
     ? "is-text-tray"
     : onVideoAudio
       ? "is-video-tray"
@@ -1082,9 +1075,7 @@ function BlockControls({
         : "is-single-action-tray";
   const edgeRef = useRef<SVGSVGElement>(null);
   const [edgeWidth, setEdgeWidth] = useState(0);
-  const trayWidth = onEndingTool
-    ? 160
-    : onTextTool
+  const trayWidth = onTextTool
       ? 336
       : onVideoAudio
         ? 264
@@ -1203,28 +1194,6 @@ function BlockControls({
               aria-pressed={activeTextTool === "color"}
             >
               <Baseline className="block-glyph" aria-hidden="true" />
-            </button>
-          </>
-        ) : null}
-        {onEndingTool ? (
-          <>
-            <button
-              type="button"
-              className={activeEndingTool === "background" ? "is-active" : ""}
-              onClick={() => onEndingTool("background")}
-              aria-label="Choose ending background color"
-              aria-pressed={activeEndingTool === "background"}
-            >
-              <PaintBucket className="block-glyph" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={activeEndingTool === "button" ? "is-active" : ""}
-              onClick={() => onEndingTool("button")}
-              aria-label="Choose ending button color"
-              aria-pressed={activeEndingTool === "button"}
-            >
-              <Link2 className="block-glyph" aria-hidden="true" />
             </button>
           </>
         ) : null}
@@ -3048,7 +3017,6 @@ export default function Home() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
-  const [activeEndingTool, setActiveEndingTool] = useState<EndingTool | null>(null);
   const [lastTextTool, setLastTextTool] = useState<TextTool>("font");
   const [heightCropSession, setHeightCropSession] =
     useState<HeightCropSession | null>(null);
@@ -3201,10 +3169,12 @@ export default function Home() {
   const hasLeadingImage =
     firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
   const hasLeadingText = firstVisibleBlock?.type === "text";
-  const visibleEndingStyle =
+  const visibleEndingStyle = automaticStripEndingStyle(
     view === "published" && openedPublishedStrip
-      ? openedPublishedStrip.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE
-      : endingStyle;
+      ? openedPublishedStrip.blocks
+      : blocks,
+    imageTrayColors,
+  );
   const publishedAssetIds =
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.flatMap((block) =>
@@ -3241,7 +3211,7 @@ export default function Home() {
       publishedLoaderDismissedKey !== publishedStripLoadKey);
   const cleanViewBottomSurfaceColor =
     view === "edit" && inlinePreview
-      ? endingStyle.backgroundColor
+      ? visibleEndingStyle.backgroundColor
       : null;
 
   useEffect(() => {
@@ -3301,7 +3271,6 @@ export default function Home() {
     setInlinePreview(false);
     setHeightCropSession(null);
     heightCropDragRef.current = null;
-    setActiveEndingTool(null);
     inlinePreviewScrollRef.current = null;
     inlinePreviewHistoryEntryRef.current = false;
     inlinePreviewBasePathRef.current = null;
@@ -3404,12 +3373,6 @@ export default function Home() {
       window.removeEventListener("scroll", restoreLockedScrollTop);
     };
   }, [libraryScrollInset, view]);
-
-  useEffect(() => {
-    if (selectedBlockId !== STRIP_ENDING_BLOCK_ID) {
-      setActiveEndingTool(null);
-    }
-  }, [selectedBlockId]);
 
   useEffect(() => {
     if (view !== "edit") return;
@@ -4270,7 +4233,6 @@ export default function Home() {
   const hasContent = blocks.length > 0;
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
-  const endingIsSelected = selectedBlockId === STRIP_ENDING_BLOCK_ID;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
   useLayoutEffect(() => {
     if (
@@ -4297,10 +4259,9 @@ export default function Home() {
   }, [selectedBlockId, view]);
   useLayoutEffect(() => {
     const selected = blocks.find((block) => block.id === selectedBlockId);
-    const selectedIsEnding = selectedBlockId === STRIP_ENDING_BLOCK_ID;
     if (
       view !== "edit" ||
-      (!selected && !selectedIsEnding) ||
+      !selected ||
       selected?.type === "sticker"
     ) {
       setOverlappingStickerIds((current) => (current.length === 0 ? current : []));
@@ -4324,7 +4285,7 @@ export default function Home() {
         ...(activeTools && !textIsBeingTypedIn
           ? [activeTools.getBoundingClientRect()]
           : []),
-        ...(selectedElement && (selectedIsText || selectedIsEnding)
+        ...(selectedElement && selectedIsText
           ? [selectedElement.getBoundingClientRect()]
           : []),
       ];
@@ -4789,7 +4750,6 @@ export default function Home() {
     }
     flushSync(() => {
       setActiveTextTool(null);
-      setActiveEndingTool(null);
       setEditingTextBlockId(null);
       setInlinePreview((current) => !current);
     });
@@ -4903,7 +4863,6 @@ export default function Home() {
       setSelectedBlockId(blockId);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
-      setActiveEndingTool(null);
     });
     restoreInlinePreviewExitScroll(inlinePreviewScrollRef.current);
     inlinePreviewSelectionRef.current = null;
@@ -4931,7 +4890,6 @@ export default function Home() {
     setCoverColorPickerOpen(false);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
-    setActiveEndingTool(null);
     setInlinePreview(false);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
     publishFlowStartScrollRef.current = window.scrollY;
@@ -5297,7 +5255,6 @@ export default function Home() {
     setSelectedBlockId(null);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
-    setActiveEndingTool(null);
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
     setViewInstantly("edit");
@@ -5357,7 +5314,6 @@ export default function Home() {
       setSelectedBlockId(null);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
-      setActiveEndingTool(null);
       setSelectedCover("");
       setActiveCoverKey("");
       setCustomCoverSrc(null);
@@ -5572,7 +5528,6 @@ export default function Home() {
             setSelectedBlockId(null);
             setEditingTextBlockId(null);
             setActiveTextTool(null);
-            setActiveEndingTool(null);
             setOpenedPublishedStrip(null);
             showEditorDockEntry();
             setView("edit");
@@ -5622,7 +5577,6 @@ export default function Home() {
           }
           setEditingTextBlockId(null);
           setActiveTextTool(null);
-          setActiveEndingTool(null);
         });
         restoreInlinePreviewExitScroll(scrollTop);
         settleInlinePreviewExitLock();
@@ -5641,7 +5595,6 @@ export default function Home() {
         inlinePreviewScrollRef.current = window.scrollY;
         flushSync(() => {
           setActiveTextTool(null);
-          setActiveEndingTool(null);
           setEditingTextBlockId(null);
           setInlinePreview(true);
         });
@@ -5749,7 +5702,6 @@ export default function Home() {
       setEditingPublishedStripId(null);
       setEditingTextBlockId(null);
       setActiveTextTool(null);
-      setActiveEndingTool(null);
       setSelectedBlockId(null);
       setBlocks([]);
       setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
@@ -6244,35 +6196,7 @@ export default function Home() {
     );
   };
 
-  const renderEndingControls = () => {
-    if (!endingIsSelected) return null;
-    return (
-      <BlockControls
-        index={0}
-        count={1}
-        onEndingTool={(tool) => {
-          setEditingTextBlockId(null);
-          setActiveTextTool(null);
-          setActiveEndingTool(tool);
-        }}
-        activeEndingTool={activeEndingTool}
-        surfaceColor={endingStyle.backgroundColor}
-        showTopEdge={false}
-      />
-    );
-  };
-
-  const selectEndingBlock = () => {
-    setSelectedBlockId(STRIP_ENDING_BLOCK_ID);
-    setEditingTextBlockId(null);
-    setActiveTextTool(null);
-  };
-
-  const handleEditorEndingAction = () => {
-    if (!endingIsSelected) {
-      selectEndingBlock();
-      return;
-    }
+  const handlePreviewEndingAction = () => {
     setNotice("Publish to use these buttons.");
   };
 
@@ -6300,7 +6224,7 @@ export default function Home() {
       0,
     );
     const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
-    const showsEndingCard = view !== "published";
+    const showsEndingCard = !isEditing && view !== "published";
     const trailingFlowBlock = [...sourceBlocks]
       .reverse()
       .find((block) => block.type !== "sticker");
@@ -6309,7 +6233,7 @@ export default function Home() {
       (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
     const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
     const canvasMinHeight = stickerFloor > 0
-      ? showsEndingCard
+      ? view !== "published"
         ? `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`
         : `${stickerFloor}px`
       : undefined;
@@ -6565,7 +6489,7 @@ export default function Home() {
               {isEditing && heightCrop
                 ? renderHeightCropHandles(block, heightCrop)
                 : null}
-              {trailingFlowBlock?.id === block.id ? (
+              {!isEditing && trailingFlowBlock?.id === block.id ? (
                 <MediaEdgeExtension
                   src={block.src}
                   cropTop={heightCrop?.isEditing ? 0 : heightCrop?.top}
@@ -6637,7 +6561,7 @@ export default function Home() {
                 );
               }}
               onLowerBoundaryAttempt={() =>
-                setNotice("Keep stickers above the STRIP buttons.")
+                setNotice("Keep stickers inside your Strip.")
               }
               onLoadSettled={(loadedSuccessfully) =>
                 settleMediaLoad(block.id, loadedSuccessfully)
@@ -6651,7 +6575,7 @@ export default function Home() {
           <StripVideoBlock
             key={block.id}
             block={block}
-            extendBottomEdge={trailingFlowBlock?.id === block.id}
+            extendBottomEdge={!isEditing && trailingFlowBlock?.id === block.id}
             isEditing={isEditing}
             isSelected={selectedBlockId === block.id}
             muted={
@@ -6716,16 +6640,8 @@ export default function Home() {
         {showsEndingCard ? (
         <section
           ref={installEndingContact}
-          className={`strip-block strip-ending-card strip-end-sheet ${
-            isEditing ? "is-editing" : ""
-          } ${isEditing && endingIsSelected ? "is-selected" : ""} ${
-            isEditing && endingFollowsText && selectedBlockId === trailingFlowBlock.id
-              ? "is-after-selected-text"
-              : ""
-          }`}
-          data-block-id={STRIP_ENDING_BLOCK_ID}
-          role={isEditing && !endingIsSelected ? "button" : undefined}
-          tabIndex={isEditing && !endingIsSelected ? 0 : undefined}
+          className="strip-block strip-ending-card strip-end-sheet"
+          aria-label="Strip actions preview"
           style={
             {
               "--ending-background": sourceEndingStyle.backgroundColor,
@@ -6741,35 +6657,13 @@ export default function Home() {
               ),
             } as CSSProperties
           }
-          onPointerDown={(event) =>
-            beginBlockTapGesture(event, STRIP_ENDING_BLOCK_ID)
-          }
-          onPointerMove={trackBlockTapGesture}
-          onPointerCancel={cancelBlockTapGesture}
-          onClick={() => {
-            if (!isEditing) return;
-            if (!completeBlockTapGesture(STRIP_ENDING_BLOCK_ID)) return;
-            selectEndingBlock();
-          }}
-          onKeyDown={(event) => {
-            if (
-              !isEditing ||
-              event.target !== event.currentTarget ||
-              (event.key !== "Enter" && event.key !== " ")
-            ) {
-              return;
-            }
-            event.preventDefault();
-            selectEndingBlock();
-          }}
         >
-          {isEditing ? renderEndingControls() : null}
           <div className="strip-ending-card-inner">
             <StripEndActions
               primaryAction="edit"
               primaryLabel="Edit this Strip"
-              onPrimary={handleEditorEndingAction}
-              onShare={handleEditorEndingAction}
+              onPrimary={handlePreviewEndingAction}
+              onShare={handlePreviewEndingAction}
             />
           </div>
         </section>
@@ -8170,7 +8064,7 @@ export default function Home() {
       {legacyTransitionLayer}
       <main
         className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview" : ""} ${
-          selectedBlockIndex >= 0 || endingIsSelected ? "has-block-toolbar" : ""
+          selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
         } ${heightCropSession ? "is-height-cropping" : ""}`}
@@ -8207,34 +8101,12 @@ export default function Home() {
         />
       ) : null}
 
-      {!inlinePreview && endingIsSelected ? (
-        <TextStyleSelector
-          block={{
-            id: STRIP_ENDING_BLOCK_ID,
-            type: "text",
-            content: "Strip ending",
-            backgroundColor: endingStyle.backgroundColor,
-            textColor: endingStyle.buttonColor,
-          }}
-          tool={activeEndingTool === "button" ? "color" : "background"}
-          visible={activeEndingTool !== null}
-          onChange={(change) => {
-            setEndingStyle((current) => ({
-              backgroundColor:
-                change.backgroundColor ?? current.backgroundColor,
-              buttonColor: change.textColor ?? current.buttonColor,
-            }));
-          }}
-          onBack={() => setActiveEndingTool(null)}
-        />
-      ) : null}
-
       <PreviewDock preview={inlinePreview}>
       <footer
         key="persistent-composer-dock"
         className={`composer-dock main-composer-dock ${
           editorDockEntering ? "is-entering-editor" : ""
-        } ${activeTextTool || activeEndingTool ? "is-shifted" : ""} ${
+        } ${activeTextTool ? "is-shifted" : ""} ${
           heightCropSession ? "is-height-cropping" : ""
         }`}
       >
