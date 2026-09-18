@@ -58,11 +58,14 @@ html {
 
 /* Paint beneath Safari without adding any document height. */
 html.published-bottom-canvas-active,
-html.published-bottom-canvas-active body {
+html.published-bottom-canvas-active body,
+html.preview-bottom-canvas-active,
+html.preview-bottom-canvas-active body {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
 }
 
-html.published-bottom-canvas-active {
+html.published-bottom-canvas-active,
+html.preview-bottom-canvas-active {
   background-image: none;
 }
 

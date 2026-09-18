@@ -3210,7 +3210,7 @@ export default function Home() {
     (!publishedContentCanReveal ||
       publishedLoaderDismissedKey !== publishedStripLoadKey);
   const cleanViewBottomSurfaceColor =
-    view === "edit" && inlinePreview
+    view === "preview" || (view === "edit" && inlinePreview)
       ? visibleEndingStyle.backgroundColor
       : null;
 
@@ -3515,7 +3515,7 @@ export default function Home() {
     const root = document.documentElement;
     // The footer's layout effect already chose the visible edge. A later
     // passive top-color effect must not overwrite that decision on route load.
-    if (!root.matches(".published-bottom-canvas-active, .published-bottom-sheet-canvas-active, .published-bottom-pocket-active")) {
+    if (!root.matches(".published-bottom-canvas-active, .published-bottom-sheet-canvas-active, .published-bottom-pocket-active, .preview-bottom-canvas-active")) {
       document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
         "content",
         topSafeAreaColor,
@@ -3526,13 +3526,17 @@ export default function Home() {
   }, [topSafeAreaColor]);
 
   useLayoutEffect(() => installFooterSafeAreaColor({
-    enabled: view === "published" && publishedContentCanReveal,
-    sheet: document.querySelector<HTMLElement>(".published-mode .published-bottom-sheet"),
+    enabled: (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
+    sheet: document.querySelector<HTMLElement>(cleanViewBottomSurfaceColor !== null
+      ? ".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"
+      : ".published-mode .published-bottom-sheet"),
     topColor: topSafeAreaColor,
     bottomColor: visibleEndingStyle.backgroundColor,
     defaultColor: DEFAULT_BACKGROUND,
-    activeClassName: "published-bottom-canvas-active",
-  }), [publishedContentCanReveal, topSafeAreaColor, view, visibleEndingStyle.backgroundColor]);
+    activeClassName: cleanViewBottomSurfaceColor !== null
+      ? "preview-bottom-canvas-active"
+      : "published-bottom-canvas-active",
+  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, visibleEndingStyle.backgroundColor]);
 
 
   useEffect(() => {

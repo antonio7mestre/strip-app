@@ -66,12 +66,20 @@ function effectContaining(marker) {
 }
 const footerEffect = effectContaining("installFooterSafeAreaColor(");
 const topEffect = effectContaining('root.matches(".published-bottom-canvas-active');
+let previewColorExpression;
+function findPreviewColor(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "cleanViewBottomSurfaceColor") {
+    previewColorExpression = node.initializer.getText(tree);
+  }
+  ts.forEachChild(node, findPreviewColor);
+}
+findPreviewColor(tree);
 const helperSource = readFileSync(new URL("../app/lib/footer-safe-area.ts", import.meta.url), "utf8");
 const compiledHelper = ts.transpileModule(helperSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText;
 
-function fixture({ top = 900, reveal = true, view = "published", hasSheet = true, hasVisualViewport = true, largeHeight = 800 } = {}) {
+function fixture({ top = 900, reveal = true, view = "published", inlinePreview = false, bottomColor = "#66ff8a", hasSheet = true, hasVisualViewport = true, largeHeight = 800 } = {}) {
   class Target {
     listeners = new Map();
     addEventListener(name, callback) { this.listeners.set(name, callback); }
@@ -92,6 +100,7 @@ function fixture({ top = 900, reveal = true, view = "published", hasSheet = true
   const classes = new Set();
   const properties = new Map();
   const writes = [];
+  const selectors = [];
   const root = {
     clientHeight: 800,
     classList: {
@@ -118,13 +127,14 @@ function fixture({ top = 900, reveal = true, view = "published", hasSheet = true
     window,
     performance: { now: () => time },
     document: { documentElement: root, body: { append() {} }, createElement: () => probe,
-      querySelector: (selector) => selector === "#strip-theme-color" ? theme : hasSheet ? sheet : null },
+      querySelector: (selector) => { selectors.push(selector); return selector === "#strip-theme-color" ? theme : hasSheet ? sheet : null; } },
     IntersectionObserver: Observer, ResizeObserver: Observer,
-    view, publishedContentCanReveal: reveal,
-    visibleEndingStyle: { backgroundColor: "#66ff8a" },
+    view, inlinePreview, publishedContentCanReveal: reveal,
+    visibleEndingStyle: { backgroundColor: bottomColor },
     DEFAULT_BACKGROUND: "#000000", topSafeAreaColor: "#3333ff",
     getSafeAreaPaintViewport, shouldUseFooterSafeAreaColor,
   };
+  bindings.cleanViewBottomSurfaceColor = runInNewContext(previewColorExpression, bindings);
   const helperExports = {};
   runInNewContext(compiledHelper, { ...bindings, exports: helperExports });
   bindings.installFooterSafeAreaColor = helperExports.installFooterSafeAreaColor;
@@ -135,8 +145,8 @@ function fixture({ top = 900, reveal = true, view = "published", hasSheet = true
   }
   const cleanup = evaluate(footerEffect);
   return {
-    window, visual, root, sheet, probe, classes, properties, writes, frames, observers,
-    active: () => classes.has("published-bottom-canvas-active") || classes.has("published-bottom-sheet-canvas-active"),
+    window, visual, root, sheet, probe, classes, properties, writes, frames, observers, selectors,
+    active: () => classes.has("published-bottom-canvas-active") || classes.has("published-bottom-sheet-canvas-active") || classes.has("preview-bottom-canvas-active"),
     moveTo(value) { top = value; },
     advance(ms = 16) { time += ms; },
     setLargeHeight(value) { largeHeight = value; },
@@ -232,6 +242,55 @@ test("unmount cancels work, removes observers, and restores the top color", () =
   assert.equal(f.probe.removed, true);
   assert.equal(f.active(), false);
   assert.equal(f.writes.at(-1), "#3333ff");
+});
+
+test("both preview routes paint the exact card color under Safari, independent of public loading", () => {
+  for (const bottomColor of ["#FFFFFF", "#000000"]) {
+    for (const options of [{ view: "edit", inlinePreview: true }, { view: "preview" }]) {
+      const f = fixture({ ...options, bottomColor, reveal: false, top: 740 });
+      assert(f.active());
+      assert(f.classes.has("preview-bottom-canvas-active"));
+      assert(!f.classes.has("published-bottom-canvas-active"));
+      assert.equal(f.properties.get("--bottom-safe-area-color"), bottomColor);
+      assert.equal(f.writes.at(-1), bottomColor);
+      assert(f.selectors.includes(".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"));
+      f.runTopEffect();
+      assert.equal(f.writes.at(-1), bottomColor, "later top paint cannot overwrite preview");
+      f.cleanup();
+    }
+  }
+});
+
+test("preview uses the published entry, full-exit and toolbar-resize boundaries", () => {
+  const f = fixture({ view: "edit", inlinePreview: true, bottomColor: "#FFFFFF" });
+  assert(!f.active());
+  f.moveTo(848); f.window.emit("scroll");
+  assert(f.active());
+  f.visual.height = 600; f.visual.emit("resize");
+  assert(f.active());
+  f.moveTo(864); f.window.emit("scroll");
+  assert(f.active(), "does not clear before the card fully leaves");
+  f.moveTo(865); f.window.emit("scroll");
+  assert(!f.active());
+  assert.equal(f.writes.at(-1), "#3333ff");
+  f.moveTo(740); f.window.emit("scroll");
+  assert(f.active());
+  f.cleanup();
+  f.observers.forEach(observer => observer.callback());
+  assert(!f.active(), "exiting preview cannot leave stale paint or callbacks");
+  assert.equal(f.properties.get("--bottom-safe-area-color"), "#000000");
+  assert.equal(f.window.listeners.size + f.visual.listeners.size, 0);
+});
+
+test("preview paint covers both root and body, and removes the top-color gradient", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /html\.preview-bottom-canvas-active,\s*html\.preview-bottom-canvas-active body\s*\{\s*background-color: var\(--bottom-safe-area-color, var\(--black\)\) !important;/);
+  assert.match(css, /html\.preview-bottom-canvas-active \{\s*background-image: none;/);
+  for (const options of [{ view: "edit" }, { view: "library", inlinePreview: true }, { view: "edit", inlinePreview: true, hasSheet: false }]) {
+    const f = fixture({ ...options, top: 740 });
+    assert(!f.active());
+    f.cleanup();
+  }
 });
 
 test("the full painted height includes the large viewport and bottom safe-area probe", () => {
