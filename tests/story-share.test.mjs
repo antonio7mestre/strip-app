@@ -54,7 +54,7 @@ test("page guards repeat taps, mounts backdrop before native share, and resets o
  assert.match(page,/if \(storyShareInFlightRef\.current \|\| !openedPublishedStrip\) return/);
  assert.match(page,/open: \(\) => flushSync\(/);
  assert.match(page,/inert=\{storyShareSheetOpen\}/);
- assert.match(page,/storyShareSheetOpen \? createPortal/);
+ assert.match(page,/<StoryShareBackdrop open=\{storyShareSheetOpen\}>/);
  assert.match(page,/<StoryShareSaveIcon \/>/);
  assert.match(page,/<p>Save to post<\/p>/);
  assert.match(page,/<span className="story-share-or">or<\/span>/);
@@ -78,10 +78,10 @@ test("Messages guidance uses bundled Apple artwork, without a remote image depen
  assert.deepEqual([...artwork.subarray(0,3)],[0xff,0xd8,0xff]);
  assert.ok(artwork.length>1000);
 });
-test("native share dims the page almost to black while keeping guidance bright",()=>{
+test("native share keeps the poster visible behind bright guidance",()=>{
  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
  const backdrop=css.match(/\.story-share-backdrop\s*\{([^}]+)\}/)?.[1];
- assert.match(backdrop,/background: rgba\(0, 0, 0, 0\.94\)/);
+ assert.match(backdrop,/background: rgba\(0, 0, 0, 0\.72\)/);
  assert.doesNotMatch(backdrop,/(?:^|;)\s*opacity\s*:/);
  assert.match(css,/\.story-share-hint\s*\{[^}]*color: #fff/);
 });

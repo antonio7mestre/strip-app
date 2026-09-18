@@ -7416,8 +7416,8 @@ export default function Home() {
           </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
-        {storyShareSheetOpen ? createPortal(
-          <StoryShareBackdrop>
+        {typeof document !== "undefined" ? createPortal(
+          <StoryShareBackdrop open={storyShareSheetOpen}>
             <div className="story-share-hint">
               <div className="story-share-option">
                 <StoryShareSaveIcon />

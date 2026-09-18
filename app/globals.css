@@ -2552,15 +2552,27 @@ html:has(.story-share-boundary) body {
   left: 0;
   width: 100%;
   min-height: 100lvh;
-  background: rgba(0, 0, 0, 0.94);
+  background: rgba(0, 0, 0, 0.72);
   touch-action: none;
 }
 
 /* Safari samples the extended fixed dock separately below its content edge.
    Remove that duplicate white paint while the document overlay owns the glass.
-   The live dock stays mounted and is restored as soon as sharing closes. */
-.share-mode[inert] .share-dock {
+   Change this only once the native sheet covers the bottom. Restore it when
+   the two-second cue ends, or earlier if dismissal has already started. */
+html:has(.story-share-boundary[data-phase="covered"]) .share-mode .share-dock {
   display: none;
+}
+
+.story-share-boundary[data-phase="closing"] {
+  pointer-events: none;
+}
+.story-share-boundary[data-phase="closing"] .story-share-backdrop {
+  animation: story-share-dismiss 320ms ease-out both;
+}
+@keyframes story-share-dismiss {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .story-share-hint {
@@ -2598,6 +2610,7 @@ html:has(.story-share-boundary) body {
   @media (max-width: 600px) and (orientation: portrait) and (pointer: coarse) {
     .story-share-save-beacon {
       display: block;
+      visibility: hidden;
       position: absolute;
       z-index: 1;
       left: 39%;
@@ -2607,6 +2620,9 @@ html:has(.story-share-boundary) body {
       border-radius: 50%;
       background: #304dff;
       transform: translate(-50%, 50%);
+    }
+    .story-share-boundary[data-phase="covered"] .story-share-save-beacon {
+      visibility: visible;
       animation: story-share-beacon-pulse 1.6s ease-in-out infinite;
     }
   }
@@ -2618,7 +2634,7 @@ html:has(.story-share-boundary) body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .story-share-save-beacon { animation: none; opacity: 0.85; }
+  .story-share-boundary[data-phase="closing"] .story-share-backdrop { animation-duration: 0ms; }
 }
 
 .poster-picker {

@@ -14,7 +14,7 @@ test("share pulse uses the full-glass document surface above the white dock", ()
   assert.match(boundary, /z-index: 2147483647/);
   assert.match(boundary, /contain: layout/);
   assert.match(boundary, /overflow: visible/);
-  assert.match(css, /\.share-mode\[inert\] \.share-dock\s*\{\s*display: none/);
+  assert.match(css, /html:has\(\.story-share-boundary\[data-phase="covered"\]\) \.share-mode \.share-dock\s*\{\s*display: none/);
   assert.match(css, /html:has\(\.story-share-boundary\) body\s*\{[^}]*overflow: hidden/);
   const surface = css.match(/\.story-share-backdrop\s*\{([^}]+)\}/)[1];
   assert.match(surface, /position: absolute/);
@@ -29,7 +29,10 @@ test("beacon is action-sized with opacity-only motion and no oversized glow", ()
   assert.match(component, /className="story-share-save-beacon" aria-hidden="true"/);
   assert.match(css, /width: clamp\(60px, 17vw, 76px\)/);
   assert.match(css, /left: 39%/);
-  const frames = css.slice(css.indexOf("@keyframes story-share-beacon-pulse"), css.indexOf(".poster-picker {"));
+  const frames = css.match(/@keyframes story-share-beacon-pulse\s*\{([\s\S]*?)\n\}/)[1];
   assert.doesNotMatch(frames, /scale\(|box-shadow/);
-  assert.match(frames, /animation: none; opacity: 0.85/);
+  assert.doesNotMatch(css, /\.story-share-save-beacon\s*\{[^}]*animation: none/);
+  assert.match(css, /\.story-share-boundary\[data-phase="covered"\] \.story-share-save-beacon\s*\{[^}]*animation: story-share-beacon-pulse 1\.6s/);
+  // Only this brief cue opts out; reduced-motion dismissal remains immediate.
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.story-share-boundary\[data-phase="closing"\] \.story-share-backdrop \{ animation-duration: 0ms; \}/);
 });
