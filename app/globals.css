@@ -2548,6 +2548,7 @@ html:has(.story-share-boundary) body {
 .story-share-backdrop {
   --entrance-safe-top: env(safe-area-inset-top, 0px);
   position: absolute;
+  z-index: 1;
   top: 0;
   left: 0;
   width: 100%;
@@ -2556,12 +2557,24 @@ html:has(.story-share-boundary) body {
   touch-action: none;
 }
 
-/* Safari samples the extended fixed dock separately below its content edge.
-   Remove that duplicate white paint while the document overlay owns the glass.
-   Change this only once the native sheet covers the bottom. Restore it when
-   the two-second cue ends, or earlier if dismissal has already started. */
-html:has(.story-share-boundary[data-phase="covered"]) .share-mode .share-dock {
+/* Preserve the exact toolbar geometry while removing Safari's fixed-layer
+   safe-area shield. The same dimmer and cue now paint over the entire bar. */
+html:has(.story-share-dock-copy) .share-mode .share-dock {
   display: none;
+}
+.composer-dock.story-share-dock-copy {
+  position: absolute;
+  z-index: 0;
+  right: auto;
+  bottom: auto;
+  min-height: 0;
+  transform: none;
+  animation: none;
+  transition: none;
+  pointer-events: none;
+  /* Keep the controls intact and blend their extended base into the dark
+     glass. Safari must not sample a white fixed layer beneath the cue. */
+  mask-image: linear-gradient(to bottom, #000 64px, transparent 104px);
 }
 
 .story-share-boundary[data-phase="closing"] {
