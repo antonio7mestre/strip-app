@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { chooseScribbleColor, installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, COVER_PROGRESS_GAP, COVER_PERCENT_WIDTH, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
@@ -80,6 +80,10 @@ export function StripEntrance({ cover, blocks, endingStyle, mediaReady, settledA
         viewport?.offsetTop ?? 0, aspectRatio);
       Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
         width: layout.width + "px", height: layout.height + "px" });
+      stage.style.setProperty("--entrance-progress-length", layout.progressLength + "px");
+      stage.style.setProperty("--entrance-progress-thickness", layout.progressThickness + "px");
+      stage.style.setProperty("--entrance-progress-gap", COVER_PROGRESS_GAP + "px");
+      stage.style.setProperty("--entrance-percent-width", COVER_PERCENT_WIDTH + "px");
     };
     sync();
     window.addEventListener("resize", sync);

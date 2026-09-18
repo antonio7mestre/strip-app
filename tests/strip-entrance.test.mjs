@@ -113,8 +113,11 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(css,/font-variant-numeric: tabular-nums/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
   assert.match(readoutCss,/color: #fff;/);
-  assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
-  assert.match(readoutCss,/right: 0;/);
+  assert.match(readoutCss,/top: calc\(100% - var\(--entrance-progress-length\)\)/);
+  assert.match(readoutCss,/left: calc\(-1 \* var\(--entrance-progress-gap\)\)/);
+  assert.match(readoutCss,/transform: rotate\(90deg\)/);
+  assert.match(readoutCss,/transform-origin: top left/);
+  assert.match(css,/width: var\(--entrance-percent-width\)/);
   assert.match(readoutCss,/gap: 14px;/);
   assert.match(readoutCss,/white-space: nowrap;/);
   assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*width: 3ch;\s*text-align: right;/);

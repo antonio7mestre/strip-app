@@ -1881,9 +1881,12 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
 }
 .strip-entrance-progress {
   position: absolute;
-  top: calc(100% + 18px);
-  right: 0;
-  left: 0;
+  top: calc(100% - var(--entrance-progress-length));
+  left: calc(-1 * var(--entrance-progress-gap));
+  width: var(--entrance-progress-length);
+  height: var(--entrance-progress-thickness);
+  transform: rotate(90deg);
+  transform-origin: top left;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1914,6 +1917,7 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   display: inline-flex;
   align-items: baseline;
   flex: none;
+  width: var(--entrance-percent-width);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
