@@ -81,7 +81,7 @@ export function fitPosterPhoto(width: number, height: number, boxWidth: number, 
 }
 
 /** Every layout uses the same full-image renderer for preview and 1080×1920 export. */
-export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, index: number) {
+export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, index: number, saved = false) {
   const { photos } = assets;
   const title = (assets.title || "").trim();
   const palette = posterBackgrounds(assets.palette);
@@ -207,10 +207,10 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
       for (let i = 0; i < palette.length; i++) fill(palette[i], 360 + i * 120, image.y + image.height + 54, 120, 24);
     }
   }
-  // Keep the creator link in its established footer spot, even without a title.
+  // Previews keep the real address; the saved story leaves a place for a link sticker.
   c.fillStyle = posterInk([0, 1, 6, 7, 8].includes(index) ? second : accent);
   c.font = '400 24px "Courier New", monospace';
   c.textAlign = "center"; c.textBaseline = "top";
-  c.fillText(assets.address || "striiip.com", 540, 1740, 880);
+  c.fillText(saved ? "Paste your link here" : assets.address || "striiip.com", 540, 1740, 880);
   c.restore();
 }

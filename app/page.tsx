@@ -54,6 +54,7 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
+import { beginStoryShare } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
@@ -3028,6 +3029,9 @@ export default function Home() {
   const [view, setView] = useState<View>("library");
   const posters = useStoryPosters(view === "share" ? openedPublishedStrip : null);
   const { file: storyAssetFile, url: storyAssetUrl, loading: storyAssetLoading } = posters;
+  const [storyShareSheetOpen, setStoryShareSheetOpen] = useState(false);
+  const storyShareInFlightRef = useRef(false);
+  const storyShareAttemptRef = useRef(0);
   const [libraryScrollInset, setLibraryScrollInset] = useState(0);
   const [initialRouteReady, setInitialRouteReady] = useState(false);
   const [legacyPageTransition, setLegacyPageTransition] =
@@ -4633,6 +4637,9 @@ export default function Home() {
 
   const resetTransientNavigationState = () => {
     const root = document.documentElement;
+    storyShareAttemptRef.current++;
+    storyShareInFlightRef.current = false;
+    setStoryShareSheetOpen(false);
     pageTransitionInFlightRef.current = false;
     openingCoverRequestRef.current?.abort();
     openingCoverRequestRef.current = null;
@@ -5843,27 +5850,46 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setNotice("Share image saved.");
+    setNotice("Image downloaded.");
   };
 
   const shareStoryToInstagram = async () => {
+    if (storyShareInFlightRef.current || !openedPublishedStrip) return;
     if (!storyAssetFile) {
       setNotice(storyAssetLoading ? "Finishing your share image…" : "Try again.");
       return;
     }
     const shareData: ShareData = { files: [storyAssetFile] };
-    const supportsFileSharing =
-      typeof navigator.share === "function" &&
-      (typeof navigator.canShare !== "function" || navigator.canShare(shareData));
-    if (!supportsFileSharing) {
-      downloadStoryAsset();
-      return;
-    }
+    const attempt = ++storyShareAttemptRef.current;
+    storyShareInFlightRef.current = true;
     try {
-      await navigator.share(shareData);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      downloadStoryAsset();
+      const { copied, finished } = beginStoryShare(shareData, publicStripUrl(openedPublishedStrip), {
+        open: () => flushSync(() => {
+          setNotice("");
+          setStoryShareSheetOpen(true);
+        }),
+        close: () => {
+          if (storyShareAttemptRef.current === attempt) setStoryShareSheetOpen(false);
+        },
+        download: () => {
+          if (storyShareAttemptRef.current === attempt) downloadStoryAsset();
+        },
+      });
+      const result = await finished;
+      // A slow clipboard permission response must not leave the backdrop stuck.
+      void copied.then(success => {
+        if (storyShareAttemptRef.current !== attempt) return;
+        setNotice(success
+          ? result === "downloaded" ? "Image downloaded. Link copied." : "Link copied."
+          : "Couldn’t copy your link. Tap Copy link.");
+      });
+    } catch {
+      if (storyShareAttemptRef.current === attempt) setNotice("Couldn’t share this poster. Try again.");
+    } finally {
+      if (storyShareAttemptRef.current === attempt) {
+        storyShareInFlightRef.current = false;
+        setStoryShareSheetOpen(false);
+      }
     }
   };
 
@@ -7418,7 +7444,7 @@ export default function Home() {
     return (
       <>
         {legacyTransitionLayer}
-        <main className="app-shell share-mode">
+        <main className="app-shell share-mode" inert={storyShareSheetOpen}>
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
             style={{ backgroundColor: DEFAULT_BACKGROUND }}
@@ -7460,7 +7486,7 @@ export default function Home() {
                 className="dock-icon-button publish-icon-button publish-flow-button share-story-button"
                 type="button"
                 onClick={() => void shareStoryToInstagram()}
-                disabled={storyAssetLoading || !storyAssetFile}
+                disabled={storyAssetLoading || !storyAssetFile || storyShareSheetOpen}
                 aria-label="Share Strip"
               >
                 <span>
@@ -7471,6 +7497,12 @@ export default function Home() {
           </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
+        {storyShareSheetOpen ? createPortal(
+          <div className="story-share-backdrop" role="status" aria-live="polite">
+            <p className="story-share-hint">Save image below for Instagram</p>
+          </div>,
+          document.body,
+        ) : null}
       </>
     );
   }

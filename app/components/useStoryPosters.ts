@@ -12,7 +12,7 @@ function renderBlob(assets: PosterAssets, index: number, preview = false) {
     try {
       const c = canvas.getContext("2d");
       if (!c) throw new Error("Canvas unavailable");
-      drawPoster(c, assets, index);
+      drawPoster(c, assets, index, !preview);
       canvas.toBlob(blob => {
         canvas.width = 0; canvas.height = 0;
         if (blob) resolve(blob); else reject(new Error("Poster export failed"));

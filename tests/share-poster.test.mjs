@@ -34,6 +34,18 @@ function context(){
  const fill=c.fillRect;c.fillRect=(...args)=>{paints.push({color:c.fillStyle,args});fill(...args);};
  return{c,commands,paints,depth:()=>depth};
 }
+test("saved posters change only the link label, never the preview artwork",()=>{
+ for(let index=0;index<10;index++)for(const title of ["", "Summer"]){
+  const assets={title,address:"antonio.striiip.com",palette:["#FF0044","#00FFAA"],photos:[{source:{},width:1600,height:900}]};
+  const preview=context(),saved=context();
+  drawPoster(preview.c,assets,index);drawPoster(saved.c,assets,index,true);
+  assert.deepEqual(preview.commands.at(-1),["fillText","antonio.striiip.com",540,1740,880]);
+  assert.deepEqual(saved.commands.at(-1),["fillText","Paste your link here",540,1740,880]);
+  assert.deepEqual(preview.commands.slice(0,-1),saved.commands.slice(0,-1));
+  assert.deepEqual(preview.paints,saved.paints);
+ }
+ assert.match(hook,/drawPoster\(c, assets, index, !preview\)/);
+});
 test("all ten layouts are distinct finite compositions for photos and text-only strips",()=>{
  for(const photos of [[],[{source:{},width:1600,height:900}]]){
   const signatures=[];

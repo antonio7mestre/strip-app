@@ -31,6 +31,7 @@ function harness({ owner = true, signedIn = true } = {}) {
     authStatus: signedIn ? "signed-in" : "signed-out",
     openedPublishedStrip: { id: "published-123", viewerIsOwner: owner },
     pageTransitionInFlightRef: gate,
+    storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen() {},
     openingCoverRequestRef: { current: null }, setOpeningCover() {},
     setOpeningPublishedEditor: value => { pending = value; events.push(`pending:${value}`); },
     flushSync: callback => { callback(); events.push("paint-committed"); },

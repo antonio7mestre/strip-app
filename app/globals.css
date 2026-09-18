@@ -2529,6 +2529,31 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   justify-content: center;
 }
 
+.story-share-backdrop {
+  position: fixed;
+  z-index: 2147483647;
+  inset: 0;
+  min-height: 100lvh;
+  background: rgba(0, 0, 0, 0.78);
+  touch-action: none;
+}
+
+.story-share-hint {
+  position: absolute;
+  /* Native sheets expose no bounds to the page. Keep the hint in the upper
+     area visible above the usual iPhone sheet, not behind its controls. */
+  top: max(calc(env(safe-area-inset-top) + 24px), calc(30svh - 32px));
+  left: 24px;
+  right: 24px;
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+}
+
 .poster-picker {
   position: relative;
   min-height: 0;
