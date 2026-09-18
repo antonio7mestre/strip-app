@@ -55,8 +55,26 @@ test("page guards repeat taps, mounts backdrop before native share, and resets o
  assert.match(page,/open: \(\) => flushSync\(/);
  assert.match(page,/inert=\{storyShareSheetOpen\}/);
  assert.match(page,/storyShareSheetOpen \? createPortal/);
- assert.match(page,/Save image below for Instagram/);
+ assert.match(page,/<StoryShareSaveIcon \/>/);
+ assert.match(page,/<p>Save to post<\/p>/);
+ assert.match(page,/<span className="story-share-or">or<\/span>/);
+ assert.match(page,/<p>Send to friends<\/p>/);
+ assert.match(page,/<link rel="preload" as="image" href="\/apple-messages.jpg" \/>/);
+ assert.match(page,/<img className="story-share-messages-icon" src="\/apple-messages.jpg" width="56" height="56" alt="" \/>/);
  assert.match(page,/const resetTransientNavigationState = \(\) => \{[\s\S]*?setStoryShareSheetOpen\(false\)/);
  assert.match(page,/if \(event.persisted\) resetTransientNavigationState\(\)/);
  assert.match(page,/storyAssetLoading \|\| !storyAssetFile \|\| storyShareSheetOpen/);
+});
+test("save guidance uses the reference's round disc and down-arrow tray",()=>{
+ const icon=readFileSync(new URL("../app/components/StoryShareSaveIcon.tsx",import.meta.url),"utf8");
+ assert.match(icon,/viewBox="0 0 200 200"/);
+ assert.match(icon,/<circle cx="100" cy="100" r="100"/);
+ assert.match(icon,/strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/);
+ assert.match(icon,/M100 56V112M86 98L100 112L114 98/);
+ assert.match(icon,/aria-hidden="true" focusable="false"/);
+});
+test("Messages guidance uses bundled Apple artwork, without a remote image dependency",()=>{
+ const artwork=readFileSync(new URL("../public/apple-messages.jpg",import.meta.url));
+ assert.deepEqual([...artwork.subarray(0,3)],[0xff,0xd8,0xff]);
+ assert.ok(artwork.length>1000);
 });

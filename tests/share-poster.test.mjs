@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, drawPoster, fitPosterPhoto, posterBackgrounds, posterColor, posterInk, posterMedia, posterPalette, posterSwipeProgress, posterSwipeTarget } from "../app/lib/share-posters.ts";
+import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA, LINK_STICKER_TARGET, drawPoster, fitPosterPhoto, posterBackgrounds, posterColor, posterInk, posterMedia, posterPalette, posterSwipeProgress, posterSwipeTarget } from "../app/lib/share-posters.ts";
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const hook = readFileSync(new URL("../app/components/useStoryPosters.ts", import.meta.url), "utf8");
 const picker = readFileSync(new URL("../app/components/SharePosterPicker.tsx", import.meta.url), "utf8");
@@ -39,8 +39,8 @@ test("saved posters add the reference icons and link-sticker instruction without
   const assets={title,address:"antonio.striiip.com",palette:["#FF0044","#00FFAA"],photos:[{source:{},width:1600,height:900}]};
   const preview=context(),saved=context();
   drawPoster(preview.c,assets,index);drawPoster(saved.c,assets,index,true);
-  assert.deepEqual(preview.commands.at(-1),["fillText","antonio.striiip.com",540,1740,880]);
-  assert.deepEqual(saved.commands.at(-1),["fillText","Paste your link sticker here",540,1818,880]);
+  assert.deepEqual(preview.commands.at(-1),["fillText","antonio.striiip.com",540,1658,680]);
+  assert.deepEqual(saved.commands.at(-1),["fillText","Paste your link sticker here",540,84,680]);
   assert.deepEqual(preview.commands.slice(0,-1),saved.commands.slice(0,preview.commands.length-1));
   assert.deepEqual(saved.commands.slice(preview.commands.length-1).filter(c=>c[0]==="fillText").map(c=>c[1]),["Link","Paste your link sticker here"]);
   assert.equal(saved.commands.filter(c=>c[0]==="arc").length,3);
@@ -58,6 +58,14 @@ test("all ten layouts are distinct finite compositions for photos and text-only 
    assert.equal(depth(),0);assert.equal(commands.filter(c=>c[0]==='fillText'&&c[1]!=='hello.striiip.com').map(c=>c[1]).join(' '),'A very long title for a wonderful weekend with my friends');if(photos.length)assert(commands.some(c=>c[0]==='drawImage'));signatures.push(JSON.stringify(commands));
   }assert.equal(new Set(signatures).size,10);
  }
+});
+test("saved link-sticker instruction uses exactly the Link badge's font family and weight",()=>{
+ const {c}=context(),styles=[];
+ c.fillText=(text)=>styles.push({text,font:c.font});
+ drawPoster(c,{title:"",address:"antonio.striiip.com",palette:["#3155FF"],photos:[]},0,true);
+ const badge=styles.find(s=>s.text==="Link"),hint=styles.find(s=>s.text==="Paste your link sticker here");
+ assert.equal(badge.font.replace(/\d+px/,"SIZE"),hint.font.replace(/\d+px/,"SIZE"));
+ assert.equal(hint.font,'400 24px "Helvetica Neue", Arial, sans-serif');
 });
 test("rapid selection never shares a stale export; async work and URLs are cleaned up",()=>{
  assert.match(hook,/exported\?\.assets === assets && exported\?\.index === index/);assert.match(hook,/if \(cancelled\) return/);assert.match(hook,/controller\.abort\(\)/);assert.match(hook,/URL\.revokeObjectURL\(url\)/);
@@ -104,7 +112,7 @@ test("no photo leaves the story or is covered by another photo, including mixed 
   c.drawImage=(_s,_sx,_sy,_sw,_sh,x,y,w,h)=>{
    const points=[[x,y],[x+w,y],[x,y+h],[x+w,y+h]].map(([px,py])=>[m[0]*px+m[2]*py+m[4],m[1]*px+m[3]*py+m[5]]);
    const rect={left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))};
-   assert(rect.left>=0&&rect.right<=1080&&rect.top>=0&&rect.bottom<=1920,`layout ${index} clips a photo`);bounds.push(rect);
+   assert(rect.left>=0&&rect.right<=1080&&rect.top>=0&&rect.bottom<=POSTER_CONTENT_BOTTOM,`layout ${index} clips a photo or enters the sticker area`);bounds.push(rect);
   };
   drawPoster(c,{title:"weekend",address:"me.striiip.com",palette:["#FFAA00","#123456"],words:[],photos},index);
   for(let i=0;i<bounds.length;i++)for(let j=i+1;j<bounds.length;j++){
@@ -122,12 +130,59 @@ test("all titles stay small and long titles fit without losing any words",()=>{
   }
  }
 });
+test("every template reserves a full-size sticker plus breathing room above Story controls",()=>{
+ const area=LINK_STICKER_AREA,target=LINK_STICKER_TARGET;
+ assert(area.width>=840&&area.height>=280);
+ assert(target.width>=760&&target.height>=160);
+ assert(POSTER_CONTENT_BOTTOM+40<=area.y);
+ const cx=target.x+target.width/2,cy=target.y+target.height/2;
+ assert.equal(cx,540);
+ // Screenshot-sized, wide, and enlarged link stickers must all fit comfortably.
+ for(const [width,height] of [[674,120],[760,160],[840,240]]){
+  assert(cx-width/2>=area.x&&cx+width/2<=area.x+area.width);
+  assert(cy-height/2>=area.y&&cy+height/2<=area.y+area.height);
+  assert(cy+height/2<=1800);
+ }
+});
+test("long titles stay above the link area and the complete hint hides behind a screenshot-size sticker",()=>{
+ for(let index=0;index<10;index++)for(const title of ["","x".repeat(80),"A weekend of very good friends and summer swims that we will always remember"]){
+  const {c}=context(),stack=[];let m=[1,0,0,1,0,0],path=[];
+  const hint={left:203,right:877,top:1610,bottom:1730};let drawingHint=false;
+  const points=(values)=>values.map(([x,y])=>[m[0]*x+m[2]*y+m[4],m[1]*x+m[3]*y+m[5]]);
+  const check=(ps,kind)=>{
+   const xs=ps.map(p=>p[0]),ys=ps.map(p=>p[1]);
+   if(drawingHint){
+    assert(Math.min(...xs)>=hint.left&&Math.max(...xs)<=hint.right,`${index} ${kind} escapes sticker width`);
+    assert(Math.min(...ys)>=hint.top&&Math.max(...ys)<=hint.bottom,`${index} ${kind} escapes sticker height`);
+   }else if(kind==="title")assert(Math.max(...ys)<=POSTER_CONTENT_BOTTOM,`layout ${index} title enters sticker area`);
+  };
+  c.save=()=>stack.push({m:[...m],font:c.font,align:c.textAlign,baseline:c.textBaseline});
+  c.restore=()=>{const state=stack.pop();m=state.m;c.font=state.font;c.textAlign=state.align;c.textBaseline=state.baseline;};
+  c.setTransform=(...v)=>{m=v;};
+  c.translate=(x,y)=>{if(y===1616)drawingHint=true;m[4]+=m[0]*x+m[2]*y;m[5]+=m[1]*x+m[3]*y;};
+  c.scale=(x,y)=>{m[0]*=x;m[1]*=x;m[2]*=y;m[3]*=y;};
+  c.rotate=r=>{const [a,b,d,e]=m,cos=Math.cos(r),sin=Math.sin(r);m[0]=a*cos+d*sin;m[1]=b*cos+e*sin;m[2]=-a*sin+d*cos;m[3]=-b*sin+e*cos;};
+  c.beginPath=()=>{path=[];};
+  c.moveTo=c.lineTo=(x,y)=>path.push(...points([[x,y]]));
+  c.bezierCurveTo=(a,b,d,e,x,y)=>path.push(...points([[a,b],[d,e],[x,y]]));
+  c.arc=(x,y,r)=>path.push(...points([[x-r,y-r],[x+r,y+r]]));
+  c.fill=c.stroke=()=>{if(drawingHint)check(path,"icon");};
+  c.fillText=(text,x,y,maxWidth)=>{
+   const size=Number(c.font.match(/([\d.]+)px/)[1]);
+   const w=Math.min(c.measureText(text).width,maxWidth),left=x-(c.textAlign==="center"?w/2:0);
+   const top=y-(c.textBaseline==="alphabetic"?size:0);
+   check(points([[left,top],[left+w,top],[left,top+size],[left+w,top+size]]),drawingHint?"instruction":"title");
+  };
+  drawPoster(c,{title,address:"antonio.striiip.com",palette:["#3155FF","#F0EDE6"],photos:[]},index,true);
+  assert(drawingHint);assert.equal(stack.length,0);
+ }
+});
 test("untitled strips keep only the footer link and ten distinct compositions",()=>{
  for(const photos of [[],[{source:{},width:1600,height:900}]]){
   const signatures=[];
   for(let index=0;index<10;index++){
    const {c,commands}=context();drawPoster(c,{title:'  ',address:'hello.striiip.com',words:['Do not use block copy'],palette:['#000000'],photos},index);
-   assert.deepEqual(commands.filter(c=>c[0]==='fillText'),[['fillText','hello.striiip.com',540,1740,880]]);signatures.push(JSON.stringify(commands));
+   assert.deepEqual(commands.filter(c=>c[0]==='fillText'),[['fillText','hello.striiip.com',540,1658,680]]);signatures.push(JSON.stringify(commands));
   }
   assert.equal(new Set(signatures).size,10);
  }

@@ -54,6 +54,7 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
+import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { beginStoryShare } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
@@ -7443,6 +7444,7 @@ export default function Home() {
   if (view === "share" && openedPublishedStrip) {
     return (
       <>
+        <link rel="preload" as="image" href="/apple-messages.jpg" />
         {legacyTransitionLayer}
         <main className="app-shell share-mode" inert={storyShareSheetOpen}>
           <div
@@ -7499,7 +7501,18 @@ export default function Home() {
         </main>
         {storyShareSheetOpen ? createPortal(
           <div className="story-share-backdrop" role="status" aria-live="polite">
-            <p className="story-share-hint">Save image below for Instagram</p>
+            <div className="story-share-hint">
+              <div className="story-share-option">
+                <StoryShareSaveIcon />
+                <p>Save to post</p>
+              </div>
+              <span className="story-share-or">or</span>
+              <div className="story-share-option">
+                {/* Official Apple Messages artwork: apps.apple.com/app/id1146560473. */}
+                <img className="story-share-messages-icon" src="/apple-messages.jpg" width="56" height="56" alt="" />
+                <p>Send to friends</p>
+              </div>
+            </div>
           </div>,
           document.body,
         ) : null}

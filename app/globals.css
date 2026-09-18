@@ -2542,17 +2542,27 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   position: absolute;
   /* Native sheets expose no bounds to the page. Keep the hint in the upper
      area visible above the usual iPhone sheet, not behind its controls. */
-  top: max(calc(env(safe-area-inset-top) + 24px), calc(30svh - 32px));
+  top: max(calc(env(safe-area-inset-top) + 24px), calc(30svh - 94px));
   left: 24px;
   right: 24px;
   margin: 0;
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
   text-align: center;
-  text-wrap: balance;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
 }
+
+.story-share-option { display: grid; justify-items: center; gap: 10px; }
+.story-share-hint p { margin: 0; white-space: nowrap; }
+.story-share-or { opacity: 0.65; font-weight: 400; }
+.story-share-save-icon,
+.story-share-messages-icon { display: block; width: 56px; height: 56px; }
+.story-share-messages-icon { border-radius: 22.5%; }
 
 .poster-picker {
   position: relative;

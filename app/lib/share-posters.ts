@@ -1,5 +1,10 @@
 export const STORY_WIDTH = 1080;
 export const STORY_HEIGHT = 1920;
+// A real Instagram link sticker is much larger than a line of footer text.
+// All layouts reserve this clear area, with extra room around the sticker itself.
+export const POSTER_CONTENT_BOTTOM = 1480;
+export const LINK_STICKER_AREA = { x: 112, y: 1520, width: 856, height: 300 } as const;
+export const LINK_STICKER_TARGET = { x: 160, y: 1590, width: 760, height: 160 } as const;
 export const POSTER_DESIGNS = [
   { id: "loud", name: "Cover story" },
   { id: "contact", name: "Contact sheet" },
@@ -59,6 +64,7 @@ export function posterSwipeTarget(index: number, progress: number) {
 }
 
 const SANS = '"Arial", "Helvetica Neue", sans-serif';
+const LINK_STICKER_FONT = '"Helvetica Neue", Arial, sans-serif';
 
 /** Authored colors become surfaces, with warm paper replacing black backgrounds. */
 export function posterBackgrounds(colors: string[]) {
@@ -82,9 +88,13 @@ export function fitPosterPhoto(width: number, height: number, boxWidth: number, 
 
 /** Instagram's sticker menu and Link sticker, redrawn as crisp canvas vectors. */
 export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
+  // Keep both icons and the instruction inside a normal-size sticker's footprint,
+  // so placing the real sticker here covers the entire hint.
+  c.save();
+  c.translate(0, LINK_STICKER_TARGET.y + (LINK_STICKER_TARGET.height - 108) / 2);
   c.save();
   // Match the reference's charcoal circle, smiling face, and turned-up corner.
-  c.translate(415.5, 1734);
+  c.translate(415.5, 0);
   c.scale(.5, .5);
   c.fillStyle = "#38362F";
   c.beginPath(); c.arc(64, 64, 64, 0, Math.PI * 2); c.fill();
@@ -109,11 +119,11 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
   // Read as a small instruction sequence, not another interactive control.
   c.save(); c.strokeStyle = ink; c.lineWidth = 2;
   c.lineCap = "round"; c.lineJoin = "round";
-  c.beginPath(); c.moveTo(497.5, 1766); c.lineTo(517.5, 1766);
-  c.moveTo(511.5, 1760); c.lineTo(517.5, 1766); c.lineTo(511.5, 1772); c.stroke();
+  c.beginPath(); c.moveTo(497.5, 32); c.lineTo(517.5, 32);
+  c.moveTo(511.5, 26); c.lineTo(517.5, 32); c.lineTo(511.5, 38); c.stroke();
   c.restore();
 
-  c.save(); c.translate(535.5, 1738); c.scale(56 / 106, 56 / 106);
+  c.save(); c.translate(535.5, 4); c.scale(56 / 106, 56 / 106);
   // Preserve the rounded white badge and blue diagonal chain from the reference.
   c.fillStyle = "#FFFFFF"; c.beginPath();
   c.moveTo(34, 0); c.lineTo(210, 0);
@@ -130,14 +140,15 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
   c.bezierCurveTo(34, 59, 34, 68, 40, 73);
   c.bezierCurveTo(46, 79, 54, 77, 60, 71); c.lineTo(65, 66); c.stroke();
   c.beginPath(); c.moveTo(49, 62); c.lineTo(66, 45); c.stroke();
-  c.fillStyle = "#080A0B"; c.font = '400 56px "Helvetica Neue", Arial, sans-serif';
+  c.fillStyle = "#080A0B"; c.font = `400 56px ${LINK_STICKER_FONT}`;
   c.textAlign = "left"; c.textBaseline = "alphabetic";
   c.fillText("Link", 102, 74, 120);
   c.restore();
 
-  c.fillStyle = ink; c.font = '400 24px "Courier New", monospace';
+  c.fillStyle = ink; c.font = `400 24px ${LINK_STICKER_FONT}`;
   c.textAlign = "center"; c.textBaseline = "top";
-  c.fillText("Paste your link sticker here", 540, 1818, 880);
+  c.fillText("Paste your link sticker here", 540, 84, LINK_STICKER_TARGET.width - 80);
+  c.restore();
 }
 
 /** Every layout uses the same full-image renderer for preview and 1080×1920 export. */
@@ -195,75 +206,75 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   fill(accent);
   switch (index) {
     case 0: { // Full cover above a low color plinth.
-      fill(second, 0, 1610, 1080, 310);
-      const image = photo(0, 100, title ? 465 : 385, 880, title ? 1030 : 1170);
+      fill(second, 0, 1500, 1080, 420);
+      const image = photo(0, 100, title ? 465 : 385, 880, title ? 930 : 1030);
       drawTitle(100, image.y - 172, 880, 140, ink, "center");
       break;
     }
     case 1: { // A contact sheet with an authored-color edge instead of black.
-      fill(second); fill(accent, 0, 0, 32, 1920); fill(accent, 88, 1650, 904, 28);
+      fill(second); fill(accent, 0, 0, 32, 1920); fill(accent, 88, 1450, 904, 24);
       drawTitle(88, 240, 904, 140, posterInk(second));
       const n = Math.min(count, 6), columns = n === 1 ? 1 : 2, rows = Math.ceil(n / columns);
       const gap = 40, cellWidth = (904 - gap * (columns - 1)) / columns;
-      const start = title ? 480 : 340, cellHeight = ((title ? 1100 : 1240) - gap * (rows - 1)) / rows;
+      const start = title ? 480 : 340, cellHeight = ((title ? 920 : 1060) - gap * (rows - 1)) / rows;
       for (let i = 0; i < n; i++) photo(i, 88 + (i % columns) * (cellWidth + gap), start + Math.floor(i / columns) * (cellHeight + gap), cellWidth, cellHeight);
       break;
     }
     case 2: { // A colored spine and a complete image beside it.
-      fill(second, 0, 0, 180, 1920);
-      photo(0, 220, 365, 768, 1200);
-      c.save(); c.translate(70, 1510); c.rotate(-Math.PI / 2);
+      fill(second, 0, 0, 180, POSTER_CONTENT_BOTTOM);
+      photo(0, 220, 365, 768, 1060);
+      c.save(); c.translate(70, 1450); c.rotate(-Math.PI / 2);
       drawTitle(0, 0, 1100, 70, posterInk(second), "center"); c.restore();
       break;
     }
     case 3: { // An off-center color plate, with the title in the upper margin.
-      const top = title ? 470 : 350, height = title ? 1080 : 1200;
+      const top = title ? 430 : 330, height = title ? 960 : 1060;
       fill(second, 184, top - 60, 896, height + 120);
       drawTitle(88, 245, 904, 140);
       photo(0, 244, top, 748, height);
-      fill(third, 88, 1640, 128, 32);
+      fill(third, 88, 1450, 128, 24);
       break;
     }
     case 4: { // A long paper insert. No receipt copy or numbering.
-      fill(second, 150, 220, 780, 1430);
+      fill(second, 150, 220, 780, 1260);
       drawTitle(212, 258, 656, 132, posterInk(second));
       const n = Math.min(count, 3), start = title ? 430 : 300;
-      const height = ((title ? 1100 : 1230) - (n - 1) * 32) / n;
+      const height = ((title ? 980 : 1110) - (n - 1) * 32) / n;
       for (let i = 0; i < n; i++) photo(i, 212, start + i * (height + 32), 656, height);
       break;
     }
     case 5: { // A diptych across a second-color band.
-      fill(second, 0, 470, 1080, 1060);
+      fill(second, 0, 440, 1080, 1020);
       drawTitle(110, 290, 860, 140, ink, "center");
       const n = Math.min(count, 2), w = n === 1 ? 860 : 410;
-      for (let i = 0; i < n; i++) photo(i, 110 + i * 450, title ? 545 : 440, w, title ? 920 : 1120);
+      for (let i = 0; i < n; i++) photo(i, 110 + i * 450, title ? 500 : 380, w, title ? 900 : 1040);
       break;
     }
     case 6: { // Loose placement, with color tabs behind the fully visible photos.
-      fill(second); fill(accent, 0, title ? 398 : 270, 310, 50); fill(accent, 710, 1640, 370, 50);
+      fill(second); fill(accent, 0, title ? 398 : 270, 310, 50); fill(accent, 710, 1440, 370, 32);
       drawTitle(88, 245, 904, 140, posterInk(second));
-      const n = Math.min(count, 3), start = title ? 465 : 340;
-      const slotHeight = ((title ? 1120 : 1245) - (n - 1) * 44) / n;
+      const n = Math.min(count, 3), start = title ? 450 : 340;
+      const slotHeight = ((title ? 960 : 1070) - (n - 1) * 44) / n;
       for (let i = 0; i < n; i++) photo(i, i % 2 ? 230 : 88, start + i * (slotHeight + 44), 760, slotHeight, i % 2 ? 5 : -5);
       break;
     }
     case 7: { // An image above a solid caption band, or a wordless color base.
-      fill(second, 0, 1460, 1080, 460);
-      photo(0, 100, title ? 350 : 310, 880, title ? 1040 : 1140);
-      drawTitle(100, 1510, 880, 170, posterInk(second));
+      fill(second, 0, title ? 1320 : 1460, 1080, title ? 600 : 460);
+      photo(0, 100, title ? 330 : 310, 880, title ? 920 : 1110);
+      drawTitle(100, 1330, 880, 130, posterInk(second));
       break;
     }
     case 8: { // A flat two-color mat, never a full-bleed crop.
-      fill(second, 54, 160, 972, 1620);
+      fill(second, 54, 160, 972, 1760);
       drawTitle(130, 235, 820, 138, posterInk(second));
-      photo(0, 130, title ? 420 : 290, 820, title ? 1170 : 1330);
-      fill(third, 130, 1680, 820, 22);
+      photo(0, 130, title ? 420 : 290, 820, title ? 990 : 1120);
+      fill(third, 130, 1450, 820, 22);
       break;
     }
     default: { // Colored rails and a small swatch row surround the intact cover.
       fill(second, 0, 0, 62, 1920); fill(second, 1018, 0, 62, 1920);
       drawTitle(145, 270, 790, 140, ink, "center");
-      const image = photo(0, 145, title ? 490 : 410, 790, title ? 960 : 1100);
+      const image = photo(0, 145, title ? 490 : 410, 790, title ? 900 : 980);
       for (let i = 0; i < palette.length; i++) fill(palette[i], 360 + i * 120, image.y + image.height + 54, 120, 24);
     }
   }
@@ -272,6 +283,6 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   c.font = '400 24px "Courier New", monospace';
   c.textAlign = "center"; c.textBaseline = "top";
   if (saved) drawLinkStickerHint(c, c.fillStyle);
-  else c.fillText(assets.address || "striiip.com", 540, 1740, 880);
+  else c.fillText(assets.address || "striiip.com", 540, LINK_STICKER_TARGET.y + (LINK_STICKER_TARGET.height - 24) / 2, LINK_STICKER_TARGET.width - 80);
   c.restore();
 }
