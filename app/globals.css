@@ -1571,13 +1571,22 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   flex: 0 0 auto;
 }
 
+.editor-mode .strip-canvas.has-ending-card > .strip-ending-card {
+  /* Use spare canvas space before the ending, not inside it. Once blocks
+     reach this edge, the ending follows them in normal document flow. */
+  margin-top: auto;
+}
+
 .editor-mode .strip-canvas {
+  --editor-canvas-min-height: 100dvh;
+  min-height: var(--editor-canvas-min-height);
   padding-bottom: calc(148px + env(safe-area-inset-bottom));
   background: var(--black);
   touch-action: pan-y;
 }
 
 .editor-mode.is-inline-preview .strip-canvas {
+  --editor-canvas-min-height: 100lvh;
   min-height: 100lvh;
   padding-bottom: 0;
 }
@@ -1608,6 +1617,11 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
 
 .editor-mode.is-typing .strip-canvas,
 .keyboard-settling .editor-mode .strip-canvas {
+  /* Extra keyboard scroll room is below the ending. It must not consume
+     the flex space that keeps a short Strip's ending at the viewport floor. */
+  --editor-canvas-min-height: calc(
+    200dvh + var(--keyboard-inset, 0px) + 32px - 148px
+  );
   padding-bottom: calc(
     100dvh + var(--keyboard-inset, 0px) + env(safe-area-inset-bottom) + 32px
   );
@@ -2044,7 +2058,8 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .empty-strip {
   display: grid;
   width: 100%;
-  min-height: 100dvh;
+  min-height: 0;
+  flex: 1 0 auto;
   place-content: center;
   padding: 32px 20px;
   background: var(--black);

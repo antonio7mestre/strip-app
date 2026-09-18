@@ -6307,7 +6307,11 @@ export default function Home() {
       showsEndingCard &&
       (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
     const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
-    const canvasMinHeight = stickerFloor > 0 ? `${stickerFloor}px` : undefined;
+    const canvasMinHeight = stickerFloor > 0
+      ? showsEndingCard
+        ? `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`
+        : `${stickerFloor}px`
+      : undefined;
     const canvasStyle = {
       ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
       ...(showsEndingCard
