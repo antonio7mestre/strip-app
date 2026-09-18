@@ -1,7 +1,7 @@
 export const STORY_WIDTH = 1080;
 export const STORY_HEIGHT = 1920;
 export const POSTER_DESIGNS = [
-  { id: "loud", name: "i stripped" },
+  { id: "loud", name: "Cover story" },
   { id: "contact", name: "Contact sheet" },
   { id: "sideways", name: "Side note" },
   { id: "billboard", name: "Off center" },
@@ -20,7 +20,7 @@ export type PosterStrip = {
   endingStyle?: { backgroundColor?: string; buttonColor?: string };
 };
 export type PosterPhoto = { source: CanvasImageSource; width: number; height: number };
-export type PosterAssets = { title: string; address: string; palette: string[]; photos: PosterPhoto[]; words: string[] };
+export type PosterAssets = { title: string; address: string; palette: string[]; photos: PosterPhoto[] };
 
 export function posterColor(value?: string) {
   if (!value) return null;
@@ -59,7 +59,18 @@ export function posterSwipeTarget(index: number, progress: number) {
 }
 
 const SANS = '"Arial", "Helvetica Neue", sans-serif';
-const MONO = '"Courier New", monospace';
+
+/** Authored colors become surfaces, with warm paper replacing black backgrounds. */
+export function posterBackgrounds(colors: string[]) {
+  const safe = colors.map(posterColor).filter((c): c is string => !!c).map(color => {
+    const channels = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
+    return Math.max(...channels) < 32 ? "#F0EDE6" : color;
+  });
+  const unique = [...new Set(safe)];
+  const accent = unique[0] || "#F0EDE6";
+  const second = unique[1] || (accent === "#F0EDE6" ? "#D5D0C6" : "#F0EDE6");
+  return [accent, second, unique[2] || accent];
+}
 
 /** Fit the entire image, including its rotated corners, inside its allotted space. */
 export function fitPosterPhoto(width: number, height: number, boxWidth: number, boxHeight: number, rotation = 0) {
@@ -71,31 +82,37 @@ export function fitPosterPhoto(width: number, height: number, boxWidth: number, 
 
 /** Every layout uses the same full-image renderer for preview and 1080×1920 export. */
 export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, index: number) {
-  const { photos, title, address, words } = assets;
-  const palette = assets.palette.length ? assets.palette : ["#3155FF"];
-  const accent = palette[0], ink = posterInk(accent);
-  const second = palette.find(color => color !== accent) || (ink === "#000000" ? "#FFFFFF" : "#000000");
+  const { photos } = assets;
+  const title = (assets.title || "").trim();
+  const palette = posterBackgrounds(assets.palette);
+  const [accent, second, third] = palette, ink = posterInk(accent);
   const count = Math.max(1, photos.length);
   const fill = (color: string, x = 0, y = 0, w = STORY_WIDTH, h = STORY_HEIGHT) => {
     c.fillStyle = color; c.fillRect(x, y, w, h);
   };
-  const text = (value: string, x: number, y: number, size: number, color: string, align: CanvasTextAlign = "left", mono = false, maxWidth = 900) => {
-    c.fillStyle = color; c.textAlign = align; c.textBaseline = "top";
-    c.font = `${mono ? 400 : 500} ${size}px ${mono ? MONO : SANS}`;
-    c.fillText(value, x, y, maxWidth);
-  };
-  const caption = (value: string, x: number, y: number, width: number, color: string, size = 38, maxLines = 3) => {
-    c.font = `500 ${size}px ${SANS}`;
-    const output: string[] = []; let line = "";
-    for (const word of value.trim().split(/\s+/)) {
-      const next = line ? `${line} ${word}` : word;
-      if (line && c.measureText(next).width > width) { output.push(line); line = word; } else line = next;
+  const drawTitle = (x: number, y: number, width: number, height: number, color = ink, align: CanvasTextAlign = "left") => {
+    if (!title) return;
+    let size = 48, lines: string[] = [];
+    for (; size >= 18; size -= 2) {
+      c.font = `500 ${size}px ${SANS}`;
+      lines = []; let line = "";
+      for (const word of title.split(/\s+/)) {
+        const next = line ? `${line} ${word}` : word;
+        if (c.measureText(next).width <= width) { line = next; continue; }
+        if (line) { lines.push(line); line = ""; }
+        // A long unbroken title must fit too, without cropping or ellipses.
+        for (const letter of word) {
+          if (line && c.measureText(line + letter).width > width) { lines.push(line); line = ""; }
+          line += letter;
+        }
+      }
+      if (line) lines.push(line);
+      if (lines.length * size * 1.2 <= height) break;
     }
-    if (line) output.push(line);
-    output.slice(0, maxLines).forEach((value, i) => {
-      const truncated = i === maxLines - 1 && output.length > maxLines ? `${value}…` : value;
-      text(truncated, x, y + i * size * 1.2, size, color, "left", false, width);
-    });
+    c.fillStyle = color; c.textAlign = align; c.textBaseline = "top";
+    const left = align === "center" ? x + width / 2 : x;
+    const top = y + (height - lines.length * size * 1.2) / 2;
+    lines.forEach((line, i) => c.fillText(line, left, top + i * size * 1.2, width));
   };
   const photo = (i: number, x: number, y: number, w: number, h: number, rotation = 0) => {
     const p = photos.length ? photos[i % photos.length] : null;
@@ -106,86 +123,94 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
       // Full source rectangle, always. No crop, stretching, masks, or images over images.
       c.drawImage(p.source, 0, 0, p.width, p.height, -dimensions.width / 2, -dimensions.height / 2, dimensions.width, dimensions.height);
     } else {
-      const color = palette[i % palette.length];
-      fill(color, -dimensions.width / 2, -dimensions.height / 2, dimensions.width, dimensions.height);
-      caption(words[i % words.length] || title, -dimensions.width * .4, -dimensions.height * .32, dimensions.width * .8, posterInk(color), Math.min(44, dimensions.width / 12), 4);
+      // Image-free strips become color compositions, never invented text.
+      fill(palette[i % palette.length], -dimensions.width / 2, -dimensions.height / 2, dimensions.width, dimensions.height);
+      fill(palette[(i + 1) % palette.length], -dimensions.width / 2, dimensions.height * .2, dimensions.width, dimensions.height * .3);
     }
     c.restore();
     return bounds;
   };
-  const heading = (color = ink, x = 88, y = 280, align: CanvasTextAlign = "left") => text("i stripped", x, y, 48, color, align);
-  const footer = (color = ink, y = 1740) => text(address, 540, y, 24, color, "center", true, 880);
 
   c.save(); c.setTransform(c.canvas.width / STORY_WIDTH, 0, 0, c.canvas.height / STORY_HEIGHT, 0, 0);
   fill(accent);
   switch (index) {
-    case 0: { // A full cover, a small line, and generous space. Nothing else.
-      const image = photo(0, 100, 465, 880, 1030);
-      heading(ink, 540, image.y - 100, "center");
-      footer();
+    case 0: { // Full cover above a low color plinth.
+      fill(second, 0, 1610, 1080, 310);
+      const image = photo(0, 100, title ? 465 : 385, 880, title ? 1030 : 1170);
+      drawTitle(100, image.y - 172, 880, 140, ink, "center");
       break;
     }
-    case 1: { // Actual aspect ratios float in a quiet contact sheet.
-      fill("#000000"); heading("#FFFFFF");
+    case 1: { // A contact sheet with an authored-color edge instead of black.
+      fill(second); fill(accent, 0, 0, 32, 1920); fill(accent, 88, 1650, 904, 28);
+      drawTitle(88, 240, 904, 140, posterInk(second));
       const n = Math.min(count, 6), columns = n === 1 ? 1 : 2, rows = Math.ceil(n / columns);
-      const gap = 40, cellWidth = (904 - gap * (columns - 1)) / columns, cellHeight = (1100 - gap * (rows - 1)) / rows;
-      for (let i = 0; i < n; i++) {
-        const x = 88 + (i % columns) * (cellWidth + gap), y = 480 + Math.floor(i / columns) * (cellHeight + gap);
-        const image = photo(i, x, y, cellWidth, cellHeight - 40);
-        text(String(i + 1).padStart(2, "0"), x, image.y + image.height + 14, 20, "#FFFFFF", "left", true);
-      }
-      footer("#FFFFFF"); break;
+      const gap = 40, cellWidth = (904 - gap * (columns - 1)) / columns;
+      const start = title ? 480 : 340, cellHeight = ((title ? 1100 : 1240) - gap * (rows - 1)) / rows;
+      for (let i = 0; i < n; i++) photo(i, 88 + (i % columns) * (cellWidth + gap), start + Math.floor(i / columns) * (cellHeight + gap), cellWidth, cellHeight);
+      break;
     }
-    case 2: { // A tiny rotated note sits beside, never across, the image.
+    case 2: { // A colored spine and a complete image beside it.
+      fill(second, 0, 0, 180, 1920);
       photo(0, 220, 365, 768, 1200);
-      c.save(); c.translate(105, 1220); c.rotate(-Math.PI / 2);
-      text("i stripped", 0, 0, 44, ink); c.restore();
-      footer(); break;
+      c.save(); c.translate(70, 1510); c.rotate(-Math.PI / 2);
+      drawTitle(0, 0, 1100, 70, posterInk(second), "center"); c.restore();
+      break;
     }
-    case 3: { // Asymmetric placement, without cutting off the photo or its corners.
-      heading();
-      photo(0, 244, 470, 748, 1080);
-      fill(second, 88, 1486, 64, 64);
-      footer(); break;
+    case 3: { // An off-center color plate, with the title in the upper margin.
+      const top = title ? 470 : 350, height = title ? 1080 : 1200;
+      fill(second, 184, top - 60, 896, height + 120);
+      drawTitle(88, 245, 904, 140);
+      photo(0, 244, top, 748, height);
+      fill(third, 88, 1640, 128, 32);
+      break;
     }
-    case 4: { // A paper receipt. Each slot fits its complete photo.
-      const paperInk = posterInk(second);
-      fill(second, 150, 220, 780, 1430); heading(paperInk, 212, 280);
-      const n = Math.min(count, 3), height = (1040 - (n - 1) * 32) / n;
-      for (let i = 0; i < n; i++) photo(i, 212, 420 + i * (height + 32), 656, height);
-      text(String(n).padStart(2, "0") + " good moments", 212, 1555, 24, paperInk, "left", true, 656);
-      footer(); break;
+    case 4: { // A long paper insert. No receipt copy or numbering.
+      fill(second, 150, 220, 780, 1430);
+      drawTitle(212, 258, 656, 132, posterInk(second));
+      const n = Math.min(count, 3), start = title ? 430 : 300;
+      const height = ((title ? 1100 : 1230) - (n - 1) * 32) / n;
+      for (let i = 0; i < n; i++) photo(i, 212, start + i * (height + 32), 656, height);
+      break;
     }
-    case 5: { // A diptych, sized to the photos rather than filling the page.
-      heading(ink, 540, 330, "center");
+    case 5: { // A diptych across a second-color band.
+      fill(second, 0, 470, 1080, 1060);
+      drawTitle(110, 290, 860, 140, ink, "center");
       const n = Math.min(count, 2), w = n === 1 ? 860 : 410;
-      for (let i = 0; i < n; i++) photo(i, 110 + i * 450, 545, w, 920);
-      footer(); break;
+      for (let i = 0; i < n; i++) photo(i, 110 + i * 450, title ? 545 : 440, w, title ? 920 : 1120);
+      break;
     }
-    case 6: { // Loose placement with fully contained rotations and no overlap.
-      fill(second); const color = posterInk(second); heading(color);
-      const n = Math.min(count, 3), slotHeight = (1120 - (n - 1) * 44) / n;
-      for (let i = 0; i < n; i++) photo(i, i % 2 ? 230 : 88, 465 + i * (slotHeight + 44), 760, slotHeight, i % 2 ? 5 : -5);
-      footer(color); break;
+    case 6: { // Loose placement, with color tabs behind the fully visible photos.
+      fill(second); fill(accent, 0, title ? 398 : 270, 310, 50); fill(accent, 710, 1640, 370, 50);
+      drawTitle(88, 245, 904, 140, posterInk(second));
+      const n = Math.min(count, 3), start = title ? 465 : 340;
+      const slotHeight = ((title ? 1120 : 1245) - (n - 1) * 44) / n;
+      for (let i = 0; i < n; i++) photo(i, i % 2 ? 230 : 88, start + i * (slotHeight + 44), 760, slotHeight, i % 2 ? 5 : -5);
+      break;
     }
-    case 7: { // A complete image and a short note from this actual strip.
-      heading(); photo(0, 100, 445, 880, 935);
-      caption(words[0] || title, 100, 1480, 880, ink, 38, 3);
-      footer(ink, 1770); break;
+    case 7: { // An image above a solid caption band, or a wordless color base.
+      fill(second, 0, 1460, 1080, 460);
+      photo(0, 100, title ? 350 : 310, 880, title ? 1040 : 1140);
+      drawTitle(100, 1510, 880, 170, posterInk(second));
+      break;
     }
-    case 8: { // A flat color mat, not a full-bleed image crop.
+    case 8: { // A flat two-color mat, never a full-bleed crop.
       fill(second, 54, 160, 972, 1620);
-      const color = posterInk(second); heading(color, 130, 270);
-      photo(0, 130, 420, 820, 1170);
-      footer(color, 1680); break;
+      drawTitle(130, 235, 820, 138, posterInk(second));
+      photo(0, 130, title ? 420 : 290, 820, title ? 1170 : 1330);
+      fill(third, 130, 1680, 820, 22);
+      break;
     }
-    default: { // One intact cover and a small swatch strip made of its authored colors.
-      heading(ink, 540, 310, "center");
-      const image = photo(0, 145, 490, 790, 960);
-      const swatches = palette.slice(0, 4), w = 224 / swatches.length;
-      for (let i = 0; i < swatches.length; i++) fill(swatches[i], 428 + i * w, image.y + image.height + 54, w, 20);
-      footer();
+    default: { // Colored rails and a small swatch row surround the intact cover.
+      fill(second, 0, 0, 62, 1920); fill(second, 1018, 0, 62, 1920);
+      drawTitle(145, 270, 790, 140, ink, "center");
+      const image = photo(0, 145, title ? 490 : 410, 790, title ? 960 : 1100);
+      for (let i = 0; i < palette.length; i++) fill(palette[i], 360 + i * 120, image.y + image.height + 54, 120, 24);
     }
   }
+  // Keep the creator link in its established footer spot, even without a title.
+  c.fillStyle = posterInk([0, 1, 6, 7, 8].includes(index) ? second : accent);
+  c.font = '400 24px "Courier New", monospace';
+  c.textAlign = "center"; c.textBaseline = "top";
+  c.fillText(assets.address || "striiip.com", 540, 1740, 880);
   c.restore();
 }

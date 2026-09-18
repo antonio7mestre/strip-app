@@ -54,10 +54,9 @@ export async function preparePosterAssets(strip: PosterStrip, signal: AbortSigna
   }
   sample.width = 0; sample.height = 0;
   return {
-    title: strip.title.trim() || "A little bit of me",
+    title: (strip.title || "").trim(),
     address: strip.username ? `${strip.username}.striiip.com` : "striiip.com",
     photos: unique, palette: posterPalette(strip),
-    words: strip.blocks.filter(b => b.type === "text").flatMap(b => b.content?.trim() ? [b.content.trim().slice(0, 160)] : []),
   };
 }
 

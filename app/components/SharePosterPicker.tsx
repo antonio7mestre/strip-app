@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { POSTER_DESIGNS, posterSwipeProgress, posterSwipeTarget } from "@/app/lib/share-posters";
 
 export function SharePosterPicker({ previews, index, onSelect }: { previews: string[]; index: number; onSelect: (index: number) => void }) {
@@ -60,9 +60,9 @@ export function SharePosterPicker({ previews, index, onSelect }: { previews: str
       const distance = Math.abs(position), near = Math.min(1, distance);
       const scale = 1 - near * .4 - Math.max(0, distance - 1) * .13;
       const offset = Math.sign(position) * (near * (height * .2 + 36) + Math.max(0, distance - 1) * 60);
-      const opacity = distance <= 1 ? 1 - distance * .4 : (2 - distance) * .6;
+      const opacity = distance <= 1 ? 1 - distance * .38 : (2 - distance) * .62;
       return <div key={design.id} id={`poster-design-${i}`} role="option" aria-selected={i === index} aria-label={`${i + 1} of 10: ${design.name}`} data-poster-index={i}
-        className="poster-option" style={{ height, width: height * 9 / 16, opacity, zIndex: Math.round(10 - distance * 3), visibility: distance >= 2 ? "hidden" : "visible", transform: `translate(-50%, calc(-50% + ${offset}px)) scale(${scale})` }}>
+        className="poster-option" style={{ height, width: height * 9 / 16, opacity, "--poster-dim": Math.min(.54, distance * .54), zIndex: Math.round(10 - distance * 3), visibility: distance >= 2 ? "hidden" : "visible", transform: `translate(-50%, calc(-50% + ${offset}px)) scale(${scale})` } as CSSProperties}>
         {previews[i] ? <img src={previews[i]} alt={`${design.name} story poster`} draggable={false} /> : <div className="poster-preparing" aria-busy="true">Preparing…</div>}
       </div>;
     })}

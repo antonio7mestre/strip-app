@@ -7435,7 +7435,6 @@ export default function Home() {
             <SharePosterPicker previews={posters.previews} index={posters.index} onSelect={posters.select} />
 
             <div className="poster-picker-meta">
-              <p className="poster-swipe-hint">Swipe up to find your favorite</p>
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}
             <button
               className="share-link-button"
