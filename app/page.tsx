@@ -56,6 +56,7 @@ import { PreviewDock } from "@/app/components/PreviewDock";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
 import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
+import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { beginStoryShare } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
@@ -7416,7 +7417,7 @@ export default function Home() {
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
         {storyShareSheetOpen ? createPortal(
-          <div className="story-share-backdrop" role="status" aria-live="polite">
+          <StoryShareBackdrop>
             <div className="story-share-hint">
               <div className="story-share-option">
                 <StoryShareSaveIcon />
@@ -7429,7 +7430,7 @@ export default function Home() {
                 <p>Send to friends</p>
               </div>
             </div>
-          </div>,
+          </StoryShareBackdrop>,
           document.body,
         ) : null}
       </>

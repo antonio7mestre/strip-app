@@ -2529,20 +2529,45 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   justify-content: center;
 }
 
-.story-share-backdrop {
-  position: fixed;
+.story-share-boundary {
+  position: absolute;
   z-index: 2147483647;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  contain: layout;
+  overflow: visible;
+}
+
+html:has(.story-share-boundary),
+html:has(.story-share-boundary) body {
+  background: #000 !important;
+  overflow: hidden;
+}
+
+.story-share-backdrop {
+  --entrance-safe-top: env(safe-area-inset-top, 0px);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   min-height: 100lvh;
   background: rgba(0, 0, 0, 0.94);
   touch-action: none;
+}
+
+/* Safari samples the extended fixed dock separately below its content edge.
+   Remove that duplicate white paint while the document overlay owns the glass.
+   The live dock stays mounted and is restored as soon as sharing closes. */
+.share-mode[inert] .share-dock {
+  display: none;
 }
 
 .story-share-hint {
   position: absolute;
   /* Native sheets expose no bounds to the page. Keep the hint in the upper
      area visible above the usual iPhone sheet, not behind its controls. */
-  top: max(calc(env(safe-area-inset-top) + 24px), calc(30svh - 94px));
+  top: calc(var(--story-share-content-top, 0px) + max(env(safe-area-inset-top) + 24px, 30svh - 94px));
   left: 24px;
   right: 24px;
   margin: 0;
@@ -2563,6 +2588,38 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .story-share-save-icon,
 .story-share-messages-icon { display: block; width: 56px; height: 56px; }
 .story-share-messages-icon { border-radius: 22.5%; }
+
+.story-share-save-beacon { display: none; pointer-events: none; }
+
+/* Native controls expose no bounds to the web. These proportions match the
+   supplied iPhone portrait tray: the second round action, not its label.
+   Keep the disc a constant size while pulsing, with no oversized glow. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 600px) and (orientation: portrait) and (pointer: coarse) {
+    .story-share-save-beacon {
+      display: block;
+      position: absolute;
+      z-index: 1;
+      left: 39%;
+      bottom: 104px;
+      width: clamp(60px, 17vw, 76px);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: #304dff;
+      transform: translate(-50%, 50%);
+      animation: story-share-beacon-pulse 1.6s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes story-share-beacon-pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-share-save-beacon { animation: none; opacity: 0.85; }
+}
 
 .poster-picker {
   position: relative;
