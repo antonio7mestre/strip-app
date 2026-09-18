@@ -80,6 +80,66 @@ export function fitPosterPhoto(width: number, height: number, boxWidth: number, 
   return { width: width * scale, height: height * scale };
 }
 
+/** Instagram's sticker menu and Link sticker, redrawn as crisp canvas vectors. */
+export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
+  c.save();
+  // Match the reference's charcoal circle, smiling face, and turned-up corner.
+  c.translate(415.5, 1734);
+  c.scale(.5, .5);
+  c.fillStyle = "#38362F";
+  c.beginPath(); c.arc(64, 64, 64, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = "#FFFDF9"; c.lineWidth = 6;
+  c.lineCap = "round"; c.lineJoin = "round";
+  c.beginPath();
+  c.moveTo(54, 35); c.lineTo(75, 35);
+  c.bezierCurveTo(87, 35, 94, 43, 94, 55);
+  c.lineTo(94, 69); c.lineTo(71, 93); c.lineTo(54, 93);
+  c.bezierCurveTo(42, 93, 35, 86, 35, 74); c.lineTo(35, 55);
+  c.bezierCurveTo(35, 42, 42, 35, 54, 35); c.closePath(); c.stroke();
+  c.beginPath(); c.moveTo(94, 69); c.lineTo(83, 69);
+  c.bezierCurveTo(75, 69, 71, 74, 71, 82); c.lineTo(71, 93); c.stroke();
+  c.beginPath(); c.moveTo(54, 73);
+  c.bezierCurveTo(60, 79, 68, 79, 74, 73); c.stroke();
+  c.fillStyle = "#FFFDF9";
+  for (const x of [54, 74]) {
+    c.beginPath(); c.arc(x, 57, 4, 0, Math.PI * 2); c.fill();
+  }
+  c.restore();
+
+  // Read as a small instruction sequence, not another interactive control.
+  c.save(); c.strokeStyle = ink; c.lineWidth = 2;
+  c.lineCap = "round"; c.lineJoin = "round";
+  c.beginPath(); c.moveTo(497.5, 1766); c.lineTo(517.5, 1766);
+  c.moveTo(511.5, 1760); c.lineTo(517.5, 1766); c.lineTo(511.5, 1772); c.stroke();
+  c.restore();
+
+  c.save(); c.translate(535.5, 1738); c.scale(56 / 106, 56 / 106);
+  // Preserve the rounded white badge and blue diagonal chain from the reference.
+  c.fillStyle = "#FFFFFF"; c.beginPath();
+  c.moveTo(34, 0); c.lineTo(210, 0);
+  c.bezierCurveTo(233, 0, 244, 12, 244, 34); c.lineTo(244, 72);
+  c.bezierCurveTo(244, 95, 232, 106, 210, 106); c.lineTo(34, 106);
+  c.bezierCurveTo(11, 106, 0, 94, 0, 72); c.lineTo(0, 34);
+  c.bezierCurveTo(0, 11, 12, 0, 34, 0); c.closePath(); c.fill();
+  c.strokeStyle = "#00A5EF"; c.lineWidth = 5.5;
+  c.lineCap = "round"; c.lineJoin = "round";
+  c.beginPath(); c.moveTo(55, 38); c.lineTo(60, 33);
+  c.bezierCurveTo(67, 27, 76, 30, 80, 35);
+  c.bezierCurveTo(86, 41, 84, 47, 79, 53); c.lineTo(73, 59); c.stroke();
+  c.beginPath(); c.moveTo(45, 48); c.lineTo(40, 53);
+  c.bezierCurveTo(34, 59, 34, 68, 40, 73);
+  c.bezierCurveTo(46, 79, 54, 77, 60, 71); c.lineTo(65, 66); c.stroke();
+  c.beginPath(); c.moveTo(49, 62); c.lineTo(66, 45); c.stroke();
+  c.fillStyle = "#080A0B"; c.font = '400 56px "Helvetica Neue", Arial, sans-serif';
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  c.fillText("Link", 102, 74, 120);
+  c.restore();
+
+  c.fillStyle = ink; c.font = '400 24px "Courier New", monospace';
+  c.textAlign = "center"; c.textBaseline = "top";
+  c.fillText("Paste your link sticker here", 540, 1818, 880);
+}
+
 /** Every layout uses the same full-image renderer for preview and 1080×1920 export. */
 export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, index: number, saved = false) {
   const { photos } = assets;
@@ -211,6 +271,7 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   c.fillStyle = posterInk([0, 1, 6, 7, 8].includes(index) ? second : accent);
   c.font = '400 24px "Courier New", monospace';
   c.textAlign = "center"; c.textBaseline = "top";
-  c.fillText(saved ? "Paste your link here" : assets.address || "striiip.com", 540, 1740, 880);
+  if (saved) drawLinkStickerHint(c, c.fillStyle);
+  else c.fillText(assets.address || "striiip.com", 540, 1740, 880);
   c.restore();
 }

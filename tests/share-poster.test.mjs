@@ -30,18 +30,22 @@ test("swipe matches cover distance, threshold, and edge resistance",()=>{
 });
 function context(){
  const commands=[],paints=[];let depth=0;const c={canvas:{width:1080,height:1920},measureText:s=>({width:s.length*Number(c.font?.match(/([\d.]+)px/)?.[1]||48)*.52}),save:()=>depth++,restore:()=>depth--};
- for(const name of ['setTransform','fillRect','fillText','drawImage','translate','rotate','beginPath','moveTo','lineTo','closePath','fill','bezierCurveTo','stroke','strokeText'])c[name]=(...args)=>{for(const a of args)if(typeof a==='number')assert(Number.isFinite(a),name);commands.push([name,...args]);};
+ for(const name of ['setTransform','fillRect','fillText','drawImage','translate','scale','rotate','arc','beginPath','moveTo','lineTo','closePath','fill','bezierCurveTo','stroke','strokeText'])c[name]=(...args)=>{for(const a of args)if(typeof a==='number')assert(Number.isFinite(a),name);commands.push([name,...args]);};
  const fill=c.fillRect;c.fillRect=(...args)=>{paints.push({color:c.fillStyle,args});fill(...args);};
  return{c,commands,paints,depth:()=>depth};
 }
-test("saved posters change only the link label, never the preview artwork",()=>{
+test("saved posters add the reference icons and link-sticker instruction without changing previews",()=>{
  for(let index=0;index<10;index++)for(const title of ["", "Summer"]){
   const assets={title,address:"antonio.striiip.com",palette:["#FF0044","#00FFAA"],photos:[{source:{},width:1600,height:900}]};
   const preview=context(),saved=context();
   drawPoster(preview.c,assets,index);drawPoster(saved.c,assets,index,true);
   assert.deepEqual(preview.commands.at(-1),["fillText","antonio.striiip.com",540,1740,880]);
-  assert.deepEqual(saved.commands.at(-1),["fillText","Paste your link here",540,1740,880]);
-  assert.deepEqual(preview.commands.slice(0,-1),saved.commands.slice(0,-1));
+  assert.deepEqual(saved.commands.at(-1),["fillText","Paste your link sticker here",540,1818,880]);
+  assert.deepEqual(preview.commands.slice(0,-1),saved.commands.slice(0,preview.commands.length-1));
+  assert.deepEqual(saved.commands.slice(preview.commands.length-1).filter(c=>c[0]==="fillText").map(c=>c[1]),["Link","Paste your link sticker here"]);
+  assert.equal(saved.commands.filter(c=>c[0]==="arc").length,3);
+  assert.equal(saved.commands.filter(c=>c[0]==="stroke").length,7);
+  assert.equal(saved.depth(),0);
   assert.deepEqual(preview.paints,saved.paints);
  }
  assert.match(hook,/drawPoster\(c, assets, index, !preview\)/);
