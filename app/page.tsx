@@ -62,6 +62,7 @@ import {
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
+import { installEndingContact } from "@/app/lib/ending-contact";
 
 type TextBlock = {
   id: string;
@@ -6714,6 +6715,7 @@ export default function Home() {
         })}
         {showsEndingCard ? (
         <section
+          ref={installEndingContact}
           className={`strip-block strip-ending-card strip-end-sheet ${
             isEditing ? "is-editing" : ""
           } ${isEditing && endingIsSelected ? "is-selected" : ""} ${

@@ -228,7 +228,7 @@ test("the footer suppresses its shadow only for its own selection or the final t
 
 test("text corner fill is confined to the rounded cutouts in editor and live strips", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const rule = css.match(/\.strip-canvas\.has-trailing-text > \.strip-ending-card::after,\s*\.published-strip\.has-trailing-text > \.published-bottom-sheet::after \{([^}]+)\}/)[1];
+  const rule = css.match(/\.strip-canvas\.has-trailing-text > \.strip-ending-card\[data-touches-block\]::after,\s*\.published-strip\.has-trailing-text > \.published-bottom-sheet::after \{([^}]+)\}/)[1];
   assert.match(rule, /inset: 0/);
   assert.match(rule, /clip-path: inset\(0\)/);
   assert.match(rule, /border-radius: inherit/);
