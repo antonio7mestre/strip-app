@@ -6200,7 +6200,19 @@ export default function Home() {
     );
   };
 
-  const handlePreviewEndingAction = () => {
+  const handlePreviewEndingEdit = () => {
+    if (view === "edit" && inlinePreview) {
+      // Consume the preview history entry exactly as Back does, only once.
+      if (inlinePreviewExitLockRef.current) return;
+      setNotice("");
+      toggleInlinePreview();
+    } else if (view === "preview") {
+      setNotice("");
+      changeViewWithDockTransition("edit");
+    }
+  };
+
+  const handlePreviewEndingShare = () => {
     setNotice("Publish to use these buttons.");
   };
 
@@ -6666,8 +6678,8 @@ export default function Home() {
             <StripEndActions
               primaryAction="edit"
               primaryLabel="Edit this Strip"
-              onPrimary={handlePreviewEndingAction}
-              onShare={handlePreviewEndingAction}
+              onPrimary={handlePreviewEndingEdit}
+              onShare={handlePreviewEndingShare}
             />
           </div>
         </section>

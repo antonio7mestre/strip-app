@@ -95,7 +95,8 @@ function renderFixture(blocks, isEditing) {
     renderBlockControls: stub, recordBlockHeight: stub, BlockHeightReporter: stub,
     DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" },
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
-    installEndingContact: stub, StripEndActions: stub, handlePreviewEndingAction: stub,
+    installEndingContact: stub, StripEndActions: stub,
+    handlePreviewEndingEdit: stub, handlePreviewEndingShare: stub,
     MediaEdgeExtension: "media-edge-extension",
   });
   return exports.renderStrip(isEditing);

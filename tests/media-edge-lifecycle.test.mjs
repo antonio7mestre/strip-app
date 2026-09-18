@@ -180,10 +180,10 @@ function evaluate(source, bindings = {}) {
   return exports;
 }
 
-test("preview buttons warn without selecting a removed editor block", () => {
-  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handlePreviewEndingAction");
+test("preview share still warns without selecting a removed editor block", () => {
+  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handlePreviewEndingShare");
   const actions = findNode((node) => ts.isFunctionDeclaration(node) && node.name?.text === "StripEndActions");
-  for (const buttonIndex of [0, 1]) {
+  for (const buttonIndex of [1]) {
     let propagationStops = 0;
     const notices = [];
     const evaluated = evaluate(`export const ${handler.getText(pageTree)};\nexport ${actions.getText(pageTree)}`, {
@@ -192,7 +192,7 @@ test("preview buttons warn without selecting a removed editor block", () => {
     });
     const tree = evaluated.StripEndActions({
       primaryAction: "edit", primaryLabel: "Edit this Strip",
-      onPrimary: evaluated.handlePreviewEndingAction, onShare: evaluated.handlePreviewEndingAction,
+      onPrimary: () => assert.fail("Share must not edit"), onShare: evaluated.handlePreviewEndingShare,
     });
     tree.props.children[buttonIndex].props.onClick({ stopPropagation: () => propagationStops++ });
     assert.equal(propagationStops, 1);
