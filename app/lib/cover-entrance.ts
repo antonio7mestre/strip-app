@@ -3,8 +3,6 @@ export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
-export const COVER_PROGRESS_GAP = 18;
-export const COVER_PERCENT_WIDTH = 40;
 export type CoverOrigin = { left: number; top: number; width: number; height: number };
 export type CoverDockOrigin = CoverOrigin & { markup: string; padding: string; borderRadius: string; cornerShape: string; boxShadow: string };
 
@@ -63,21 +61,14 @@ export function moveCoverDock(host: HTMLElement, dock: HTMLElement, origin: Cove
   return () => { disposed = true; cancelAnimationFrame(frame); };
 }
 
-/** Center the cover and its left-side loading rail as one composition. */
+/** One shared poster width for every shape, with portrait-safe room on short screens. */
 export function coverEntranceLayout(width: number, height: number, offsetTop: number, aspectRatio: number) {
   const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
   const w = Math.max(1, width), h = Math.max(1, height);
   const coverWidth = Math.min(320, w * 0.74, h * 0.42);
   const coverHeight = coverWidth / ratio;
-  // The progress row is rotated clockwise. Its length follows the cover height;
-  // very wide covers retain a readable rail, bottom-aligned with the image.
-  const progressLength = Math.max(176, coverHeight);
-  const progressThickness = Math.max(12,
-    (progressLength - COVER_PERCENT_WIDTH - 14 - 3 * (COVER_PROGRESS_CELLS - 1)) / COVER_PROGRESS_CELLS);
-  const progressSpace = COVER_PROGRESS_GAP + progressThickness;
-  return { left: (w - coverWidth + progressSpace) / 2,
-    top: offsetTop + (h - progressLength) / 2 + progressLength - coverHeight,
-    width: coverWidth, height: coverHeight, progressLength, progressThickness, progressSpace };
+  return { left: (w - coverWidth) / 2, top: offsetTop + (h - coverHeight) / 2,
+    width: coverWidth, height: coverHeight };
 }
 
 export function coverProgressCells(percent: number) {

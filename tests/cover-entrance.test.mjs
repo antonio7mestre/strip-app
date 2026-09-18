@@ -7,8 +7,8 @@ test("portrait, landscape and square covers stay centered, uncropped, with room 
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
     for (const ratio of [0.75, 0.8, 1, 1.5, 5, NaN, 0]) {
       const box = coverEntranceLayout(w, h, offset, ratio);
-      assert.ok(Math.abs(box.left - box.progressSpace + (box.width + box.progressSpace) / 2 - w / 2) < 0.01);
-      assert.ok(Math.abs(box.top + box.height - box.progressLength / 2 - offset - h / 2) < 0.01);
+      assert.ok(Math.abs(box.left + box.width / 2 - w / 2) < 0.01);
+      assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.01);
       assert.ok(box.top >= offset && box.left > 0);
       assert.ok(box.top + box.height + 36 < offset + h);
       assert.ok(box.width <= 320 && box.width < w);
@@ -23,23 +23,9 @@ test("all poster shapes enlarge to the same shared width and retain their propor
       const box = coverEntranceLayout(w, h, offset, ratio);
       assert.equal(box.width, expectedWidth);
       assert.equal(box.height, expectedWidth / ratio);
-      assert.ok(Math.abs(box.left - box.progressSpace + (box.width + box.progressSpace) / 2 - w / 2) < 0.001);
-      assert.ok(Math.abs(box.top + box.height - box.progressLength / 2 - offset - h / 2) < 0.001);
+      assert.equal(box.left + box.width / 2, w / 2);
+      assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.001);
     }
-  }
-});
-
-test("left rail is included in centering and its rotated percentage ends at the cover bottom", () => {
-  for (const ratio of [.75, 1, 1.5, 5]) {
-    const box = coverEntranceLayout(393, 714, 24, ratio);
-    assert.equal(box.progressSpace, 18 + box.progressThickness);
-    assert.ok(box.progressThickness >= 12);
-    assert.ok(box.progressLength >= box.height);
-    assert.ok(box.left - box.progressSpace > 0);
-    assert.ok(box.left + box.width < 393);
-    const railTop = box.top + box.height - box.progressLength;
-    assert.equal(railTop + box.progressLength, box.top + box.height);
-    assert.ok(Math.abs((box.left - box.progressSpace) - (393 - box.left - box.width)) < .001);
   }
 });
 
