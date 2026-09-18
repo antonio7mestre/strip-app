@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA, LINK_STICKER_TARGET, drawPoster, fitPosterPhoto, posterBackgrounds, posterColor, posterInk, posterMedia, posterPalette, posterSwipeProgress, posterSwipeTarget } from "../app/lib/share-posters.ts";
+import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA, LINK_STICKER_TARGET, drawPoster, fitPosterPhoto, posterBackgrounds, posterColor, posterInk, posterMedia, posterPalette } from "../app/lib/share-posters.ts";
+import { stackSwipeProgress, stackSwipeTarget } from "../app/lib/stack-picker.ts";
+const posterSwipeProgress = (start, current, index) => stackSwipeProgress(start, current, index, POSTER_DESIGNS.length);
+const posterSwipeTarget = (index, progress) => stackSwipeTarget(index, progress, POSTER_DESIGNS.length);
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const hook = readFileSync(new URL("../app/components/useStoryPosters.ts", import.meta.url), "utf8");
 const picker = readFileSync(new URL("../app/components/SharePosterPicker.tsx", import.meta.url), "utf8");
@@ -235,10 +238,9 @@ test("share page has one clear heading and no visible poster navigation metadata
  assert.match(picker,/aria-activedescendant/);assert.match(picker,/onPointerMove=\{move\}/);
 });
 test("behind posters use the cover picker's darkness without changing exported artwork",()=>{
- assert.match(page,/"--cover-dim": Math.min\(0.54, Math.abs\(position\) \* 0.54\)/);
- assert.match(picker,/"--poster-dim": Math.min\(.54, distance \* .54\)/);
- assert.match(picker,/1 - distance \* .38 : \(2 - distance\) \* .62/);
- assert.match(css,/\.poster-option::after \{[^}]*opacity: var\(--poster-dim, 0\);[^}]*pointer-events: none;[^}]*transition: opacity 360ms cubic-bezier\(0.22, 0.78, 0.18, 1\);/);
+ assert.match(page,/return stackCardStyle\(/);
+ assert.match(picker,/const motion = stackCardStyle\(/);
+ assert.match(css,/\.cover-image-option::after,\s*\.poster-option::after \{[^}]*opacity: var\(--cover-dim, 0\);[^}]*pointer-events: none;[^}]*transition: opacity 360ms cubic-bezier\(0.22, 0.78, 0.18, 1\);/);
  assert.match(css,/\.poster-picker.is-dragging \.poster-option::after \{ transition: none; \}/);
  assert.doesNotMatch(renderer,/poster-dim|cover-dim/);
 });

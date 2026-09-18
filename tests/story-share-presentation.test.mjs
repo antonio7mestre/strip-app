@@ -40,7 +40,7 @@ test("quick cancel, navigation, and a new attempt cancel the old reveal", () => 
     const s = setup(); s.schedule(phase)(); assert.equal(s.pending.size, 0);
   }
 });
-test("the toolbar only swaps once its stationary copy exists; dismissal has no slide", () => {
+test("the toolbar remains untouched and dismissal has no slide", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const component = readFileSync(new URL("../app/components/StoryShareBackdrop.tsx", import.meta.url), "utf8");
   assert.match(component, /data-phase=\{motion.phase\}/);
@@ -49,7 +49,7 @@ test("the toolbar only swaps once its stationary copy exists; dismissal has no s
   assert.match(component, /window.removeEventListener\("pointerdown", dismiss, true\)/);
   assert.match(component, /motion.phase !== "covered"/);
   assert.doesNotMatch(component, /preventDefault|stopPropagation/);
-  assert.match(css, /html:has\(\.story-share-dock-copy\) \.share-mode \.share-dock/);
+  assert.doesNotMatch(css, /story-share-dock-copy/);
   assert.match(css, /\.story-share-save-beacon\s*\{\s*display: block;\s*visibility: hidden/);
   assert.match(css, /animation: story-share-dismiss 320ms ease-out both/);
   const frames = css.match(/@keyframes story-share-dismiss\s*\{([\s\S]*?)\n\}/)[1];

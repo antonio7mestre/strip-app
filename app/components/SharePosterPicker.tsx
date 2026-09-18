@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { POSTER_DESIGNS, posterSwipeProgress, posterSwipeTarget } from "@/app/lib/share-posters";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { POSTER_DESIGNS } from "@/app/lib/share-posters";
+import { stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 
 export function SharePosterPicker({ previews, index, onSelect }: { previews: string[]; index: number; onSelect: (index: number) => void }) {
   const stage = useRef<HTMLDivElement>(null);
   const wheelState = useRef({ distance: 0, last: -Infinity });
-  const drag = useRef<{ y: number; progress: number; pointer: number; tapped: number | null } | null>(null);
+  const drag = useRef<{ y: number; progress: number; pointer: number; index: number } | null>(null);
   const [progress, setProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [height, setHeight] = useState(400);
+  const [stageHeight, setStageHeight] = useState(500);
   useEffect(() => {
     const element = stage.current;
     if (!element) return;
-    const measure = () => setHeight(Math.max(100, Math.min(element.clientHeight * .79, (element.clientWidth - 72) * 16 / 9, 680)));
+    const measure = () => {
+      setStageHeight(Math.max(1, element.clientHeight));
+      setHeight(Math.max(100, Math.min(element.clientHeight * .79, (element.clientWidth - 72) * 16 / 9, 680)));
+    };
     measure(); const observer = new ResizeObserver(measure); observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -32,39 +37,50 @@ export function SharePosterPicker({ previews, index, onSelect }: { previews: str
   const cancel = () => { drag.current = null; setProgress(0); setDragging(false); };
   const down = (event: PointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary || event.button !== 0) return;
-    const option = (event.target as Element).closest<HTMLElement>("[data-poster-index]");
-    drag.current = { y: event.clientY, progress: 0, pointer: event.pointerId, tapped: option ? Number(option.dataset.posterIndex) : null };
+    drag.current = { y: event.clientY, progress: 0, pointer: event.pointerId, index };
     event.currentTarget.setPointerCapture(event.pointerId); setDragging(true);
   };
   const move = (event: PointerEvent<HTMLDivElement>) => {
     if (!drag.current || drag.current.pointer !== event.pointerId) return;
-    const next = posterSwipeProgress(drag.current.y, event.clientY, index);
+    const next = stackSwipeProgress(drag.current.y, event.clientY, drag.current.index, POSTER_DESIGNS.length);
     drag.current.progress = next; setProgress(next);
   };
   const up = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
     if (!current || current.pointer !== event.pointerId) return;
-    if (Math.abs(current.y - event.clientY) < 5 && current.tapped !== null) onSelect(current.tapped);
-    else onSelect(posterSwipeTarget(index, current.progress));
+    onSelect(stackSwipeTarget(current.index, current.progress, POSTER_DESIGNS.length));
     cancel();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
-  return <div ref={stage} className={`poster-picker ${dragging ? "is-dragging" : ""}`} role="listbox" aria-label="Story poster designs" aria-activedescendant={`poster-design-${index}`} tabIndex={0}
+  const dragTarget = index + Math.sign(progress);
+  const cornersOpacity = Math.max(1 - Math.abs(progress), dragTarget >= 0 && dragTarget < POSTER_DESIGNS.length ? Math.abs(progress) : 0);
+  return <div className={`poster-picker ${dragging ? "is-dragging" : ""}`}>
+    <div ref={stage} className="poster-card-stage" role="listbox" aria-label="Story poster designs" aria-activedescendant={`poster-design-${index}`} tabIndex={0}
     onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={cancel}
     onKeyDown={e => {
       if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) {
-        e.preventDefault(); onSelect(e.key === "Home" ? 0 : e.key === "End" ? 9 : index + (["ArrowDown", "PageDown"].includes(e.key) ? 1 : -1));
+        e.preventDefault(); onSelect(e.key === "Home" ? 0 : e.key === "End" ? POSTER_DESIGNS.length - 1 : index + (["ArrowDown", "PageDown"].includes(e.key) ? 1 : -1));
       }
     }}>
     {POSTER_DESIGNS.map((design, i) => {
-      const position = Math.max(-2, Math.min(2, i - index - progress));
-      const distance = Math.abs(position), near = Math.min(1, distance);
-      const scale = 1 - near * .4 - Math.max(0, distance - 1) * .13;
-      const offset = Math.sign(position) * (near * (height * .2 + 36) + Math.max(0, distance - 1) * 60);
-      const opacity = distance <= 1 ? 1 - distance * .38 : (2 - distance) * .62;
+      const motion = stackCardStyle({ relativePosition: i - index, dragProgress: progress,
+        cardHeight: height, cardWidth: height * 9 / 16, selectedHeight: height, stageHeight, centerPercent: 50 });
       return <div key={design.id} id={`poster-design-${i}`} role="option" aria-selected={i === index} aria-label={`${i + 1} of 10: ${design.name}`} data-poster-index={i}
-        className="poster-option" style={{ height, width: height * 9 / 16, opacity, "--poster-dim": Math.min(.54, distance * .54), zIndex: Math.round(10 - distance * 3), visibility: distance >= 2 ? "hidden" : "visible", transform: `translate(-50%, calc(-50% + ${offset}px)) scale(${scale})` } as CSSProperties}>
+        className="poster-option" style={{ height, width: height * 9 / 16, ...motion, visibility: Math.abs(i - index - progress) >= 2 ? "hidden" : "visible" }}>
         {previews[i] ? <img src={previews[i]} alt={`${design.name} story poster`} draggable={false} /> : <div className="poster-preparing" aria-busy="true">Preparing…</div>}
       </div>;
     })}
+    </div>
+    <div className={`cover-selection-corners ${dragging ? "is-dragging" : ""}`}
+      style={{ top: "50%", width: height * 9 / 16, height, opacity: cornersOpacity }} aria-hidden="true">
+      <span className="is-top-left" /><span className="is-top-right" />
+      <span className="is-bottom-right" /><span className="is-bottom-left" />
+    </div>
+    <nav className="cover-pagination" style={{ top: "50%" }} aria-label="Story poster options">
+      {POSTER_DESIGNS.map((design, i) => <button key={design.id} type="button"
+        className={i === index ? "is-current" : ""} aria-current={i === index ? "true" : undefined}
+        aria-label={`Show story poster ${i + 1} of ${POSTER_DESIGNS.length}`}
+        onClick={() => { cancel(); onSelect(i); }} />)}
+    </nav>
   </div>;
 }

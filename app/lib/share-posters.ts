@@ -54,14 +54,6 @@ export function posterInk(color: string) {
   const luminance = channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
   return luminance > .179 ? "#000000" : "#FFFFFF";
 }
-export function posterSwipeProgress(start: number, current: number, index: number) {
-  let progress = (start - current) / 150;
-  if ((index === 0 && progress < 0) || (index === POSTER_DESIGNS.length - 1 && progress > 0)) progress *= .2;
-  return Math.max(-.95, Math.min(.95, progress));
-}
-export function posterSwipeTarget(index: number, progress: number) {
-  return Math.max(0, Math.min(POSTER_DESIGNS.length - 1, index + (Math.abs(progress) >= .24 ? Math.sign(progress) : 0)));
-}
 
 const SANS = '"Arial", "Helvetica Neue", sans-serif';
 const LINK_STICKER_FONT = '"Helvetica Neue", Arial, sans-serif';

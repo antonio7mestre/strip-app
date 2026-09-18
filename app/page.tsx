@@ -54,10 +54,12 @@ import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
+import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
 import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
-import { beginStoryShare } from "@/app/lib/story-share";
+import { StoryShareConfirmation } from "@/app/components/StoryShareConfirmation";
+import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
@@ -3002,6 +3004,7 @@ export default function Home() {
   const posters = useStoryPosters(view === "share" ? openedPublishedStrip : null);
   const { file: storyAssetFile, url: storyAssetUrl, loading: storyAssetLoading } = posters;
   const [storyShareSheetOpen, setStoryShareSheetOpen] = useState(false);
+  const [storyShareConfirmation, setStoryShareConfirmation] = useState<StoryShareConfirmationData | null>(null);
   const storyShareInFlightRef = useRef(false);
   const storyShareAttemptRef = useRef(0);
   const [libraryScrollInset, setLibraryScrollInset] = useState(0);
@@ -3929,6 +3932,20 @@ export default function Home() {
   }, [notice]);
 
   useEffect(() => {
+    if (!storyShareConfirmation || storyShareConfirmation.copied === null) return;
+    const timeout = window.setTimeout(() => setStoryShareConfirmation(null), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [storyShareConfirmation]);
+
+  useEffect(() => {
+    if (view === "share") return;
+    storyShareAttemptRef.current++;
+    storyShareInFlightRef.current = false;
+    setStoryShareSheetOpen(false);
+    setStoryShareConfirmation(null);
+  }, [view]);
+
+  useEffect(() => {
     if (!pendingDeleteId && !pendingDraftDeleteId) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -4608,6 +4625,7 @@ export default function Home() {
     storyShareAttemptRef.current++;
     storyShareInFlightRef.current = false;
     setStoryShareSheetOpen(false);
+    setStoryShareConfirmation(null);
     pageTransitionInFlightRef.current = false;
     openingCoverRequestRef.current?.abort();
     openingCoverRequestRef.current = null;
@@ -5026,20 +5044,18 @@ export default function Home() {
       0,
       coverChoices.findIndex((choice) => choice.key === activeCoverKey),
     );
-    let progress = (startY - event.clientY) / 150;
-    if ((activeIndex === 0 && progress < 0) || (activeIndex === coverChoices.length - 1 && progress > 0)) {
-      progress *= 0.2;
-    }
-    progress = Math.max(-0.95, Math.min(0.95, progress));
+    const progress = stackSwipeProgress(startY, event.clientY, activeIndex, coverChoices.length);
     coverDragProgressRef.current = progress;
-    coverSwipeSuppressClickRef.current = Math.abs(progress) >= 0.24;
+    coverSwipeSuppressClickRef.current = Math.abs(progress) >= STACK_SWIPE_THRESHOLD;
     setCoverDragProgress(progress);
   };
 
   const finishCoverSwipe = () => {
     const progress = coverDragProgressRef.current;
     coverSwipeStartYRef.current = null;
-    if (Math.abs(progress) >= 0.24) moveCover(progress > 0 ? 1 : -1);
+    const activeIndex = Math.max(0, coverChoices.findIndex(choice => choice.key === activeCoverKey));
+    const targetIndex = stackSwipeTarget(activeIndex, progress, coverChoices.length);
+    if (targetIndex !== activeIndex) selectCoverAt(targetIndex);
     setCoverIsDragging(false);
     setCoverDragProgress(0);
     coverDragProgressRef.current = 0;
@@ -5727,6 +5743,8 @@ export default function Home() {
   };
 
   const copyLink = async () => {
+    storyShareAttemptRef.current++;
+    setStoryShareConfirmation(null);
     try {
       await navigator.clipboard.writeText(
         openedPublishedStrip
@@ -5741,6 +5759,8 @@ export default function Home() {
 
   const copyPublishedStripLink = async () => {
     if (!openedPublishedStrip) return;
+    storyShareAttemptRef.current++;
+    setStoryShareConfirmation(null);
     const stripUrl = publicStripUrl(openedPublishedStrip);
     try {
       await navigator.clipboard.writeText(stripUrl);
@@ -5809,7 +5829,6 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setNotice("Image downloaded.");
   };
 
   const shareStoryToInstagram = async () => {
@@ -5821,6 +5840,8 @@ export default function Home() {
     const shareData: ShareData = { files: [storyAssetFile] };
     const attempt = ++storyShareAttemptRef.current;
     storyShareInFlightRef.current = true;
+    setStoryShareConfirmation(null);
+    setNotice("");
     try {
       const { copied, finished } = beginStoryShare(shareData, publicStripUrl(openedPublishedStrip), {
         open: () => flushSync(() => {
@@ -5835,12 +5856,13 @@ export default function Home() {
         },
       });
       const result = await finished;
+      if (storyShareAttemptRef.current === attempt) {
+        setStoryShareConfirmation(getStoryShareConfirmation(result, null));
+      }
       // A slow clipboard permission response must not leave the backdrop stuck.
       void copied.then(success => {
         if (storyShareAttemptRef.current !== attempt) return;
-        setNotice(success
-          ? result === "downloaded" ? "Image downloaded. Link copied." : "Link copied."
-          : "Couldn’t copy your link. Tap Copy link.");
+        setStoryShareConfirmation(getStoryShareConfirmation(result, success));
       });
     } catch {
       if (storyShareAttemptRef.current === attempt) setNotice("Couldn’t share this poster. Try again.");
@@ -7416,6 +7438,13 @@ export default function Home() {
           </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
+        {!storyShareSheetOpen && storyShareConfirmation ? createPortal(
+          <StoryShareConfirmation confirmation={storyShareConfirmation} onDismiss={() => {
+            storyShareAttemptRef.current++;
+            setStoryShareConfirmation(null);
+          }} />,
+          document.body,
+        ) : null}
         {typeof document !== "undefined" ? createPortal(
           <StoryShareBackdrop open={storyShareSheetOpen}>
             <div className="story-share-hint">
@@ -7578,59 +7607,14 @@ export default function Home() {
     const coverCardStyle = (index: number): CoverCardStyle => {
       let relativePosition = index - selectedCoverIndex;
       if (!coverStackStarted && relativePosition < 0) relativePosition = -2;
-      const position = Math.max(-2, Math.min(2, relativePosition - coverDragProgress));
       const cardChoice = coverChoices[index];
-      const cardHeight = getCoverHeight(cardChoice, effectiveSelectedHeight);
-      const cardWidth = getCoverWidth(cardChoice, 420);
-      const neighborScale = Math.min(0.62, 220 / cardWidth);
-      const renderedNeighborHeight = cardHeight * neighborScale;
-      const neighborOffset = Math.max(
-        24,
-        effectiveSelectedHeight / 2 + 44 - renderedNeighborHeight / 2,
-      );
-      const neighborOffsetPercent = (neighborOffset / measuredStageHeight) * 100;
-      const hiddenTravelPercent = Math.min(
-        8,
-        Math.max(5.5, neighborOffsetPercent * 0.36),
-      );
-      const hiddenScale = Math.max(0.36, neighborScale * 0.82);
-      const cardKeyframes = [
-        {
-          top: coverCenterPercent - neighborOffsetPercent - hiddenTravelPercent,
-          scale: hiddenScale,
-          opacity: 0,
-        },
-        {
-          top: coverCenterPercent - neighborOffsetPercent,
-          scale: neighborScale,
-          opacity: 0.62,
-        },
-        { top: coverCenterPercent, scale: 1, opacity: 1 },
-        {
-          top: coverCenterPercent + neighborOffsetPercent,
-          scale: neighborScale,
-          opacity: 0.62,
-        },
-        {
-          top: coverCenterPercent + neighborOffsetPercent + hiddenTravelPercent,
-          scale: hiddenScale,
-          opacity: 0,
-        },
-      ];
-      const lowerPosition = Math.floor(position);
-      const upperPosition = Math.ceil(position);
-      const progress = position - lowerPosition;
-      const lower = cardKeyframes[lowerPosition + 2];
-      const upper = cardKeyframes[upperPosition + 2];
-      const mix = (start: number, end: number) => start + (end - start) * progress;
-      const scale = mix(lower.scale, upper.scale);
-      return {
-        top: `${mix(lower.top, upper.top)}%`,
-        opacity: mix(lower.opacity, upper.opacity),
-        transform: `translate(-50%, -50%) scale(${scale})`,
-        zIndex: Math.max(0, Math.round(3 - Math.abs(position))),
-        "--cover-dim": Math.min(0.54, Math.abs(position) * 0.54),
-      };
+      return stackCardStyle({
+        relativePosition, dragProgress: coverDragProgress,
+        cardHeight: getCoverHeight(cardChoice, effectiveSelectedHeight),
+        cardWidth: getCoverWidth(cardChoice, 420),
+        selectedHeight: effectiveSelectedHeight,
+        stageHeight: measuredStageHeight, centerPercent: coverCenterPercent,
+      });
     };
     return (
       <>

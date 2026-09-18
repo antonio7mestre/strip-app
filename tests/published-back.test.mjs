@@ -41,7 +41,7 @@ function harness() {
     document: { querySelector: () => null, documentElement: { classList: { remove: noop }, style: { removeProperty: noop } } },
     libraryOwnerId: "owner", authStatus: "signed-in", openingStripId: null,
     pageTransitionInFlightRef: gate, openingCoverRequestRef: opening,
-    storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen: noop,
+    storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen: noop, setStoryShareConfirmation: noop,
     initialRouteHandledRef: { current: false },
     inlinePreviewHistoryEntryRef: { current: false },
     inlinePreviewBasePathRef: { current: null }, inlinePreviewExitLockRef: { current: null },
