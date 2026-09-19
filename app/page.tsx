@@ -67,6 +67,7 @@ import {
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { installEndingContact } from "@/app/lib/ending-contact";
+import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 
 type TextBlock = {
   id: string;
@@ -3542,6 +3543,7 @@ export default function Home() {
       : "published-bottom-canvas-active",
   }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, visibleEndingStyle.backgroundColor]);
 
+  useLayoutEffect(installKeyboardDockPosition, []);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -3967,7 +3969,8 @@ export default function Home() {
   const enterTextEditing = (id: string, caretOffset?: number) => {
     flushSync(() => {
       setSelectedBlockId(id);
-      setActiveTextTool(null);
+      // Keep whichever bottom tools were open. The native keyboard covers
+      // their existing position instead of swapping or dismissing the dock.
       setEditingTextBlockId(id);
     });
 

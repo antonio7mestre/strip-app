@@ -2108,6 +2108,8 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 }
 
 .composer-dock {
+  /* Keep the current dock painted behind the native keyboard. Compensate
+     Safari's viewport pan instantly, separately from normal tool transitions. */
   --dock-browser-extension: max(0px, calc(100lvh - 100dvh));
   --dock-padding-left: max(12px, env(safe-area-inset-left));
   --dock-padding-right: max(12px, env(safe-area-inset-right));
@@ -2133,6 +2135,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
       182px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
     ) var(--dock-padding-left);
   transform: none;
+  translate: 0 var(--keyboard-dock-pan, 0px);
   border: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
@@ -2572,7 +2575,7 @@ html:has(.story-share-boundary) body {
   position: absolute;
   /* Native sheets expose no bounds to the page. Keep the hint in the upper
      area visible above the usual iPhone sheet, not behind its controls. */
-  top: calc(var(--story-share-content-top, 0px) + max(env(safe-area-inset-top) + 24px, 30svh - 94px));
+  top: calc(var(--story-share-content-top, 0px) + max(env(safe-area-inset-top) + 24px, 30svh - 62px));
   left: 24px;
   right: 24px;
   margin: 0;
@@ -3173,15 +3176,6 @@ html:has(.story-share-boundary) body {
 .main-composer-dock.is-shifted,
 .publish-setup-dock.is-shifted {
   transform: translateY(125%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.keyboard-open .main-composer-dock,
-.editor-mode.is-typing .main-composer-dock,
-.keyboard-open .publish-setup-dock,
-.keyboard-open .title-setup-dock {
-  transform: translateY(calc(100% + 20px));
   opacity: 0;
   pointer-events: none;
 }
