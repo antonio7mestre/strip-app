@@ -5,11 +5,14 @@ type ContentBlock = {
   src?: string;
 };
 
-/** A stable screen, unaffected by Safari's toolbar or the on-screen keyboard. */
+/** The usable editor, not the area occupied by its toolbar and safe areas. */
 export function minimumStripHeight(document: Document): number {
   const probe = document.createElement("div");
   probe.setAttribute("aria-hidden", "true");
-  probe.style.cssText = "position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:100vh;height:100svh;";
+  // Use the dock's shared size, so reaching the visible bottom is enough.
+  // Small viewport units keep this stable through keyboard and Safari changes.
+  const occupied = "var(--dock-visible-height, 64px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)";
+  probe.style.cssText = `position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:calc(100vh - ${occupied});height:calc(100svh - ${occupied});`;
   document.body.appendChild(probe);
   try {
     return probe.getBoundingClientRect().height;

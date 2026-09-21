@@ -5,14 +5,14 @@ import test from "node:test";
 import ts from "typescript";
 import { hasScreenfulOfContent, minimumStripHeight } from "../app/lib/strip-minimum-content.ts";
 
-function fixture(heights, types = heights.map(() => "text"), screenHeight = 760) {
+function fixture(heights, types = heights.map(() => "text"), screenHeight = 760, insets = { dock: 64, top: 0, bottom: 0 }) {
   const probes = new Set();
   const document = {
     body: { appendChild: probe => probes.add(probe) },
     createElement() {
       return {
         style: {}, setAttribute() {},
-        getBoundingClientRect: () => ({ height: screenHeight }),
+        getBoundingClientRect: () => ({ height: screenHeight - insets.dock - insets.top - insets.bottom }),
         remove() { probes.delete(this); },
       };
     },
@@ -27,8 +27,8 @@ function fixture(heights, types = heights.map(() => "text"), screenHeight = 760)
   return { canvas, blocks, probes, document, ready: () => hasScreenfulOfContent(canvas, blocks) };
 }
 
-test("short content is blocked; one screen and longer content pass", () => {
-  for (const [heights, expected] of [[[90], false], [[350, 400], false], [[350, 410], true], [[1200], true], [[759.5], true]]) {
+test("content touching the bottom toolbar counts immediately, without another toolbar's worth of content", () => {
+  for (const [heights, expected] of [[[90], false], [[350, 343], false], [[350, 346], true], [[1200], true], [[695.5], true], [[750], true]]) {
     const f = fixture(heights);
     assert.equal(f.ready(), expected);
     assert.equal(f.probes.size, 0);
@@ -37,7 +37,7 @@ test("short content is blocked; one screen and longer content pass", () => {
 
 test("text, photos and videos contribute their visible heights, including crops", () => {
   assert.equal(fixture([200, 300, 260], ["text", "image", "video"]).ready(), true);
-  assert.equal(fixture([200, 250, 250], ["text", "image", "video"]).ready(), false);
+  assert.equal(fixture([200, 240, 250], ["text", "image", "video"]).ready(), false);
   assert.equal(fixture([500], ["video"]).ready(), false, "the crop, not natural height or controls, counts");
 });
 
@@ -65,7 +65,10 @@ test("keyboard height, scroll position, Safari chrome and canvas padding do not 
   const f = fixture([500]);
   const original = f.document.body.appendChild;
   f.document.body.appendChild = probe => {
-    assert.match(probe.style.cssText, /height:100vh;height:100svh;/);
+    assert.match(probe.style.cssText, /height:calc\(100vh - .*height:calc\(100svh - /);
+    assert.match(probe.style.cssText, /var\(--dock-visible-height, 64px\)/);
+    assert.match(probe.style.cssText, /env\(safe-area-inset-top, 0px\)/);
+    assert.match(probe.style.cssText, /env\(safe-area-inset-bottom, 0px\)/);
     assert.match(probe.style.cssText, /position:fixed/);
     original(probe);
   };
@@ -75,6 +78,13 @@ test("keyboard height, scroll position, Safari chrome and canvas padding do not 
   }
   delete globalThis.window;
   assert.equal(f.probes.size, 0);
+});
+
+test("iPhone safe areas and the toolbar are not treated as missing content", () => {
+  const insets = { dock: 64, top: 62, bottom: 34 };
+  assert.equal(fixture([600], ["text"], 760, insets).ready(), true);
+  assert.equal(fixture([599.5], ["image"], 760, insets).ready(), true);
+  assert.equal(fixture([597], ["video"], 760, insets).ready(), false);
 });
 
 test("missing layout and invalid measurements fail safely; probes are always removed", () => {
