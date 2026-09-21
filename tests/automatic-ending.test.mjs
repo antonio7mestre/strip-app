@@ -88,6 +88,7 @@ function renderFixture(blocks, isEditing) {
     require: () => ({ jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) }),
     blocks, visibleEndingStyle: automaticStripEndingStyle(blocks),
     view: "edit", inlinePreview: !isEditing,
+    stripCanvasRef: { current: null },
     mediaLoadStatus: Object.fromEntries(blocks.map(block => [block.id, "loaded"])),
     selectedBlockId: null, editingTextBlockId: null, heightCropSession: null,
     resolveBlockHeightCrop: () => null,

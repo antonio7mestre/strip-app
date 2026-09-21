@@ -68,6 +68,7 @@ import {
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { installEndingContact } from "@/app/lib/ending-contact";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
+import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
 
 type TextBlock = {
   id: string;
@@ -3053,6 +3054,7 @@ export default function Home() {
     "edit",
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stripCanvasRef = useRef<HTMLDivElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const authPhoneInputRef = useRef<HTMLInputElement>(null);
@@ -4901,6 +4903,11 @@ export default function Home() {
       return;
     }
     if (pageTransitionInFlightRef.current) return;
+    if (!hasScreenfulOfContent(stripCanvasRef.current, blocks)) {
+      setNotice("Add a little more to fill one screen.");
+      return;
+    }
+    setNotice("");
     pageTransitionInFlightRef.current = true;
 
     const availableCovers = coverChoices
@@ -6288,6 +6295,7 @@ export default function Home() {
 
     return (
       <div
+        ref={stripCanvasRef}
         className={`strip-canvas ${showsEndingCard ? "has-ending-card" : ""} ${
           endingFollowsMedia ? "has-trailing-media" : ""
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
@@ -8058,7 +8066,7 @@ export default function Home() {
             ) : null}
           </footer>
         ) : null}
-        {notice ? <div className="notice">{notice}</div> : null}
+        {notice ? <div className="notice" role="status">{notice}</div> : null}
         </main>
       </>
     );
@@ -8228,7 +8236,7 @@ export default function Home() {
           }}
         />
       ) : null}
-      {notice ? <div className="notice">{notice}</div> : null}
+      {notice ? <div className="notice" role="status">{notice}</div> : null}
       </main>
     </>
   );
