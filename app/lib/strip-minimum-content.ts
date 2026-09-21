@@ -30,10 +30,11 @@ export function hasScreenfulOfContent(
   const minimumHeight = minimumStripHeight(canvas.ownerDocument);
   if (!Number.isFinite(minimumHeight) || minimumHeight <= 0) return false;
 
+  // A text block's colored surface still occupies space when its text is
+  // empty. Measure the actual layout, not whether the user has written words.
   const contentIds = new Set(blocks.filter((block) =>
-    block.type === "text"
-      ? Boolean(block.content?.trim())
-      : (block.type === "image" || block.type === "video") && Boolean(block.src),
+    block.type === "text" ||
+    ((block.type === "image" || block.type === "video") && Boolean(block.src)),
   ).map((block) => block.id));
   let contentHeight = 0;
   for (const child of Array.from(canvas.children)) {

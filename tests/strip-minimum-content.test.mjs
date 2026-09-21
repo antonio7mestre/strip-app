@@ -41,13 +41,24 @@ test("text, photos and videos contribute their visible heights, including crops"
   assert.equal(fixture([500], ["video"]).ready(), false, "the crop, not natural height or controls, counts");
 });
 
-test("empty text, floating stickers, missing sources, tools and footer cannot fill a screen", () => {
-  const f = fixture([100, 900, 800, 800, 800], ["text", "sticker", "text", "image", "video"]);
+test("floating stickers, missing sources, tools and footer cannot fill a screen", () => {
+  const f = fixture([100, 900, 70, 800, 800], ["text", "sticker", "text", "image", "video"]);
   f.blocks[2].content = " \n\t ";
   f.blocks[3].src = "";
   f.blocks[4].src = "";
   f.canvas.children.push({ getAttribute: () => null, querySelector: () => { throw Error("Footer must not be measured"); } });
   assert.equal(f.ready(), false);
+});
+
+test("full-screen mixed strips count colored text blocks even without words", () => {
+  for (const content of ["", " \n\t ", "A caption"]) {
+    const f = fixture([110.078125, 560], ["text", "image"], 714);
+    f.blocks[0].content = content;
+    assert.equal(f.ready(), true, "670px of rendered blocks reaches the 650px toolbar edge");
+  }
+  const short = fixture([71, 240], ["text", "image"], 714);
+  short.blocks[0].content = "";
+  assert.equal(short.ready(), false, "a small empty block cannot count its canvas padding");
 });
 
 test("each tap remeasures after adding, removing or resizing content", () => {
@@ -127,7 +138,7 @@ test("Continue gives a gentle notice without losing the draft, selection or scro
       setViewInstantly: value => { state.view = value; },
     });
     exports.continueToPublish();
-    assert.deepEqual(state, { notice: "Add more content to reach the bottom.", view, selected: "text", editing: "text", tool: "font" });
+    assert.deepEqual(state, { notice: "Add more content to fill the screen", view, selected: "text", editing: "text", tool: "font" });
     assert.equal(lock.current, false); assert.equal(scroll.current, null);
     f.canvas.children[0].querySelector = () => ({ getBoundingClientRect: () => ({ height: 900 }) });
     exports.continueToPublish();
