@@ -4904,7 +4904,7 @@ export default function Home() {
     }
     if (pageTransitionInFlightRef.current) return;
     if (!hasScreenfulOfContent(stripCanvasRef.current, blocks)) {
-      setNotice("Add a little more to fill one screen.");
+      setNotice("Add more content to reach the bottom.");
       return;
     }
     setNotice("");

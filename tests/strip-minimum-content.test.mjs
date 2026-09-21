@@ -127,7 +127,7 @@ test("Continue gives a gentle notice without losing the draft, selection or scro
       setViewInstantly: value => { state.view = value; },
     });
     exports.continueToPublish();
-    assert.deepEqual(state, { notice: "Add a little more to fill one screen.", view, selected: "text", editing: "text", tool: "font" });
+    assert.deepEqual(state, { notice: "Add more content to reach the bottom.", view, selected: "text", editing: "text", tool: "font" });
     assert.equal(lock.current, false); assert.equal(scroll.current, null);
     f.canvas.children[0].querySelector = () => ({ getBoundingClientRect: () => ({ height: 900 }) });
     exports.continueToPublish();
