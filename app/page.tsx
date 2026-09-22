@@ -3417,8 +3417,9 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
+    const landingIsVisible = authenticationRequired && authStatus !== "signed-in" && authStep === "landing";
     const stripIsVisible =
-      view === "edit" || view === "preview" || view === "published";
+      landingIsVisible || view === "edit" || view === "preview" || view === "published";
 
     const calculateLeadingImageOffset = () => {
       const isIOS =
@@ -3427,7 +3428,7 @@ export default function Home() {
 
       if (
         !stripIsVisible ||
-        !(hasLeadingImage || (view === "published" && hasLeadingText)) ||
+        !(landingIsVisible || hasLeadingImage || (view === "published" && hasLeadingText)) ||
         !isIOS ||
         window.screen.height / window.screen.width <= 2
       ) {
@@ -3474,7 +3475,7 @@ export default function Home() {
       removeLeadingMediaTop();
       leadingImageInsetRef.current = 0;
     };
-  }, [hasLeadingImage, hasLeadingText, initialRouteReady, view]);
+  }, [authenticationRequired, authStatus, authStep, hasLeadingImage, hasLeadingText, initialRouteReady, view]);
 
   useEffect(
     () => () => {
@@ -5228,6 +5229,7 @@ export default function Home() {
       setAuthError("");
       setAuthDevelopmentCode("");
     });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     authPhoneInputRef.current?.focus({ preventScroll: true });
   };
 
@@ -6854,12 +6856,14 @@ export default function Home() {
 
   if (authenticationRequired && authStatus !== "signed-in") {
     return (
-      <main className="app-shell auth-mode">
-        <div
-          className="top-safe-area-anchor"
-          style={{ backgroundColor: authStep === "landing" ? AUTH_LANDING_COLOR : DEFAULT_BACKGROUND }}
-          aria-hidden="true"
-        />
+      <main className={`app-shell auth-mode${authStep === "landing" ? " auth-landing-mode" : ""}`}>
+        {authStep !== "landing" ? (
+          <div
+            className="top-safe-area-anchor"
+            style={{ backgroundColor: DEFAULT_BACKGROUND }}
+            aria-hidden="true"
+          />
+        ) : null}
         <section
           className={`auth-shell auth-step-${authStep} auth-transition-${authTransitionDirection}`}
           aria-labelledby="auth-heading"

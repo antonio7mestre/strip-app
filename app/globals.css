@@ -546,15 +546,31 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   flex: 1;
   min-height: 0;
   width: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+  overflow: clip;
   background: #304dff;
   outline-offset: -4px;
 }
 
 .auth-shell.auth-step-landing {
   padding: 0;
+}
+
+.auth-mode.auth-landing-mode,
+.auth-shell.auth-step-landing {
+  height: auto;
+  overflow: visible;
+}
+
+/* Reuse the real Strip's top anchor; the dock remains outside its moving layer. */
+html.leading-image-inset-active .auth-landing {
+  translate: 0 var(--leading-media-return-y, 0px);
+}
+
+/* A transformed scroll layer is clipped by Safari at its safe-area edge. */
+.auth-step-landing.auth-transition-forward .auth-landing,
+.auth-step-landing.auth-transition-backward .auth-landing {
+  animation: none;
+  transform: none;
 }
 
 .auth-transition-forward .auth-landing,
@@ -571,17 +587,11 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
     both;
 }
 
-.auth-landing-brand,
 .auth-flow-brand {
   color: #ffffff;
   font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
   font-weight: 900;
   letter-spacing: 0.12em;
-}
-
-.auth-landing-brand {
-  font-size: 16px;
-  line-height: 1;
 }
 
 .landing-strip {
@@ -593,18 +603,9 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .landing-content { position: relative; width: min(100%, 1100px); margin: 0 auto; }
 .landing-hero { background: #304dff; color: #d4ff00; }
 .landing-hero .landing-content {
-  min-height: clamp(490px, 78svh, 800px);
-  padding: calc(env(safe-area-inset-top) + 28px) clamp(24px, 6vw, 72px) 190px;
+  min-height: clamp(590px, 82svh, 900px);
+  padding: calc(var(--leading-image-inset, 0px) + env(safe-area-inset-top) + 28px) clamp(24px, 6vw, 72px) 300px;
 }
-.landing-masthead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  color: #ffffff;
-  font-size: 11px;
-}
-.landing-masthead .auth-landing-brand { font-size: 18px; }
 .landing-hero h1,
 .landing-block h2,
 .landing-signoff {
@@ -613,7 +614,7 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   line-height: 0.9;
   letter-spacing: -0.07em;
 }
-.landing-hero h1 { margin: 48px 0 24px; font-size: clamp(68px, 22vw, 208px); }
+.landing-hero h1 { margin: 0 0 24px; font-size: clamp(68px, 22vw, 208px); }
 .landing-intro { margin: 0; color: #fff; font-size: clamp(17px, 3vw, 24px); line-height: 1.35; }
 .landing-sticker {
   display: block;
@@ -624,18 +625,20 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 .landing-hero-stickers {
   position: absolute;
   z-index: 2;
-  right: 5%;
-  bottom: -55px;
-  width: min(76%, 470px);
-  height: 260px;
+  left: 50%;
+  bottom: -40px;
+  width: min(100%, 690px);
+  height: 310px;
+  transform: translateX(-50%);
   pointer-events: none;
 }
-.landing-sticker-pool { position: absolute; width: 40%; left: 0; bottom: 28px; transform: rotate(-13deg); }
-.landing-sticker-friends { position: absolute; width: 48%; right: 2%; bottom: 0; transform: rotate(9deg); }
+.landing-sticker-pool { position: absolute; width: 33%; left: -5%; bottom: 43px; transform: rotate(-19deg); }
+.landing-sticker-friends { position: absolute; width: 42%; left: 33%; bottom: 5px; transform: rotate(11deg); }
 .landing-photo-note {
   position: absolute;
-  left: 0;
-  bottom: 7px;
+  z-index: 5;
+  left: 13%;
+  bottom: 29px;
   padding: 7px 12px;
   transform: rotate(-6deg);
   background: #ff90cb;
@@ -653,26 +656,58 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   text-shadow: 0 1px 8px #0009;
 }
 .landing-make { background: #d4ff00; color: #17220a; }
-.landing-make .landing-content { padding: 60px clamp(24px, 6vw, 72px) 230px; }
+.landing-make .landing-content { padding: 76px clamp(24px, 6vw, 72px) 340px; }
 .landing-kicker { margin: 0 0 32px; font: 12px/1.3 "Courier New", monospace; }
 .landing-block h2 { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
 .landing-description { max-width: 400px; margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.4; letter-spacing: -0.035em; }
-.landing-sticker-detail { position: absolute; z-index: 2; right: 10%; bottom: -42px; width: clamp(130px, 35vw, 230px); transform: rotate(11deg); }
-.landing-sticker-label { position: absolute; z-index: 3; bottom: 30px; right: 27%; padding: 10px 15px; border-radius: 50%; background: #304dff; color: #fff; transform: rotate(-10deg); font: 14px "Courier New", monospace; }
+.landing-sticker-label { position: absolute; z-index: 5; bottom: 49px; right: 22%; padding: 12px 20px; border-radius: 50%; background: #304dff; color: #fff; transform: rotate(-10deg); font: 14px "Courier New", monospace; }
 .landing-share { background: #ff90cb; color: #3c0d27; }
 .landing-share .landing-content { padding: 95px clamp(24px, 6vw, 72px) 36px; }
-.landing-share-photo { position: relative; width: min(70%, 320px); margin: 55px auto 65px; transform: rotate(-6deg); }
+.landing-share-photo { position: relative; width: min(70%, 320px); margin: 85px auto 100px; transform: rotate(-6deg); }
 .landing-share-photo img { display: block; width: 100%; height: auto; }
 .landing-link-sticker { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%) rotate(6deg); white-space: nowrap; padding: 12px 18px; border-radius: 8px; background: #fff; color: #304dff; font-size: clamp(13px, 3.3vw, 18px); font-weight: 700; }
 .landing-signoff { margin: 0; font-size: clamp(42px, 10vw, 88px); }
 
+/* Loose, overlapping photo scraps. Only this decorative layer is cropped. */
+.landing-cutout { position: absolute; display: block; pointer-events: none; }
+.landing-cutout img { display: block; width: 100%; height: auto; object-fit: contain; border: 0; box-shadow: none; }
+.landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; pointer-events: none; }
+.landing-doodle svg { display: block; width: 100%; height: 100%; }
+.landing-tape { position: absolute; z-index: 5; padding: 7px 12px; background: #fff9df; color: #171717; white-space: nowrap; font: 11px/1.1 "Courier New", monospace; letter-spacing: -0.04em; clip-path: polygon(2% 0, 98% 4%, 96% 25%, 100% 53%, 97% 74%, 99% 100%, 0 95%, 3% 64%, 0 37%); }
+.landing-hero-goggles { z-index: 4; width: 39%; right: 0; bottom: 50px; transform: rotate(22deg); }
+.landing-hero-camera { z-index: 4; width: 58%; left: 1%; top: 0; transform: rotate(-18deg); }
+.landing-hero-film { z-index: 3; width: 34%; right: 5%; top: 6px; transform: rotate(15deg); }
+.landing-hero-ball { z-index: 3; width: 29%; left: 2%; bottom: -12px; transform: rotate(-12deg); }
+.landing-hero-spark { left: 47%; top: -20px; color: #ff90cb; transform: rotate(12deg); font-size: 76px; }
+.landing-hero-tape { right: 12%; top: 84px; transform: rotate(9deg); }
+.landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
+.landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -22px; transform: rotate(16deg); z-index: 2; }
+.landing-photo-sunglasses { width: clamp(120px, 38%, 350px); right: 1%; top: 30%; transform: rotate(22deg); }
+.landing-photo-tape { right: -7px; bottom: 12%; transform: rotate(-10deg); }
+.landing-photo-spark { right: 3%; bottom: -52px; color: #ff90cb; font-size: 94px; }
+.landing-photo-caption { z-index: 4; bottom: 70px; left: 28%; max-width: 63%; font-size: 12px; }
+.landing-make-collage { position: absolute; left: 50%; bottom: -22px; width: min(100%, 690px); height: 306px; transform: translateX(-50%); pointer-events: none; z-index: 2; }
+.landing-make-scrap-sea { position: absolute; left: 3%; top: 58px; width: 58%; height: auto; transform: rotate(-12deg); }
+.landing-make-scrap-booth { position: absolute; right: -5%; bottom: 12px; width: 46%; height: 280px; object-fit: contain; transform: rotate(12deg); box-shadow: none; }
+.landing-make-cassette { width: 39%; right: 6%; top: 12px; transform: rotate(14deg); z-index: 3; }
+.landing-make-skate { width: 48%; left: 1%; bottom: 7px; transform: rotate(-17deg); z-index: 3; }
+.landing-make-headphones { width: 43%; right: 10%; bottom: 19px; transform: rotate(18deg); z-index: 4; }
+.landing-make-cd { width: 25%; left: 5%; top: 3px; transform: rotate(-21deg); z-index: 3; }
+.landing-make-spark { left: 4%; top: -6px; color: #ff5834; font-size: 78px; }
+.landing-make-tape { left: 14%; top: 41px; transform: rotate(-12deg); }
+.landing-share-ticket { width: 79%; right: -17%; top: -26px; transform: rotate(19deg); z-index: 2; }
+.landing-share-cherries { width: 39%; left: -21%; top: 12%; transform: rotate(19deg); z-index: 2; }
+.landing-share-shell { width: 62%; left: -15%; bottom: -28px; transform: rotate(10deg); z-index: 3; }
+.landing-share-clip { width: 61%; right: -20%; bottom: 11%; transform: rotate(-29deg); z-index: 4; }
+.landing-share-spark { left: -24%; bottom: 31%; color: #d4ff00; font-size: 100px; }
+.landing-share-tape { left: -17%; top: -23px; transform: rotate(-9deg); }
+.landing-link-sticker { z-index: 5; bottom: -40px; }
+
 @media (min-width: 760px) {
-  .landing-hero .landing-content { padding-bottom: 100px; }
-  .landing-hero-stickers { bottom: -70px; height: 440px; }
-  .landing-make .landing-content { padding-bottom: 100px; }
-  .landing-make h2, .landing-make .landing-description { max-width: 72%; }
-  .landing-sticker-detail { right: 5%; bottom: -65px; width: 23%; }
-  .landing-sticker-label { right: 17%; bottom: 0; }
+  .landing-hero .landing-content { padding-bottom: 370px; }
+  .landing-hero-stickers { bottom: -65px; height: 410px; left: 65%; }
+  .landing-make .landing-content { padding-bottom: 410px; }
+  .landing-make-collage { height: 370px; left: 64%; }
   .landing-share .landing-content { padding-top: 110px; }
   .landing-share-photo { margin-right: 8%; margin-top: -170px; }
 }
@@ -722,13 +757,13 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 .auth-step-landing .auth-action-button {
-  border-color: #1557ff;
-  background: #1557ff;
+  border-color: #080808;
+  background: #080808;
   color: #ffffff;
 }
 
 .auth-step-landing .auth-action-button:active {
-  background: #0b43d9;
+  background: #242424;
 }
 
 .auth-step-landing .auth-action-controls.dock-controls {
