@@ -596,8 +596,11 @@ html.leading-image-inset-active .auth-landing {
 
 /* Keep the Cosmos photos exactly where they were tapped. Only cutouts become bodies. */
 .auth-sticker-exit {
-  position: fixed;
-  inset: -160px 0;
+  position: absolute;
+  top: -160px;
+  left: 0;
+  width: 100%;
+  height: calc(100lvh + 320px);
   z-index: 2147482000;
   overflow: hidden;
   isolation: isolate;
@@ -606,7 +609,7 @@ html.leading-image-inset-active .auth-landing {
   pointer-events: auto;
 }
 
-.auth-sticker-backdrop { position: absolute; inset: 0; }
+.auth-sticker-backdrop { position: absolute; inset: 0; z-index: 0; isolation: isolate; }
 .auth-sticker-backdrop .auth-landing-frozen {
   position: absolute;
   margin: 0;
@@ -628,9 +631,26 @@ html.leading-image-inset-active .auth-landing {
 .auth-sticker-revealed .auth-flow-header,
 .auth-sticker-revealed .auth-flow-stage { animation: none; }
 html.auth-stickers-floating .auth-action-button::after { visibility: hidden; }
-/* The real, stationary CTA and its complete white safe-area surface stay above the floating objects. */
-html.auth-stickers-floating .auth-shell { z-index: auto; }
-html.auth-stickers-floating .auth-action-dock.composer-dock { z-index: 2147482100; }
+/* Let objects paint through the status bar, not into a clipped header. */
+html.auth-form-active.auth-stickers-floating,
+html.auth-form-active.auth-stickers-floating body { overflow: visible; }
+html.auth-form-active.auth-stickers-floating,
+html.auth-form-active.auth-stickers-floating body {
+  position: relative;
+  height: auto;
+  min-height: calc(100lvh + var(--auth-flight-inset, 0px));
+}
+html.auth-stickers-floating .top-safe-area-anchor { visibility: hidden; }
+.auth-sticker-stage { z-index: 2; }
+.auth-sticker-exit .auth-signin-snapshot {
+  position: absolute;
+  top: calc(160px + var(--auth-viewport-top, 0px));
+  left: 0;
+  width: 100%;
+  z-index: 1;
+  will-change: transform;
+  pointer-events: none;
+}
 
 .landing-strip {
   padding-bottom: calc(110px + env(safe-area-inset-bottom));
@@ -1019,6 +1039,82 @@ html.auth-stickers-floating .auth-action-dock.composer-dock { z-index: 214748210
   }
 }
 
+
+/* Sign-in is one keyboard-sized canvas. Landing and username onboarding stay independent. */
+html.auth-form-active,
+html.auth-form-active body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #304dff;
+}
+html.auth-form-active body { position: fixed; width: 100%; }
+.auth-signin-mode {
+  position: fixed;
+  top: var(--auth-viewport-top, 0px);
+  left: 0;
+  width: 100%;
+  height: var(--auth-viewport-height, 100dvh);
+  min-height: 0;
+  background: #304dff;
+}
+.auth-signin-mode .auth-shell {
+  height: 100%;
+  min-height: 0;
+  padding: calc(env(safe-area-inset-top) + 16px) 24px 16px;
+  background: #304dff;
+}
+.auth-signin-mode .auth-flow-header,
+.auth-signin-mode .auth-flow-stage { animation: none; }
+.auth-signin-mode .auth-flow-stage { padding-top: clamp(24px, 5vh, 46px); }
+.auth-signin-mode .auth-back-button { background: rgb(255 255 255 / 16%); }
+.auth-signin-mode .auth-flow-copy h1 { color: #d4ff00; }
+.auth-signin-mode .auth-flow-copy p { color: #ffffff; }
+.auth-signin-mode .auth-flow-form { flex: 0 1 auto; gap: 0; }
+.auth-signin-mode .auth-phone-input,
+.auth-signin-mode .auth-code-cell { background: #ffffff; color: #111111; caret-color: #111111; }
+.auth-signin-mode .auth-phone-input::placeholder { color: #747b9b; }
+.auth-signin-mode .auth-phone-input:focus,
+.auth-signin-mode .auth-code-cell.is-active { border-color: #111111; }
+.auth-flow-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 16px; }
+.auth-continue-button {
+  min-width: 140px;
+  min-height: 48px;
+  padding: 12px 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #000000;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.auth-continue-button:disabled { opacity: 0.5; cursor: default; }
+.auth-continue-button:focus-visible { outline: 2px solid #d4ff00; outline-offset: 3px; }
+.auth-signin-mode .auth-resend-button { margin: 0 auto 0 0; padding: 8px 0; color: #ffffff; }
+.auth-signin-mode .auth-resend-button:disabled { color: rgb(255 255 255 / 65%); }
+.auth-signin-mode .auth-error,
+.auth-signin-mode .auth-dev-note { margin-top: 12px; color: #ffffff; }
+html.auth-form-compact .auth-signin-mode .auth-shell { padding-top: 12px; }
+html.auth-form-compact .auth-signin-mode .auth-flow-stage { padding-top: 14px; }
+html.auth-form-compact .auth-signin-mode .auth-flow-copy h1 { font-size: 34px; }
+html.auth-form-compact .auth-signin-mode .auth-flow-copy p { margin-top: 8px; font-size: 14px; }
+html.auth-form-compact .auth-signin-mode .auth-flow-form { margin-top: 18px; }
+html.auth-form-compact .auth-signin-mode .auth-phone-input { min-height: 52px; }
+html.auth-form-compact .auth-signin-mode .auth-flow-actions { margin-top: 12px; }
+html.auth-form-compact .auth-signin-mode .auth-continue-button { min-height: 44px; padding-block: 10px; }
+.auth-action-button.auth-haptic-start { display: grid; place-items: center; }
+.auth-haptic-start input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.auth-haptic-start:focus-within { outline: 2px solid #304dff; outline-offset: 4px; }
 
 .library-mode,
 .strip-library {

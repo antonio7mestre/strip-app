@@ -79,18 +79,36 @@ test("only cutouts and doodles detach; frozen Cosmos photos are never physics bo
   assert.match(source, /screenAngle\(element\)/);
 });
 
-test("the form crossfades after stickers leave with no duplicate taps or leftover animation", () => {
+test("the form mounts in the tap, slides with the stickers, and cleans up without a fade", () => {
   assert.match(page, /if \(authStickerExitRef\.current\) return/);
   assert.match(page, /useEffect\(\(\) => \(\) => \{ authStickerExitRef\.current\?\.\(\); \}, \[\]\)/);
-  assert.match(source, /elapsed >= 700 && clearedScreen/);
-  assert.match(source, /physics\.bodies\[index\]\.bounds\.max\.y < -24/);
+  assert.ok(source.indexOf('onReveal();\n  // Landing') < source.indexOf('frame = requestAnimationFrame(tick)'));
+  assert.match(source, /seeds\[index\]\.y - physics\.bodies\[index\]\.position\.y/);
+  assert.doesNotMatch(source, /overlay\.style\.opacity/);
   assert.match(source, /prefers-reduced-motion: reduce/);
   assert.match(source, /window\.setTimeout\(finish, 2400\)/);
   for (const cleanup of ["cancelAnimationFrame(frame)", "clearTimeout(watchdog)", "physics.dispose()", "overlay.remove()", 'removeEventListener("click", preventTap, true)']) assert.ok(source.includes(cleanup));
   assert.match(css, /\.auth-sticker-revealed \.auth-flow-stage \{ animation: none; \}/);
   assert.match(page, /authStep === "phone" && authStickerRevealed/);
-  assert.match(css, /html\.auth-stickers-floating \.auth-action-dock\.composer-dock \{ z-index: 2147482100; \}/);
-  assert.match(css, /html\.auth-stickers-floating \.auth-shell \{ z-index: auto; \}/);
+  assert.match(source, /copy\.classList\.add\("auth-dock-frozen"\)/);
+  assert.match(source, /theme\?\.removeAttribute\("name"\)/);
+  assert.match(source, /theme\?\.setAttribute\("name", themeName\)/);
+  assert.match(css, /html\.auth-stickers-floating \.top-safe-area-anchor \{ visibility: hidden; \}/);
+  assert.match(css, /html\.auth-form-active\.auth-stickers-floating body \{ overflow: visible; \}/);
+  assert.match(source, /window\.scrollTo\(\{ top: flightInset/);
+  assert.match(source, /removeProperty\("--auth-flight-inset"\)/);
+  assert.match(css, /\.auth-sticker-exit \{\s*position: absolute;[\s\S]*?height: calc\(100lvh \+ 320px\)/);
+});
+
+test("the panel tracks median sticker travel monotonically, not a separate timing curve", () => {
+  const result = {};
+  runInNewContext(ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,
+    {exports:result,require:()=>({})});
+  assert.equal(result.stickerPanelRise([-5,-3,-4],0,800),0);
+  assert.equal(result.stickerPanelRise([230,220,900],0,800),230);
+  assert.equal(result.stickerPanelRise([210,215,220],230,800),230);
+  assert.equal(result.stickerPanelRise([830,820,810],230,800),800);
+  assert.equal(result.stickerPanelRise([],0,800),800);
 });
 
 test("even an object starting at the very bottom can float past the top without a ceiling", () => {

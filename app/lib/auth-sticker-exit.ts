@@ -1,8 +1,15 @@
-import { createStickerPhysics, STICKER_FADE_MS, STICKER_REVEAL_MS, type FloatingSticker } from "./sticker-physics";
+import { createStickerPhysics, type FloatingSticker } from "./sticker-physics";
 
 // Photo wrappers contain the Cosmos pictures too. Only detach the object cutouts and drawings.
 export const FLOATING_STICKER_SELECTOR = ".landing-cutout, .landing-doodle";
 const BLEED = 160;
+
+/** The incoming screen follows the same upward travel as the detached objects. */
+export function stickerPanelRise(lifts: number[], previous: number, height: number) {
+  const ordered = lifts.slice().sort((a, b) => a - b);
+  const median = ordered.length ? ordered[Math.floor(ordered.length / 2)] : height;
+  return Math.min(height, Math.max(previous, median, 0));
+}
 
 function screenAngle(element: HTMLElement) {
   let angle = 0;
@@ -36,6 +43,7 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   const backdrop = document.createElement("div");
   backdrop.className = "auth-sticker-backdrop auth-step-landing";
   const bounds = landing.getBoundingClientRect();
+  const flightInset = Number.parseFloat(getComputedStyle(landing).getPropertyValue("--leading-image-inset")) || 0;
   const frozen = landing.cloneNode(true) as HTMLElement;
   frozen.classList.add("auth-landing-frozen");
   Object.assign(frozen.style, { left: `${bounds.left}px`, top: `${bounds.top + BLEED}px`,
@@ -44,6 +52,16 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   frozen.querySelectorAll("[id]").forEach(element => element.removeAttribute("id"));
   frozen.querySelectorAll(FLOATING_STICKER_SELECTOR).forEach(element => element.remove());
   backdrop.append(frozen);
+  const dock = document.querySelector<HTMLElement>(".auth-action-dock");
+  if (dock) {
+    const rect = dock.getBoundingClientRect(), style = getComputedStyle(dock);
+    const copy = dock.cloneNode(true) as HTMLElement;
+    copy.classList.add("auth-dock-frozen");
+    Object.assign(copy.style, { position: "absolute", left: `${rect.left}px`, top: `${rect.top + BLEED}px`,
+      bottom: "auto", width: `${rect.width}px`, height: `${rect.height}px`, minHeight: "0",
+      padding: style.padding, translate: "none", transform: "none", margin: "0" });
+    backdrop.append(copy);
+  }
   overlay.append(backdrop);
 
   const stage = document.createElement("div");
@@ -97,9 +115,10 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   });
   draw();
   document.body.append(overlay);
+  document.documentElement.style.setProperty("--auth-flight-inset", `${flightInset}px`);
   document.documentElement.classList.add("auth-stickers-floating");
 
-  let frame = 0, disposed = false, revealed = false, revealedAt = 0;
+  let frame = 0, disposed = false, rise = 0;
   const started = performance.now();
   let previous = started;
   const preventScroll = (event: Event) => event.preventDefault();
@@ -108,11 +127,27 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   // Block a rapid second tap on the underlying CTA without disabling its visual style.
   const preventTap = (event: Event) => { event.preventDefault(); event.stopPropagation(); };
   document.addEventListener("click", preventTap, true);
-  const reveal = () => {
-    if (revealed || disposed) return;
-    revealed = true;
-    onReveal();
-  };
+  // Mount and focus during the original tap, before any frame or timer. The real
+  // input stays in its final position so Safari never pans toward an offscreen input.
+  onReveal();
+  // Safari only paints actual document content beyond its top edge while the
+  // document retains its media anchor. Delay the fixed body lock until flight ends.
+  window.scrollTo({ top: flightInset, left: 0, behavior: "instant" });
+  overlay.style.top = `${window.scrollY - BLEED}px`;
+  // Landing unmount restores this metadata. Keep it unset for the whole flight
+  // so Safari samples the objects beneath its translucent status bar.
+  const theme = document.getElementById("strip-theme-color");
+  const themeName = theme?.getAttribute("name");
+  theme?.removeAttribute("name");
+  const form = document.querySelector<HTMLElement>(".auth-signin-mode");
+  const incoming = form?.cloneNode(true) as HTMLElement | undefined;
+  if (incoming) {
+    incoming.classList.add("auth-signin-snapshot");
+    incoming.querySelectorAll("[id]").forEach(element => element.removeAttribute("id"));
+    incoming.querySelectorAll("[for]").forEach(element => element.removeAttribute("for"));
+    incoming.style.transform = `translate3d(0,${height}px,0)`;
+    overlay.insertBefore(incoming, stage);
+  }
   const dispose = () => {
     if (disposed) return;
     disposed = true;
@@ -120,14 +155,17 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     clearTimeout(watchdog);
     physics.dispose();
     overlay.remove();
+    if (themeName && !theme?.hasAttribute("name")) theme?.setAttribute("name", themeName);
     document.documentElement.classList.remove("auth-stickers-floating");
+    document.documentElement.style.removeProperty("--auth-flight-inset");
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     document.removeEventListener("click", preventTap, true);
     document.removeEventListener("touchmove", preventScroll);
     document.removeEventListener("wheel", preventScroll);
     document.removeEventListener("visibilitychange", finish);
     window.removeEventListener("orientationchange", finish);
   };
-  const finish = () => { if (disposed) return; reveal(); dispose(); onComplete(); };
+  const finish = () => { if (disposed) return; dispose(); onComplete(); };
   // Navigation must still complete if animation frames stop (background tab, interruption).
   const watchdog = window.setTimeout(finish, 2400);
   document.addEventListener("visibilitychange", finish);
@@ -137,17 +175,16 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     const elapsed = now - started;
     physics.step(now - previous);
     previous = now;
+    overlay.style.top = `${window.scrollY - BLEED}px`;
     draw();
-    const clearedScreen = visibleAtTap.every(index => physics.bodies[index].bounds.max.y < -24);
-    const ready = reducedMotion || !seeds.length ||
-      (elapsed >= 700 && clearedScreen) || elapsed >= STICKER_REVEAL_MS;
-    if (ready && !revealed) { revealedAt = now; reveal(); }
-    if (revealed) {
-      const progress = Math.min(1, (now - revealedAt) / (reducedMotion ? 140 : STICKER_FADE_MS));
-      // A pure crossfade. No photograph translates, scales, or participates in the physics.
-      overlay.style.opacity = String(1 - progress * progress * (3 - 2 * progress));
-      if (progress >= 1) { finish(); return; }
+    rise = stickerPanelRise(visibleAtTap.map(index => seeds[index].y - physics.bodies[index].position.y), rise, height);
+    if (incoming) {
+      incoming.style.transform = `translate3d(0,${height - rise}px,0)`;
+      const originalInput = form?.querySelector("input");
+      const copyInput = incoming.querySelector("input");
+      if (originalInput && copyInput) copyInput.value = originalInput.value;
     }
+    if (reducedMotion || !incoming || rise >= height || elapsed >= 2200) { finish(); return; }
     frame = requestAnimationFrame(tick);
   };
   frame = requestAnimationFrame(tick);

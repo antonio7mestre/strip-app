@@ -26,7 +26,7 @@ test("all keyboard entry points are audited, with no focus-driven dock hide or m
   ts.forEachChild(node,visit);
  }
  visit(tree);
- assert.deepEqual(entries.sort(),['"auth-code"','"auth-phone"','"auth-username"','"Strip title"','{`Text block ${index + 1}`}'].sort());
+ assert.deepEqual(entries.sort(),['"auth-entry"','"auth-username"','"Strip title"','{`Text block ${index + 1}`}'].sort());
  const keyboardDockRules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([,selector])=>/keyboard|is-typing|focus-within/.test(selector)&&/dock/.test(selector));
  assert.equal(keyboardDockRules.length,0,"The OS should cover the existing bar without a separate keyboard animation");
  assert.match(css,/\.composer-dock\s*\{[^}]*position: fixed;/);

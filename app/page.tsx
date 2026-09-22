@@ -55,6 +55,8 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
+import { HapticStartButton } from "@/app/components/HapticStartButton";
+import { installAuthFormViewport } from "@/app/lib/auth-form-viewport";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
@@ -3168,7 +3170,7 @@ export default function Home() {
   );
   const topSafeAreaColor =
     authenticationRequired && authStatus !== "signed-in"
-      ? authStep === "landing" ? AUTH_LANDING_COLOR : DEFAULT_BACKGROUND
+      ? AUTH_LANDING_COLOR
       : view === "library" ||
     view === "drafts" ||
     view === "history" ||
@@ -3227,6 +3229,12 @@ export default function Home() {
     view === "preview" || (view === "edit" && inlinePreview)
       ? visibleEndingStyle.backgroundColor
       : null;
+
+  const authFormIsVisible = authenticationRequired && authStatus !== "signed-in" && authStep !== "landing";
+  useLayoutEffect(() => {
+    if (!authFormIsVisible) return;
+    return installAuthFormViewport();
+  }, [authFormIsVisible]);
 
   useEffect(() => {
     setPublishedMinimumReadyKey(null);
@@ -5115,7 +5123,7 @@ export default function Home() {
 
   const requestSignInCode = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    if (authPending) return;
+    if (authPending || authStickerExitRef.current) return;
     setAuthPending(true);
     setAuthError("");
     setAuthDevelopmentCode("");
@@ -5238,9 +5246,10 @@ export default function Home() {
         setAuthDevelopmentCode("");
       });
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      // Still inside the original tap: iOS can open the keyboard during the slide.
+      authPhoneInputRef.current?.focus({ preventScroll: true });
     }, () => {
       authStickerExitRef.current = null;
-      authPhoneInputRef.current?.focus({ preventScroll: true });
     });
   };
 
@@ -6868,11 +6877,11 @@ export default function Home() {
 
   if (authenticationRequired && authStatus !== "signed-in") {
     return (
-      <main className={`app-shell auth-mode${authStep === "landing" ? " auth-landing-mode" : ""}`}>
+      <main className={`app-shell auth-mode${authStep === "landing" ? " auth-landing-mode" : " auth-signin-mode"}`}>
         {authStep !== "landing" ? (
           <div
             className="top-safe-area-anchor"
-            style={{ backgroundColor: DEFAULT_BACKGROUND }}
+            style={{ backgroundColor: AUTH_LANDING_COLOR }}
             aria-hidden="true"
           />
         ) : null}
@@ -6888,13 +6897,13 @@ export default function Home() {
                 <button
                   className="auth-back-button"
                   type="button"
+                  onPointerDown={event => { if (authStep === "code") event.preventDefault(); }}
                   onClick={authStep === "code" ? editSignInPhone : returnToAuthLanding}
                   aria-label={authStep === "code" ? "Change phone number" : "Back"}
                   disabled={authPending}
                 >
                   <ArrowLeft aria-hidden="true" strokeWidth={2.8} />
                 </button>
-                <span className="auth-flow-brand">STRIP</span>
               </header>
 
               <div className="auth-flow-stage">
@@ -6909,41 +6918,14 @@ export default function Home() {
                   </p>
                 </div>
 
-                {authStep === "phone" ? (
                   <form
-                    id="auth-phone-form"
-                    className="auth-form auth-flow-form"
-                    onSubmit={requestSignInCode}
+                    id={authStep === "phone" ? "auth-phone-form" : "auth-code-form"}
+                    className={`auth-form auth-flow-form${authStep === "code" ? " auth-confirmation-form" : ""}`}
+                    onSubmit={authStep === "phone" ? requestSignInCode : verifySignInCode}
                   >
-                    <label htmlFor="auth-phone">Phone number</label>
-                    <input
-                      id="auth-phone"
-                      ref={authPhoneInputRef}
-                      className="auth-phone-input"
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      placeholder="Phone number"
-                      value={authPhone}
-                      onChange={(event) => {
-                        setAuthPhone(event.target.value.slice(0, 24));
-                        setAuthError("");
-                      }}
-                      disabled={authPending}
-                    />
-                    {authError ? (
-                      <p className="auth-error" role="alert">{authError}</p>
-                    ) : null}
-                  </form>
-                ) : (
-                  <form
-                    id="auth-code-form"
-                    className="auth-form auth-flow-form auth-confirmation-form"
-                    onSubmit={verifySignInCode}
-                  >
-                    <label htmlFor="auth-code">Verification code</label>
-                    <div className="auth-code-field">
-                      <div className="auth-code-cells" aria-hidden="true">
+                    <label htmlFor="auth-entry">{authStep === "phone" ? "Phone number" : "Verification code"}</label>
+                    <div className={authStep === "code" ? "auth-code-field" : "auth-phone-field"}>
+                      {authStep === "code" ? <div className="auth-code-cells" aria-hidden="true">
                         {Array.from({ length: AUTH_CODE_LENGTH }, (_, index) => {
                           const value = authCode[index] ?? "";
                           const activeIndex = Math.min(authCode.length, AUTH_CODE_LENGTH - 1);
@@ -6958,24 +6940,43 @@ export default function Home() {
                             </span>
                           );
                         })}
-                      </div>
+                      </div> : null}
+                      {/* Keep one focused native input mounted across both steps and network waits. */}
                       <input
-                        id="auth-code"
-                        className="auth-code-native"
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        value={authCode}
+                        id="auth-entry"
+                        ref={authPhoneInputRef}
+                        className={authStep === "phone" ? "auth-phone-input" : "auth-code-native"}
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete={authStep === "phone" ? "tel" : "one-time-code"}
+                        placeholder={authStep === "phone" ? "Phone number" : undefined}
+                        value={authStep === "phone" ? authPhone : authCode}
                         onChange={(event) => {
-                          setAuthCode(
-                            event.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, AUTH_CODE_LENGTH),
-                          );
+                          if (authPending) return;
+                          if (authStep === "phone") setAuthPhone(event.target.value.slice(0, 24));
+                          else setAuthCode(event.target.value.replace(/\D/g, "").slice(0, AUTH_CODE_LENGTH));
                           setAuthError("");
                         }}
-                        disabled={authPending}
+                        aria-busy={authPending}
                       />
+                    </div>
+                    <div className="auth-flow-actions">
+                      {authStep === "code" ? <button
+                        className="auth-resend-button"
+                        type="button"
+                        onPointerDown={event => event.preventDefault()}
+                        onClick={() => void requestSignInCode()}
+                        disabled={authPending || authResendSeconds > 0}
+                      >
+                        {authResendSeconds > 0
+                          ? `Resend code in 0:${String(authResendSeconds).padStart(2, "0")}`
+                          : "Resend code"}
+                      </button> : null}
+                      <button className="auth-continue-button" type="submit"
+                        onPointerDown={event => event.preventDefault()}
+                        disabled={authPending || (authStep === "phone" ? !authPhone.trim() : authCode.length !== AUTH_CODE_LENGTH)}>
+                        {authPending ? (authStep === "phone" ? "Sending…" : "Checking…") : "Continue"}
+                      </button>
                     </div>
                     {authError ? (
                       <p className="auth-error" role="alert">{authError}</p>
@@ -6983,57 +6984,20 @@ export default function Home() {
                     {authDevelopmentCode ? (
                       <p className="auth-dev-note">Local code: {authDevelopmentCode}</p>
                     ) : null}
-                    <button
-                      className="auth-resend-button"
-                      type="button"
-                      onClick={() => void requestSignInCode()}
-                      disabled={authPending || authResendSeconds > 0}
-                    >
-                      {authResendSeconds > 0
-                        ? `Resend code in 0:${String(authResendSeconds).padStart(2, "0")}`
-                        : "Resend code"}
-                    </button>
                   </form>
-                )}
               </div>
             </>
           )}
-          <footer className="composer-dock auth-action-dock">
+          {authStep === "landing" ? <footer className="composer-dock auth-action-dock">
             <div className="dock-controls dock-controls-current auth-action-controls">
-              {authStep === "landing" ? (
                 <>
-                  <button
-                    className="auth-action-button"
-                    type="button"
-                    onClick={beginSignIn}
-                  >
-                    Get started
-                  </button>
+                  <HapticStartButton onStart={beginSignIn} />
                   <p className="auth-action-terms">
                     By continuing, you agree to our Terms &amp; Privacy Policy.
                   </p>
                 </>
-              ) : (
-                <button
-                  className="auth-action-button"
-                  type="submit"
-                  form={authStep === "phone" ? "auth-phone-form" : "auth-code-form"}
-                  disabled={
-                    authPending ||
-                    (authStep === "phone"
-                      ? !authPhone.trim()
-                      : authCode.length !== AUTH_CODE_LENGTH)
-                  }
-                >
-                  {authPending
-                    ? authStep === "phone"
-                      ? "Sending…"
-                      : "Checking…"
-                    : "Continue"}
-                </button>
-              )}
             </div>
-          </footer>
+          </footer> : null}
         </section>
       </main>
     );

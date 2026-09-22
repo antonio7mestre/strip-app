@@ -57,7 +57,7 @@ test("only landing scrolls and the existing sign-in dock is outside its scroller
   assert.doesNotMatch(html, /Get started|composer-dock/);
   assert.match(page, /<AuthLandingStrip \/>/);
   assert.match(page, /className="composer-dock auth-action-dock"/);
-  assert.match(page, /onClick=\{beginSignIn\}/);
+  assert.match(page, /<HapticStartButton onStart=\{beginSignIn\}/);
   assert.match(page, /authPhoneInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
@@ -106,12 +106,12 @@ test("all collage stickers are anchored to a photo-sized wrapper, not the surrou
 test("landing content scrolls behind the status bar without a fixed top color layer", () => {
   const auth = page.slice(page.indexOf('if (authenticationRequired && authStatus !== "signed-in")'));
   assert.match(auth, /\{authStep !== "landing" \? \(\s*<div\s*className="top-safe-area-anchor"/);
-  assert.match(auth, /style=\{\{ backgroundColor: DEFAULT_BACKGROUND \}\}/);
+  assert.match(auth, /style=\{\{ backgroundColor: AUTH_LANDING_COLOR \}\}/);
   assert.doesNotMatch(html, /top-safe-area-anchor/);
   assert.match(css, /\.auth-mode\.auth-landing-mode,[\s\S]*?overflow: visible;/);
   assert.match(source, /theme\?\.removeAttribute\("name"\)/);
   assert.match(source, /theme\?\.setAttribute\("name", themeName\)/);
-  assert.match(page, /authStep === "landing" \? AUTH_LANDING_COLOR : DEFAULT_BACKGROUND/);
+  assert.match(page, /authenticationRequired && authStatus !== "signed-in"\s*\? AUTH_LANDING_COLOR/);
   assert.match(page, /landingIsVisible \|\| hasLeadingImage/);
   assert.match(css, /html\.leading-image-inset-active \.auth-landing\s*\{\s*translate: 0 var\(--leading-media-return-y, 0px\);/);
 });
