@@ -604,7 +604,7 @@ html.leading-image-inset-active .auth-landing {
 .landing-hero { background: #304dff; color: #d4ff00; }
 .landing-hero .landing-content {
   min-height: clamp(590px, 82svh, 900px);
-  padding: calc(var(--leading-image-inset, 0px) + env(safe-area-inset-top) + 28px) clamp(24px, 6vw, 72px) 300px;
+  padding: calc(var(--leading-image-inset, 0px) + env(safe-area-inset-top) + 28px) clamp(24px, 6vw, 72px) 340px;
 }
 .landing-hero h1,
 .landing-block h2,
@@ -626,25 +626,14 @@ html.leading-image-inset-active .auth-landing {
   position: absolute;
   z-index: 2;
   left: 50%;
-  bottom: -40px;
+  bottom: -24px;
   width: min(100%, 690px);
-  height: 310px;
+  height: 340px;
   transform: translateX(-50%);
   pointer-events: none;
 }
-.landing-sticker-pool { position: absolute; width: 33%; left: -5%; bottom: 43px; transform: rotate(-19deg); }
-.landing-sticker-friends { position: absolute; width: 42%; left: 33%; bottom: 5px; transform: rotate(11deg); }
-.landing-photo-note {
-  position: absolute;
-  z-index: 5;
-  left: 13%;
-  bottom: 29px;
-  padding: 7px 12px;
-  transform: rotate(-6deg);
-  background: #ff90cb;
-  color: #000;
-  font: 15px/1.1 "Courier New", monospace;
-}
+.landing-sticker-seaside { position: absolute; width: 36%; left: 12%; bottom: 26px; transform: rotate(-9deg); }
+.landing-sticker-sky { position: absolute; width: 40%; right: 7%; bottom: 10px; transform: rotate(8deg); }
 .landing-photo-block { background: #708431; }
 .landing-full-photo { display: block; width: 100%; height: auto; max-height: 850px; object-fit: cover; }
 .landing-photo-caption {
@@ -656,16 +645,14 @@ html.leading-image-inset-active .auth-landing {
   text-shadow: 0 1px 8px #0009;
 }
 .landing-make { background: #d4ff00; color: #17220a; }
-.landing-make .landing-content { padding: 76px clamp(24px, 6vw, 72px) 340px; }
+.landing-make .landing-content { padding: 76px clamp(24px, 6vw, 72px) 390px; }
 .landing-kicker { margin: 0 0 32px; font: 12px/1.3 "Courier New", monospace; }
 .landing-block h2 { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
 .landing-description { max-width: 400px; margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.4; letter-spacing: -0.035em; }
-.landing-sticker-label { position: absolute; z-index: 5; bottom: 49px; right: 22%; padding: 12px 20px; border-radius: 50%; background: #304dff; color: #fff; transform: rotate(-10deg); font: 14px "Courier New", monospace; }
 .landing-share { background: #ff90cb; color: #3c0d27; }
 .landing-share .landing-content { padding: 95px clamp(24px, 6vw, 72px) 36px; }
 .landing-share-photo { position: relative; width: min(70%, 320px); margin: 85px auto 100px; transform: rotate(-6deg); }
 .landing-share-photo img { display: block; width: 100%; height: auto; }
-.landing-link-sticker { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%) rotate(6deg); white-space: nowrap; padding: 12px 18px; border-radius: 8px; background: #fff; color: #304dff; font-size: clamp(13px, 3.3vw, 18px); font-weight: 700; }
 .landing-signoff { margin: 0; font-size: clamp(42px, 10vw, 88px); }
 
 /* Loose, overlapping photo scraps. Only this decorative layer is cropped. */
@@ -673,41 +660,35 @@ html.leading-image-inset-active .auth-landing {
 .landing-cutout img { display: block; width: 100%; height: auto; object-fit: contain; border: 0; box-shadow: none; }
 .landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; pointer-events: none; }
 .landing-doodle svg { display: block; width: 100%; height: 100%; }
-.landing-tape { position: absolute; z-index: 5; padding: 7px 12px; background: #fff9df; color: #171717; white-space: nowrap; font: 11px/1.1 "Courier New", monospace; letter-spacing: -0.04em; clip-path: polygon(2% 0, 98% 4%, 96% 25%, 100% 53%, 97% 74%, 99% 100%, 0 95%, 3% 64%, 0 37%); }
-.landing-hero-goggles { z-index: 4; width: 39%; right: 0; bottom: 50px; transform: rotate(22deg); }
-.landing-hero-camera { z-index: 4; width: 58%; left: 1%; top: 0; transform: rotate(-18deg); }
-.landing-hero-film { z-index: 3; width: 34%; right: 5%; top: 6px; transform: rotate(15deg); }
-.landing-hero-ball { z-index: 3; width: 29%; left: 2%; bottom: -12px; transform: rotate(-12deg); }
-.landing-hero-spark { left: 47%; top: -20px; color: #ff90cb; transform: rotate(12deg); font-size: 76px; }
-.landing-hero-tape { right: 12%; top: 84px; transform: rotate(9deg); }
+.landing-hero-goggles { z-index: 4; width: 36%; right: -2%; bottom: -16px; transform: rotate(14deg); }
+.landing-hero-camera { z-index: 4; width: 44%; left: 3%; top: 8px; transform: rotate(-12deg); }
+.landing-hero-phone { z-index: 3; width: 23%; right: 5%; top: -4px; transform: rotate(13deg); }
+.landing-hero-ball { z-index: 3; width: 24%; left: -2%; bottom: -10px; transform: rotate(-12deg); }
+.landing-hero-spark { left: 47%; top: 44px; color: #ff90cb; transform: rotate(12deg); font-size: 64px; }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
 .landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -22px; transform: rotate(16deg); z-index: 2; }
-.landing-photo-sunglasses { width: clamp(120px, 38%, 350px); right: 1%; top: 30%; transform: rotate(22deg); }
-.landing-photo-tape { right: -7px; bottom: 12%; transform: rotate(-10deg); }
+.landing-photo-glasses { width: clamp(120px, 38%, 350px); right: 1%; top: 30%; transform: rotate(16deg); }
 .landing-photo-spark { right: 3%; bottom: -52px; color: #ff90cb; font-size: 94px; }
 .landing-photo-caption { z-index: 4; bottom: 70px; left: 28%; max-width: 63%; font-size: 12px; }
-.landing-make-collage { position: absolute; left: 50%; bottom: -22px; width: min(100%, 690px); height: 306px; transform: translateX(-50%); pointer-events: none; z-index: 2; }
-.landing-make-scrap-sea { position: absolute; left: 3%; top: 58px; width: 58%; height: auto; transform: rotate(-12deg); }
-.landing-make-scrap-booth { position: absolute; right: -5%; bottom: 12px; width: 46%; height: 280px; object-fit: contain; transform: rotate(12deg); box-shadow: none; }
-.landing-make-cassette { width: 39%; right: 6%; top: 12px; transform: rotate(14deg); z-index: 3; }
-.landing-make-skate { width: 48%; left: 1%; bottom: 7px; transform: rotate(-17deg); z-index: 3; }
-.landing-make-headphones { width: 43%; right: 10%; bottom: 19px; transform: rotate(18deg); z-index: 4; }
-.landing-make-cd { width: 25%; left: 5%; top: 3px; transform: rotate(-21deg); z-index: 3; }
+.landing-make-collage { position: absolute; left: 50%; bottom: -16px; width: min(100%, 690px); height: 360px; transform: translateX(-50%); pointer-events: none; z-index: 2; }
+.landing-make-scrap-film { position: absolute; left: 4%; top: 64px; width: 51%; height: auto; transform: rotate(-10deg); }
+.landing-make-scrap-street { position: absolute; right: 4%; top: 24px; width: 31%; height: auto; transform: rotate(9deg); }
+.landing-make-cassette { width: 31%; left: 36%; bottom: 20px; transform: rotate(14deg); z-index: 3; }
+.landing-make-skate { width: 35%; left: 1%; bottom: 7px; transform: rotate(-17deg); z-index: 3; }
+.landing-make-headphones { width: 36%; right: 3%; bottom: -6px; transform: rotate(18deg); z-index: 4; }
+.landing-make-cd { width: 23%; left: 9%; top: -6px; transform: rotate(-21deg); z-index: 3; }
 .landing-make-spark { left: 4%; top: -6px; color: #ff5834; font-size: 78px; }
-.landing-make-tape { left: 14%; top: 41px; transform: rotate(-12deg); }
 .landing-share-ticket { width: 79%; right: -17%; top: -26px; transform: rotate(19deg); z-index: 2; }
 .landing-share-cherries { width: 39%; left: -21%; top: 12%; transform: rotate(19deg); z-index: 2; }
 .landing-share-shell { width: 62%; left: -15%; bottom: -28px; transform: rotate(10deg); z-index: 3; }
 .landing-share-clip { width: 61%; right: -20%; bottom: 11%; transform: rotate(-29deg); z-index: 4; }
 .landing-share-spark { left: -24%; bottom: 31%; color: #d4ff00; font-size: 100px; }
-.landing-share-tape { left: -17%; top: -23px; transform: rotate(-9deg); }
-.landing-link-sticker { z-index: 5; bottom: -40px; }
 
 @media (min-width: 760px) {
-  .landing-hero .landing-content { padding-bottom: 370px; }
-  .landing-hero-stickers { bottom: -65px; height: 410px; left: 65%; }
-  .landing-make .landing-content { padding-bottom: 410px; }
-  .landing-make-collage { height: 370px; left: 64%; }
+  .landing-hero .landing-content { padding-bottom: 480px; }
+  .landing-hero-stickers { bottom: -32px; height: 460px; left: 61%; }
+  .landing-make .landing-content { padding-bottom: 480px; }
+  .landing-make-collage { height: 440px; left: 60%; }
   .landing-share .landing-content { padding-top: 110px; }
   .landing-share-photo { margin-right: 8%; margin-top: -170px; }
 }

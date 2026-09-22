@@ -2,7 +2,7 @@ import { useLayoutEffect } from "react";
 
 export const AUTH_LANDING_COLOR = "#304dff";
 
-const STICKER_HEIGHTS = { camera: 512, film: 640, goggles: 512, ball: 768, sunglasses: 512, daisy: 922, cherries: 790, cassette: 512, headphones: 816, cd: 768, ticket: 512, shell: 702, rollerskate: 814, clip: 640 } as const;
+const STICKER_HEIGHTS = { camera: 512, flipphone: 1152, goggles: 512, ball: 768, "green-glasses": 512, daisy: 922, cherries: 790, cassette: 512, headphones: 816, cd: 768, "ticket-admit": 511, shell: 702, rollerskate: 814, clip: 640 } as const;
 
 /** Complete alpha-cut objects, without arbitrary masks, outlines, or missing pieces. */
 function PhotoCutout({ kind, className = "" }: { kind: keyof typeof STICKER_HEIGHTS; className?: string }) {
@@ -48,15 +48,13 @@ export function AuthLandingStrip() {
             <h1 id="auth-heading">Want to<br />strip?</h1>
             <p className="landing-intro">Photos, videos, words.<br />All the things that feel like you.</p>
             <div className="landing-hero-stickers" aria-hidden="true">
-              <img className="landing-sticker landing-sticker-pool" src="/landing/poolside.webp" width="1080" height="1350" alt="" decoding="async" />
-              <img className="landing-sticker landing-sticker-friends" src="/landing/afternoon.webp" width="845" height="1171" alt="" decoding="async" />
+              <img className="landing-sticker landing-sticker-seaside" src="/landing/cosmos-seaside.webp" width="900" height="1076" alt="" decoding="async" />
+              <img className="landing-sticker landing-sticker-sky" src="/landing/cosmos-sky.webp" width="900" height="1200" alt="" decoding="async" />
               <PhotoCutout kind="goggles" className="landing-hero-goggles" />
               <PhotoCutout kind="camera" className="landing-hero-camera" />
-              <PhotoCutout kind="film" className="landing-hero-film" />
+              <PhotoCutout kind="flipphone" className="landing-hero-phone" />
               <PhotoCutout kind="ball" className="landing-hero-ball" />
               <CollageBurst className="landing-hero-spark" />
-              <span className="landing-tape landing-hero-tape">GOOD STUFF ONLY</span>
-              <span className="landing-photo-note">wish you were here</span>
             </div>
           </div>
         </header>
@@ -65,8 +63,7 @@ export function AuthLandingStrip() {
           <img className="landing-full-photo" src="/landing/meadow.webp" alt="Two friends walking hand in hand through a sunlit meadow" width="735" height="490" decoding="async" />
           <div className="landing-photo-scraps" aria-hidden="true">
             <PhotoCutout kind="daisy" className="landing-photo-daisy" />
-            <PhotoCutout kind="sunglasses" className="landing-photo-sunglasses" />
-            <span className="landing-tape landing-photo-tape">KEEP THIS FEELING</span>
+            <PhotoCutout kind="green-glasses" className="landing-photo-glasses" />
             <CollageBurst className="landing-photo-spark" />
           </div>
           <span className="landing-photo-caption">the days that turn into stories.</span>
@@ -78,15 +75,13 @@ export function AuthLandingStrip() {
             <h2>Your photos.<br />Your words.<br />Your world.</h2>
             <p className="landing-description">Stack photos and videos. Add a thought, a color, a sticker. Keep going.</p>
             <div className="landing-make-collage" aria-hidden="true">
-              <img className="landing-sticker landing-make-scrap-sea" src="/landing/photo-sea.webp" alt="" width="768" height="576" loading="lazy" decoding="async" />
-              <img className="landing-sticker landing-make-scrap-booth" src="/landing/photo-booth.webp" alt="" width="768" height="1152" loading="lazy" decoding="async" />
+              <img className="landing-sticker landing-make-scrap-film" src="/landing/cosmos-double-exposure.webp" alt="" width="900" height="675" loading="lazy" decoding="async" />
+              <img className="landing-sticker landing-make-scrap-street" src="/landing/cosmos-street.webp" alt="" width="900" height="1126" loading="lazy" decoding="async" />
               <PhotoCutout kind="cassette" className="landing-make-cassette" />
               <PhotoCutout kind="rollerskate" className="landing-make-skate" />
               <PhotoCutout kind="headphones" className="landing-make-headphones" />
               <PhotoCutout kind="cd" className="landing-make-cd" />
               <CollageBurst className="landing-make-spark" />
-              <span className="landing-tape landing-make-tape">NO RULES. JUST YOU.</span>
-              <span className="landing-sticker-label">a little more you</span>
             </div>
           </div>
         </section>
@@ -97,14 +92,12 @@ export function AuthLandingStrip() {
             <h2>For your<br />people.</h2>
             <p className="landing-description">One Strip. One link.<br />Send it to the group chat.</p>
             <div className="landing-share-photo">
-              <img src="/landing/photo-picnic.webp" alt="A sunny picnic with a book, fruit and lemonade" width="768" height="1024" loading="lazy" decoding="async" />
-              <PhotoCutout kind="ticket" className="landing-share-ticket" />
+              <img src="/landing/cosmos-ocean.webp" alt="A candid sunset portrait beside the ocean" width="900" height="1199" loading="lazy" decoding="async" />
+              <PhotoCutout kind="ticket-admit" className="landing-share-ticket" />
               <PhotoCutout kind="cherries" className="landing-share-cherries" />
               <PhotoCutout kind="shell" className="landing-share-shell" />
               <PhotoCutout kind="clip" className="landing-share-clip" />
               <CollageBurst className="landing-share-spark" />
-              <span className="landing-tape landing-share-tape" aria-hidden="true">FOR THE GROUP CHAT</span>
-              <span className="landing-link-sticker" aria-hidden="true">yourname.striiip.com ↗</span>
             </div>
             <p className="landing-signoff">This is a Strip.<br />Now make yours.</p>
           </div>

@@ -61,6 +61,17 @@ test("only landing scrolls and the existing sign-in dock is outside its scroller
   assert.match(page, /authPhoneInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
+test("the Y2K collage uses Cosmos photos without floating text badges or retired assets", () => {
+  assert.doesNotMatch(html, /landing-tape|landing-photo-note|landing-sticker-label|landing-link-sticker/);
+  assert.doesNotMatch(html, /photo-booth|photo-picnic|photo-sea|sticker-film|sticker-sunglasses|poolside|afternoon/);
+  for (const name of ["sky", "seaside", "double-exposure", "street", "ocean"]) {
+    assert.match(html, new RegExp(`cosmos-${name}\\.webp`));
+    const sources = readFileSync(new URL("../public/landing/SOURCES.md", import.meta.url), "utf8");
+    assert.ok(sources.includes(`cosmos-${name}.webp`), "Every Cosmos photo has a source record");
+  }
+  for (const name of ["flipphone", "green-glasses", "ticket-admit"]) assert.match(html, new RegExp(`sticker-${name}\\.webp`));
+});
+
 test("landing content scrolls behind the status bar without a fixed top color layer", () => {
   const auth = page.slice(page.indexOf('if (authenticationRequired && authStatus !== "signed-in")'));
   assert.match(auth, /\{authStep !== "landing" \? \(\s*<div\s*className="top-safe-area-anchor"/);

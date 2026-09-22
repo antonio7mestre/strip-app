@@ -10,3 +10,18 @@ No independent reuse license is asserted by this record.
   Source: https://cdn.cosmos.so/f37a09de-923a-4bd2-9941-e306a78afec6?format=webp
 - `poolside.webp`: second image in https://www.cosmos.so/e/1040775049, uploaded by Anthropologie.
   Source: https://cdn.cosmos.so/67bc4f2d-a3cb-472e-9f55-211bcf1b328e?format=webp
+
+## September 22 collage update
+
+All five floating photo stickers below were selected visually on Cosmos in Chrome. These are downloaded photographs, not generated images. Resized without cropping. The full-width meadow photo remains unchanged. Earlier poolside and afternoon files are retained but no longer displayed.
+
+- `cosmos-sky.webp`: https://www.cosmos.so/e/624486302, uploaded by Alyssa Zupko | editorial + cinematic photographer.
+  Source: https://cdn.cosmos.so/01a09f8e-5080-72b8-84f5-63b85c38a2f5?format=webp&w=2048
+- `cosmos-double-exposure.webp`: https://www.cosmos.so/e/123206094, uploaded by c0rrar.
+  Source: https://cdn.cosmos.so/2d25d932-157b-49dd-8c55-72a574a7618b?format=webp
+- `cosmos-seaside.webp`: https://www.cosmos.so/e/994725734, uploaded by Deniz Demir ✿ Photography.
+  Source: https://cdn.cosmos.so/b1e984f4-321f-4e55-8045-587038ce3f72?format=webp&w=2048
+- `cosmos-ocean.webp`: https://www.cosmos.so/e/766351554, uploaded by No uploader name shown.
+  Source: https://cdn.cosmos.so/0c96fdb7-b48b-4e35-974d-4b561a35fe47?format=webp
+- `cosmos-street.webp`: https://www.cosmos.so/e/1375155533, uploaded by Oscar Diaz. New York City.
+  Source: https://cdn.cosmos.so/eba3f3af-b03a-452c-8cfc-b6b1b66df317?format=webp
