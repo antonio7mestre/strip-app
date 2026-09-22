@@ -53,6 +53,7 @@ import {
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
+import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
@@ -3162,7 +3163,9 @@ export default function Home() {
     (block) => block.type === "text" || block.type === "image",
   );
   const topSafeAreaColor =
-    view === "library" ||
+    authenticationRequired && authStatus !== "signed-in"
+      ? authStep === "landing" ? AUTH_LANDING_COLOR : DEFAULT_BACKGROUND
+      : view === "library" ||
     view === "drafts" ||
     view === "history" ||
     view === "settings" ||
@@ -6854,7 +6857,7 @@ export default function Home() {
       <main className="app-shell auth-mode">
         <div
           className="top-safe-area-anchor"
-          style={{ backgroundColor: DEFAULT_BACKGROUND }}
+          style={{ backgroundColor: authStep === "landing" ? AUTH_LANDING_COLOR : DEFAULT_BACKGROUND }}
           aria-hidden="true"
         />
         <section
@@ -6862,12 +6865,7 @@ export default function Home() {
           aria-labelledby="auth-heading"
         >
           {authStep === "landing" ? (
-            <div className="auth-landing">
-              <div className="auth-landing-copy">
-                <span className="auth-landing-brand">STRIP</span>
-                <h1 id="auth-heading">Make something for your friends.</h1>
-              </div>
-            </div>
+            <AuthLandingStrip />
           ) : (
             <>
               <header className="auth-flow-header">
