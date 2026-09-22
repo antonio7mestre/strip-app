@@ -26,8 +26,8 @@ test("login is a sample Strip with a title, media, explainers, and overlaid phot
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {
   const images = [...html.matchAll(/<img\b[^>]*>/g)].map(match => match[0]);
-  assert.equal(images.length, 20);
-  assert.equal(new Set(images.map(img => img.match(/src="([^"]+)"/)[1])).size, 20, "Every photo and sticker is unique");
+  assert.equal(images.length, 18);
+  assert.equal(new Set(images.map(img => img.match(/src="([^"]+)"/)[1])).size, 18, "Every photo and sticker is unique");
   for (const img of images) {
     const path = img.match(/src="([^"]+)"/)[1];
     assert.ok(existsSync(new URL(`../public${path}`, import.meta.url)));
@@ -61,15 +61,44 @@ test("only landing scrolls and the existing sign-in dock is outside its scroller
   assert.match(page, /authPhoneInputRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
 });
 
+test("Get started has a generated cursor image without blocking taps or changing the sign-in form", () => {
+  assert.ok(existsSync(new URL("../public/landing/sticker-cursor.webp", import.meta.url)));
+  assert.match(css, /\.auth-step-landing \.auth-action-button::after\s*\{[^}]*sticker-cursor\.webp[^}]*pointer-events: none;/);
+  assert.doesNotMatch(css, /\.auth-step-(?:phone|code)[^{]*::after/);
+});
+
 test("the Y2K collage uses Cosmos photos without floating text badges or retired assets", () => {
   assert.doesNotMatch(html, /landing-tape|landing-photo-note|landing-sticker-label|landing-link-sticker/);
   assert.doesNotMatch(html, /photo-booth|photo-picnic|photo-sea|sticker-film|sticker-sunglasses|poolside|afternoon/);
-  for (const name of ["sky", "seaside", "double-exposure", "street", "ocean"]) {
+  for (const name of ["sky", "street", "ocean"]) {
     assert.match(html, new RegExp(`cosmos-${name}\\.webp`));
     const sources = readFileSync(new URL("../public/landing/SOURCES.md", import.meta.url), "utf8");
     assert.ok(sources.includes(`cosmos-${name}.webp`), "Every Cosmos photo has a source record");
   }
   for (const name of ["flipphone", "green-glasses", "ticket-admit"]) assert.match(html, new RegExp(`sticker-${name}\\.webp`));
+});
+
+test("each landing section has exactly one photo, surrounded only by object stickers", () => {
+  const blocks = [...html.matchAll(/<(?:header|section) class="landing-block [\s\S]*?<\/(?:header|section)>/g)];
+  assert.equal(blocks.length, 4);
+  for (const [block] of blocks) {
+    const photos = [...block.matchAll(/<img\b[^>]*src="\/landing\/(?!sticker-)[^"]+"[^>]*>/g)];
+    assert.equal(photos.length, 1, "No section should show adjacent photo stickers");
+  }
+});
+
+test("all collage stickers are anchored to a photo-sized wrapper, not the surrounding section", () => {
+  for (const name of ["hero-stickers", "meadow-photo", "make-collage", "share-photo"]) {
+    assert.match(html, new RegExp(`class="landing-${name}"`));
+    const rule = css.match(new RegExp(`\\.landing-${name} \\{([^}]+)\\}`))?.[1];
+    assert.ok(rule && !/height:\s*\d+px/.test(rule), "Photo dimensions determine the sticker anchor");
+  }
+  assert.match(css, /\.landing-sticker-sky \{ width: 100%; \}/);
+  assert.match(css, /\.landing-make-scrap-street \{ width: 100%; height: auto; \}/);
+  assert.doesNotMatch(css, /\.landing-full-photo[^}]*object-fit:\s*cover/);
+  assert.match(css, /\.landing-meadow-photo \{ position: relative; width: 100%; \}/);
+  assert.match(css, /\.landing-hero-stickers\s*\{[^}]*bottom: -50px;/);
+  assert.match(css, /\.landing-make-collage\s*\{[^}]*bottom: -35px;/);
 });
 
 test("landing content scrolls behind the status bar without a fixed top color layer", () => {

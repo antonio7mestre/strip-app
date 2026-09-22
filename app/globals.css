@@ -626,16 +626,15 @@ html.leading-image-inset-active .auth-landing {
   position: absolute;
   z-index: 2;
   left: 50%;
-  bottom: -24px;
-  width: min(100%, 690px);
-  height: 340px;
-  transform: translateX(-50%);
+  bottom: -50px;
+  width: min(56%, 340px);
+  transform: translateX(-50%) rotate(7deg);
   pointer-events: none;
 }
-.landing-sticker-seaside { position: absolute; width: 36%; left: 12%; bottom: 26px; transform: rotate(-9deg); }
-.landing-sticker-sky { position: absolute; width: 40%; right: 7%; bottom: 10px; transform: rotate(8deg); }
+.landing-sticker-sky { width: 100%; }
 .landing-photo-block { background: #708431; }
-.landing-full-photo { display: block; width: 100%; height: auto; max-height: 850px; object-fit: cover; }
+.landing-meadow-photo { position: relative; width: 100%; }
+.landing-full-photo { display: block; width: 100%; height: auto; }
 .landing-photo-caption {
   position: absolute;
   bottom: 22px;
@@ -650,7 +649,7 @@ html.leading-image-inset-active .auth-landing {
 .landing-block h2 { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
 .landing-description { max-width: 400px; margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.4; letter-spacing: -0.035em; }
 .landing-share { background: #ff90cb; color: #3c0d27; }
-.landing-share .landing-content { padding: 95px clamp(24px, 6vw, 72px) 36px; }
+.landing-share .landing-content { padding: 125px clamp(24px, 6vw, 72px) 36px; }
 .landing-share-photo { position: relative; width: min(70%, 320px); margin: 85px auto 100px; transform: rotate(-6deg); }
 .landing-share-photo img { display: block; width: 100%; height: auto; }
 .landing-signoff { margin: 0; font-size: clamp(42px, 10vw, 88px); }
@@ -660,24 +659,23 @@ html.leading-image-inset-active .auth-landing {
 .landing-cutout img { display: block; width: 100%; height: auto; object-fit: contain; border: 0; box-shadow: none; }
 .landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; pointer-events: none; }
 .landing-doodle svg { display: block; width: 100%; height: 100%; }
-.landing-hero-goggles { z-index: 4; width: 36%; right: -2%; bottom: -16px; transform: rotate(14deg); }
-.landing-hero-camera { z-index: 4; width: 44%; left: 3%; top: 8px; transform: rotate(-12deg); }
-.landing-hero-phone { z-index: 3; width: 23%; right: 5%; top: -4px; transform: rotate(13deg); }
-.landing-hero-ball { z-index: 3; width: 24%; left: -2%; bottom: -10px; transform: rotate(-12deg); }
-.landing-hero-spark { left: 47%; top: 44px; color: #ff90cb; transform: rotate(12deg); font-size: 64px; }
+.landing-hero-goggles { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
+.landing-hero-camera { z-index: 4; width: 75%; left: -28%; top: 10%; transform: rotate(-19deg); }
+.landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: -4%; transform: rotate(6deg); }
+.landing-hero-ball { z-index: 3; width: 48%; left: -22%; bottom: -5%; transform: rotate(-19deg); }
+.landing-hero-spark { width: 24%; height: auto; aspect-ratio: 1; left: 35%; top: -7%; color: #ff90cb; transform: rotate(5deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
 .landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -22px; transform: rotate(16deg); z-index: 2; }
 .landing-photo-glasses { width: clamp(120px, 38%, 350px); right: 1%; top: 30%; transform: rotate(16deg); }
 .landing-photo-spark { right: 3%; bottom: -52px; color: #ff90cb; font-size: 94px; }
 .landing-photo-caption { z-index: 4; bottom: 70px; left: 28%; max-width: 63%; font-size: 12px; }
-.landing-make-collage { position: absolute; left: 50%; bottom: -16px; width: min(100%, 690px); height: 360px; transform: translateX(-50%); pointer-events: none; z-index: 2; }
-.landing-make-scrap-film { position: absolute; left: 4%; top: 64px; width: 51%; height: auto; transform: rotate(-10deg); }
-.landing-make-scrap-street { position: absolute; right: 4%; top: 24px; width: 31%; height: auto; transform: rotate(9deg); }
-.landing-make-cassette { width: 31%; left: 36%; bottom: 20px; transform: rotate(14deg); z-index: 3; }
-.landing-make-skate { width: 35%; left: 1%; bottom: 7px; transform: rotate(-17deg); z-index: 3; }
-.landing-make-headphones { width: 36%; right: 3%; bottom: -6px; transform: rotate(18deg); z-index: 4; }
-.landing-make-cd { width: 23%; left: 9%; top: -6px; transform: rotate(-21deg); z-index: 3; }
-.landing-make-spark { left: 4%; top: -6px; color: #ff5834; font-size: 78px; }
+.landing-make-collage { position: absolute; left: 50%; bottom: -35px; width: min(56%, 340px); transform: translateX(-50%) rotate(-6deg); pointer-events: none; z-index: 2; }
+.landing-make-scrap-street { width: 100%; height: auto; }
+.landing-make-cassette { width: 56%; left: 36%; bottom: -15%; transform: rotate(20deg); z-index: 3; }
+.landing-make-skate { width: 58%; left: -25%; bottom: -12%; transform: rotate(-11deg); z-index: 3; }
+.landing-make-headphones { width: 61%; right: -24%; bottom: 8%; transform: rotate(24deg); z-index: 4; }
+.landing-make-cd { width: 45%; left: -22%; top: -8%; transform: rotate(-15deg); z-index: 3; }
+.landing-make-spark { width: 27%; height: auto; aspect-ratio: 1; right: -12%; top: -8%; color: #ff5834; }
 .landing-share-ticket { width: 79%; right: -17%; top: -26px; transform: rotate(19deg); z-index: 2; }
 .landing-share-cherries { width: 39%; left: -21%; top: 12%; transform: rotate(19deg); z-index: 2; }
 .landing-share-shell { width: 62%; left: -15%; bottom: -28px; transform: rotate(10deg); z-index: 3; }
@@ -686,9 +684,9 @@ html.leading-image-inset-active .auth-landing {
 
 @media (min-width: 760px) {
   .landing-hero .landing-content { padding-bottom: 480px; }
-  .landing-hero-stickers { bottom: -32px; height: 460px; left: 61%; }
+  .landing-hero-stickers { bottom: -50px; left: 61%; }
   .landing-make .landing-content { padding-bottom: 480px; }
-  .landing-make-collage { height: 440px; left: 60%; }
+  .landing-make-collage { left: 60%; }
   .landing-share .landing-content { padding-top: 110px; }
   .landing-share-photo { margin-right: 8%; margin-top: -170px; }
 }
@@ -738,9 +736,21 @@ html.leading-image-inset-active .auth-landing {
 }
 
 .auth-step-landing .auth-action-button {
+  position: relative;
   border-color: #080808;
   background: #080808;
   color: #ffffff;
+}
+
+.auth-step-landing .auth-action-button::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  bottom: -18px;
+  width: 56px;
+  height: 60px;
+  background: url("/landing/sticker-cursor.webp") center / contain no-repeat;
+  pointer-events: none;
 }
 
 .auth-step-landing .auth-action-button:active {

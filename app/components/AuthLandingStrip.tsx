@@ -48,7 +48,6 @@ export function AuthLandingStrip() {
             <h1 id="auth-heading">Want to<br />strip?</h1>
             <p className="landing-intro">Photos, videos, words.<br />All the things that feel like you.</p>
             <div className="landing-hero-stickers" aria-hidden="true">
-              <img className="landing-sticker landing-sticker-seaside" src="/landing/cosmos-seaside.webp" width="900" height="1076" alt="" decoding="async" />
               <img className="landing-sticker landing-sticker-sky" src="/landing/cosmos-sky.webp" width="900" height="1200" alt="" decoding="async" />
               <PhotoCutout kind="goggles" className="landing-hero-goggles" />
               <PhotoCutout kind="camera" className="landing-hero-camera" />
@@ -60,11 +59,13 @@ export function AuthLandingStrip() {
         </header>
 
         <section className="landing-block landing-photo-block" aria-label="A moment worth keeping">
-          <img className="landing-full-photo" src="/landing/meadow.webp" alt="Two friends walking hand in hand through a sunlit meadow" width="735" height="490" decoding="async" />
-          <div className="landing-photo-scraps" aria-hidden="true">
-            <PhotoCutout kind="daisy" className="landing-photo-daisy" />
-            <PhotoCutout kind="green-glasses" className="landing-photo-glasses" />
-            <CollageBurst className="landing-photo-spark" />
+          <div className="landing-meadow-photo">
+            <img className="landing-full-photo" src="/landing/meadow.webp" alt="Two friends walking hand in hand through a sunlit meadow" width="735" height="490" decoding="async" />
+            <div className="landing-photo-scraps" aria-hidden="true">
+              <PhotoCutout kind="daisy" className="landing-photo-daisy" />
+              <PhotoCutout kind="green-glasses" className="landing-photo-glasses" />
+              <CollageBurst className="landing-photo-spark" />
+            </div>
           </div>
           <span className="landing-photo-caption">the days that turn into stories.</span>
         </section>
@@ -75,7 +76,6 @@ export function AuthLandingStrip() {
             <h2>Your photos.<br />Your words.<br />Your world.</h2>
             <p className="landing-description">Stack photos and videos. Add a thought, a color, a sticker. Keep going.</p>
             <div className="landing-make-collage" aria-hidden="true">
-              <img className="landing-sticker landing-make-scrap-film" src="/landing/cosmos-double-exposure.webp" alt="" width="900" height="675" loading="lazy" decoding="async" />
               <img className="landing-sticker landing-make-scrap-street" src="/landing/cosmos-street.webp" alt="" width="900" height="1126" loading="lazy" decoding="async" />
               <PhotoCutout kind="cassette" className="landing-make-cassette" />
               <PhotoCutout kind="rollerskate" className="landing-make-skate" />

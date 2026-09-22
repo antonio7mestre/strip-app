@@ -13,7 +13,7 @@ No independent reuse license is asserted by this record.
 
 ## September 22 collage update
 
-All five floating photo stickers below were selected visually on Cosmos in Chrome. These are downloaded photographs, not generated images. Resized without cropping. The full-width meadow photo remains unchanged. Earlier poolside and afternoon files are retained but no longer displayed.
+All five photos below were selected visually on Cosmos in Chrome. These are downloaded photographs, not generated images. Resized without cropping. Each section now displays only one photograph with stickers anchored around its edges: sky in the hero, meadow in its own green section, street in Make, and ocean in Share. Seaside, double exposure, and the earlier poolside and afternoon files are retained but no longer displayed.
 
 - `cosmos-sky.webp`: https://www.cosmos.so/e/624486302, uploaded by Alyssa Zupko | editorial + cinematic photographer.
   Source: https://cdn.cosmos.so/01a09f8e-5080-72b8-84f5-63b85c38a2f5?format=webp&w=2048
