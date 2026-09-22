@@ -53,6 +53,8 @@ import {
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
+import { StickerPicker } from "@/app/components/StickerPicker";
+import type { StickerAsset } from "@/app/lib/sticker-pack";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
@@ -2874,6 +2876,7 @@ function StripStickerBlock({
             loading="eager"
             decoding="async"
             draggable={false}
+            style={block.src.startsWith("/sticker-pack/") ? { filter: "brightness(1.06)" } : undefined}
             onLoad={(event) => {
               const image = event.currentTarget;
               void image
@@ -3027,6 +3030,8 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [inlinePreview, setInlinePreview] = useState(false);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack">("source");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
@@ -3548,6 +3553,7 @@ export default function Home() {
     root.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
 
+
   useLayoutEffect(() => installFooterSafeAreaColor({
     enabled: (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
     sheet: document.querySelector<HTMLElement>(cleanViewBottomSurfaceColor !== null
@@ -3558,8 +3564,9 @@ export default function Home() {
     defaultColor: DEFAULT_BACKGROUND,
     activeClassName: cleanViewBottomSurfaceColor !== null
       ? "preview-bottom-canvas-active"
-      : "published-bottom-canvas-active",
+      : "published-bottom-sheet-canvas-active",
   }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, visibleEndingStyle.backgroundColor]);
+
 
   useLayoutEffect(installKeyboardDockPosition, []);
 
@@ -4084,6 +4091,78 @@ export default function Home() {
     setActiveTextTool(null);
   };
 
+  const placeSticker = (
+    src: string,
+    alt: string,
+    mediaType: "image" | "video" = "image",
+  ) => {
+    if (!hasStickerAnchorBlock) {
+      setNotice("Add a text or image block before adding a sticker.");
+      return;
+    }
+    const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
+    const canvasBounds = canvas?.getBoundingClientRect();
+    const anchorBlocks = canvas
+      ? Array.from(canvas.children)
+          .filter(
+            (element): element is HTMLElement =>
+              element instanceof HTMLElement &&
+              (element.classList.contains("text-block") ||
+                element.classList.contains("image-block")),
+          )
+          .map((element) => ({
+            element,
+            bounds: element.getBoundingClientRect(),
+          }))
+          .filter(({ bounds }) => bounds.height > 0)
+      : [];
+    if (!canvas || !canvasBounds || anchorBlocks.length === 0) {
+      setNotice("Add a text or image block before adding a sticker.");
+      return;
+    }
+    const viewport = window.visualViewport;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportOffsetTop = viewport?.offsetTop ?? 0;
+    const placementLine = viewportOffsetTop + viewportHeight * 0.42;
+    const selectedAnchor = anchorBlocks.find(
+      ({ element }) => element.dataset.blockId === selectedBlockId,
+    );
+    const targetAnchor =
+      selectedAnchor ??
+      anchorBlocks.reduce((closest, candidate) => {
+        const closestCenter = (closest.bounds.top + closest.bounds.bottom) / 2;
+        const candidateCenter = (candidate.bounds.top + candidate.bounds.bottom) / 2;
+        return Math.abs(candidateCenter - placementLine) <
+          Math.abs(closestCenter - placementLine)
+          ? candidate
+          : closest;
+      });
+    const canvasWidth = Math.max(1, canvasBounds.width);
+    const id = makeId();
+    const y =
+      Math.min(
+        targetAnchor.bounds.bottom - 1,
+        Math.max(targetAnchor.bounds.top + 1, placementLine),
+      ) - canvasBounds.top;
+    const width = Math.min(34, Math.max(24, (132 / canvasWidth) * 100));
+    setBlocks((current) => [
+      ...current,
+      {
+        id,
+        type: "sticker",
+        src,
+        alt,
+        mediaType,
+        x: 50,
+        y,
+        width,
+      },
+    ]);
+    setSelectedBlockId(id);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+  };
+
   const addSticker = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -4097,80 +4176,22 @@ export default function Home() {
       setNotice("Choose an image or video for your sticker.");
       return;
     }
-    if (!hasStickerAnchorBlock) {
-      setNotice("Add a text or image block before adding a sticker.");
-      return;
-    }
 
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
-      const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
-      const canvasBounds = canvas?.getBoundingClientRect();
-      const anchorBlocks = canvas
-        ? Array.from(canvas.children)
-            .filter(
-              (element): element is HTMLElement =>
-                element instanceof HTMLElement &&
-                (element.classList.contains("text-block") ||
-                  element.classList.contains("image-block")),
-            )
-            .map((element) => ({
-              element,
-              bounds: element.getBoundingClientRect(),
-            }))
-            .filter(({ bounds }) => bounds.height > 0)
-        : [];
-      if (!canvas || !canvasBounds || anchorBlocks.length === 0) {
-        setNotice("Add a text or image block before adding a sticker.");
-        return;
-      }
-      const viewport = window.visualViewport;
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const viewportOffsetTop = viewport?.offsetTop ?? 0;
-      const placementLine = viewportOffsetTop + viewportHeight * 0.42;
-      const selectedAnchor = anchorBlocks.find(
-        ({ element }) => element.dataset.blockId === selectedBlockId,
+      placeSticker(
+        reader.result,
+        file.name.replace(/\.[^/.]+$/, ""),
+        mediaType,
       );
-      const targetAnchor =
-        selectedAnchor ??
-        anchorBlocks.reduce((closest, candidate) => {
-          const closestCenter = (closest.bounds.top + closest.bounds.bottom) / 2;
-          const candidateCenter = (candidate.bounds.top + candidate.bounds.bottom) / 2;
-          return Math.abs(candidateCenter - placementLine) <
-            Math.abs(closestCenter - placementLine)
-            ? candidate
-            : closest;
-        });
-      const canvasWidth = Math.max(1, canvasBounds.width);
-      const id = makeId();
-      const y =
-        Math.min(
-          targetAnchor.bounds.bottom - 1,
-          Math.max(targetAnchor.bounds.top + 1, placementLine),
-        ) - canvasBounds.top;
-      const width = Math.min(
-        34,
-        Math.max(24, (132 / canvasWidth) * 100),
-      );
-      setBlocks((current) => [
-        ...current,
-        {
-          id,
-          type: "sticker",
-          src: reader.result as string,
-          alt: file.name.replace(/\.[^/.]+$/, ""),
-          mediaType,
-          x: 50,
-          y,
-          width,
-        },
-      ]);
-      setSelectedBlockId(id);
-      setEditingTextBlockId(null);
-      setActiveTextTool(null);
     };
     reader.readAsDataURL(file);
+  };
+
+  const addStickerFromPack = (sticker: StickerAsset) => {
+    placeSticker(sticker.src, sticker.name);
+    setStickerPickerOpen(false);
   };
 
   const updateText = (id: string, content: string) => {
@@ -7936,6 +7957,7 @@ export default function Home() {
               } ${legacyPageEnterClass}`}
               style={publishedStripStyle}
               aria-hidden={!publishedContentCanReveal}
+              inert={!publishedContentCanReveal}
             >
               {renderStrip(false, publishedBlocks, visibleEndingStyle)}
               <footer
@@ -8099,7 +8121,21 @@ export default function Home() {
           editorDockEntering ? "is-entering-editor" : ""
         } ${activeTextTool ? "is-shifted" : ""} ${
           heightCropSession ? "is-height-cropping" : ""
-        }`}
+        } ${stickerPickerOpen ? `is-sticker-picker-open is-sticker-picker-${stickerPickerView}` : ""}`}
+        style={{
+          "--sticker-dock-visible-height": stickerPickerOpen
+            ? stickerPickerView === "pack"
+              ? "min(78dvh, 720px)"
+              : "clamp(174px, 45vw, 206px)"
+            : "var(--dock-visible-height)",
+          height:
+            "calc(var(--sticker-dock-visible-height) + 180px + env(safe-area-inset-bottom) + var(--dock-browser-extension))",
+          minHeight: 0,
+          alignItems: stickerPickerOpen ? "flex-start" : undefined,
+          paddingTop: stickerPickerOpen ? 10 : undefined,
+          transition:
+            "height 360ms cubic-bezier(0.22, 0.86, 0.28, 1), transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
+        } as CSSProperties}
       >
         {dockTransitionLayer}
         {heightCropSession ? (
@@ -8123,6 +8159,17 @@ export default function Home() {
               Crop
             </button>
           </div>
+        ) : stickerPickerOpen ? (
+          <StickerPicker
+            open
+            onClose={() => setStickerPickerOpen(false)}
+            onViewChange={setStickerPickerView}
+            onPhotoVideo={() => {
+              stickerInputRef.current?.click();
+              setStickerPickerOpen(false);
+            }}
+            onSticker={addStickerFromPack}
+          />
         ) : (
         <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
           <button
@@ -8158,7 +8205,8 @@ export default function Home() {
                 setNotice("Add a text or image block before adding a sticker.");
                 return;
               }
-              stickerInputRef.current?.click();
+              setStickerPickerView("source");
+              setStickerPickerOpen(true);
             }}
             aria-label="Add sticker"
           >
@@ -8195,6 +8243,9 @@ export default function Home() {
         )}
       </footer>
       </PreviewDock>
+      {inlinePreview ? (
+        <div className="published-bottom-pocket-sampler" aria-hidden="true" />
+      ) : null}
       {pendingDeleteBlock ? (
         <DeleteConfirmationModal
           title={`Delete this ${
