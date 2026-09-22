@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { beginStoryShare } from "../app/lib/story-share.ts";
+import { beginStoryShare, getStoryShareConfirmation } from "../app/lib/story-share.ts";
 
 const data = { files: [new File(["poster"], "poster.png", { type: "image/png" })] };
 const url = "https://antonio.striiip.com/real-strip";
@@ -81,7 +81,44 @@ test("Messages guidance uses bundled Apple artwork, without a remote image depen
 test("native share keeps the poster visible behind bright guidance",()=>{
  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
  const backdrop=css.match(/\.story-share-backdrop\s*\{([^}]+)\}/)?.[1];
- assert.match(backdrop,/rgba\(0, 0, 0, 0\.72\) 0 var\(--story-share-dock-top, 100%\), transparent/);
+ assert.match(backdrop,/background: linear-gradient\(to bottom, rgba\(0, 0, 0, 0\.72\) 0 var\(--story-share-dock-top/);
  assert.doesNotMatch(backdrop,/(?:^|;)\s*opacity\s*:/);
  assert.match(css,/\.story-share-hint\s*\{[^}]*color: #fff/);
+});
+test("confirmation distinguishes sharing, downloading, cancellation, and real clipboard results",()=>{
+ assert.deepEqual(getStoryShareConfirmation("shared",true),{image:"Story image saved or shared",copied:true});
+ assert.deepEqual(getStoryShareConfirmation("downloaded",true),{image:"Story image download started",copied:true});
+ assert.deepEqual(getStoryShareConfirmation("shared",null),{image:"Story image saved or shared",copied:null});
+ assert.deepEqual(getStoryShareConfirmation("shared",false),{image:"Story image saved or shared",copied:false});
+ assert.equal(getStoryShareConfirmation("cancelled",null),null);
+ assert.deepEqual(getStoryShareConfirmation("cancelled",true),{image:null,copied:true});
+ assert.deepEqual(getStoryShareConfirmation("cancelled",false),{image:null,copied:false});
+});
+test("confirmation is prominent, dismissible, lives longer, and resets for new shares",()=>{
+ const page=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
+ const ui=readFileSync(new URL("../app/components/StoryShareConfirmation.tsx",import.meta.url),"utf8");
+ const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
+ assert.match(page,/setStoryShareConfirmation\(null\), 7000/);
+ assert.match(page,/storyShareInFlightRef\.current = true;\s*setStoryShareConfirmation\(null\)/);
+ assert.match(page,/!storyShareSheetOpen && storyShareConfirmation \? \(/);
+ assert.match(page,/setStoryShareConfirmation\(getStoryShareConfirmation\(result, success\)\)/);
+ assert.match(ui,/aria-label="Dismiss sharing confirmation"/);
+ assert.match(ui,/role="status" aria-live="polite" aria-atomic="true"/);
+ assert.match(ui,/Link copied/);
+ assert.match(ui,/Link not copied/);
+ assert.match(css,/\.story-share-confirmation\s*\{[^}]*background: #fff/);
+});
+test("tray beacon is a noninteractive, gentle iPhone glow that stops after the sheet closes",()=>{
+ const page=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
+ const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
+ assert.match(page,/<StoryShareBackdrop open=\{storyShareSheetOpen\}>/);
+ const backdrop=readFileSync(new URL("../app/components/StoryShareBackdrop.tsx",import.meta.url),"utf8");
+ assert.match(backdrop,/className="story-share-save-beacon" aria-hidden="true"/);
+ assert.match(css,/\.story-share-save-beacon \{ display: none; pointer-events: none; \}/);
+ assert.match(css,/@supports \(-webkit-touch-callout: none\)[\s\S]*?left: 39%/);
+ assert.match(css,/bottom: 104px/);
+ assert.match(css,/story-share-beacon-pulse 1\.6s ease-in-out infinite/);
+ assert.doesNotMatch(css,/\.story-share-save-beacon \{ animation: none; opacity: 0\.85; \}/);
+ assert.match(css,/30svh - 62px/);
+ assert.match(css,/\.story-share-or \{[^}]*translateY\(-14px\)/);
 });

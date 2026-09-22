@@ -56,15 +56,37 @@ html {
   background-size: 100% 100%;
 }
 
-/* Paint beneath Safari without adding any document height. */
-html.published-bottom-canvas-active,
-html.published-bottom-canvas-active body,
+html.published-trailing-edge-active {
+  background-image: linear-gradient(
+    to bottom,
+    var(--bottom-safe-area-color, var(--black)) 0 50%,
+    var(--top-safe-area-color, var(--black)) 50% 100%
+  );
+}
+
+html.published-bottom-pocket-active,
+html.published-bottom-pocket-active body {
+  background-color: var(--bottom-safe-area-color, var(--black)) !important;
+}
+
+html.published-bottom-sheet-canvas-active {
+  background-color: var(--bottom-safe-area-color, var(--black)) !important;
+  background-image: linear-gradient(
+    to bottom,
+    var(--bottom-safe-area-color, var(--black)) 0 50%,
+    var(--top-safe-area-color, var(--black)) 50% 100%
+  ) !important;
+}
+
+html.published-bottom-sheet-canvas-active body {
+  background-color: var(--bottom-safe-area-color, var(--black)) !important;
+}
+
 html.preview-bottom-canvas-active,
 html.preview-bottom-canvas-active body {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
 }
 
-html.published-bottom-canvas-active,
 html.preview-bottom-canvas-active {
   background-image: none;
 }
@@ -605,11 +627,11 @@ html.leading-image-inset-active .auth-landing {
   overflow: hidden;
   isolation: isolate;
   touch-action: none;
-  background: #304dff;
-  pointer-events: auto;
+  background: transparent;
+  pointer-events: none;
 }
 
-.auth-sticker-backdrop { position: absolute; inset: 0; z-index: 0; isolation: isolate; }
+.auth-sticker-backdrop { position: absolute; inset: 0; z-index: 0; isolation: isolate; background: #304dff; will-change: opacity; }
 .auth-sticker-backdrop .auth-landing-frozen {
   position: absolute;
   margin: 0;
@@ -642,15 +664,6 @@ html.auth-form-active.auth-stickers-floating body {
 }
 html.auth-stickers-floating .top-safe-area-anchor { visibility: hidden; }
 .auth-sticker-stage { z-index: 2; }
-.auth-sticker-exit .auth-signin-snapshot {
-  position: absolute;
-  top: calc(160px + var(--auth-viewport-top, 0px));
-  left: 0;
-  width: 100%;
-  z-index: 1;
-  will-change: transform;
-  pointer-events: none;
-}
 
 .landing-strip {
   padding-bottom: calc(110px + env(safe-area-inset-bottom));
@@ -1464,11 +1477,13 @@ html.library-scroll-top-locked .library-mode {
   z-index: 2;
   display: flex;
   width: 100%;
-  min-height: var(--dock-visible-height);
+  min-height: calc(
+    var(--dock-visible-height) + env(safe-area-inset-bottom)
+  );
   align-items: flex-start;
   justify-content: center;
   padding: 12px max(18px, env(safe-area-inset-right))
-    12px
+    env(safe-area-inset-bottom)
     max(18px, env(safe-area-inset-left));
   border: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
@@ -1481,6 +1496,14 @@ html.library-scroll-top-locked .library-mode {
 .editor-mode .strip-ending-card {
   min-height: 0;
   padding-bottom: 12px;
+}
+
+.published-bottom-sheet {
+  /* Keep this small surface composited from mount, not first intersection.
+   * Promoting the entire long Strip instead can churn Safari's scroll tiles. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  content-visibility: visible;
 }
 
 .strip-canvas.has-trailing-text > .strip-ending-card[data-touches-block]::after,
@@ -1903,6 +1926,32 @@ html.leading-image-inset-active .published-mode.has-leading-text > .published-st
   content: "";
 }
 
+
+.published-bottom-pocket-sampler {
+  display: none;
+  position: fixed;
+  z-index: 8;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: max(84px, calc(env(safe-area-inset-bottom) + 50px));
+  background: linear-gradient(
+    to bottom,
+    color-mix(
+        in srgb,
+        var(--bottom-safe-area-color, var(--black)) 0%,
+        transparent
+      )
+      0,
+    var(--bottom-safe-area-color, var(--black)) 42px,
+    var(--bottom-safe-area-color, var(--black)) 100%
+  );
+  pointer-events: none;
+}
+
+html.published-bottom-pocket-active .published-bottom-pocket-sampler {
+  display: block;
+}
 
 .strip-block {
   position: relative;
@@ -2828,7 +2877,7 @@ html:has(.story-share-boundary) body {
 
 .story-share-option { display: grid; justify-items: center; gap: 10px; }
 .story-share-hint p { margin: 0; white-space: nowrap; }
-.story-share-or { opacity: 0.65; font-weight: 400; }
+.story-share-or { opacity: 0.65; font-weight: 400; transform: translateY(-14px); }
 .story-share-save-icon,
 .story-share-messages-icon { display: block; width: 56px; height: 56px; }
 .story-share-messages-icon { border-radius: 22.5%; }

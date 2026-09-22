@@ -79,12 +79,18 @@ test("only cutouts and doodles detach; frozen Cosmos photos are never physics bo
   assert.match(source, /screenAngle\(element\)/);
 });
 
-test("the form mounts in the tap, slides with the stickers, and cleans up without a fade", () => {
+test("the real form mounts in the tap and fades in under an independent sticker layer", () => {
   assert.match(page, /if \(authStickerExitRef\.current\) return/);
   assert.match(page, /useEffect\(\(\) => \(\) => \{ authStickerExitRef\.current\?\.\(\); \}, \[\]\)/);
-  assert.ok(source.indexOf('onReveal();\n  // Landing') < source.indexOf('frame = requestAnimationFrame(tick)'));
-  assert.match(source, /seeds\[index\]\.y - physics\.bodies\[index\]\.position\.y/);
+  const revealAt = source.indexOf('onReveal();\n  // Safari');
+  assert.ok(revealAt > 0 && revealAt < source.indexOf('frame = requestAnimationFrame(tick)'));
+  assert.match(source, /backdrop\.style\.opacity/);
+  assert.doesNotMatch(source, /auth-signin-snapshot|stickerPanelRise|visibleAtTap/);
+  assert.match(css, /\.auth-sticker-exit \{[^}]*background: transparent;[^}]*pointer-events: none;/);
   assert.doesNotMatch(source, /overlay\.style\.opacity/);
+  assert.doesNotMatch(source, /elapsed >= 2200/);
+  assert.match(source, /progress === 1\) document\.removeEventListener\("click", preventTap, true\)/);
+  assert.match(page, /const returnToAuthLanding = \(\) => \{\s*authStickerExitRef\.current\?\.\(\);/);
   assert.match(source, /prefers-reduced-motion: reduce/);
   assert.match(source, /window\.setTimeout\(finish, 2400\)/);
   for (const cleanup of ["cancelAnimationFrame(frame)", "clearTimeout(watchdog)", "physics.dispose()", "overlay.remove()", 'removeEventListener("click", preventTap, true)']) assert.ok(source.includes(cleanup));
@@ -100,15 +106,23 @@ test("the form mounts in the tap, slides with the stickers, and cleans up withou
   assert.match(css, /\.auth-sticker-exit \{\s*position: absolute;[\s\S]*?height: calc\(100lvh \+ 320px\)/);
 });
 
-test("the panel tracks median sticker travel monotonically, not a separate timing curve", () => {
+test("completion waits for every whole sticker, even below the original viewport", () => {
   const result = {};
   runInNewContext(ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,
     {exports:result,require:()=>({})});
-  assert.equal(result.stickerPanelRise([-5,-3,-4],0,800),0);
-  assert.equal(result.stickerPanelRise([230,220,900],0,800),230);
-  assert.equal(result.stickerPanelRise([210,215,220],230,800),230);
-  assert.equal(result.stickerPanelRise([830,820,810],230,800),800);
-  assert.equal(result.stickerPanelRise([],0,800),800);
+  const stickers = [seed(), seed(180, 5200)];
+  assert.equal(result.stickersHaveLeftScreen(stickers, [{y:-1000}, {y:3400}]), false);
+  assert.equal(result.stickersHaveLeftScreen(stickers, [{y:-1000}, {y:-200}]), false,
+    "The center can leave while a rotated corner is still in the safe area");
+  assert.equal(result.stickersHaveLeftScreen(stickers, [{y:-1000}, {y:-300}]), true);
+  assert.equal(result.stickersHaveLeftScreen([], []), true);
+  const sim = createStickerPhysics(stickers, 402, () => 0.5);
+  for (let i = 0; i < 264; i++) sim.step(STICKER_STEP_MS);
+  assert.equal(result.stickersHaveLeftScreen(stickers, sim.bodies.map(body => body.position)), false,
+    "The original 2.2-second cutoff would lose the bottom sticker");
+  for (let i = 0; i < 1000; i++) sim.step(STICKER_STEP_MS);
+  assert.equal(result.stickersHaveLeftScreen(stickers, sim.bodies.map(body => body.position)), true);
+  sim.dispose();
 });
 
 test("even an object starting at the very bottom can float past the top without a ceiling", () => {

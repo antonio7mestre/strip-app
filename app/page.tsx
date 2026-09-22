@@ -5267,7 +5267,7 @@ export default function Home() {
         setAuthDevelopmentCode("");
       });
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      // Still inside the original tap: iOS can open the keyboard during the slide.
+      // Still inside the original tap: iOS can open the keyboard during the fade.
       authPhoneInputRef.current?.focus({ preventScroll: true });
     }, () => {
       authStickerExitRef.current = null;
@@ -5275,6 +5275,8 @@ export default function Home() {
   };
 
   const returnToAuthLanding = () => {
+    authStickerExitRef.current?.();
+    authStickerExitRef.current = null;
     setAuthStickerRevealed(false);
     setAuthTransitionDirection("backward");
     setAuthStep("landing");

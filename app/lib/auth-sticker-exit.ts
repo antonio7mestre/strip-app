@@ -3,12 +3,12 @@ import { createStickerPhysics, type FloatingSticker } from "./sticker-physics";
 // Photo wrappers contain the Cosmos pictures too. Only detach the object cutouts and drawings.
 export const FLOATING_STICKER_SELECTOR = ".landing-cutout, .landing-doodle";
 const BLEED = 160;
+export const AUTH_FORM_FADE_MS = 620;
 
-/** The incoming screen follows the same upward travel as the detached objects. */
-export function stickerPanelRise(lifts: number[], previous: number, height: number) {
-  const ordered = lifts.slice().sort((a, b) => a - b);
-  const median = ordered.length ? ordered[Math.floor(ordered.length / 2)] : height;
-  return Math.min(height, Math.max(previous, median, 0));
+/** Check the whole visual, including its rotation, beyond the status-bar bleed. */
+export function stickersHaveLeftScreen(stickers: FloatingSticker[], positions: { y: number }[]) {
+  return stickers.every((sticker, index) =>
+    positions[index].y + Math.hypot(sticker.width, sticker.height) / 2 < -BLEED);
 }
 
 function screenAngle(element: HTMLElement) {
@@ -34,9 +34,6 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   }
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const width = document.documentElement.clientWidth;
-  const height = window.visualViewport
-    ? Math.min(window.innerHeight, window.visualViewport.height + window.visualViewport.offsetTop)
-    : window.innerHeight;
   const overlay = document.createElement("div");
   overlay.className = "auth-sticker-exit";
   overlay.setAttribute("aria-hidden", "true");
@@ -106,9 +103,6 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     }
   }
   const physics = createStickerPhysics(seeds, width);
-  const visibleAtTap = seeds.map((seed, index) => ({ seed, index }))
-    .filter(({ seed }) => seed.y + seed.height / 2 >= 0 && seed.y - seed.height / 2 <= height)
-    .map(({ index }) => index);
   const draw = () => physics.bodies.forEach((body, index) => {
     const seed = seeds[index];
     sprites[index].style.transform = `translate3d(${body.position.x - seed.width / 2}px,${body.position.y - seed.height / 2}px,0) rotate(${body.angle}rad)`;
@@ -118,13 +112,15 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   document.documentElement.style.setProperty("--auth-flight-inset", `${flightInset}px`);
   document.documentElement.classList.add("auth-stickers-floating");
 
-  let frame = 0, disposed = false, rise = 0;
+  let frame = 0, disposed = false;
+  const fadeDuration = reducedMotion ? 160 : AUTH_FORM_FADE_MS;
   const started = performance.now();
   let previous = started;
   const preventScroll = (event: Event) => event.preventDefault();
   document.addEventListener("touchmove", preventScroll, { passive: false });
   document.addEventListener("wheel", preventScroll, { passive: false });
-  // Block a rapid second tap on the underlying CTA without disabling its visual style.
+  // Block the outgoing CTA tap only through the crossfade. The real form is
+  // interactive while the remaining decorative objects continue overhead.
   const preventTap = (event: Event) => { event.preventDefault(); event.stopPropagation(); };
   document.addEventListener("click", preventTap, true);
   // Mount and focus during the original tap, before any frame or timer. The real
@@ -139,15 +135,6 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   const theme = document.getElementById("strip-theme-color");
   const themeName = theme?.getAttribute("name");
   theme?.removeAttribute("name");
-  const form = document.querySelector<HTMLElement>(".auth-signin-mode");
-  const incoming = form?.cloneNode(true) as HTMLElement | undefined;
-  if (incoming) {
-    incoming.classList.add("auth-signin-snapshot");
-    incoming.querySelectorAll("[id]").forEach(element => element.removeAttribute("id"));
-    incoming.querySelectorAll("[for]").forEach(element => element.removeAttribute("for"));
-    incoming.style.transform = `translate3d(0,${height}px,0)`;
-    overlay.insertBefore(incoming, stage);
-  }
   const dispose = () => {
     if (disposed) return;
     disposed = true;
@@ -166,8 +153,9 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     window.removeEventListener("orientationchange", finish);
   };
   const finish = () => { if (disposed) return; dispose(); onComplete(); };
-  // Navigation must still complete if animation frames stop (background tab, interruption).
-  const watchdog = window.setTimeout(finish, 2400);
+  // Only clean up stalled frames. A long page must not lose its lowest stickers
+  // because a fixed total animation duration expired.
+  let watchdog = window.setTimeout(finish, 2400);
   document.addEventListener("visibilitychange", finish);
   window.addEventListener("orientationchange", finish);
   const tick = (now: number) => {
@@ -177,14 +165,16 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     previous = now;
     overlay.style.top = `${window.scrollY - BLEED}px`;
     draw();
-    rise = stickerPanelRise(visibleAtTap.map(index => seeds[index].y - physics.bodies[index].position.y), rise, height);
-    if (incoming) {
-      incoming.style.transform = `translate3d(0,${height - rise}px,0)`;
-      const originalInput = form?.querySelector("input");
-      const copyInput = incoming.querySelector("input");
-      if (originalInput && copyInput) copyInput.value = originalInput.value;
+    const progress = Math.min(1, elapsed / fadeDuration);
+    const fade = progress * progress * (3 - 2 * progress);
+    backdrop.style.opacity = `${1 - fade}`;
+    if (progress === 1) document.removeEventListener("click", preventTap, true);
+    if (progress === 1 && stickersHaveLeftScreen(seeds, physics.bodies.map(body => body.position))) {
+      finish();
+      return;
     }
-    if (reducedMotion || !incoming || rise >= height || elapsed >= 2200) { finish(); return; }
+    clearTimeout(watchdog);
+    watchdog = window.setTimeout(finish, 2400);
     frame = requestAnimationFrame(tick);
   };
   frame = requestAnimationFrame(tick);
