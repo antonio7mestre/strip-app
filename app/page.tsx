@@ -54,6 +54,7 @@ import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
+import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
@@ -2973,6 +2974,9 @@ export default function Home() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>("landing");
+  const [authStickerRevealed, setAuthStickerRevealed] = useState(false);
+  const authStickerExitRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { authStickerExitRef.current?.(); }, []);
   const [authTransitionDirection, setAuthTransitionDirection] =
     useState<PageTransitionDirection>("forward");
   const [authPhone, setAuthPhone] = useState("");
@@ -5212,6 +5216,7 @@ export default function Home() {
 
   const editSignInPhone = () => {
     flushSync(() => {
+      setAuthStickerRevealed(false);
       setAuthTransitionDirection("backward");
       setAuthStep("phone");
       setAuthCode("");
@@ -5223,17 +5228,24 @@ export default function Home() {
   };
 
   const beginSignIn = () => {
-    flushSync(() => {
-      setAuthTransitionDirection("forward");
-      setAuthStep("phone");
-      setAuthError("");
-      setAuthDevelopmentCode("");
+    if (authStickerExitRef.current) return;
+    authStickerExitRef.current = startAuthStickerExit(() => {
+      flushSync(() => {
+        setAuthStickerRevealed(true);
+        setAuthTransitionDirection("forward");
+        setAuthStep("phone");
+        setAuthError("");
+        setAuthDevelopmentCode("");
+      });
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }, () => {
+      authStickerExitRef.current = null;
+      authPhoneInputRef.current?.focus({ preventScroll: true });
     });
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    authPhoneInputRef.current?.focus({ preventScroll: true });
   };
 
   const returnToAuthLanding = () => {
+    setAuthStickerRevealed(false);
     setAuthTransitionDirection("backward");
     setAuthStep("landing");
     setAuthPhone("");
@@ -6865,7 +6877,7 @@ export default function Home() {
           />
         ) : null}
         <section
-          className={`auth-shell auth-step-${authStep} auth-transition-${authTransitionDirection}`}
+          className={`auth-shell auth-step-${authStep} auth-transition-${authTransitionDirection}${authStep === "phone" && authStickerRevealed ? " auth-sticker-revealed" : ""}`}
           aria-labelledby="auth-heading"
         >
           {authStep === "landing" ? (

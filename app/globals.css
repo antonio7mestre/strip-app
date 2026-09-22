@@ -594,6 +594,44 @@ html.leading-image-inset-active .auth-landing {
   letter-spacing: 0.12em;
 }
 
+/* Keep the Cosmos photos exactly where they were tapped. Only cutouts become bodies. */
+.auth-sticker-exit {
+  position: fixed;
+  inset: -160px 0;
+  z-index: 2147482000;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: none;
+  background: #304dff;
+  pointer-events: auto;
+}
+
+.auth-sticker-backdrop { position: absolute; inset: 0; }
+.auth-sticker-backdrop .auth-landing-frozen {
+  position: absolute;
+  margin: 0;
+  translate: none;
+  transform: none;
+  animation: none;
+}
+.auth-sticker-stage { position: absolute; left: 0; width: 100%; }
+.auth-floating-sticker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  will-change: transform;
+  transform-origin: center;
+}
+.auth-floating-sticker > img,
+.auth-floating-sticker > svg { display: block; width: 100%; height: 100%; object-fit: contain; }
+.auth-sticker-revealed .auth-flow-header,
+.auth-sticker-revealed .auth-flow-stage { animation: none; }
+html.auth-stickers-floating .auth-action-button::after { visibility: hidden; }
+/* The real, stationary CTA and its complete white safe-area surface stay above the floating objects. */
+html.auth-stickers-floating .auth-shell { z-index: auto; }
+html.auth-stickers-floating .auth-action-dock.composer-dock { z-index: 2147482100; }
+
 .landing-strip {
   padding-bottom: calc(110px + env(safe-area-inset-bottom));
   background: #ff90cb;
