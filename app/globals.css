@@ -659,14 +659,15 @@ html.leading-image-inset-active .auth-landing {
 .landing-cutout img { display: block; width: 100%; height: auto; object-fit: contain; border: 0; box-shadow: none; }
 .landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; pointer-events: none; }
 .landing-doodle svg { display: block; width: 100%; height: 100%; }
-.landing-hero-goggles { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
-.landing-hero-camera { z-index: 4; width: 75%; left: -28%; top: 10%; transform: rotate(-19deg); }
+.landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
+.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -12%; transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: -4%; transform: rotate(6deg); }
+.landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -3%; color: #ffffff; transform: rotate(6deg); }
 .landing-hero-ball { z-index: 3; width: 48%; left: -22%; bottom: -5%; transform: rotate(-19deg); }
-.landing-hero-spark { width: 24%; height: auto; aspect-ratio: 1; left: 35%; top: -7%; color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-spark { z-index: 3; width: 36%; height: auto; aspect-ratio: 1; left: 20%; top: -24%; color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-squiggle { width: 34%; height: auto; aspect-ratio: 1; left: -20%; top: 43%; color: #d4ff00; transform: rotate(-21deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
 .landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -22px; transform: rotate(16deg); z-index: 2; }
-.landing-photo-glasses { width: clamp(120px, 38%, 350px); right: 1%; top: 30%; transform: rotate(16deg); }
 .landing-photo-spark { right: 3%; bottom: -52px; color: #ff90cb; font-size: 94px; }
 .landing-photo-caption { z-index: 4; bottom: 70px; left: 28%; max-width: 63%; font-size: 12px; }
 .landing-make-collage { position: absolute; left: 50%; bottom: -35px; width: min(56%, 340px); transform: translateX(-50%) rotate(-6deg); pointer-events: none; z-index: 2; }
@@ -677,7 +678,7 @@ html.leading-image-inset-active .auth-landing {
 .landing-make-cd { width: 45%; left: -22%; top: -8%; transform: rotate(-15deg); z-index: 3; }
 .landing-make-spark { width: 27%; height: auto; aspect-ratio: 1; right: -12%; top: -8%; color: #ff5834; }
 .landing-share-ticket { width: 79%; right: -17%; top: -26px; transform: rotate(19deg); z-index: 2; }
-.landing-share-cherries { width: 39%; left: -21%; top: 12%; transform: rotate(19deg); z-index: 2; }
+.landing-share-cherries { width: 39%; left: -21%; top: -3%; transform: rotate(19deg); z-index: 2; }
 .landing-share-shell { width: 62%; left: -15%; bottom: -28px; transform: rotate(10deg); z-index: 3; }
 .landing-share-clip { width: 61%; right: -20%; bottom: 11%; transform: rotate(-29deg); z-index: 4; }
 .landing-share-spark { left: -24%; bottom: 31%; color: #d4ff00; font-size: 100px; }
@@ -745,10 +746,10 @@ html.leading-image-inset-active .auth-landing {
 .auth-step-landing .auth-action-button::after {
   content: "";
   position: absolute;
-  right: -18px;
-  bottom: -18px;
-  width: 56px;
-  height: 60px;
+  right: -24px;
+  bottom: -24px;
+  width: 44px;
+  height: 48px;
   background: url("/landing/sticker-cursor.webp") center / contain no-repeat;
   pointer-events: none;
 }

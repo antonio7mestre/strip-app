@@ -26,8 +26,8 @@ test("login is a sample Strip with a title, media, explainers, and overlaid phot
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {
   const images = [...html.matchAll(/<img\b[^>]*>/g)].map(match => match[0]);
-  assert.equal(images.length, 18);
-  assert.equal(new Set(images.map(img => img.match(/src="([^"]+)"/)[1])).size, 18, "Every photo and sticker is unique");
+  assert.equal(images.length, 17);
+  assert.equal(new Set(images.map(img => img.match(/src="([^"]+)"/)[1])).size, 17, "Every photo and sticker is unique");
   for (const img of images) {
     const path = img.match(/src="([^"]+)"/)[1];
     assert.ok(existsSync(new URL(`../public${path}`, import.meta.url)));
@@ -40,7 +40,7 @@ test("photos are local, have stable dimensions and accessible or decorative alt 
 });
 
 test("collage uses complete transparent stickers without rough masks or borders and a black CTA", () => {
-  assert.equal((html.match(/class="landing-cutout /g) || []).length, 14);
+  assert.equal((html.match(/class="landing-cutout /g) || []).length, 13);
   assert.doesNotMatch(html, /clipPath|clip-path/);
   assert.doesNotMatch(html, /class="[^\"]*\s(?:share-shell|hero-camera|make-cd)(?:\s|\")/, "Sticker classes cannot inherit unrelated page layouts");
   assert.match(html, /sticker-camera\.webp/);
@@ -76,6 +76,8 @@ test("the Y2K collage uses Cosmos photos without floating text badges or retired
     assert.ok(sources.includes(`cosmos-${name}.webp`), "Every Cosmos photo has a source record");
   }
   for (const name of ["flipphone", "green-glasses", "ticket-admit"]) assert.match(html, new RegExp(`sticker-${name}\\.webp`));
+  assert.match(html, /landing-cutout-green-glasses landing-hero-glasses/);
+  assert.doesNotMatch(html, /sticker-goggles|landing-photo-glasses/);
 });
 
 test("each landing section has exactly one photo, surrounded only by object stickers", () => {
