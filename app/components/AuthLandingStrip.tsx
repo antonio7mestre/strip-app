@@ -109,6 +109,7 @@ function CollageBurst({ className }: { className: string }) {
   return (
     <MovableSticker className={`landing-doodle ${className}`} label={className === "landing-share-spark" ? "heart" : className === "landing-hero-squiggle" ? "squiggle" : "spark"}>
       <svg viewBox="0 0 100 100" focusable="false">
+        <path className="landing-shape-shadow" fill="black" stroke="black" strokeWidth="6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" transform="translate(0 5)" opacity="0.32" d={shapes[className]} />
         <path className="landing-shape-outline" fill="white" stroke="white" strokeWidth="6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" d={shapes[className]} />
         <path fill="currentColor" d={shapes[className]} />
       </svg>
@@ -168,6 +169,7 @@ export function AuthLandingStrip() {
               <PhotoCutout kind="flipphone" className="landing-hero-phone" />
               <MovableSticker className="landing-doodle landing-hero-ring" label="ringing phone">
                 <svg viewBox="0 0 100 100" focusable="false">
+                  <path className="landing-shape-shadow" d="M49 85Q49 49 85 49M23 85Q23 23 85 23" fill="none" stroke="black" strokeWidth="24" strokeLinecap="round" transform="translate(0 8)" opacity="0.32" />
                   <path className="landing-shape-outline" d="M49 85Q49 49 85 49M23 85Q23 23 85 23" fill="none" stroke="white" strokeWidth="24" strokeLinecap="round" />
                   <path d="M49 85Q49 49 85 49M23 85Q23 23 85 23" fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round" />
                 </svg>

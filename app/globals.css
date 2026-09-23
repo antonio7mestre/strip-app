@@ -760,14 +760,17 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-sticker-art img { -webkit-user-drag: none; }
 .landing-sticker-button.is-selected { z-index: 10; touch-action: none; cursor: grab; }
 .landing-sticker-button.is-dragging { cursor: grabbing; }
-.landing-sticker-button.is-selected,
-.landing-sticker-button:focus-visible { filter: drop-shadow(0 7px 8px rgb(0 0 0 / 28%)); }
+.landing-cutout.is-selected,
+.landing-cutout:focus-visible { filter: drop-shadow(0 5px 2px rgb(0 0 0 / 38%)); }
 .landing-cutout.is-selected .landing-sticker-art,
 .landing-cutout:focus-visible .landing-sticker-art { filter: url(#landing-sticker-outline); }
 .landing-doodle svg { overflow: visible; }
-.landing-shape-outline { visibility: hidden; }
+.landing-shape-outline,
+.landing-shape-shadow { visibility: hidden; }
 .landing-doodle.is-selected .landing-shape-outline,
-.landing-doodle:focus-visible .landing-shape-outline { visibility: visible; }
+.landing-doodle:focus-visible .landing-shape-outline,
+.landing-doodle.is-selected .landing-shape-shadow,
+.landing-doodle:focus-visible .landing-shape-shadow { visibility: visible; }
 .landing-block:has(.landing-sticker-button.is-selected) { z-index: 5; }
 .landing-sticker-filters { position: absolute; pointer-events: none; }
 .landing-play-hint {

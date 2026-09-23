@@ -78,7 +78,9 @@ test("white selection border follows the image alpha and rounds its edge, never 
   assert.match(html, /feFlood flood-color="white"/);
   assert.match(css, /\.landing-cutout.is-selected \.landing-sticker-art,[\s\S]*?filter: url\(#landing-sticker-outline\)/);
   assert.match(css, /\.landing-doodle svg \{ overflow: visible; \}/);
-  assert.match(css, /filter: drop-shadow\(0 7px 8px rgb\(0 0 0 \/ 28%\)\)/);
+  assert.match(css, /filter: drop-shadow\(0 5px 2px rgb\(0 0 0 \/ 38%\)\)/);
+  assert.match(html, /class="landing-shape-shadow"[^>]*transform="translate\(0 5\)"/);
+  assert.doesNotMatch(css, /\.landing-sticker-button(?:\.is-selected|:focus-visible)[^{]*\{[^}]*filter:/);
   assert.match(css, /\.landing-sticker-button\s*\{[^}]*border: 0;[^}]*outline: none;/);
 });
 
