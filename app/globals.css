@@ -341,6 +341,15 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   display: none;
 }
 
+/* Keep these app screens at their designed scale. Vertical swipes still scroll
+   the collage/library; selected stickers retain their own touch-action:none. */
+html.page-zoom-locked,
+html.page-zoom-locked :where(.auth-mode *, .library-mode *),
+.auth-mode,
+.library-mode {
+  touch-action: pan-y;
+}
+
 .auth-mode,
 .auth-shell {
   overflow-anchor: none;
@@ -1106,7 +1115,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 }
 
 
-/* Sign-in is one keyboard-sized canvas. Landing and username onboarding stay independent. */
+/* Phone, code and username share one fixed, keyboard-sized canvas. */
 html.auth-form-active,
 html.auth-form-active body {
   height: 100%;
@@ -1125,6 +1134,10 @@ html.auth-form-active body { position: fixed; width: 100%; }
   min-height: 0;
   background: #304dff;
 }
+html.auth-form-anchored .auth-signin-mode {
+  position: absolute;
+  top: var(--auth-document-top, 0px);
+}
 .auth-signin-mode .auth-shell {
   height: 100%;
   min-height: 0;
@@ -1136,7 +1149,11 @@ html.auth-form-active body { position: fixed; width: 100%; }
 .auth-signin-mode .auth-flow-stage { padding-top: clamp(24px, 5vh, 46px); }
 .auth-signin-mode .auth-back-button { background: rgb(255 255 255 / 16%); }
 .auth-signin-mode .auth-flow-copy h1 { color: #d4ff00; }
-.auth-signin-mode .auth-flow-copy p { color: #ffffff; }
+.auth-signin-mode .auth-flow-copy p { color: #ffffff; min-height: 1.35em; }
+.auth-signin-mode .auth-entry-field { position: relative; height: 62px; flex: none; }
+.auth-signin-mode .auth-code-cells { height: 100%; }
+.auth-signin-mode .auth-code-cell { aspect-ratio: auto; }
+.auth-signin-mode .auth-username-url { flex: 1; min-width: 0; margin: 0; color: #ffffff; }
 .auth-signin-mode .auth-flow-form { flex: 0 1 auto; gap: 0; }
 .auth-signin-mode .auth-phone-input,
 .auth-signin-mode .auth-code-cell { background: #ffffff; color: #111111; caret-color: #111111; }
@@ -1165,9 +1182,10 @@ html.auth-form-active body { position: fixed; width: 100%; }
 html.auth-form-compact .auth-signin-mode .auth-shell { padding-top: 12px; }
 html.auth-form-compact .auth-signin-mode .auth-flow-stage { padding-top: 14px; }
 html.auth-form-compact .auth-signin-mode .auth-flow-copy h1 { font-size: 34px; }
-html.auth-form-compact .auth-signin-mode .auth-flow-copy p { margin-top: 8px; font-size: 14px; }
+html.auth-form-compact .auth-signin-mode .auth-flow-copy p { margin-top: 8px; font-size: clamp(12px, 3.5vw, 14px); }
 html.auth-form-compact .auth-signin-mode .auth-flow-form { margin-top: 18px; }
 html.auth-form-compact .auth-signin-mode .auth-phone-input { min-height: 52px; }
+html.auth-form-compact .auth-signin-mode .auth-entry-field { height: 52px; }
 html.auth-form-compact .auth-signin-mode .auth-flow-actions { margin-top: 12px; }
 html.auth-form-compact .auth-signin-mode .auth-continue-button { min-height: 44px; padding-block: 10px; }
 .auth-action-button.auth-haptic-start { display: grid; place-items: center; }

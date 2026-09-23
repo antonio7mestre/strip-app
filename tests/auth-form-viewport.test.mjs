@@ -7,22 +7,35 @@ test("the auth canvas follows keyboard height and pan, then releases its scroll 
   const properties=new Map(),classes=new Set(),events=new Map(),windowEvents=new Map();
   const viewport={height:740,offsetTop:0,scale:1,
     addEventListener:(name,fn)=>events.set(name,fn),removeEventListener:name=>events.delete(name)};
-  globalThis.window={visualViewport:viewport,innerHeight:800,
+  globalThis.window={visualViewport:viewport,innerHeight:800,scrollY:0,
     addEventListener:(name,fn)=>windowEvents.set(name,fn),removeEventListener:name=>windowEvents.delete(name)};
-  globalThis.document={documentElement:{style:{getPropertyValue:k=>properties.get(k)||"",setProperty:(k,v)=>properties.set(k,v),removeProperty:k=>properties.delete(k)},
+  const attributes=new Map([["name","theme-color"]]);
+  const theme={getAttribute:k=>attributes.get(k),hasAttribute:k=>attributes.has(k),removeAttribute:k=>attributes.delete(k),setAttribute:(k,v)=>attributes.set(k,v)};
+  globalThis.document={getElementById:()=>theme,documentElement:{style:{getPropertyValue:k=>properties.get(k)||"",setProperty:(k,v)=>properties.set(k,v),removeProperty:k=>properties.delete(k)},
     classList:{add:c=>classes.add(c),remove:(...items)=>items.forEach(c=>classes.delete(c)),toggle:(c,on)=>on?classes.add(c):classes.delete(c)}}};
   try {
     const cleanup=installAuthFormViewport();
+    assert.equal(attributes.has("name"),false,"Even a directly loaded username form has no painted Safari theme band");
     assert.equal(properties.get("--auth-viewport-height"),"740px");
     viewport.height=350;viewport.offsetTop=48;events.get("resize")();
     assert.equal(properties.get("--auth-viewport-height"),"350px");
     assert.equal(properties.get("--auth-viewport-top"),"48px");
+    assert.equal(properties.get("--auth-document-top"),"48px");
     assert.ok(classes.has("auth-form-compact"));
     viewport.offsetTop=-12;events.get("scroll")();
     assert.equal(properties.get("--auth-viewport-top"),"0px");
+    window.scrollY=62;windowEvents.get("scroll")();
+    assert.equal(properties.get("--auth-document-top"),"62px","Absolute canvas tracks the same document anchor as the floating stickers");
     viewport.height=740;events.get("resize")();
     assert.ok(!classes.has("auth-form-compact"));
+    window.innerWidth=402;events.get("resize")();
+    assert.ok(classes.has("auth-form-compact"),"Mobile layout is compact before the keyboard opens");
+    for (const height of [404,712,388,740]) {
+      viewport.height=height;events.get("resize")();
+      assert.ok(classes.has("auth-form-compact"),"Keyboard type changes never expand mobile form geometry");
+    }
     cleanup();
+    assert.equal(attributes.get("name"),"theme-color");
     assert.equal(events.size+windowEvents.size+properties.size+classes.size,0);
   } finally {delete globalThis.window;delete globalThis.document;}
 });
@@ -44,7 +57,7 @@ test("the iPhone form owns its media anchor and theme until sign-in ends, not un
     removeEventListener: name => documentEvents.delete(name),
   };
   globalThis.window = {
-    innerHeight: 774, visualViewport: {height: 714, offsetTop: 0, scale: 1,
+    innerHeight: 774, scrollY: 62, visualViewport: {height: 714, offsetTop: 0, scale: 1,
       addEventListener: (name, handler) => viewportEvents.set(name, handler), removeEventListener: name => viewportEvents.delete(name)},
     addEventListener() {}, removeEventListener() {}, scrollTo: options => scrolls.push(options),
   };
@@ -70,19 +83,28 @@ test("the iPhone form owns its media anchor and theme until sign-in ends, not un
   } finally { delete globalThis.window; delete globalThis.document; }
 });
 
-test("phone and code share one enabled native input and keep Continue under the input", () => {
+test("phone, code and username share one enabled native input and fixed field slots", () => {
   const page=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
-  const auth=page.slice(page.indexOf('if (authenticationRequired && authStatus !== "signed-in")'));
+  const auth=page.slice(page.indexOf('if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in"))'));
   const input=auth.match(/<input\s+id="auth-entry"[\s\S]*?\/>/)[0];
   assert.equal((auth.match(/id="auth-entry"/g)||[]).length,1);
-  assert.match(input,/type="tel"\s+inputMode="tel"/);
+  assert.match(input,/type="text"\s+inputMode=\{needsAuthUsername \? "text" : "tel"\}/);
   assert.doesNotMatch(input,/disabled=|readOnly=|key=/);
-  assert.match(input,/autoComplete=\{authStep === "phone" \? "tel" : "one-time-code"\}/);
+  assert.match(input,/autoComplete=\{needsAuthUsername \? "username" : authFlowStep === "phone" \? "tel" : "one-time-code"\}/);
   assert.match(auth,/<div className="auth-flow-actions">[\s\S]*?className="auth-continue-button"/);
   assert.equal((auth.match(/<AuthKeyboardButton/g)||[]).length,3);
-  assert.match(auth,/keepKeyboard=\{authStep === "code"\}/);
+  assert.match(auth,/keepKeyboard=\{authFlowStep !== "phone"\}/);
   assert.doesNotMatch(auth,/auth-flow-brand/);
-  assert.match(auth,/authStep === "landing" \? <footer/);
+  assert.match(auth,/authFlowStep === "landing" \? <footer/);
+  assert.doesNotMatch(page,/id="auth-username"/);
+  assert.match(page,/if \(!initialRouteReady && !needsAuthUsername\)/,"No intermediate loading page may replace the focused username field");
+  assert.match(page,/if \(authStatus === "loading" \|\| needsAuthUsername \|\| initialRouteHandledRef.current\)/,"Route scroll reset waits until username is complete");
+  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
+  assert.match(css,/\.auth-signin-mode \.auth-flow-copy p \{[^}]*min-height: 1.35em/);
+  assert.match(css,/\.auth-signin-mode \.auth-entry-field \{[^}]*height: 62px/);
+  assert.match(css,/html\.auth-form-compact \.auth-signin-mode \.auth-entry-field \{ height: 52px/);
+  assert.match(css,/html\.auth-form-anchored \.auth-signin-mode \{\s*position: absolute;\s*top: var\(--auth-document-top, 0px\);/,
+    "A viewport-fixed phone background would make Safari cap the floating stickers at the status bar");
 });
 
 test("Get started uses a real switch tap, not synthetic Safari haptic clicks", () => {

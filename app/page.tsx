@@ -62,6 +62,7 @@ import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
 import AuthKeyboardButton from "@/app/components/AuthKeyboardButton";
 import { installAuthFormViewport } from "@/app/lib/auth-form-viewport";
+import { installPageZoomLock, shouldLockPageZoom } from "@/app/lib/page-zoom";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
@@ -3185,8 +3186,10 @@ export default function Home() {
   const hasStickerAnchorBlock = blocks.some(
     (block) => block.type !== "sticker",
   );
+  const needsAuthUsername = authStatus === "signed-in" && Boolean(authUser && !authUser.username);
+  const authFlowStep = needsAuthUsername ? "username" : authStep;
   const topSafeAreaColor =
-    authenticationRequired && authStatus !== "signed-in"
+    needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")
       ? AUTH_LANDING_COLOR
       : view === "library" ||
     view === "drafts" ||
@@ -3247,11 +3250,24 @@ export default function Home() {
       ? visibleEndingStyle.backgroundColor
       : null;
 
-  const authFormIsVisible = authenticationRequired && authStatus !== "signed-in" && authStep !== "landing";
+  const authFormIsVisible = needsAuthUsername ||
+    (authenticationRequired && authStatus !== "signed-in" && authStep !== "landing");
   useLayoutEffect(() => {
     if (!authFormIsVisible) return;
     return installAuthFormViewport();
   }, [authFormIsVisible]);
+
+  const homeIsVisible = initialRouteReady && authStatus === "signed-in" && !needsAuthUsername &&
+    ["library", "drafts", "history", "settings"].includes(view);
+  useLayoutEffect(() => {
+    if (!homeIsVisible) return;
+    const theme = document.getElementById("strip-theme-color");
+    const name = theme?.getAttribute("name");
+    theme?.removeAttribute("name");
+    return () => {
+      if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
+    };
+  }, [homeIsVisible]);
 
   useEffect(() => {
     setPublishedMinimumReadyKey(null);
@@ -3413,36 +3429,16 @@ export default function Home() {
     };
   }, [libraryScrollInset, view]);
 
-  useEffect(() => {
-    if (view !== "edit") return;
-
-    const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    const originalViewport = viewportMeta?.content;
-    viewportMeta?.setAttribute(
-      "content",
-      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
-    );
-
-    const preventGestureZoom = (event: Event) => event.preventDefault();
-    const preventMultiTouchZoom = (event: TouchEvent) => {
-      if (event.touches.length > 1) event.preventDefault();
-    };
-
-    document.addEventListener("gesturestart", preventGestureZoom, { passive: false });
-    document.addEventListener("gesturechange", preventGestureZoom, { passive: false });
-    document.addEventListener("gestureend", preventGestureZoom, { passive: false });
-    document.addEventListener("touchmove", preventMultiTouchZoom, { passive: false });
-
-    return () => {
-      if (viewportMeta && originalViewport !== undefined) {
-        viewportMeta.setAttribute("content", originalViewport);
-      }
-      document.removeEventListener("gesturestart", preventGestureZoom);
-      document.removeEventListener("gesturechange", preventGestureZoom);
-      document.removeEventListener("gestureend", preventGestureZoom);
-      document.removeEventListener("touchmove", preventMultiTouchZoom);
-    };
-  }, [view]);
+  const pageZoomLocked = shouldLockPageZoom({
+    view,
+    authenticationRequired,
+    authStatus,
+    needsUsername: needsAuthUsername,
+  });
+  useLayoutEffect(() => {
+    if (!pageZoomLocked) return;
+    return installPageZoomLock();
+  }, [pageZoomLocked]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -5237,6 +5233,41 @@ export default function Home() {
     authPhoneInputRef.current?.focus({ preventScroll: true });
   };
 
+  const returnUsernameToPhone = async () => {
+    if (authPending) return;
+    setAuthPending(true);
+    setAuthUsernameError("");
+    try {
+      // End the verified session before allowing a different phone number.
+      // Keep the current number and the fixed form canvas throughout the move.
+      const response = await fetch("/api/auth/signout", { method: "POST" });
+      if (!response.ok) throw new Error("Couldn’t go back. Try again.");
+      flushSync(() => {
+        setAuthUser(null);
+        setLibraryOwnerId("");
+        setPublishedStrips([]);
+        setDraftStrips([]);
+        setViewedStrips([]);
+        setAuthStatus("signed-out");
+        setAuthenticationRequired(true);
+        setAuthUsername("");
+        setAuthStickerRevealed(false);
+        setAuthTransitionDirection("backward");
+        setAuthStep("phone");
+        setAuthCode("");
+        setAuthResendSeconds(0);
+        setAuthError("");
+        setAuthDevelopmentCode("");
+        setInitialRouteReady(true);
+      });
+      authPhoneInputRef.current?.focus({ preventScroll: true });
+    } catch (error) {
+      setAuthUsernameError(error instanceof Error ? error.message : "Couldn’t go back. Try again.");
+    } finally {
+      setAuthPending(false);
+    }
+  };
+
   const beginSignIn = () => {
     if (authStickerExitRef.current) return;
     authStickerExitRef.current = startAuthStickerExit(() => {
@@ -5484,7 +5515,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (authStatus === "loading" || initialRouteHandledRef.current) return;
+    // Username is still part of the focused sign-in flow. Applying the route
+    // here resets scroll under the keyboard before onboarding is complete.
+    if (authStatus === "loading" || needsAuthUsername || initialRouteHandledRef.current) return;
     initialRouteHandledRef.current = true;
     let cancelled = false;
     let routeRequestId = 0;
@@ -5686,7 +5719,7 @@ export default function Home() {
       cancelled = true;
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [authStatus, libraryOwnerId]);
+  }, [authStatus, libraryOwnerId, needsAuthUsername]);
 
   const publish = async () => {
     if (!hasContent) {
@@ -6786,71 +6819,6 @@ export default function Home() {
     dockTransition ? "is-entering" : ""
   } ${dockTransitionStarted ? "is-transitioning" : ""}`;
 
-  if (authStatus === "signed-in" && authUser && !authUser.username) {
-    return (
-      <main className="app-shell auth-mode">
-        <div
-          className="top-safe-area-anchor"
-          style={{ backgroundColor: DEFAULT_BACKGROUND }}
-          aria-hidden="true"
-        />
-        <section className="auth-shell" aria-labelledby="username-heading">
-          <header className="auth-brand">STRIP</header>
-          <div className="auth-card">
-            <div className="auth-copy">
-              <p>One last thing.</p>
-              <h1 id="username-heading">Pick a username</h1>
-              <span>Your friends will find your Strips here.</span>
-            </div>
-            <form className="auth-form" onSubmit={claimUsername}>
-              <label htmlFor="auth-username">Username</label>
-              <input
-                id="auth-username"
-                type="text"
-                inputMode="text"
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                minLength={3}
-                maxLength={24}
-                placeholder="yourname"
-                value={authUsername}
-                onChange={(event) => {
-                  setAuthUsername(
-                    event.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9-]/g, "")
-                      .slice(0, 24),
-                  );
-                  setAuthUsernameError("");
-                }}
-                disabled={authPending}
-                required
-              />
-              <p className="auth-username-url">
-                {authUsername || "you"}.{PUBLIC_DOMAIN}
-              </p>
-              <button
-                type="submit"
-                disabled={authPending || authUsername.length < 3}
-              >
-                {authPending ? "Saving…" : "Continue"}
-              </button>
-            </form>
-            {authUsernameError ? (
-              <p className="auth-error" role="alert">
-                {authUsernameError}
-              </p>
-            ) : null}
-          </div>
-          <p className="auth-terms">
-            Letters, numbers, and hyphens. 3–24 characters.
-          </p>
-        </section>
-      </main>
-    );
-  }
 
   const entranceStrip = openingCover?.strip ?? openedPublishedStrip;
   const coverEntranceLayer = entranceStrip && (openingCover || publishedLoaderIsVisible) && typeof document !== "undefined"
@@ -6876,36 +6844,29 @@ export default function Home() {
         }}
       />, document.body, "strip-cover-entrance") : null;
 
-  if (!initialRouteReady) {
+  if (!initialRouteReady && !needsAuthUsername) {
     return <main className="app-shell route-loading-mode" aria-busy="true" />;
   }
 
-  if (authenticationRequired && authStatus !== "signed-in") {
+  if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")) {
     return (
-      <main className={`app-shell auth-mode${authStep === "landing" ? " auth-landing-mode" : " auth-signin-mode"}`}>
-        {authStep !== "landing" ? (
-          <div
-            className="top-safe-area-anchor"
-            style={{ backgroundColor: AUTH_LANDING_COLOR }}
-            aria-hidden="true"
-          />
-        ) : null}
+      <main className={`app-shell auth-mode${authFlowStep === "landing" ? " auth-landing-mode" : " auth-signin-mode"}`}>
         <section
-          className={`auth-shell auth-step-${authStep} auth-transition-${authTransitionDirection}${authStep === "phone" && authStickerRevealed ? " auth-sticker-revealed" : ""}`}
+          className={`auth-shell auth-step-${authFlowStep} auth-transition-${authTransitionDirection}${authFlowStep === "phone" && authStickerRevealed ? " auth-sticker-revealed" : ""}`}
           aria-labelledby="auth-heading"
         >
-          {authStep === "landing" ? (
+          {authFlowStep === "landing" ? (
             <AuthLandingStrip />
           ) : (
             <>
               <header className="auth-flow-header">
                 <AuthKeyboardButton
                   inputRef={authPhoneInputRef}
-                  keepKeyboard={authStep === "code"}
+                  keepKeyboard={authFlowStep !== "phone"}
                   className="auth-back-button"
                   type="button"
-                  onClick={authStep === "code" ? editSignInPhone : returnToAuthLanding}
-                  aria-label={authStep === "code" ? "Change phone number" : "Back"}
+                  onClick={needsAuthUsername ? () => void returnUsernameToPhone() : authFlowStep === "code" ? editSignInPhone : returnToAuthLanding}
+                  aria-label={authFlowStep !== "phone" ? "Change phone number" : "Back"}
                   disabled={authPending}
                 >
                   <ArrowLeft aria-hidden="true" strokeWidth={2.8} />
@@ -6915,23 +6876,23 @@ export default function Home() {
               <div className="auth-flow-stage">
                 <div className="auth-flow-copy">
                   <h1 id="auth-heading">
-                    {authStep === "phone" ? "Phone number" : "Confirmation"}
+                    {needsAuthUsername ? "Username" : authFlowStep === "phone" ? "Phone number" : "Confirmation"}
                   </h1>
-                  <p>
-                    {authStep === "phone"
+                  <p id="auth-entry-hint">
+                    {needsAuthUsername ? "3–24 letters, numbers or hyphens." : authFlowStep === "phone"
                       ? "Enter your phone number"
-                      : `Enter the 6-digit code sent to ${authPhone.trim()}.`}
+                      : `Code sent to ${authPhone.trim()}`}
                   </p>
                 </div>
 
                   <form
-                    id={authStep === "phone" ? "auth-phone-form" : "auth-code-form"}
-                    className={`auth-form auth-flow-form${authStep === "code" ? " auth-confirmation-form" : ""}`}
-                    onSubmit={authStep === "phone" ? requestSignInCode : verifySignInCode}
+                    id={`auth-${authFlowStep}-form`}
+                    className={`auth-form auth-flow-form${authFlowStep === "code" ? " auth-confirmation-form" : ""}`}
+                    onSubmit={needsAuthUsername ? claimUsername : authFlowStep === "phone" ? requestSignInCode : verifySignInCode}
                   >
-                    <label htmlFor="auth-entry">{authStep === "phone" ? "Phone number" : "Verification code"}</label>
-                    <div className={authStep === "code" ? "auth-code-field" : "auth-phone-field"}>
-                      {authStep === "code" ? <div className="auth-code-cells" aria-hidden="true">
+                    <label htmlFor="auth-entry">{needsAuthUsername ? "Username" : authFlowStep === "phone" ? "Phone number" : "Verification code"}</label>
+                    <div className={`auth-entry-field ${authFlowStep === "code" ? "auth-code-field" : "auth-phone-field"}`}>
+                      {authFlowStep === "code" ? <div className="auth-code-cells" aria-hidden="true">
                         {Array.from({ length: AUTH_CODE_LENGTH }, (_, index) => {
                           const value = authCode[index] ?? "";
                           const activeIndex = Math.min(authCode.length, AUTH_CODE_LENGTH - 1);
@@ -6947,19 +6908,29 @@ export default function Home() {
                           );
                         })}
                       </div> : null}
-                      {/* Keep one focused native input mounted across both steps and network waits. */}
+                      {/* One native input stays mounted and focused through all three steps and network waits. */}
                       <input
                         id="auth-entry"
                         ref={authPhoneInputRef}
-                        className={authStep === "phone" ? "auth-phone-input" : "auth-code-native"}
-                        type="tel"
-                        inputMode="tel"
-                        autoComplete={authStep === "phone" ? "tel" : "one-time-code"}
-                        placeholder={authStep === "phone" ? "Phone number" : undefined}
-                        value={authStep === "phone" ? authPhone : authCode}
+                        className={authFlowStep === "code" ? "auth-code-native" : "auth-phone-input"}
+                        type="text"
+                        inputMode={needsAuthUsername ? "text" : "tel"}
+                        autoComplete={needsAuthUsername ? "username" : authFlowStep === "phone" ? "tel" : "one-time-code"}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        minLength={needsAuthUsername ? 3 : undefined}
+                        maxLength={needsAuthUsername ? 24 : undefined}
+                        required={needsAuthUsername}
+                        aria-describedby={needsAuthUsername ? "auth-entry-hint username-url" : "auth-entry-hint"}
+                        placeholder={needsAuthUsername ? "yourname" : authFlowStep === "phone" ? "Phone number" : undefined}
+                        value={needsAuthUsername ? authUsername : authFlowStep === "phone" ? authPhone : authCode}
                         onChange={(event) => {
                           if (authPending) return;
-                          if (authStep === "phone") setAuthPhone(event.target.value.slice(0, 24));
+                          if (needsAuthUsername) {
+                            setAuthUsername(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24));
+                            setAuthUsernameError("");
+                          } else if (authFlowStep === "phone") setAuthPhone(event.target.value.slice(0, 24));
                           else setAuthCode(event.target.value.replace(/\D/g, "").slice(0, AUTH_CODE_LENGTH));
                           setAuthError("");
                         }}
@@ -6967,7 +6938,10 @@ export default function Home() {
                       />
                     </div>
                     <div className="auth-flow-actions">
-                      {authStep === "code" ? <AuthKeyboardButton
+                      {needsAuthUsername ? <p id="username-url" className="auth-username-url">
+                        {authUsername || "you"}.{PUBLIC_DOMAIN}
+                      </p> : null}
+                      {authFlowStep === "code" ? <AuthKeyboardButton
                         inputRef={authPhoneInputRef}
                         className="auth-resend-button"
                         type="button"
@@ -6979,12 +6953,12 @@ export default function Home() {
                           : "Resend code"}
                       </AuthKeyboardButton> : null}
                       <AuthKeyboardButton inputRef={authPhoneInputRef} className="auth-continue-button" type="submit"
-                        disabled={authPending || (authStep === "phone" ? !authPhone.trim() : authCode.length !== AUTH_CODE_LENGTH)}>
-                        {authPending ? (authStep === "phone" ? "Sending…" : "Checking…") : "Continue"}
+                        disabled={authPending || (needsAuthUsername ? authUsername.length < 3 : authFlowStep === "phone" ? !authPhone.trim() : authCode.length !== AUTH_CODE_LENGTH)}>
+                        {authPending ? (needsAuthUsername ? "Saving…" : authFlowStep === "phone" ? "Sending…" : "Checking…") : "Continue"}
                       </AuthKeyboardButton>
                     </div>
-                    {authError ? (
-                      <p className="auth-error" role="alert">{authError}</p>
+                    {(needsAuthUsername ? authUsernameError : authError) ? (
+                      <p className="auth-error" role="alert">{needsAuthUsername ? authUsernameError : authError}</p>
                     ) : null}
                     {authDevelopmentCode ? (
                       <p className="auth-dev-note">Local code: {authDevelopmentCode}</p>
@@ -6993,7 +6967,7 @@ export default function Home() {
               </div>
             </>
           )}
-          {authStep === "landing" ? <footer className="composer-dock auth-action-dock">
+          {authFlowStep === "landing" ? <footer className="composer-dock auth-action-dock">
             <div className="dock-controls dock-controls-current auth-action-controls">
                 <>
                   <HapticStartButton onStart={beginSignIn} />
@@ -7139,12 +7113,6 @@ export default function Home() {
             isSettings ? "settings-mode" : ""
           }`}
         >
-          <div
-            className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-            style={{ backgroundColor: DEFAULT_BACKGROUND }}
-            aria-hidden="true"
-          />
-
           <section
             className={`strip-library ${legacyPageEnterClass}`}
             style={

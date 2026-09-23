@@ -19,8 +19,8 @@ const compiled = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS } },
 ).outputText;
 
-function harness() {
-  const events = [], requests = [], notices = [], exports = {}, listeners = {};
+function harness(needsAuthUsername = false) {
+  const events = [], requests = [], notices = [], scrolls = [], exports = {}, listeners = {};
   const gate = { current: false }, opening = { current: null };
   const state = { view: "library", cover: null, strip: null, path: "/", initialReady: false };
   const timers = [];
@@ -30,7 +30,7 @@ function harness() {
     location: { pathname: "/", hostname: "localhost" },
     history: { back: () => { backs++; } },
     setTimeout: (callback, ms) => { timers.push({ callback, ms }); return timers.length; },
-    clearTimeout: noop, scrollTo: noop,
+    clearTimeout: noop, scrollTo: options => scrolls.push(options),
     addEventListener: (type, callback) => { listeners[type] = callback; },
     removeEventListener: noop,
   };
@@ -39,7 +39,7 @@ function harness() {
   const context = {
     exports, AbortController, window,
     document: { querySelector: () => null, documentElement: { classList: { remove: noop }, style: { removeProperty: noop } } },
-    libraryOwnerId: "owner", authStatus: "signed-in", openingStripId: null,
+    libraryOwnerId: "owner", authStatus: "signed-in", needsAuthUsername, openingStripId: null,
     pageTransitionInFlightRef: gate, openingCoverRequestRef: opening,
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen: noop, setStoryShareConfirmation: noop,
     initialRouteHandledRef: { current: false },
@@ -66,7 +66,7 @@ function harness() {
   };
   runInNewContext(compiled, context);
   return {
-    ...exports, state, gate, opening, events, requests, notices,
+    ...exports, state, gate, opening, events, requests, notices, scrolls,
     get backs() { return backs; },
     moveComplete() { for (const timer of timers.splice(0)) if (timer.ms === 660) timer.callback(); },
     pop(path) { window.location.pathname = state.path = path; listeners.popstate({ state: null }); },
@@ -76,6 +76,14 @@ const button = { querySelector: () => ({ getBoundingClientRect: () => ({ left: 0
 const strip = { id: "strip-12345" };
 const success = { ok: true, json: async () => ({ strip }) };
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
+test("username onboarding does not apply a route or reset the focused sign-in canvas", () => {
+  const h = harness(true);
+  h.installRoutes();
+  assert.equal(h.scrolls.length, 0);
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.state.initialReady, false);
+});
 
 test("save clean home in history before showing the cover, with just one strip entry", async () => {
   const h = harness();

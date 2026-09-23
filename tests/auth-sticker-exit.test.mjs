@@ -95,7 +95,7 @@ test("the real form mounts in the tap and fades in under an independent sticker 
   assert.match(source, /window\.setTimeout\(finish, 2400\)/);
   for (const cleanup of ["cancelAnimationFrame(frame)", "clearTimeout(watchdog)", "physics.dispose()", "overlay.remove()", 'removeEventListener("click", preventTap, true)']) assert.ok(source.includes(cleanup));
   assert.match(css, /\.auth-sticker-revealed \.auth-flow-stage \{ animation: none; \}/);
-  assert.match(page, /authStep === "phone" && authStickerRevealed/);
+  assert.match(page, /authFlowStep === "phone" && authStickerRevealed/);
   assert.match(source, /copy\.classList\.add\("auth-dock-frozen"\)/);
   assert.match(source, /theme\?\.removeAttribute\("name"\)/);
   assert.match(source, /theme\?\.setAttribute\("name", themeName\)/);
