@@ -11,6 +11,17 @@ export function landingStickerOffset(x: number, y: number, angle: number) {
   return { x: x * Math.cos(angle) + y * Math.sin(angle), y: y * Math.cos(angle) - x * Math.sin(angle) };
 }
 
+/** Match the editor: no inset, with just a grab-able sliver kept on the canvas. */
+export function landingStickerBounds(rect: { left: number; right: number; width: number }, canvasWidth: number) {
+  const visible = Math.min(44, rect.width);
+  return { minX: Math.min(0, visible - rect.right), maxX: Math.max(0, canvasWidth - visible - rect.left) };
+}
+
+const OUTLINE_OFFSETS = Array.from({ length: 32 }, (_, index) => {
+  const angle = index * Math.PI / 16;
+  return { x: 3 * Math.cos(angle), y: 3 * Math.sin(angle) };
+});
+
 function parentAngle(element: HTMLElement) {
   let angle = 0;
   for (let parent = element.parentElement; parent; parent = parent.parentElement) {
@@ -49,8 +60,8 @@ function MovableSticker({ className, label, children }: { className: string; lab
         const canvas = element.closest(".auth-landing")!.getBoundingClientRect();
         element.setPointerCapture(event.pointerId);
         drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: window.scrollY, angle: parentAngle(element), origin: offset,
-          minX: Math.min(8, rect.left) - rect.left, maxX: Math.max(document.documentElement.clientWidth - 8, rect.right) - rect.right,
-          minY: Math.min(canvas.top + 8, rect.top) - rect.top, maxY: Math.max(canvas.bottom - 8, rect.bottom) - rect.bottom };
+          ...landingStickerBounds(rect, document.documentElement.clientWidth),
+          minY: Math.min(0, canvas.top - rect.top), maxY: Math.max(0, canvas.bottom - rect.bottom) };
         setDragging(true);
       }}
       onPointerMove={event => {
@@ -98,6 +109,7 @@ function CollageBurst({ className }: { className: string }) {
   return (
     <MovableSticker className={`landing-doodle ${className}`} label={className === "landing-share-spark" ? "heart" : className === "landing-hero-squiggle" ? "squiggle" : "spark"}>
       <svg viewBox="0 0 100 100" focusable="false">
+        <path className="landing-shape-outline" fill="white" stroke="white" strokeWidth="6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" d={shapes[className]} />
         <path fill="currentColor" d={shapes[className]} />
       </svg>
     </MovableSticker>
@@ -107,7 +119,7 @@ function CollageBurst({ className }: { className: string }) {
 /** Use Safari's document scroller so the actual Strip paints behind its chrome. */
 export function AuthLandingStrip() {
   const [selected, select] = useState<string | null>(null);
-  const [hasPlayed, setHasPlayed] = useState(false);
+  const backgroundTap = useRef<{ id: number; x: number; y: number; scrollY: number } | null>(null);
   useLayoutEffect(() => {
     // A fixed theme color would conceal the content behind the status bar.
     const theme = document.getElementById("strip-theme-color");
@@ -118,16 +130,22 @@ export function AuthLandingStrip() {
     };
   }, []);
   return (
-    <StickerSelection.Provider value={{ selected, select: id => { select(id); if (id) setHasPlayed(true); } }}>
+    <StickerSelection.Provider value={{ selected, select }}>
     <div className="auth-landing" role="region" aria-label="Meet Strip" onPointerDown={event => {
-      if (!(event.target as Element).closest("[data-landing-sticker]")) select(null);
-    }}>
+      backgroundTap.current = (event.target as Element).closest("[data-landing-sticker]") ? null
+        : { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: window.scrollY };
+    }} onPointerUp={event => {
+      const tap = backgroundTap.current;
+      backgroundTap.current = null;
+      // Scrolling off the sticker keeps it selected, just like the editor.
+      if (tap?.id === event.pointerId && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) < 8
+        && Math.abs(window.scrollY - tap.scrollY) < 8) select(null);
+    }} onPointerCancel={() => { backgroundTap.current = null; }}>
       <svg className="landing-sticker-filters" aria-hidden="true" width="0" height="0" focusable="false">
         <defs>
           <filter id="landing-sticker-outline" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
-            <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="expanded" />
-            <feGaussianBlur in="expanded" stdDeviation="0.8" result="rounded" />
-            <feComponentTransfer in="rounded" result="edge"><feFuncA type="linear" slope="3" intercept="-1" /></feComponentTransfer>
+            {OUTLINE_OFFSETS.map((offset, index) => <feOffset key={index} in="SourceAlpha" dx={offset.x} dy={offset.y} result={`rim-${index}`} />)}
+            <feMerge result="edge"><feMergeNode in="SourceAlpha" />{OUTLINE_OFFSETS.map((_, index) => <feMergeNode key={index} in={`rim-${index}`} />)}</feMerge>
             <feFlood floodColor="white" /><feComposite in2="edge" operator="in" />
             <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
@@ -140,8 +158,9 @@ export function AuthLandingStrip() {
             <h1 id="auth-heading">Want to<br />strip?</h1>
             <p className="landing-intro">Photos, videos, words.<br />All the things that feel like you.</p>
             <div className="landing-hero-stickers">
-              <div className={`landing-play-hint${hasPlayed ? " is-dismissed" : ""}`} aria-hidden="true">Play around.<br />Move the stickers.
-                <svg viewBox="0 0 160 70" fill="none"><path d="M62 6C112 0 84 43 133 56M122 44L134 57L141 41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <div className="landing-play-hint" aria-hidden="true">
+                <img className="landing-play-lettering" src="/landing/sticker-help-text.png" alt="click a sticker to move it around" width="1536" height="1024" draggable={false} />
+                <span className="landing-play-arrow"><img src="/landing/sticker-help-arrow.png" alt="" width="1536" height="1024" draggable={false} /></span>
               </div>
               <img className="landing-sticker landing-sticker-sky" src="/landing/cosmos-sky.webp" width="900" height="1200" alt="" decoding="async" />
               <PhotoCutout kind="green-glasses" className="landing-hero-glasses" />
@@ -149,6 +168,7 @@ export function AuthLandingStrip() {
               <PhotoCutout kind="flipphone" className="landing-hero-phone" />
               <MovableSticker className="landing-doodle landing-hero-ring" label="ringing phone">
                 <svg viewBox="0 0 100 100" focusable="false">
+                  <path className="landing-shape-outline" d="M49 85Q49 49 85 49M23 85Q23 23 85 23" fill="none" stroke="white" strokeWidth="24" strokeLinecap="round" />
                   <path d="M49 85Q49 49 85 49M23 85Q23 23 85 23" fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round" />
                 </svg>
               </MovableSticker>

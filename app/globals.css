@@ -583,6 +583,12 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   overflow: visible;
 }
 
+/* Cobalt canvas avoids Safari's white edge fade; no fixed layer covers content. */
+html:has(.auth-landing-mode),
+html:has(.auth-landing-mode) body {
+  background: #304dff !important;
+}
+
 /* Reuse the real Strip's top anchor; the dock remains outside its moving layer. */
 html.leading-image-inset-active .auth-landing {
   translate: 0 var(--leading-media-return-y, 0px);
@@ -754,25 +760,28 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-sticker-art img { -webkit-user-drag: none; }
 .landing-sticker-button.is-selected { z-index: 10; touch-action: none; cursor: grab; }
 .landing-sticker-button.is-dragging { cursor: grabbing; }
-.landing-sticker-button.is-selected .landing-sticker-art,
-.landing-sticker-button:focus-visible .landing-sticker-art { filter: url(#landing-sticker-outline); }
+.landing-sticker-button.is-selected,
+.landing-sticker-button:focus-visible { filter: drop-shadow(0 7px 8px rgb(0 0 0 / 28%)); }
+.landing-cutout.is-selected .landing-sticker-art,
+.landing-cutout:focus-visible .landing-sticker-art { filter: url(#landing-sticker-outline); }
+.landing-doodle svg { overflow: visible; }
+.landing-shape-outline { visibility: hidden; }
+.landing-doodle.is-selected .landing-shape-outline,
+.landing-doodle:focus-visible .landing-shape-outline { visibility: visible; }
 .landing-block:has(.landing-sticker-button.is-selected) { z-index: 5; }
 .landing-sticker-filters { position: absolute; pointer-events: none; }
 .landing-play-hint {
   position: absolute;
-  right: -18%;
+  right: -14%;
   top: -112px;
-  width: 166px;
-  padding: 10px 8px 54px;
+  width: 146px;
+  height: 112px;
   transform: rotate(-7deg);
-  color: #fff;
-  font: 500 13px/1.25 "Helvetica Neue", Arial, sans-serif;
-  text-align: center;
   pointer-events: none;
-  transition: opacity 180ms ease;
 }
-.landing-play-hint.is-dismissed { opacity: 0; }
-.landing-play-hint svg { position: absolute; bottom: 0; right: 0; width: 140px; height: 62px; overflow: visible; }
+.landing-play-lettering { display: block; width: 120px; height: auto; margin-left: 10px; }
+.landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: hidden; }
+.landing-play-arrow img { position: absolute; max-width: none; width: 174px; height: 116px; left: -58px; top: -29px; }
 .landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
 .landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -12%; transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: -4%; transform: rotate(6deg); }

@@ -26,8 +26,8 @@ test("login is a sample Strip with a title, media, explainers, and overlaid phot
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {
   const images = [...html.matchAll(/<img\b[^>]*>/g)].map(match => match[0]);
-  assert.equal(images.length, 17);
-  assert.equal(new Set(images.map(img => img.match(/src="([^"]+)"/)[1])).size, 17, "Every photo and sticker is unique");
+  assert.equal(images.length, 19);
+  assert.equal(new Set(images.map(img => img.match(/src="([^"]+)"/)[1])).size, 19, "Every photo and sticker is unique");
   for (const img of images) {
     const path = img.match(/src="([^"]+)"/)[1];
     assert.ok(existsSync(new URL(`../public${path}`, import.meta.url)));
@@ -42,7 +42,7 @@ test("photos are local, have stable dimensions and accessible or decorative alt 
 test("collage keeps complete alpha-cut stickers and a black CTA", () => {
   assert.equal((html.match(/class="landing-cutout /g) || []).length, 13);
   assert.doesNotMatch(html, /clipPath|clip-path/);
-  assert.doesNotMatch(html, /class="[^\"]*\s(?:share-shell|hero-camera|make-cd)(?:\s|\")/, "Sticker classes cannot inherit unrelated page layouts");
+  assert.doesNotMatch(html, /class="[^"]*\s(?:share-shell|hero-camera|make-cd)(?:\s|")/, "Sticker classes cannot inherit unrelated page layouts");
   assert.match(html, /sticker-camera\.webp/);
   assert.match(css, /\.landing-cutout img\s*\{[^}]*object-fit: contain; border: 0; box-shadow: none;/);
   assert.match(css, /\.landing-sticker-button\s*\{[^}]*pointer-events: auto;/);
@@ -58,7 +58,11 @@ test("every object and doodle is selectable, while the four photos stay stationa
     assert.match(button, /aria-label="Move .+ sticker"/);
     assert.doesNotMatch(button, /aria-hidden/);
   }
-  assert.match(html, /Play around\.<br\/>Move the stickers\./);
+  assert.match(html, /alt="click a sticker to move it around"/);
+  assert.match(html, /sticker-help-arrow\.png/);
+  assert.match(html, /sticker-help-text\.png/);
+  assert.doesNotMatch(source, /hasPlayed|is-dismissed/);
+  assert.match(css, /\.landing-play-lettering \{[^}]*width: 120px;/);
   assert.match(source, /if \(!isSelected \|\| !event.isPrimary/);
   assert.match(source, /onPointerCancel=\{endDrag\} onLostPointerCapture=\{endDrag\}/);
   assert.match(css, /\.landing-sticker-button\s*\{[^}]*touch-action: pan-y;/);
@@ -67,11 +71,30 @@ test("every object and doodle is selectable, while the four photos stay stationa
 
 test("white selection border follows the image alpha and rounds its edge, never a box", () => {
   assert.match(html, /filter id="landing-sticker-outline"/);
-  assert.match(html, /feMorphology in="SourceAlpha" operator="dilate" radius="3"/);
-  assert.match(html, /feGaussianBlur in="expanded"/);
+  assert.doesNotMatch(html, /feMorphology|feGaussianBlur/);
+  assert.equal((html.match(/<feOffset /g) || []).length, 32);
+  assert.match(html, /class="landing-shape-outline"[^>]*stroke-linejoin="round"/);
   assert.match(html, /feFlood flood-color="white"/);
-  assert.match(css, /\.landing-sticker-button.is-selected \.landing-sticker-art,[\s\S]*?filter: url\(#landing-sticker-outline\)/);
+  assert.match(css, /\.landing-cutout.is-selected \.landing-sticker-art,[\s\S]*?filter: url\(#landing-sticker-outline\)/);
+  assert.match(css, /\.landing-doodle svg \{ overflow: visible; \}/);
+  assert.match(css, /filter: drop-shadow\(0 7px 8px rgb\(0 0 0 \/ 28%\)\)/);
   assert.match(css, /\.landing-sticker-button\s*\{[^}]*border: 0;[^}]*outline: none;/);
+});
+
+test("landing allows edge-to-edge movement while keeping an editor-sized handle visible", () => {
+  const bounds = exports.landingStickerBounds({left: 100, right: 240, width: 140}, 402);
+  assert.equal(bounds.minX + 240, 44);
+  assert.equal(bounds.maxX + 100, 402 - 44);
+  assert.ok(bounds.minX + 100 < 0);
+  assert.ok(bounds.maxX + 240 > 402);
+});
+
+test("a page scroll does not clear the selected sticker", () => {
+  assert.match(source, /onPointerCancel=\{\(\) => \{ backgroundTap.current = null;/);
+  assert.match(source, /Math.hypot\(event.clientX - tap.x, event.clientY - tap.y\) < 8/);
+  assert.match(source, /Math.abs\(window.scrollY - tap.scrollY\) < 8\) select\(null\)/);
+  const leading = readFileSync(new URL("../app/lib/leading-media-top.ts", import.meta.url), "utf8");
+  assert.match(leading, /\.landing-sticker-button.is-dragging/);
 });
 
 test("dragging stays under the finger on both rotated photo collages", () => {
@@ -151,6 +174,7 @@ test("landing content scrolls behind the status bar without a fixed top color la
   assert.match(css, /\.auth-mode\.auth-landing-mode,[\s\S]*?overflow: visible;/);
   assert.match(source, /theme\?\.removeAttribute\("name"\)/);
   assert.match(source, /theme\?\.setAttribute\("name", themeName\)/);
+  assert.match(css, /html:has\(\.auth-landing-mode\) body\s*\{\s*background: #304dff !important;/);
   assert.match(page, /authenticationRequired && authStatus !== "signed-in"\s*\? AUTH_LANDING_COLOR/);
   assert.match(page, /landingIsVisible \|\| hasLeadingImage/);
   assert.match(css, /html\.leading-image-inset-active \.auth-landing\s*\{\s*translate: 0 var\(--leading-media-return-y, 0px\);/);

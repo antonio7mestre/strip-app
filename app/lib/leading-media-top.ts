@@ -96,7 +96,7 @@ export function installLeadingMediaTop({
   };
   const editorOwnsPosition = () => Boolean(document.querySelector(
     "html.inline-preview-exit-locked, html.keyboard-open, html.keyboard-settling, html.sticker-tray-open, " +
-    ".editor-mode.is-typing, .image-block.is-height-cropping, .sticker-block.is-transforming",
+    ".editor-mode.is-typing, .image-block.is-height-cropping, .sticker-block.is-transforming, .landing-sticker-button.is-dragging",
   ));
   const startReturn = (initialVelocity = 0) => {
     if (inset <= 0 || !armed || touchCount > 0 || returnFrame !== null || nativeReturnActive || editorOwnsPosition()) return;
