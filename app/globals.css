@@ -649,20 +649,23 @@ html.leading-image-inset-active .auth-landing {
   transform-origin: center;
 }
 .auth-floating-sticker > img,
-.auth-floating-sticker > svg { display: block; width: 100%; height: 100%; object-fit: contain; }
+.auth-floating-sticker > svg,
+.auth-floating-sticker > .landing-sticker-art { display: block; width: 100%; height: 100%; object-fit: contain; }
+.auth-floating-sticker .landing-sticker-art > img,
+.auth-floating-sticker .landing-sticker-art > svg { display: block; width: 100%; height: 100%; object-fit: contain; }
 .auth-sticker-revealed .auth-flow-header,
 .auth-sticker-revealed .auth-flow-stage { animation: none; }
 html.auth-stickers-floating .auth-action-button::after { visibility: hidden; }
 /* Let objects paint through the status bar, not into a clipped header. */
-html.auth-form-active.auth-stickers-floating,
-html.auth-form-active.auth-stickers-floating body { overflow: visible; }
-html.auth-form-active.auth-stickers-floating,
-html.auth-form-active.auth-stickers-floating body {
+html.auth-form-active.auth-form-anchored,
+html.auth-form-active.auth-form-anchored body { overflow: visible; }
+html.auth-form-active.auth-form-anchored,
+html.auth-form-active.auth-form-anchored body {
   position: relative;
   height: auto;
-  min-height: calc(100lvh + var(--auth-flight-inset, 0px));
+  min-height: calc(100lvh + var(--auth-form-anchor-inset, 0px));
 }
-html.auth-stickers-floating .top-safe-area-anchor { visibility: hidden; }
+html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .auth-sticker-stage { z-index: 2; }
 
 .landing-strip {
@@ -715,21 +718,61 @@ html.auth-stickers-floating .top-safe-area-anchor { visibility: hidden; }
   text-shadow: 0 1px 8px #0009;
 }
 .landing-make { background: #d4ff00; color: #17220a; }
-.landing-make .landing-content { padding: 76px clamp(24px, 6vw, 72px) 390px; }
+.landing-make .landing-content { padding: 64px clamp(24px, 6vw, 72px) 0; }
 .landing-kicker { margin: 0 0 32px; font: 12px/1.3 "Courier New", monospace; }
 .landing-block h2 { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
 .landing-description { max-width: 400px; margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.4; letter-spacing: -0.035em; }
 .landing-share { background: #ff90cb; color: #3c0d27; }
-.landing-share .landing-content { padding: 125px clamp(24px, 6vw, 72px) 36px; }
-.landing-share-photo { position: relative; width: min(70%, 320px); margin: 85px auto 100px; transform: rotate(-6deg); }
+.landing-share .landing-content { padding: 110px clamp(24px, 6vw, 72px) 36px; }
+.landing-share-photo { position: relative; width: min(70%, 320px); margin: 56px auto 78px; transform: rotate(-6deg); }
 .landing-share-photo img { display: block; width: 100%; height: auto; }
 .landing-signoff { margin: 0; font-size: clamp(42px, 10vw, 88px); }
 
-/* Loose, overlapping photo scraps. Only this decorative layer is cropped. */
-.landing-cutout { position: absolute; display: block; pointer-events: none; }
+/* Photos stay put; alpha-cut objects can be picked up and moved. */
+.landing-cutout { position: absolute; display: block; }
 .landing-cutout img { display: block; width: 100%; height: auto; object-fit: contain; border: 0; box-shadow: none; }
-.landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; pointer-events: none; }
+.landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; }
 .landing-doodle svg { display: block; width: 100%; height: 100%; }
+.landing-sticker-button {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  line-height: 0;
+  pointer-events: auto;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.landing-sticker-art { display: block; width: 100%; height: 100%; pointer-events: none; }
+.landing-sticker-art img { -webkit-user-drag: none; }
+.landing-sticker-button.is-selected { z-index: 10; touch-action: none; cursor: grab; }
+.landing-sticker-button.is-dragging { cursor: grabbing; }
+.landing-sticker-button.is-selected .landing-sticker-art,
+.landing-sticker-button:focus-visible .landing-sticker-art { filter: url(#landing-sticker-outline); }
+.landing-block:has(.landing-sticker-button.is-selected) { z-index: 5; }
+.landing-sticker-filters { position: absolute; pointer-events: none; }
+.landing-play-hint {
+  position: absolute;
+  right: -18%;
+  top: -112px;
+  width: 166px;
+  padding: 10px 8px 54px;
+  transform: rotate(-7deg);
+  color: #fff;
+  font: 500 13px/1.25 "Helvetica Neue", Arial, sans-serif;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.landing-play-hint.is-dismissed { opacity: 0; }
+.landing-play-hint svg { position: absolute; bottom: 0; right: 0; width: 140px; height: 62px; overflow: visible; }
 .landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
 .landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -12%; transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: -4%; transform: rotate(6deg); }
@@ -741,7 +784,7 @@ html.auth-stickers-floating .top-safe-area-anchor { visibility: hidden; }
 .landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -22px; transform: rotate(16deg); z-index: 2; }
 .landing-photo-spark { right: 3%; bottom: -52px; color: #ff90cb; font-size: 94px; }
 .landing-photo-caption { z-index: 4; bottom: 70px; left: 28%; max-width: 63%; font-size: 12px; }
-.landing-make-collage { position: absolute; left: 50%; bottom: -35px; width: min(56%, 340px); transform: translateX(-50%) rotate(-6deg); pointer-events: none; z-index: 2; }
+.landing-make-collage { position: relative; bottom: -35px; width: min(64%, 340px); margin: 38px auto 0; transform: rotate(-6deg); pointer-events: none; z-index: 2; }
 .landing-make-scrap-street { width: 100%; height: auto; }
 .landing-make-cassette { width: 56%; left: 36%; bottom: -15%; transform: rotate(20deg); z-index: 3; }
 .landing-make-skate { width: 58%; left: -25%; bottom: -12%; transform: rotate(-11deg); z-index: 3; }
@@ -757,10 +800,8 @@ html.auth-stickers-floating .top-safe-area-anchor { visibility: hidden; }
 @media (min-width: 760px) {
   .landing-hero .landing-content { padding-bottom: 480px; }
   .landing-hero-stickers { bottom: -50px; left: 61%; }
-  .landing-make .landing-content { padding-bottom: 480px; }
-  .landing-make-collage { left: 60%; }
-  .landing-share .landing-content { padding-top: 110px; }
-  .landing-share-photo { margin-right: 8%; margin-top: -170px; }
+  .landing-make-collage { margin-top: 44px; }
+  .landing-share-photo { margin-top: 56px; }
 }
 
 .auth-action-dock.composer-dock {
@@ -2446,6 +2487,13 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .composer-dock button:focus-visible,
 .block-controls button:focus-visible {
   outline-color: #000000;
+}
+
+/* The expanded picker owns scrolling, without moving the editor's scroll anchor. */
+html.sticker-tray-open,
+html.sticker-tray-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .main-composer-dock.is-entering-editor {

@@ -99,8 +99,9 @@ test("the real form mounts in the tap and fades in under an independent sticker 
   assert.match(source, /copy\.classList\.add\("auth-dock-frozen"\)/);
   assert.match(source, /theme\?\.removeAttribute\("name"\)/);
   assert.match(source, /theme\?\.setAttribute\("name", themeName\)/);
-  assert.match(css, /html\.auth-stickers-floating \.top-safe-area-anchor \{ visibility: hidden; \}/);
-  assert.match(css, /html\.auth-form-active\.auth-stickers-floating body \{ overflow: visible; \}/);
+  assert.match(css, /html\.auth-form-anchored \.top-safe-area-anchor \{ visibility: hidden; \}/);
+  assert.match(css, /html\.auth-form-active\.auth-form-anchored body \{ overflow: visible; \}/);
+  assert.match(source, /if \(!document\.documentElement\.classList\.contains\("auth-form-anchored"\)\)/);
   assert.match(source, /window\.scrollTo\(\{ top: flightInset/);
   assert.match(source, /removeProperty\("--auth-flight-inset"\)/);
   assert.match(css, /\.auth-sticker-exit \{\s*position: absolute;[\s\S]*?height: calc\(100lvh \+ 320px\)/);

@@ -39,14 +39,54 @@ test("photos are local, have stable dimensions and accessible or decorative alt 
   assert.equal(exports.AUTH_LANDING_COLOR, "#304dff");
 });
 
-test("collage uses complete transparent stickers without rough masks or borders and a black CTA", () => {
+test("collage keeps complete alpha-cut stickers and a black CTA", () => {
   assert.equal((html.match(/class="landing-cutout /g) || []).length, 13);
   assert.doesNotMatch(html, /clipPath|clip-path/);
   assert.doesNotMatch(html, /class="[^\"]*\s(?:share-shell|hero-camera|make-cd)(?:\s|\")/, "Sticker classes cannot inherit unrelated page layouts");
   assert.match(html, /sticker-camera\.webp/);
   assert.match(css, /\.landing-cutout img\s*\{[^}]*object-fit: contain; border: 0; box-shadow: none;/);
-  assert.match(css, /\.landing-cutout\s*\{[^}]*pointer-events: none;/);
+  assert.match(css, /\.landing-sticker-button\s*\{[^}]*pointer-events: auto;/);
   assert.match(css, /\.auth-step-landing \.auth-action-button\s*\{[^}]*background: #080808;/);
+});
+
+test("every object and doodle is selectable, while the four photos stay stationary", () => {
+  const buttons = [...html.matchAll(/<button\b[^>]*data-landing-sticker[^>]*>/g)];
+  assert.equal(buttons.length, 19);
+  for (const [button] of buttons) {
+    assert.match(button, /type="button"/);
+    assert.match(button, /aria-pressed="false"/);
+    assert.match(button, /aria-label="Move .+ sticker"/);
+    assert.doesNotMatch(button, /aria-hidden/);
+  }
+  assert.match(html, /Play around\.<br\/>Move the stickers\./);
+  assert.match(source, /if \(!isSelected \|\| !event.isPrimary/);
+  assert.match(source, /onPointerCancel=\{endDrag\} onLostPointerCapture=\{endDrag\}/);
+  assert.match(css, /\.landing-sticker-button\s*\{[^}]*touch-action: pan-y;/);
+  assert.match(css, /\.landing-sticker-button.is-selected\s*\{[^}]*touch-action: none;/);
+});
+
+test("white selection border follows the image alpha and rounds its edge, never a box", () => {
+  assert.match(html, /filter id="landing-sticker-outline"/);
+  assert.match(html, /feMorphology in="SourceAlpha" operator="dilate" radius="3"/);
+  assert.match(html, /feGaussianBlur in="expanded"/);
+  assert.match(html, /feFlood flood-color="white"/);
+  assert.match(css, /\.landing-sticker-button.is-selected \.landing-sticker-art,[\s\S]*?filter: url\(#landing-sticker-outline\)/);
+  assert.match(css, /\.landing-sticker-button\s*\{[^}]*border: 0;[^}]*outline: none;/);
+});
+
+test("dragging stays under the finger on both rotated photo collages", () => {
+  for (const degrees of [-6, 7, 0]) {
+    const angle = degrees * Math.PI / 180;
+    const delta = exports.landingStickerOffset(84, -52, angle);
+    assert.ok(Math.abs(delta.x * Math.cos(angle) - delta.y * Math.sin(angle) - 84) < 0.00001);
+    assert.ok(Math.abs(delta.x * Math.sin(angle) + delta.y * Math.cos(angle) + 52) < 0.00001);
+  }
+});
+
+test("lower collages follow their copy instead of reserving a large fixed-height gap", () => {
+  assert.match(css, /\.landing-make-collage\s*\{[^}]*position: relative;[^}]*margin: 38px auto 0;/);
+  assert.doesNotMatch(css, /\.landing-make \.landing-content\s*\{[^}]*(?:390px|480px)/);
+  assert.match(css, /\.landing-share-photo\s*\{[^}]*margin: 56px auto 78px;/);
 });
 
 test("only landing scrolls and the existing sign-in dock is outside its scroller", () => {

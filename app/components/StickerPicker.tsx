@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ImagePlus, Sticker, X } from "lucide-react";
 import {
   STICKER_CATEGORIES,
@@ -9,6 +9,7 @@ import {
   type StickerCategory,
 } from "@/app/lib/sticker-pack";
 import styles from "./StickerPicker.module.css";
+import { installStickerTrayScroll } from "@/app/lib/sticker-tray-scroll";
 
 const labels: Record<StickerCategory, string> = {
   random: "Random",
@@ -73,9 +74,12 @@ function StickerPickerDialog({
   const [category, setCategory] = useState<StickerCategory>("random");
   const firstActionRef = useRef<HTMLButtonElement>(null);
   const pickTimerRef = useRef<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => installStickerTrayScroll(() => scrollRef.current), []);
 
   useEffect(() => {
-    const focusFrame = requestAnimationFrame(() => firstActionRef.current?.focus());
+    const focusFrame = requestAnimationFrame(() => firstActionRef.current?.focus({ preventScroll: true }));
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
@@ -134,10 +138,15 @@ function StickerPickerDialog({
               {STICKER_CATEGORIES.map(item => (
                 <button key={item} className={category === item ? styles.activeCategory : ""}
                   type="button" role="tab" aria-selected={category === item}
-                  onClick={() => setCategory(item)}>{labels[item]}</button>
+                  onClick={() => {
+                    setCategory(item);
+                    scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
+                  }}>{labels[item]}</button>
               ))}
             </div>
-            <div className={styles.masonry} role="tabpanel" aria-label={`${labels[category]} stickers`}>
+            <div ref={scrollRef} className={styles.scrollArea} role="tabpanel" tabIndex={0}
+              aria-label={`${labels[category]} stickers`}>
+              <div className={styles.masonry}>
               {stickers.map((sticker, index) => (
                 <button key={sticker.id} type="button"
                   className={`${styles.stickerButton} ${stickerSizeClass(sticker, index)} ${pickingId === sticker.id ? styles.isPicking : ""}`}
@@ -145,6 +154,7 @@ function StickerPickerDialog({
                   <img src={sticker.src} alt="" loading="lazy" decoding="async" />
                 </button>
               ))}
+              </div>
             </div>
           </>
         )}

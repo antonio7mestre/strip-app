@@ -1,15 +1,89 @@
-import { useLayoutEffect } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 export const AUTH_LANDING_COLOR = "#304dff";
 
 const STICKER_HEIGHTS = { camera: 512, flipphone: 1152, ball: 768, "green-glasses": 512, daisy: 922, cherries: 790, cassette: 512, headphones: 816, cd: 768, "ticket-admit": 511, shell: 702, rollerskate: 814, clip: 640 } as const;
 
-/** Complete alpha-cut objects, without arbitrary masks, outlines, or missing pieces. */
+const StickerSelection = createContext<{ selected: string | null; select: (id: string | null) => void }>({ selected: null, select: () => {} });
+
+/** The collage photo is rotated. Convert a screen-space drag into its local axes. */
+export function landingStickerOffset(x: number, y: number, angle: number) {
+  return { x: x * Math.cos(angle) + y * Math.sin(angle), y: y * Math.cos(angle) - x * Math.sin(angle) };
+}
+
+function parentAngle(element: HTMLElement) {
+  let angle = 0;
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    const transform = getComputedStyle(parent).transform;
+    if (transform !== "none") {
+      const matrix = new DOMMatrixReadOnly(transform);
+      angle += Math.atan2(matrix.b, matrix.a);
+    }
+  }
+  return angle;
+}
+
+function MovableSticker({ className, label, children }: { className: string; label: string; children: ReactNode }) {
+  const { selected, select } = useContext(StickerSelection);
+  const isSelected = selected === className;
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ id: number; x: number; y: number; scrollY: number; angle: number; origin: typeof offset; minX: number; maxX: number; minY: number; maxY: number } | null>(null);
+  const endDrag = (event: PointerEvent<HTMLButtonElement>) => {
+    if (drag.current?.id !== event.pointerId) return;
+    drag.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  return (
+    <button type="button" data-landing-sticker className={`${className} landing-sticker-button${isSelected ? " is-selected" : ""}${dragging ? " is-dragging" : ""}`}
+      aria-label={`Move ${label} sticker`} aria-pressed={isSelected} aria-describedby="landing-sticker-help"
+      style={{ translate: `${offset.x}px ${offset.y}px` }}
+      onClick={() => select(className)}
+      onPointerDown={event => {
+        // Like the editor: first tap selects; swiping an unselected sticker still scrolls.
+        if (!isSelected || !event.isPrimary || event.button !== 0) return;
+        event.preventDefault();
+        const element = event.currentTarget;
+        const rect = element.getBoundingClientRect();
+        const canvas = element.closest(".auth-landing")!.getBoundingClientRect();
+        element.setPointerCapture(event.pointerId);
+        drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: window.scrollY, angle: parentAngle(element), origin: offset,
+          minX: Math.min(8, rect.left) - rect.left, maxX: Math.max(document.documentElement.clientWidth - 8, rect.right) - rect.right,
+          minY: Math.min(canvas.top + 8, rect.top) - rect.top, maxY: Math.max(canvas.bottom - 8, rect.bottom) - rect.bottom };
+        setDragging(true);
+      }}
+      onPointerMove={event => {
+        const current = drag.current;
+        if (!current || current.id !== event.pointerId) return;
+        event.preventDefault();
+        const dx = Math.max(current.minX, Math.min(current.maxX, event.clientX - current.x));
+        const dy = Math.max(current.minY, Math.min(current.maxY, event.clientY - current.y + window.scrollY - current.scrollY));
+        const delta = landingStickerOffset(dx, dy, current.angle);
+        setOffset({ x: current.origin.x + delta.x, y: current.origin.y + delta.y });
+      }}
+      onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={endDrag}
+      onKeyDown={event => {
+        if (event.key === "Escape") { select(null); return; }
+        if (!isSelected) return;
+        const step = event.shiftKey ? 24 : 8;
+        const direction = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
+        if (!direction) return;
+        event.preventDefault();
+        const delta = landingStickerOffset(direction[0], direction[1], parentAngle(event.currentTarget));
+        setOffset(value => ({ x: value.x + delta.x, y: value.y + delta.y }));
+      }}>
+      <span className="landing-sticker-art">{children}</span>
+    </button>
+  );
+}
+
+/** Complete alpha-cut objects. Selection follows the alpha, never an image rectangle. */
 function PhotoCutout({ kind, className = "" }: { kind: keyof typeof STICKER_HEIGHTS; className?: string }) {
   return (
-    <span className={`landing-cutout landing-cutout-${kind} ${className}`} aria-hidden="true">
-      <img src={`/landing/sticker-${kind}.webp`} alt="" width="768" height={STICKER_HEIGHTS[kind]} decoding="async" />
-    </span>
+    <MovableSticker className={`landing-cutout landing-cutout-${kind} ${className}`} label={kind === "flipphone" ? "phone" : kind.replaceAll("-", " ")}>
+      <img src={`/landing/sticker-${kind}.webp`} alt="" width="768" height={STICKER_HEIGHTS[kind]} decoding="async" draggable={false} />
+    </MovableSticker>
   );
 }
 
@@ -22,16 +96,18 @@ function CollageBurst({ className }: { className: string }) {
     "landing-share-spark": "M50 94C35 81 3 57 3 30C3 3 37 0 50 24C63 0 97 3 97 30C97 57 66 81 50 94Z",
   };
   return (
-    <span className={`landing-doodle ${className}`} aria-hidden="true">
+    <MovableSticker className={`landing-doodle ${className}`} label={className === "landing-share-spark" ? "heart" : className === "landing-hero-squiggle" ? "squiggle" : "spark"}>
       <svg viewBox="0 0 100 100" focusable="false">
         <path fill="currentColor" d={shapes[className]} />
       </svg>
-    </span>
+    </MovableSticker>
   );
 }
 
 /** Use Safari's document scroller so the actual Strip paints behind its chrome. */
 export function AuthLandingStrip() {
+  const [selected, select] = useState<string | null>(null);
+  const [hasPlayed, setHasPlayed] = useState(false);
   useLayoutEffect(() => {
     // A fixed theme color would conceal the content behind the status bar.
     const theme = document.getElementById("strip-theme-color");
@@ -42,22 +118,40 @@ export function AuthLandingStrip() {
     };
   }, []);
   return (
-    <div className="auth-landing" role="region" aria-label="Meet Strip">
+    <StickerSelection.Provider value={{ selected, select: id => { select(id); if (id) setHasPlayed(true); } }}>
+    <div className="auth-landing" role="region" aria-label="Meet Strip" onPointerDown={event => {
+      if (!(event.target as Element).closest("[data-landing-sticker]")) select(null);
+    }}>
+      <svg className="landing-sticker-filters" aria-hidden="true" width="0" height="0" focusable="false">
+        <defs>
+          <filter id="landing-sticker-outline" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="expanded" />
+            <feGaussianBlur in="expanded" stdDeviation="0.8" result="rounded" />
+            <feComponentTransfer in="rounded" result="edge"><feFuncA type="linear" slope="3" intercept="-1" /></feComponentTransfer>
+            <feFlood floodColor="white" /><feComposite in2="edge" operator="in" />
+            <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+      </svg>
+      <span id="landing-sticker-help" className="sr-only">Tap a sticker to select it, then drag to move. Use arrow keys to move a selected sticker, or Escape to deselect.</span>
       <div className="landing-strip">
         <header className="landing-block landing-hero">
           <div className="landing-content">
             <h1 id="auth-heading">Want to<br />strip?</h1>
             <p className="landing-intro">Photos, videos, words.<br />All the things that feel like you.</p>
-            <div className="landing-hero-stickers" aria-hidden="true">
+            <div className="landing-hero-stickers">
+              <div className={`landing-play-hint${hasPlayed ? " is-dismissed" : ""}`} aria-hidden="true">Play around.<br />Move the stickers.
+                <svg viewBox="0 0 160 70" fill="none"><path d="M62 6C112 0 84 43 133 56M122 44L134 57L141 41" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </div>
               <img className="landing-sticker landing-sticker-sky" src="/landing/cosmos-sky.webp" width="900" height="1200" alt="" decoding="async" />
               <PhotoCutout kind="green-glasses" className="landing-hero-glasses" />
               <PhotoCutout kind="camera" className="landing-hero-camera" />
               <PhotoCutout kind="flipphone" className="landing-hero-phone" />
-              <span className="landing-doodle landing-hero-ring" aria-hidden="true">
+              <MovableSticker className="landing-doodle landing-hero-ring" label="ringing phone">
                 <svg viewBox="0 0 100 100" focusable="false">
                   <path d="M49 85Q49 49 85 49M23 85Q23 23 85 23" fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round" />
                 </svg>
-              </span>
+              </MovableSticker>
               <PhotoCutout kind="ball" className="landing-hero-ball" />
               <CollageBurst className="landing-hero-spark" />
               <CollageBurst className="landing-hero-squiggle" />
@@ -68,7 +162,7 @@ export function AuthLandingStrip() {
         <section className="landing-block landing-photo-block" aria-label="A moment worth keeping">
           <div className="landing-meadow-photo">
             <img className="landing-full-photo" src="/landing/meadow.webp" alt="Two friends walking hand in hand through a sunlit meadow" width="735" height="490" decoding="async" />
-            <div className="landing-photo-scraps" aria-hidden="true">
+            <div className="landing-photo-scraps">
               <PhotoCutout kind="daisy" className="landing-photo-daisy" />
               <CollageBurst className="landing-photo-spark" />
             </div>
@@ -81,7 +175,7 @@ export function AuthLandingStrip() {
             <p className="landing-kicker">01 / MAKE IT YOURS</p>
             <h2>Your photos.<br />Your words.<br />Your world.</h2>
             <p className="landing-description">Stack photos and videos. Add a thought, a color, a sticker. Keep going.</p>
-            <div className="landing-make-collage" aria-hidden="true">
+            <div className="landing-make-collage">
               <img className="landing-sticker landing-make-scrap-street" src="/landing/cosmos-street.webp" alt="" width="900" height="1126" loading="lazy" decoding="async" />
               <PhotoCutout kind="cassette" className="landing-make-cassette" />
               <PhotoCutout kind="rollerskate" className="landing-make-skate" />
@@ -110,5 +204,6 @@ export function AuthLandingStrip() {
         </section>
       </div>
     </div>
+    </StickerSelection.Provider>
   );
 }

@@ -127,7 +127,8 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   // input stays in its final position so Safari never pans toward an offscreen input.
   onReveal();
   // Safari only paints actual document content beyond its top edge while the
-  // document retains its media anchor. Delay the fixed body lock until flight ends.
+  // document retains its media anchor. The form keeps that anchor after flight
+  // so finishing the animation cannot rebase Safari's focused-input canvas.
   window.scrollTo({ top: flightInset, left: 0, behavior: "instant" });
   overlay.style.top = `${window.scrollY - BLEED}px`;
   // Landing unmount restores this metadata. Keep it unset for the whole flight
@@ -145,7 +146,9 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     if (themeName && !theme?.hasAttribute("name")) theme?.setAttribute("name", themeName);
     document.documentElement.classList.remove("auth-stickers-floating");
     document.documentElement.style.removeProperty("--auth-flight-inset");
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    if (!document.documentElement.classList.contains("auth-form-anchored")) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
     document.removeEventListener("click", preventTap, true);
     document.removeEventListener("touchmove", preventScroll);
     document.removeEventListener("wheel", preventScroll);

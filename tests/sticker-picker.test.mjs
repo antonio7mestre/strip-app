@@ -76,7 +76,15 @@ test("the pack is a dense, scrollable masonry sheet", () => {
   assert.match(css, /\.sourceChoice\s*\{[^}]*aspect-ratio:\s*1;/s);
   assert.match(css, /\.stickerButton\.isPicking img/);
   assert.match(css, /\.categories\s*\{[^}]*grid-template-columns:\s*repeat\(5,/s);
-  assert.match(css, /\.masonry\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y;/s);
+  assert.match(css, /\.scrollArea\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y;/s);
+  assert.doesNotMatch(css.match(/\.masonry\s*\{[^}]*\}/s)[0], /height:|overflow:|flex:/);
+  assert.match(picker, /ref=\{scrollRef\} className=\{styles.scrollArea\}[\s\S]*?<div className=\{styles.masonry\}/);
+  assert.match(picker, /installStickerTrayScroll\(\(\) => scrollRef.current\)/);
+  assert.match(picker, /focus\(\{ preventScroll: true \}\)/);
+  const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const mediaTop = readFileSync(new URL("../app/lib/leading-media-top.ts", import.meta.url), "utf8");
+  assert.match(globals, /html\.sticker-tray-open,[\s\S]*?html\.sticker-tray-open body\s*\{[^}]*overflow: hidden;[^}]*overscroll-behavior: none;/);
+  assert.match(mediaTop, /const editorOwnsPosition[\s\S]*?html\.sticker-tray-open/);
   assert.match(css, /brightness\(1\.06\)/);
   assert.match(page, /block\.src\.startsWith\("\/sticker-pack\/"\)[^\n]*brightness\(1\.06\)/);
   assert.match(picker, /sticker\.id\.startsWith\("gummy-bear"\)[\s\S]*?styles\.stickerMedium/);

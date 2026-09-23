@@ -95,7 +95,7 @@ export function installLeadingMediaTop({
     root.classList.add("leading-media-return-active");
   };
   const editorOwnsPosition = () => Boolean(document.querySelector(
-    "html.inline-preview-exit-locked, html.keyboard-open, html.keyboard-settling, " +
+    "html.inline-preview-exit-locked, html.keyboard-open, html.keyboard-settling, html.sticker-tray-open, " +
     ".editor-mode.is-typing, .image-block.is-height-cropping, .sticker-block.is-transforming",
   ));
   const startReturn = (initialVelocity = 0) => {

@@ -58,6 +58,7 @@ import type { StickerAsset } from "@/app/lib/sticker-pack";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
+import AuthKeyboardButton from "@/app/components/AuthKeyboardButton";
 import { installAuthFormViewport } from "@/app/lib/auth-form-viewport";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
@@ -5145,6 +5146,8 @@ export default function Home() {
   const requestSignInCode = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     if (authPending || authStickerExitRef.current) return;
+    // This must happen during activation, never after the network response.
+    authPhoneInputRef.current?.focus({ preventScroll: true });
     setAuthPending(true);
     setAuthError("");
     setAuthDevelopmentCode("");
@@ -6917,16 +6920,17 @@ export default function Home() {
           ) : (
             <>
               <header className="auth-flow-header">
-                <button
+                <AuthKeyboardButton
+                  inputRef={authPhoneInputRef}
+                  keepKeyboard={authStep === "code"}
                   className="auth-back-button"
                   type="button"
-                  onPointerDown={event => { if (authStep === "code") event.preventDefault(); }}
                   onClick={authStep === "code" ? editSignInPhone : returnToAuthLanding}
                   aria-label={authStep === "code" ? "Change phone number" : "Back"}
                   disabled={authPending}
                 >
                   <ArrowLeft aria-hidden="true" strokeWidth={2.8} />
-                </button>
+                </AuthKeyboardButton>
               </header>
 
               <div className="auth-flow-stage">
@@ -6984,22 +6988,21 @@ export default function Home() {
                       />
                     </div>
                     <div className="auth-flow-actions">
-                      {authStep === "code" ? <button
+                      {authStep === "code" ? <AuthKeyboardButton
+                        inputRef={authPhoneInputRef}
                         className="auth-resend-button"
                         type="button"
-                        onPointerDown={event => event.preventDefault()}
                         onClick={() => void requestSignInCode()}
                         disabled={authPending || authResendSeconds > 0}
                       >
                         {authResendSeconds > 0
                           ? `Resend code in 0:${String(authResendSeconds).padStart(2, "0")}`
                           : "Resend code"}
-                      </button> : null}
-                      <button className="auth-continue-button" type="submit"
-                        onPointerDown={event => event.preventDefault()}
+                      </AuthKeyboardButton> : null}
+                      <AuthKeyboardButton inputRef={authPhoneInputRef} className="auth-continue-button" type="submit"
                         disabled={authPending || (authStep === "phone" ? !authPhone.trim() : authCode.length !== AUTH_CODE_LENGTH)}>
                         {authPending ? (authStep === "phone" ? "Sending…" : "Checking…") : "Continue"}
-                      </button>
+                      </AuthKeyboardButton>
                     </div>
                     {authError ? (
                       <p className="auth-error" role="alert">{authError}</p>

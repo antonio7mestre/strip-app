@@ -32,8 +32,11 @@
 .categories::-webkit-scrollbar { display: none; }
 .categories button { min-width: 0; min-height: 36px; padding: 0 3px; border: 1.5px solid #d5d5cf; border-radius: 99px; background: transparent; color: #393936; font-size: clamp(10px, 3vw, 13px); font-weight: 750; }
 .categories button.activeCategory { border-color: #000000; background: #000000; color: #ffffff; }
-.masonry { flex: 1; min-height: 0; padding: 2px 2px 30px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; columns: 3; column-gap: 10px; scrollbar-width: none; }
-.masonry::-webkit-scrollbar { display: none; }
+.scrollArea { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
+.scrollArea::-webkit-scrollbar { display: none; }
+/* Auto-height columns grow down inside a separate, bounded native scroller.
+   Putting columns on the fixed-height scroller creates extra columns sideways. */
+.masonry { padding: 2px 2px 30px; columns: 3; column-gap: 10px; }
 .stickerButton { width: 100%; margin: 0 0 12px; padding: 0; break-inside: avoid; border: 0; background: transparent; -webkit-tap-highlight-color: transparent; }
 .stickerLarge { width: 100%; }
 .stickerMedium { width: 84%; }
