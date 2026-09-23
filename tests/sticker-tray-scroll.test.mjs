@@ -26,6 +26,11 @@ test("only the sticker list scrolls, including containment at both ends and in e
     events.get("wheel")({target, deltaY, cancelable: true, preventDefault: () => { prevented = true; }});
     return prevented;
   };
+  const key = (target, key) => {
+    let prevented = false;
+    events.get("keydown")({target, key, preventDefault: () => { prevented = true; }});
+    return prevented;
+  };
   try {
     const cleanup = installStickerTrayScroll(() => scroller);
     assert.ok(classes.has("sticker-tray-open"));
@@ -34,12 +39,15 @@ test("only the sticker list scrolls, including containment at both ends and in e
     assert.equal(wheel(sticker, 100), false);
     assert.equal(swipe(background, 400, 200), true, "Editor behind the tray cannot move");
     assert.equal(wheel(background, 100), true);
+    assert.equal(key(background, "PageDown"), true, "Keyboard scroll cannot move the editor behind the tray");
+    assert.equal(key(sticker, "ArrowDown"), false);
     scroller.scrollTop = 0;
     assert.equal(swipe(sticker, 200, 400), true, "Top boundary cannot chain to the document");
     assert.equal(swipe(sticker, 400, 200), false);
     scroller.scrollTop = 500;
     assert.equal(swipe(sticker, 400, 200), true, "Bottom boundary cannot chain to the document");
     assert.equal(wheel(sticker, 100), true);
+    assert.equal(key(sticker, "ArrowDown"), true);
     assert.equal(swipe(sticker, 200, 400), false);
     scroller.scrollHeight = 500;
     assert.equal(swipe(sticker, 400, 200), true);

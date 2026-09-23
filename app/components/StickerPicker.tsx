@@ -75,21 +75,26 @@ function StickerPickerDialog({
   const firstActionRef = useRef<HTMLButtonElement>(null);
   const pickTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
 
   useLayoutEffect(() => installStickerTrayScroll(() => scrollRef.current), []);
+  useLayoutEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
-    const focusFrame = requestAnimationFrame(() => firstActionRef.current?.focus({ preventScroll: true }));
+    // Keep keyboard focus useful, but do not summon a focus ring on a touch tap.
+    const focusFrame = document.activeElement?.matches(":focus-visible")
+      ? requestAnimationFrame(() => firstActionRef.current?.focus({ preventScroll: true }))
+      : null;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      cancelAnimationFrame(focusFrame);
+      if (focusFrame !== null) cancelAnimationFrame(focusFrame);
       if (pickTimerRef.current !== null) window.clearTimeout(pickTimerRef.current);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [onClose]);
+  }, []);
 
   const stickers = stickersByCategory(category);
   const showView = (nextView: "source" | "pack") => {
@@ -112,7 +117,7 @@ function StickerPickerDialog({
                 aria-label="Back to editor tools">
                 <ArrowLeft aria-hidden="true" />
               </button>
-              <button className={`${styles.sourceChoice} ${styles.packChoice}`} type="button"
+              <button className={styles.sourceChoice} type="button"
                 onClick={() => showView("pack")}>
                 <Sticker aria-hidden="true" />
                 <span>Sticker<br />pack</span>

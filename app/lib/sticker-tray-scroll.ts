@@ -26,11 +26,18 @@ export function installStickerTrayScroll(getScroller: () => HTMLElement | null) 
   const wheel = (event: WheelEvent) => {
     if (!canScroll(event.target, event.deltaY) && event.cancelable) event.preventDefault();
   };
+  const key = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === " " && event.target instanceof Element && event.target.closest("button")) return;
+    const delta = { ArrowDown: 1, PageDown: 1, End: 1, " ": event.shiftKey ? -1 : 1, ArrowUp: -1, PageUp: -1, Home: -1 }[event.key];
+    if (delta && !canScroll(event.target, delta)) event.preventDefault();
+  };
   document.addEventListener("touchstart", start, { passive: true, capture: true });
   document.addEventListener("touchmove", move, { passive: false, capture: true });
   document.addEventListener("touchend", end, { passive: true, capture: true });
   document.addEventListener("touchcancel", end, { passive: true, capture: true });
   document.addEventListener("wheel", wheel, { passive: false, capture: true });
+  document.addEventListener("keydown", key, true);
   return () => {
     root.classList.remove("sticker-tray-open");
     document.removeEventListener("touchstart", start, true);
@@ -38,5 +45,6 @@ export function installStickerTrayScroll(getScroller: () => HTMLElement | null) 
     document.removeEventListener("touchend", end, true);
     document.removeEventListener("touchcancel", end, true);
     document.removeEventListener("wheel", wheel, true);
+    document.removeEventListener("keydown", key, true);
   };
 }

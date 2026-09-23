@@ -2294,6 +2294,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   line-height: 0;
   transform: translate(-50%, -50%);
   isolation: isolate;
+  overflow-anchor: none;
   pointer-events: none;
   transition: opacity 150ms ease;
 }
@@ -2504,7 +2505,8 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 /* The expanded picker owns scrolling, without moving the editor's scroll anchor. */
 html.sticker-tray-open,
 html.sticker-tray-open body {
-  overflow: hidden;
+  /* Gesture containment keeps the document still without replacing Safari's
+     scrolling/painting surface when the picker opens or closes. */
   overscroll-behavior: none;
 }
 

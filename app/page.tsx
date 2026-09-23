@@ -55,6 +55,8 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
 import type { StickerAsset } from "@/app/lib/sticker-pack";
+import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
+import { prepareStickerUploads } from "@/app/lib/sticker-upload";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
@@ -964,7 +966,7 @@ function focusSelectedBlockWithToolbar(
   );
   if (
     !element ||
-    element.matches(".is-height-cropping") ||
+    element.matches(".sticker-block, .is-height-cropping") ||
     element.querySelector("textarea:focus")
   ) {
     return;
@@ -2316,7 +2318,8 @@ function StripStickerBlock({
           (element): element is HTMLElement =>
             element instanceof HTMLElement &&
             (element.classList.contains("text-block") ||
-              element.classList.contains("image-block")),
+              element.classList.contains("image-block") ||
+              element.classList.contains("video-block")),
         )
       : undefined;
     const endingActions = canvas?.querySelector<HTMLElement>(
@@ -2395,6 +2398,7 @@ function StripStickerBlock({
     if (!isEditing || !isSelected) {
       canvasTouchTransformRef.current = null;
       canvasTouchDragRef.current = null;
+      if (stickerElementRef.current) delete stickerElementRef.current.dataset.stickerDragging;
       return;
     }
 
@@ -2544,6 +2548,7 @@ function StripStickerBlock({
       canvasTouchTransformRef.current = null;
       canvasTouchDragRef.current = null;
       activePointersRef.current.clear();
+      if (stickerElementRef.current) delete stickerElementRef.current.dataset.stickerDragging;
       dragRef.current = null;
       transformRef.current = null;
       setIsTransforming(false);
@@ -2626,6 +2631,7 @@ function StripStickerBlock({
     activePointers.delete(event.pointerId);
 
     if (activePointers.size === 0) {
+      delete event.currentTarget.dataset.stickerDragging;
       const current = liveBlockRef.current;
       onTransform({
         x: current.x,
@@ -2701,6 +2707,7 @@ function StripStickerBlock({
         const canvas = event.currentTarget.closest<HTMLElement>(".strip-canvas");
         if (!canvas) return;
         lowerBoundaryNoticeShownRef.current = false;
+        event.currentTarget.dataset.stickerDragging = "true";
         event.currentTarget.setPointerCapture(event.pointerId);
         const canvasWidth = Math.max(1, canvas.getBoundingClientRect().width);
         const canvasHeight = Math.max(window.innerHeight, canvas.scrollHeight);
@@ -2841,6 +2848,9 @@ function StripStickerBlock({
       }}
       onPointerUp={(event) => stopPointer(event)}
       onPointerCancel={(event) => stopPointer(event, true)}
+      onLostPointerCapture={(event) => {
+        if (activePointersRef.current.size === 0) delete event.currentTarget.dataset.stickerDragging;
+      }}
       onContextMenu={(event) => event.preventDefault()}
       aria-label={
         isEditing
@@ -3033,6 +3043,7 @@ export default function Home() {
   const [inlinePreview, setInlinePreview] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack">("source");
+  const stickerPlacementRef = useRef<StickerPlacement | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
@@ -3172,7 +3183,7 @@ export default function Home() {
       ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
       : blocks.find((block) => block.type !== "sticker");
   const hasStickerAnchorBlock = blocks.some(
-    (block) => block.type === "text" || block.type === "image",
+    (block) => block.type !== "sticker",
   );
   const topSafeAreaColor =
     authenticationRequired && authStatus !== "signed-in"
@@ -3864,18 +3875,18 @@ export default function Home() {
     legacyDraftBlocksRef.current = null;
     const id = makeId();
     const createdAt = Date.now();
-    void fetch("/api/drafts", {
+    void prepareStickerUploads(legacyBlocks).then((uploadBlocks) => fetch("/api/drafts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id,
         title: "",
-        blocks: legacyBlocks,
+        blocks: uploadBlocks,
         endingStyle: DEFAULT_STRIP_ENDING_STYLE,
         createdAt,
         updatedAt: createdAt,
       }),
-    })
+    }))
       .then(async (response) => {
         if (!response.ok) throw new Error("Legacy draft migration failed");
         const data = (await response.json()) as { draft: DraftStripSummary };
@@ -3909,21 +3920,26 @@ export default function Home() {
     const createdAt = currentDraftCreatedAt || updatedAt;
     draftSaveTimerRef.current = window.setTimeout(() => {
       draftSaveTimerRef.current = null;
-      void fetch("/api/drafts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: currentDraftId,
-          title: stripTitle,
-          blocks,
-          endingStyle,
-          createdAt,
-          updatedAt,
-        }),
+      void prepareStickerUploads(blocks).then((uploadBlocks) => {
+        if (sequence !== draftSaveSequenceRef.current) return null;
+        return fetch("/api/drafts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: currentDraftId,
+            title: stripTitle,
+            blocks: uploadBlocks,
+            endingStyle,
+            createdAt,
+            updatedAt,
+          }),
+        });
       })
         .then(async (response) => {
+          if (!response) return;
           if (!response.ok) throw new Error("Draft save failed");
           const data = (await response.json()) as { draft: DraftStripSummary };
+          if (sequence !== draftSaveSequenceRef.current) return;
           setDraftStrips((current) => [
             data.draft,
             ...current.filter((draft) => draft.id !== data.draft.id),
@@ -4101,51 +4117,13 @@ export default function Home() {
       setNotice("Add a text or image block before adding a sticker.");
       return;
     }
-    const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
-    const canvasBounds = canvas?.getBoundingClientRect();
-    const anchorBlocks = canvas
-      ? Array.from(canvas.children)
-          .filter(
-            (element): element is HTMLElement =>
-              element instanceof HTMLElement &&
-              (element.classList.contains("text-block") ||
-                element.classList.contains("image-block")),
-          )
-          .map((element) => ({
-            element,
-            bounds: element.getBoundingClientRect(),
-          }))
-          .filter(({ bounds }) => bounds.height > 0)
-      : [];
-    if (!canvas || !canvasBounds || anchorBlocks.length === 0) {
+    const placement = stickerPlacementRef.current ?? captureStickerPlacement();
+    if (!placement) {
       setNotice("Add a text or image block before adding a sticker.");
       return;
     }
-    const viewport = window.visualViewport;
-    const viewportHeight = viewport?.height ?? window.innerHeight;
-    const viewportOffsetTop = viewport?.offsetTop ?? 0;
-    const placementLine = viewportOffsetTop + viewportHeight * 0.42;
-    const selectedAnchor = anchorBlocks.find(
-      ({ element }) => element.dataset.blockId === selectedBlockId,
-    );
-    const targetAnchor =
-      selectedAnchor ??
-      anchorBlocks.reduce((closest, candidate) => {
-        const closestCenter = (closest.bounds.top + closest.bounds.bottom) / 2;
-        const candidateCenter = (candidate.bounds.top + candidate.bounds.bottom) / 2;
-        return Math.abs(candidateCenter - placementLine) <
-          Math.abs(closestCenter - placementLine)
-          ? candidate
-          : closest;
-      });
-    const canvasWidth = Math.max(1, canvasBounds.width);
+    stickerPlacementRef.current = null;
     const id = makeId();
-    const y =
-      Math.min(
-        targetAnchor.bounds.bottom - 1,
-        Math.max(targetAnchor.bounds.top + 1, placementLine),
-      ) - canvasBounds.top;
-    const width = Math.min(34, Math.max(24, (132 / canvasWidth) * 100));
     setBlocks((current) => [
       ...current,
       {
@@ -4154,9 +4132,7 @@ export default function Home() {
         src,
         alt,
         mediaType,
-        x: 50,
-        y,
-        width,
+        ...placement,
       },
     ]);
     setSelectedBlockId(id);
@@ -4186,7 +4162,9 @@ export default function Home() {
         file.name.replace(/\.[^/.]+$/, ""),
         mediaType,
       );
+      setStickerPickerOpen(false);
     };
+    reader.onerror = () => setNotice("Couldn’t add that sticker. Try again.");
     reader.readAsDataURL(file);
   };
 
@@ -5740,6 +5718,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
     setPublishing(true);
     try {
+      const uploadBlocks = await prepareStickerUploads(blocks);
       const response = await fetch("/api/strips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -5749,7 +5728,7 @@ export default function Home() {
           title: stripTitle.trim(),
           publishedAt,
           cover: publishedCover,
-          blocks,
+          blocks: uploadBlocks,
           endingStyle,
         }),
       });
@@ -6333,7 +6312,7 @@ export default function Home() {
       showsEndingCard &&
       (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
     const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
-    const canvasMinHeight = stickerFloor > 0
+    const canvasMinHeight = !isEditing && stickerFloor > 0
       ? view !== "published"
         ? `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`
         : `${stickerFloor}px`
@@ -8131,18 +8110,25 @@ export default function Home() {
           "--sticker-dock-visible-height": stickerPickerOpen
             ? stickerPickerView === "pack"
               ? "min(78dvh, 720px)"
-              : "clamp(174px, 45vw, 206px)"
+              : "80px"
             : "var(--dock-visible-height)",
           height:
             "calc(var(--sticker-dock-visible-height) + 180px + env(safe-area-inset-bottom) + var(--dock-browser-extension))",
           minHeight: 0,
           alignItems: stickerPickerOpen ? "flex-start" : undefined,
-          paddingTop: stickerPickerOpen ? 10 : undefined,
           transition:
             "height 360ms cubic-bezier(0.22, 0.86, 0.28, 1), transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
         } as CSSProperties}
       >
         {dockTransitionLayer}
+        <input
+          ref={stickerInputRef}
+          className="visually-hidden"
+          type="file"
+          accept="image/*,video/*"
+          onChange={addSticker}
+          aria-label="Choose a sticker image or video"
+        />
         {heightCropSession ? (
           <div
             className={`${currentDockControlsClass} dock-action-controls height-crop-dock-controls`}
@@ -8167,11 +8153,13 @@ export default function Home() {
         ) : stickerPickerOpen ? (
           <StickerPicker
             open
-            onClose={() => setStickerPickerOpen(false)}
+            onClose={() => {
+              stickerPlacementRef.current = null;
+              setStickerPickerOpen(false);
+            }}
             onViewChange={setStickerPickerView}
             onPhotoVideo={() => {
               stickerInputRef.current?.click();
-              setStickerPickerOpen(false);
             }}
             onSticker={addStickerFromPack}
           />
@@ -8211,20 +8199,13 @@ export default function Home() {
                 return;
               }
               setStickerPickerView("source");
+              stickerPlacementRef.current = captureStickerPlacement();
               setStickerPickerOpen(true);
             }}
             aria-label="Add sticker"
           >
             <Sticker className="dock-glyph" aria-hidden="true" />
           </button>
-          <input
-            ref={stickerInputRef}
-            className="visually-hidden"
-            type="file"
-            accept="image/*,video/*"
-            onChange={addSticker}
-            aria-label="Choose a sticker image or video"
-          />
           <span className="dock-divider" aria-hidden="true" />
           <button
             className="dock-icon-button preview-toggle-button"

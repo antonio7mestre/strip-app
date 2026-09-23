@@ -36,19 +36,19 @@ test("empty state shares the canvas instead of adding a second full viewport", (
   assert.match(css, /\.strip-canvas \{\s*position: relative;\s*min-height: inherit;/);
 });
 
-test("a first sticker cannot shrink the editor below the viewport", () => {
+test("stickers leave the editor's content height unchanged; previews retain their floor", () => {
   assert.ok(minHeight);
   for (const inlinePreview of [false, true]) {
     for (const stickerFloor of [1, 180, 600, 1800]) {
-      assert.equal(runInNewContext(minHeight, {stickerFloor, view: "edit", inlinePreview}),
-        `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`);
+      assert.equal(runInNewContext(minHeight, {stickerFloor, view: "edit", inlinePreview, isEditing: !inlinePreview}),
+        inlinePreview ? `max(var(--editor-canvas-min-height, 100lvh), ${stickerFloor}px)` : undefined);
     }
   }
-  assert.equal(runInNewContext(minHeight, {stickerFloor: 0, view: "edit", inlinePreview: false}), undefined);
+  assert.equal(runInNewContext(minHeight, {stickerFloor: 0, view: "edit", inlinePreview: false, isEditing: true}), undefined);
 });
 
 test("published sticker floors and editor toolbar clearance stay unchanged", () => {
-  assert.equal(runInNewContext(minHeight, {stickerFloor: 180, view: "published", inlinePreview: false}), "180px");
+  assert.equal(runInNewContext(minHeight, {stickerFloor: 180, view: "published", inlinePreview: false, isEditing: false}), "180px");
   assert.match(css, /\.editor-mode \.strip-canvas \{[^}]*padding-bottom: calc\(148px \+ env\(safe-area-inset-bottom\)\);/);
   assert.match(css, /\.editor-mode \.strip-ending-card \{\s*min-height: 0;\s*padding-bottom: 12px;/);
 });
