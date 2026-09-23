@@ -584,8 +584,8 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
 }
 
 /* Cobalt canvas avoids Safari's white edge fade; no fixed layer covers content. */
-html:has(.auth-landing-mode),
-html:has(.auth-landing-mode) body {
+html:has(.auth-mode),
+html:has(.auth-mode) body {
   background: #304dff !important;
 }
 
@@ -780,7 +780,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   pointer-events: none;
 }
 .landing-play-lettering { display: block; width: 120px; height: auto; margin-left: 10px; }
-.landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: hidden; }
+.landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: visible; }
 .landing-play-arrow img { position: absolute; max-width: none; width: 174px; height: 116px; left: -58px; top: -29px; }
 .landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
 .landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -12%; transform: rotate(-19deg); }
