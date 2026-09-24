@@ -4,7 +4,6 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 import { STICKER_PACK } from "../app/lib/sticker-pack.ts";
-import { stickerLayoutFields } from "../app/lib/sticker-layout.ts";
 
 const root = new URL("../", import.meta.url);
 function compile(source, globals = {}) {
@@ -17,7 +16,7 @@ function compile(source, globals = {}) {
 const security = compile(readFileSync(new URL("app/server/media-security.ts", root), "utf8"));
 function validator(route, name) {
   return compile(readFileSync(new URL(`app/api/${route}/route.ts`, root), "utf8") + `\nexports.validate = ${name};`, {
-    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-layout") ? { stickerLayoutFields } : {},
+    require: (id) => id.endsWith("media-security") ? security : {},
   }).validate;
 }
 const draft = validator("drafts", "prepareDraftBlocks");

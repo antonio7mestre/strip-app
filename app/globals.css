@@ -1325,10 +1325,6 @@ html.library-scroll-top-locked .library-mode {
 .library-mode .library-add-button {
   transition: opacity 620ms ease;
 }
-.library-mode.is-opening-strip [data-new-strip-starter] {
-  opacity: 0;
-  pointer-events: none;
-}
 .library-mode.is-opening-strip .strip-library,
 .library-mode.is-opening-strip .library-add-button {
   opacity: 0;

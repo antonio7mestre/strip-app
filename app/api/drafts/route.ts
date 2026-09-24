@@ -6,7 +6,6 @@ import {
 } from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
-import { stickerLayoutFields, type StickerLayout } from "@/app/lib/sticker-layout";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +14,6 @@ type DraftBlock =
       id: string;
       type: "text";
       content: string;
-      layoutHeight?: number;
-      layoutWidth?: number;
       height?: number;
       cropTop?: number;
       cropBottom?: number;
@@ -37,7 +34,7 @@ type DraftBlock =
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
-  | (StickerLayout & {
+  | {
       id: string;
       type: "sticker";
       src: string;
@@ -46,7 +43,7 @@ type DraftBlock =
       x: number;
       y: number;
       width: number;
-    });
+    };
 
 type StoredDraftBlock =
   | Exclude<DraftBlock, { type: "image" | "video" | "sticker" }>
@@ -61,7 +58,7 @@ type StoredDraftBlock =
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
-  | (StickerLayout & {
+  | {
       id: string;
       type: "sticker";
       objectKey: string;
@@ -70,7 +67,7 @@ type StoredDraftBlock =
       x: number;
       y: number;
       width: number;
-    });
+    };
 
 type StoredDraftRow = {
   id: string;
@@ -184,10 +181,6 @@ function prepareDraftBlocks(
         id: block.id,
         type: "text",
         content: String(block.content ?? "").slice(0, 100_000),
-        ...(finiteNumber(block.layoutHeight, 0) > 0
-          ? { layoutHeight: Math.min(2400, finiteNumber(block.layoutHeight, 0)) } : {}),
-        ...(finiteNumber(block.layoutWidth, 0) > 0
-          ? { layoutWidth: Math.min(4000, Math.max(240, finiteNumber(block.layoutWidth, 0))) } : {}),
         ...(finiteNumber(block.height, 0) > 0
           ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
           : {}),
@@ -231,7 +224,6 @@ function prepareDraftBlocks(
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
         width: Math.min(80, Math.max(8, finiteNumber(block.width, 30))),
-        ...stickerLayoutFields(block),
       });
     } else {
       storedBlocks.push({

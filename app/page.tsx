@@ -54,9 +54,6 @@ import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
-import { NewStripStarter } from "@/app/components/NewStripStarter";
-import { useStickerAnchor } from "@/app/components/useStickerAnchor";
-import type { StickerLayout } from "@/app/lib/sticker-layout";
 import type { StickerAsset } from "@/app/lib/sticker-pack";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
@@ -88,8 +85,6 @@ type TextBlock = {
   type: "text";
   content: string;
   height?: number;
-  layoutHeight?: number;
-  layoutWidth?: number;
   cropTop?: number;
   cropBottom?: number;
   backgroundColor?: string;
@@ -121,7 +116,7 @@ type VideoBlock = {
   hasAudio?: boolean;
 };
 
-type StickerBlock = StickerLayout & {
+type StickerBlock = {
   id: string;
   type: "sticker";
   src: string;
@@ -2134,7 +2129,7 @@ function StripVideoBlock({
 }
 
 function StripStickerBlock({
-  block: sourceBlock,
+  block,
   isEditing,
   isSelected,
   isOverlappingSelection,
@@ -2163,7 +2158,6 @@ function StripStickerBlock({
   controls?: ReactNode;
 }) {
   const stickerElementRef = useRef<HTMLElement>(null);
-  const block = useStickerAnchor(sourceBlock, stickerElementRef);
   const liveBlockRef = useRef(block);
   const selectionTapRef = useRef<{
     pointerId: number;
@@ -2365,10 +2359,7 @@ function StripStickerBlock({
   };
 
   const settleStickerWithinBounds = () => {
-    // Generated stickers follow their measured block. A resize/load can still
-    // have the previous pixel Y here, so only free-positioned stickers settle.
-    // Detach an anchor on an actual user transform, never during layout.
-    if (!isEditing || liveBlockRef.current.anchorBlockId) return;
+    if (!isEditing) return;
     const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
     if (!canvas) return;
     const current = liveBlockRef.current;
@@ -5336,7 +5327,7 @@ export default function Home() {
     }
   };
 
-  const beginNewStrip = (initialBlocks: StripBlock[] = []) => {
+  const beginNewStrip = () => {
     if (authStatus !== "signed-in") {
       setAuthenticationRequired(true);
       return;
@@ -5345,7 +5336,7 @@ export default function Home() {
     setCurrentDraftId(draftId);
     setCurrentDraftCreatedAt(Date.now());
     setEditingPublishedStripId(null);
-    setBlocks(initialBlocks);
+    setBlocks([]);
     setEndingStyle(DEFAULT_STRIP_ENDING_STYLE);
     setStripTitle("");
     setSelectedCover("");
@@ -6437,9 +6428,7 @@ export default function Home() {
             >
               {isEditing ? renderBlockControls(block, index) : null}
               <div className="block-crop-viewport">
-                <div className="block-crop-content text-block-content" style={block.layoutHeight ? {
-                  minHeight: block.layoutWidth ? `max(160px, ${block.layoutHeight / block.layoutWidth * 100}vw)` : block.layoutHeight,
-                } : undefined}>
+                <div className="block-crop-content text-block-content">
                   {textIsBeingEdited ? (
                     <textarea
                       data-block-id={block.id}
@@ -6680,7 +6669,7 @@ export default function Home() {
                 setBlocks((current) =>
                   current.map((currentBlock) =>
                     currentBlock.id === block.id && currentBlock.type === "sticker"
-                      ? { ...currentBlock, ...transform, anchorBlockId: undefined, anchorY: undefined }
+                      ? { ...currentBlock, ...transform }
                       : currentBlock,
                   ),
                 );
@@ -7266,7 +7255,14 @@ export default function Home() {
           </section>
 
           {!isSettings ? (
-            <NewStripStarter key={view} onScratch={() => beginNewStrip()} onGenerated={(generated) => beginNewStrip(generated)} />
+            <button
+              className="library-add-button"
+              type="button"
+              onClick={beginNewStrip}
+              aria-label="Create a new Strip"
+            >
+              <Plus aria-hidden="true" />
+            </button>
           ) : null}
 
           {/* Remove the fixed surface entirely: Safari retains its white
