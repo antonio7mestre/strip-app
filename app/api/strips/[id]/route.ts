@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { stickerLayoutFields, type StickerLayout } from "@/app/lib/sticker-layout";
 import { usernameFromHostname } from "@/app/lib/username";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
@@ -31,7 +32,7 @@ type StoredBlock =
       audioEnabled?: boolean;
       hasAudio?: boolean;
     }
-  | {
+  | (StickerLayout & {
       id: string;
       type: "sticker";
       objectKey: string;
@@ -40,7 +41,7 @@ type StoredBlock =
       x: number;
       y: number;
       width: number;
-    };
+    });
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
 
@@ -155,6 +156,7 @@ export async function GET(
             x: block.x,
             y: block.y,
             width: block.width,
+            ...stickerLayoutFields(block),
           }
         : {}),
     });

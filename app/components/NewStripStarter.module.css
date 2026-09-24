@@ -1,0 +1,42 @@
+.starter { position: fixed; z-index: 43; right: max(18px, env(safe-area-inset-right)); bottom: calc(var(--dock-visible-height) + env(safe-area-inset-bottom) + 18px); width: 56px; height: 56px; border-radius: 30px; color: #050505; background: white; box-shadow: 0 8px 22px #0003; overflow: hidden; transition: width 300ms cubic-bezier(.2,.8,.2,1), border-radius 300ms; }
+.expanded { width: min(348px, calc(100vw - 36px)); }
+.toggle { position: absolute; right: 0; top: 0; width: 56px; height: 56px; padding: 16px; border: 0; background: white; color: inherit; cursor: pointer; }
+.toggle svg { width: 24px; height: 24px; transition: transform 260ms ease; }
+.expanded .toggle svg { transform: rotate(45deg); }
+.choices { position: absolute; inset: 0 56px 0 0; display: flex; align-items: center; opacity: 0; transform: translateX(18px); transition: opacity 180ms ease, transform 280ms ease; }
+.expanded .choices { opacity: 1; transform: none; }
+.choices button { display: flex; flex: 1; flex-direction: column; gap: 3px; align-items: center; justify-content: center; height: 56px; border: 0; padding: 6px 9px; color: inherit; background: transparent; white-space: nowrap; font-size: 12px; cursor: pointer; }
+.choices button + button { border-left: 1px solid #ddd; }
+.choices svg { width: 19px; height: 19px; stroke-width: 1.8; }
+.flow { position: fixed; z-index: 10020; inset: 0; min-height: 100dvh; padding: env(safe-area-inset-top) max(24px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(24px, env(safe-area-inset-left)); overflow-y: auto; overscroll-behavior: contain; background: #050505; color: white; display: flex; flex-direction: column; animation: arrive 220ms ease both; outline: none; }
+.header { display: flex; align-items: center; gap: 14px; min-height: 68px; flex-shrink: 0; font-size: 15px; }
+.header button { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; margin-left: -10px; border: 0; background: transparent; color: white; cursor: pointer; }
+.header svg { width: 23px; height: 23px; }
+.pick, .loading { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; width: min(100%, 390px); margin: 0 auto; padding: 26px 0 44px; text-align: center; }
+.pick h1, .loading h1 { margin: 30px 0 14px; font-size: clamp(36px, 9vw, 52px); line-height: 1.02; font-weight: 550; letter-spacing: -.055em; white-space: pre-line; }
+.pick p, .loading p { max-width: 300px; margin: 0 0 30px; color: #bdbdbd; font-size: 15px; line-height: 1.45; }
+.pickArtwork { position: relative; width: 180px; height: 155px; }
+.pickArtwork > svg { position: absolute; width: 105px; height: 125px; left: 34px; top: 10px; stroke-width: .8; color: #c8ff00; transform: rotate(-7deg); }
+.pickArtwork img { position: absolute; object-fit: contain; filter: drop-shadow(2px 4px 0 #0004); }
+.pickArtwork img:nth-child(2) { width: 108px; height: 90px; right: -18px; bottom: -5px; transform: rotate(14deg); }
+.pickArtwork img:nth-child(3) { width: 80px; height: 90px; top: -12px; left: -8px; transform: rotate(-15deg); }
+.primary { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; min-height: 56px; margin: 0 0 8px; padding: 14px 23px; border: 0; border-radius: 100px; background: white; color: #050505; font-size: 17px; font-weight: 550; cursor: pointer; }
+.primary svg { width: 22px; height: 22px; }
+.secondary { border: 0; background: transparent; color: white; padding: 12px; font-size: 15px; cursor: pointer; }
+.secondary svg { display: none; }
+.pick small { margin-top: 22px; color: #818181; font-size: 11px; line-height: 1.55; }
+.stickerDance { width: 260px; height: 240px; position: relative; }
+.stickerDance img { position: absolute; width: 100px; height: 110px; object-fit: contain; filter: drop-shadow(3px 5px 0 #0004); animation: stickerFloat 2.6s calc(var(--i) * -410ms) ease-in-out infinite alternate; }
+.stickerDance img:nth-child(1) { left: 76px; top: 68px; width: 140px; z-index: 3; }
+.stickerDance img:nth-child(2) { left: 6px; top: 18px; z-index: 4; }
+.stickerDance img:nth-child(3) { right: 7px; top: 0; }
+.stickerDance img:nth-child(4) { left: 33px; bottom: -8px; width: 88px; z-index: 4; }
+.stickerDance img:nth-child(5) { right: 0; bottom: 8px; z-index: 4; }
+.loading p { min-height: 44px; margin-bottom: 12px; }
+.loadingSquares { display: flex; gap: 5px; }
+.loadingSquares i { width: 9px; height: 9px; background: #c8ff00; animation: squareBlink 1.25s calc(var(--i) * 100ms) ease-in-out infinite; }
+@keyframes arrive { from { opacity: 0; } to { opacity: 1; } }
+@keyframes stickerFloat { from { transform: translateY(6px) rotate(-8deg); } to { transform: translateY(-10px) rotate(7deg); } }
+@keyframes squareBlink { 0%, 100% { opacity: .18; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .starter, .toggle svg, .choices { transition: none; } .flow, .stickerDance img, .loadingSquares i { animation: none; } }
+@media (max-height: 620px) { .pick, .loading { padding-top: 10px; } .pickArtwork { transform: scale(.75); height: 115px; } .stickerDance { transform: scale(.75); height: 180px; } }
