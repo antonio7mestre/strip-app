@@ -2998,6 +2998,7 @@ export default function Home() {
     useState<PageTransitionDirection>("forward");
   const [authPhone, setAuthPhone] = useState("");
   const [authCode, setAuthCode] = useState("");
+  const [authSendingCode, setAuthSendingCode] = useState(false);
   const [authResendSeconds, setAuthResendSeconds] = useState(0);
   const [authUsername, setAuthUsername] = useState("");
   const [authPending, setAuthPending] = useState(false);
@@ -3083,6 +3084,7 @@ export default function Home() {
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const authPhoneInputRef = useRef<HTMLInputElement>(null);
+  const authCodeInputRef = useRef<HTMLInputElement>(null);
   const coverStageRef = useRef<HTMLDivElement>(null);
   const coverInstructionRef = useRef<HTMLParagraphElement>(null);
   const coverSwipeStartYRef = useRef<number | null>(null);
@@ -3188,6 +3190,12 @@ export default function Home() {
   );
   const needsAuthUsername = authStatus === "signed-in" && Boolean(authUser && !authUser.username);
   const authFlowStep = needsAuthUsername ? "username" : authStep;
+  const authActiveInputRef = authFlowStep === "code" ? authCodeInputRef : authPhoneInputRef;
+  useLayoutEffect(() => {
+    if (needsAuthUsername && document.activeElement === authCodeInputRef.current) {
+      authPhoneInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [needsAuthUsername]);
   const topSafeAreaColor =
     needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")
       ? AUTH_LANDING_COLOR
@@ -5120,11 +5128,19 @@ export default function Home() {
   const requestSignInCode = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     if (authPending || authStickerExitRef.current) return;
-    // This must happen during activation, never after the network response.
-    authPhoneInputRef.current?.focus({ preventScroll: true });
-    setAuthPending(true);
-    setAuthError("");
-    setAuthDevelopmentCode("");
+    // Focus a dedicated OTP input during the original tap, before sending the
+    // SMS. Changing autocomplete on the already-focused phone field can leave
+    // Safari's native input session using its old telephone AutoFill traits.
+    flushSync(() => {
+      setAuthPending(true);
+      setAuthSendingCode(true);
+      setAuthError("");
+      setAuthDevelopmentCode("");
+      setAuthTransitionDirection("forward");
+      setAuthStep("code");
+      setAuthCode("");
+    });
+    authCodeInputRef.current?.focus({ preventScroll: true });
     try {
       const response = await fetch("/api/auth/start", {
         method: "POST",
@@ -5137,13 +5153,12 @@ export default function Home() {
       };
       if (!response.ok) throw new Error(data.error || "Couldn’t send a code.");
       setAuthDevelopmentCode(data.developmentCode ?? "");
-      setAuthTransitionDirection("forward");
-      setAuthStep("code");
-      setAuthCode("");
+      // An SMS can arrive before this response. Never erase an autofilled code.
       setAuthResendSeconds(30);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Couldn’t send a code.");
     } finally {
+      setAuthSendingCode(false);
       setAuthPending(false);
     }
   };
@@ -6861,7 +6876,7 @@ export default function Home() {
             <>
               <header className="auth-flow-header">
                 <AuthKeyboardButton
-                  inputRef={authPhoneInputRef}
+                  inputRef={authActiveInputRef}
                   keepKeyboard={authFlowStep !== "phone"}
                   className="auth-back-button"
                   type="button"
@@ -6881,7 +6896,7 @@ export default function Home() {
                   <p id="auth-entry-hint">
                     {needsAuthUsername ? "3–24 letters, numbers or hyphens." : authFlowStep === "phone"
                       ? "Enter your phone number"
-                      : `Code sent to ${authPhone.trim()}`}
+                      : `${authSendingCode ? "Sending code to" : "Code sent to"} ${authPhone.trim()}`}
                   </p>
                 </div>
 
@@ -6890,7 +6905,7 @@ export default function Home() {
                     className={`auth-form auth-flow-form${authFlowStep === "code" ? " auth-confirmation-form" : ""}`}
                     onSubmit={needsAuthUsername ? claimUsername : authFlowStep === "phone" ? requestSignInCode : verifySignInCode}
                   >
-                    <label htmlFor="auth-entry">{needsAuthUsername ? "Username" : authFlowStep === "phone" ? "Phone number" : "Verification code"}</label>
+                    <label htmlFor={authFlowStep === "code" ? "auth-code" : "auth-entry"}>{needsAuthUsername ? "Username" : authFlowStep === "phone" ? "Phone number" : "Verification code"}</label>
                     <div className={`auth-entry-field ${authFlowStep === "code" ? "auth-code-field" : "auth-phone-field"}`}>
                       {authFlowStep === "code" ? <div className="auth-code-cells" aria-hidden="true">
                         {Array.from({ length: AUTH_CODE_LENGTH }, (_, index) => {
@@ -6908,14 +6923,17 @@ export default function Home() {
                           );
                         })}
                       </div> : null}
-                      {/* One native input stays mounted and focused through all three steps and network waits. */}
+                      {/* Keep both native inputs mounted. Transfer focus in the tap,
+                          without blurring or recreating either editing surface. */}
                       <input
                         id="auth-entry"
                         ref={authPhoneInputRef}
-                        className={authFlowStep === "code" ? "auth-code-native" : "auth-phone-input"}
+                        className={`auth-phone-input${authFlowStep === "code" ? " auth-entry-inactive" : ""}`}
+                        aria-hidden={authFlowStep === "code"}
+                        tabIndex={authFlowStep === "code" ? -1 : 0}
                         type="text"
                         inputMode={needsAuthUsername ? "text" : "tel"}
-                        autoComplete={needsAuthUsername ? "username" : authFlowStep === "phone" ? "tel" : "one-time-code"}
+                        autoComplete={needsAuthUsername ? "username" : "tel"}
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
@@ -6924,17 +6942,38 @@ export default function Home() {
                         required={needsAuthUsername}
                         aria-describedby={needsAuthUsername ? "auth-entry-hint username-url" : "auth-entry-hint"}
                         placeholder={needsAuthUsername ? "yourname" : authFlowStep === "phone" ? "Phone number" : undefined}
-                        value={needsAuthUsername ? authUsername : authFlowStep === "phone" ? authPhone : authCode}
+                        value={needsAuthUsername ? authUsername : authPhone}
                         onChange={(event) => {
                           if (authPending) return;
                           if (needsAuthUsername) {
                             setAuthUsername(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24));
                             setAuthUsernameError("");
                           } else if (authFlowStep === "phone") setAuthPhone(event.target.value.slice(0, 24));
-                          else setAuthCode(event.target.value.replace(/\D/g, "").slice(0, AUTH_CODE_LENGTH));
                           setAuthError("");
                         }}
                         aria-busy={authPending}
+                      />
+                      <input
+                        id="auth-code"
+                        name="verification-code"
+                        ref={authCodeInputRef}
+                        className={`auth-code-native${authFlowStep !== "code" ? " auth-entry-inactive" : ""}`}
+                        aria-hidden={authFlowStep !== "code"}
+                        tabIndex={authFlowStep === "code" ? 0 : -1}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]*"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        aria-describedby="auth-entry-hint"
+                        value={authCode}
+                        onChange={(event) => {
+                          if (authFlowStep !== "code" || (authPending && !authSendingCode)) return;
+                          setAuthCode(event.target.value.replace(/\D/g, "").slice(0, AUTH_CODE_LENGTH));
+                          setAuthError("");
+                        }}
                       />
                     </div>
                     <div className="auth-flow-actions">
@@ -6942,7 +6981,7 @@ export default function Home() {
                         {authUsername || "you"}.{PUBLIC_DOMAIN}
                       </p> : null}
                       {authFlowStep === "code" ? <AuthKeyboardButton
-                        inputRef={authPhoneInputRef}
+                        inputRef={authActiveInputRef}
                         className="auth-resend-button"
                         type="button"
                         onClick={() => void requestSignInCode()}
@@ -6952,9 +6991,9 @@ export default function Home() {
                           ? `Resend code in 0:${String(authResendSeconds).padStart(2, "0")}`
                           : "Resend code"}
                       </AuthKeyboardButton> : null}
-                      <AuthKeyboardButton inputRef={authPhoneInputRef} className="auth-continue-button" type="submit"
+                      <AuthKeyboardButton inputRef={authActiveInputRef} className="auth-continue-button" type="submit"
                         disabled={authPending || (needsAuthUsername ? authUsername.length < 3 : authFlowStep === "phone" ? !authPhone.trim() : authCode.length !== AUTH_CODE_LENGTH)}>
-                        {authPending ? (needsAuthUsername ? "Saving…" : authFlowStep === "phone" ? "Sending…" : "Checking…") : "Continue"}
+                        {authPending ? (needsAuthUsername ? "Saving…" : authSendingCode ? "Sending…" : "Checking…") : "Continue"}
                       </AuthKeyboardButton>
                     </div>
                     {(needsAuthUsername ? authUsernameError : authError) ? (

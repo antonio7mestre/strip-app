@@ -74,7 +74,7 @@ test("username uses the same fixed, keyboard-sized layout and inline Continue as
   for (const name of ["auth-flow-stage", "auth-flow-copy", "auth-flow-actions", "auth-continue-button"]) {
     assert.ok(username.includes(`className="${name}"`));
   }
-  assert.match(username, /<AuthKeyboardButton\s+inputRef=\{authPhoneInputRef\}/);
+  assert.match(username, /<AuthKeyboardButton\s+inputRef=\{authActiveInputRef\}/);
   assert.doesNotMatch(username, /auth-brand|auth-card/);
   assert.doesNotMatch(username.match(/<input[\s\S]*?\/>/)[0], /disabled=/);
   assert.match(username, /onClick=\{needsAuthUsername \? \(\) => void returnUsernameToPhone\(\)/);

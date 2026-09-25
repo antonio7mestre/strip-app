@@ -1063,7 +1063,16 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   color: transparent;
   font-size: 16px;
   caret-color: transparent;
-  opacity: 0.01;
+}
+
+/* Inactive fields stay mounted so focus can transfer without closing iOS's
+   keyboard. Only the active, full-size field participates in input or a11y. */
+.auth-entry-field { position: relative; }
+.auth-flow-form .auth-entry-inactive {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .auth-confirmation-form .auth-resend-button {

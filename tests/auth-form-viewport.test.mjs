@@ -83,14 +83,20 @@ test("the iPhone form owns its media anchor and theme until sign-in ends, not un
   } finally { delete globalThis.window; delete globalThis.document; }
 });
 
-test("phone, code and username share one enabled native input and fixed field slots", () => {
+test("phone and OTP keep stable native inputs in the same fixed field slot", () => {
   const page=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
   const auth=page.slice(page.indexOf('if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in"))'));
   const input=auth.match(/<input\s+id="auth-entry"[\s\S]*?\/>/)[0];
   assert.equal((auth.match(/id="auth-entry"/g)||[]).length,1);
   assert.match(input,/type="text"\s+inputMode=\{needsAuthUsername \? "text" : "tel"\}/);
   assert.doesNotMatch(input,/disabled=|readOnly=|key=/);
-  assert.match(input,/autoComplete=\{needsAuthUsername \? "username" : authFlowStep === "phone" \? "tel" : "one-time-code"\}/);
+  assert.match(input,/autoComplete=\{needsAuthUsername \? "username" : "tel"\}/);
+  const code=auth.match(/<input\s+id="auth-code"[\s\S]*?\/>/)[0];
+  assert.match(code,/autoComplete="one-time-code"/);
+  assert.match(code,/inputMode="numeric"/);
+  assert.doesNotMatch(code,/disabled=|readOnly=|key=|maxLength=/);
+  assert.match(code,/authPending && !authSendingCode/);
+  assert.match(auth,/inputRef=\{authActiveInputRef\}/);
   assert.match(auth,/<div className="auth-flow-actions">[\s\S]*?className="auth-continue-button"/);
   assert.equal((auth.match(/<AuthKeyboardButton/g)||[]).length,3);
   assert.match(auth,/keepKeyboard=\{authFlowStep !== "phone"\}/);
