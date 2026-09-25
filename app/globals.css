@@ -693,7 +693,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-hero { background: #304dff; color: #d4ff00; }
 .landing-hero .landing-content {
   min-height: clamp(590px, 82svh, 900px);
-  padding: calc(var(--leading-image-inset, 0px) + env(safe-area-inset-top) + 28px) clamp(24px, 6vw, 72px) 340px;
+  padding: calc(var(--leading-image-inset, 0px) + env(safe-area-inset-top) + 28px) clamp(24px, 6vw, 72px) 0;
 }
 .landing-hero h1,
 .landing-block h2,
@@ -704,7 +704,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   letter-spacing: -0.07em;
 }
 .landing-hero h1 { margin: 0 0 24px; font-size: clamp(68px, 22vw, 208px); }
-.landing-intro { margin: 0; color: #fff; font-size: clamp(17px, 3vw, 24px); line-height: 1.35; }
+.landing-intro { width: 100%; max-width: none; margin: 0; color: #fff; font-size: clamp(17px, 3vw, 24px); line-height: 1.4; }
 .landing-sticker {
   display: block;
   height: auto;
@@ -712,30 +712,23 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   box-shadow: 0 6px 15px #0003;
 }
 .landing-hero-stickers {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  left: 50%;
   bottom: -50px;
-  width: min(56%, 340px);
-  transform: translateX(-50%) rotate(7deg);
+  width: min(56vw, 340px);
+  margin: 110px auto 0;
+  transform: rotate(7deg);
   pointer-events: none;
 }
 .landing-sticker-sky { width: 100%; }
-.landing-photo-block { background: #708431; }
-.landing-meadow-photo { position: relative; width: 100%; }
+.landing-photo-block { background: #d09837; }
+.landing-feature-photo { position: relative; width: 100%; }
 .landing-full-photo { display: block; width: 100%; height: auto; }
-.landing-photo-caption {
-  position: absolute;
-  bottom: 22px;
-  left: clamp(24px, 6vw, 72px);
-  color: white;
-  font: 13px/1.3 "Courier New", monospace;
-  text-shadow: 0 1px 8px #0009;
-}
 .landing-make { background: #d4ff00; color: #17220a; }
 .landing-make .landing-content { padding: 64px clamp(24px, 6vw, 72px) 0; }
-.landing-kicker { margin: 0 0 32px; font: 12px/1.3 "Courier New", monospace; }
 .landing-block h2 { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
+.landing-block .landing-section-title { margin: 0 0 18px; font-size: clamp(24px, 5.2vw, 42px); line-height: 1.1; letter-spacing: -0.045em; }
+.landing-section-title span { font-variant-numeric: tabular-nums; }
 .landing-description { max-width: 400px; margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.4; letter-spacing: -0.035em; }
 .landing-share { background: #ff90cb; color: #3c0d27; }
 .landing-share .landing-content { padding: 110px clamp(24px, 6vw, 72px) 36px; }
@@ -744,6 +737,8 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-signoff { margin: 0; font-size: clamp(42px, 10vw, 88px); }
 
 /* Photos stay put; alpha-cut objects can be picked up and moved. */
+.landing-sticker-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.landing-sticker-anchor { visibility: hidden; pointer-events: none; }
 .landing-cutout { position: absolute; display: block; }
 .landing-cutout img { display: block; width: 100%; height: auto; object-fit: contain; border: 0; box-shadow: none; }
 .landing-doodle { position: absolute; z-index: 3; width: 1em; height: 1em; font: 100px/1 Arial, sans-serif; }
@@ -769,42 +764,36 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-sticker-art img { -webkit-user-drag: none; }
 .landing-sticker-button.is-selected { z-index: 10; touch-action: none; cursor: grab; }
 .landing-sticker-button.is-dragging { cursor: grabbing; }
-.landing-cutout.is-selected,
-.landing-cutout:focus-visible { filter: drop-shadow(0 5px 2px rgb(0 0 0 / 38%)); }
+.landing-sticker-button.is-selected,
+.landing-sticker-button:focus-visible { filter: drop-shadow(0 5px 2px rgb(0 0 0 / 38%)); }
 .landing-cutout.is-selected .landing-sticker-art,
 .landing-cutout:focus-visible .landing-sticker-art { filter: url(#landing-sticker-outline); }
 .landing-doodle svg { overflow: visible; }
-.landing-shape-outline,
-.landing-shape-shadow { visibility: hidden; }
+.landing-shape-outline { visibility: hidden; }
 .landing-doodle.is-selected .landing-shape-outline,
-.landing-doodle:focus-visible .landing-shape-outline,
-.landing-doodle.is-selected .landing-shape-shadow,
-.landing-doodle:focus-visible .landing-shape-shadow { visibility: visible; }
-.landing-block:has(.landing-sticker-button.is-selected) { z-index: 5; }
+.landing-doodle:focus-visible .landing-shape-outline { visibility: visible; }
 .landing-sticker-filters { position: absolute; pointer-events: none; }
 .landing-play-hint {
   position: absolute;
-  right: -14%;
-  top: -112px;
+  right: -22%;
+  top: -90px;
   width: 146px;
   height: 112px;
   transform: rotate(-7deg);
   pointer-events: none;
 }
 .landing-play-lettering { display: block; width: 120px; height: auto; margin-left: 10px; }
-.landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: visible; }
+.landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: visible; transform: rotate(30deg); }
 .landing-play-arrow img { position: absolute; max-width: none; width: 174px; height: 116px; left: -58px; top: -29px; }
-.landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -7%; transform: rotate(7deg); }
-.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -12%; transform: rotate(-19deg); }
-.landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: -4%; transform: rotate(6deg); }
-.landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -3%; color: #ffffff; transform: rotate(6deg); }
-.landing-hero-ball { z-index: 3; width: 48%; left: -22%; bottom: -5%; transform: rotate(-19deg); }
-.landing-hero-spark { z-index: 3; width: 36%; height: auto; aspect-ratio: 1; left: 20%; top: -24%; color: #ff90cb; transform: rotate(5deg); }
-.landing-hero-squiggle { width: 34%; height: auto; aspect-ratio: 1; left: -20%; top: 43%; color: #d4ff00; transform: rotate(-21deg); }
+.landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -11%; transform: rotate(7deg); }
+.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -17%; transform: rotate(-19deg); }
+.landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: 1%; transform: rotate(6deg); }
+.landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -5%; color: #ffbf38; transform: rotate(6deg); }
+.landing-hero-spark { z-index: 3; width: 36%; height: auto; aspect-ratio: 1; left: 20%; top: -29%; color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-squiggle { width: 44%; height: auto; aspect-ratio: 1; left: -24%; top: 47%; color: #d4ff00; transform: rotate(-21deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
-.landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -22px; transform: rotate(16deg); z-index: 2; }
-.landing-photo-spark { right: 3%; bottom: -52px; color: #ff90cb; font-size: 94px; }
-.landing-photo-caption { z-index: 4; bottom: 70px; left: 28%; max-width: 63%; font-size: 12px; }
+.landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -42px; transform: rotate(16deg); z-index: 2; }
+.landing-photo-sun { width: clamp(100px, 26%, 220px); right: 3%; bottom: -46px; transform: rotate(12deg); z-index: 3; }
 .landing-make-collage { position: relative; bottom: -35px; width: min(64%, 340px); margin: 38px auto 0; transform: rotate(-6deg); pointer-events: none; z-index: 2; }
 .landing-make-scrap-street { width: 100%; height: auto; }
 .landing-make-cassette { width: 56%; left: 36%; bottom: -15%; transform: rotate(20deg); z-index: 3; }
@@ -819,8 +808,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-share-spark { left: -24%; bottom: 31%; color: #d4ff00; font-size: 100px; }
 
 @media (min-width: 760px) {
-  .landing-hero .landing-content { padding-bottom: 480px; }
-  .landing-hero-stickers { bottom: -50px; left: 61%; }
+  .landing-hero-stickers { margin-top: 130px; margin-left: 50%; }
   .landing-make-collage { margin-top: 44px; }
   .landing-share-photo { margin-top: 56px; }
 }
@@ -874,6 +862,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   border-color: #080808;
   background: #080808;
   color: #ffffff;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
 }
 
 .auth-step-landing .auth-action-button::after {
@@ -889,6 +878,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 
 .auth-step-landing .auth-action-button:active {
   background: #242424;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 .auth-step-landing .auth-action-controls.dock-controls {
@@ -981,6 +971,22 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   font-size: 15px;
   font-weight: 500;
   line-height: 1.35;
+}
+
+/* Reserve the widest status label so only the words crossfade, not the number
+   or form. Both layers stay mounted through fast sends and resend requests. */
+.auth-code-delivery { display: inline-flex; flex-wrap: wrap; column-gap: 0.3em; }
+.auth-code-delivery-prefix { display: inline-grid; }
+.auth-code-delivery-prefix > span {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 320ms ease, transform 320ms ease;
+}
+.auth-code-delivery-prefix > .is-current { opacity: 1; transform: translateY(0); }
+.auth-code-delivery-phone { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-code-delivery-prefix > span { transform: none; transition: opacity 150ms ease; }
 }
 
 .auth-flow-form {
@@ -1181,6 +1187,7 @@ html.auth-form-anchored .auth-signin-mode {
   font-size: 17px;
   font-weight: 750;
   cursor: pointer;
+  transition: opacity 240ms ease;
 }
 .auth-continue-button:disabled { opacity: 0.5; cursor: default; }
 .auth-continue-button:focus-visible { outline: 2px solid #d4ff00; outline-offset: 3px; }

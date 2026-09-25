@@ -58,6 +58,7 @@ import type { StickerAsset } from "@/app/lib/sticker-pack";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
+import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
 import AuthKeyboardButton from "@/app/components/AuthKeyboardButton";
@@ -2999,6 +3000,7 @@ export default function Home() {
   const [authPhone, setAuthPhone] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [authSendingCode, setAuthSendingCode] = useState(false);
+  const [authCodeDeliveryFailed, setAuthCodeDeliveryFailed] = useState(false);
   const [authResendSeconds, setAuthResendSeconds] = useState(0);
   const [authUsername, setAuthUsername] = useState("");
   const [authPending, setAuthPending] = useState(false);
@@ -5134,6 +5136,7 @@ export default function Home() {
     flushSync(() => {
       setAuthPending(true);
       setAuthSendingCode(true);
+      setAuthCodeDeliveryFailed(false);
       setAuthError("");
       setAuthDevelopmentCode("");
       setAuthTransitionDirection("forward");
@@ -5156,6 +5159,7 @@ export default function Home() {
       // An SMS can arrive before this response. Never erase an autofilled code.
       setAuthResendSeconds(30);
     } catch (error) {
+      setAuthCodeDeliveryFailed(true);
       setAuthError(error instanceof Error ? error.message : "Couldn’t send a code.");
     } finally {
       setAuthSendingCode(false);
@@ -6896,7 +6900,7 @@ export default function Home() {
                   <p id="auth-entry-hint">
                     {needsAuthUsername ? "3–24 letters, numbers or hyphens." : authFlowStep === "phone"
                       ? "Enter your phone number"
-                      : `${authSendingCode ? "Sending code to" : "Code sent to"} ${authPhone.trim()}`}
+                      : <AuthCodeDelivery sending={authSendingCode} failed={authCodeDeliveryFailed} phone={authPhone.trim()} />}
                   </p>
                 </div>
 
@@ -6993,7 +6997,7 @@ export default function Home() {
                       </AuthKeyboardButton> : null}
                       <AuthKeyboardButton inputRef={authActiveInputRef} className="auth-continue-button" type="submit"
                         disabled={authPending || (needsAuthUsername ? authUsername.length < 3 : authFlowStep === "phone" ? !authPhone.trim() : authCode.length !== AUTH_CODE_LENGTH)}>
-                        {authPending ? (needsAuthUsername ? "Saving…" : authSendingCode ? "Sending…" : "Checking…") : "Continue"}
+                        {authPending && !authSendingCode ? (needsAuthUsername ? "Saving…" : "Checking…") : "Continue"}
                       </AuthKeyboardButton>
                     </div>
                     {(needsAuthUsername ? authUsernameError : authError) ? (

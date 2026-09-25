@@ -19,9 +19,22 @@ test("login is a sample Strip with a title, media, explainers, and overlaid phot
   assert.doesNotMatch(html, /landing-masthead|auth-landing-brand|A little bit of your life/);
   assert.equal((html.match(/class="landing-block /g) || []).length, 4);
   assert.match(html, /landing-hero-stickers/);
-  assert.match(html, /Your photos\./);
-  assert.match(html, /Send it to the group chat\./);
+  assert.match(html, /This is what a Strip looks like\. A place to tell a story/);
+  assert.match(html, /You decide who sees your Strip\.<br\/>One shareable link\./);
+  assert.match(html, /This is a Strip\.<br\/>Now make yours\./);
   assert.doesNotMatch(html, /\u2014/);
+});
+
+test("the longer intro flows above the collage and both section labels are real headings", () => {
+  assert.match(css, /\.landing-intro\s*\{[^}]*width: 100%;[^}]*max-width: none;/);
+  assert.match(css, /\.landing-hero-stickers\s*\{[^}]*position: relative;[^}]*margin: 110px auto 0;/);
+  assert.match(html, /<h2 class="landing-section-title"><span>01 \/<\/span> MAKE IT YOURS<\/h2>/);
+  assert.match(html, /<h2 class="landing-section-title"><span>02 \/<\/span> PASS IT AROUND<\/h2>/);
+  assert.match(css, /\.landing-block \.landing-section-title\s*\{[^}]*font-size: clamp\(24px, 5.2vw, 42px\)/);
+  assert.doesNotMatch(html, /Your photos\.|Your world\.|For your<br\/>people\./);
+  assert.match(css, /\.landing-play-hint\s*\{[^}]*right: -22%;[^}]*top: -90px;/);
+  assert.match(css, /\.landing-hero-camera\s*\{[^}]*top: -17%;/);
+  assert.match(css, /\.landing-hero-spark\s*\{[^}]*top: -29%;/);
 });
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {
@@ -40,7 +53,7 @@ test("photos are local, have stable dimensions and accessible or decorative alt 
 });
 
 test("collage keeps complete alpha-cut stickers and a black CTA", () => {
-  assert.equal((html.match(/class="landing-cutout /g) || []).length, 13);
+  assert.equal((html.match(/<button[^>]*class="landing-cutout /g) || []).length, 13);
   assert.doesNotMatch(html, /clipPath|clip-path/);
   assert.doesNotMatch(html, /class="[^"]*\s(?:share-shell|hero-camera|make-cd)(?:\s|")/, "Sticker classes cannot inherit unrelated page layouts");
   assert.match(html, /sticker-camera\.webp/);
@@ -51,7 +64,7 @@ test("collage keeps complete alpha-cut stickers and a black CTA", () => {
 
 test("every object and doodle is selectable, while the four photos stay stationary", () => {
   const buttons = [...html.matchAll(/<button\b[^>]*data-landing-sticker[^>]*>/g)];
-  assert.equal(buttons.length, 19);
+  assert.equal(buttons.length, 18);
   for (const [button] of buttons) {
     assert.match(button, /type="button"/);
     assert.match(button, /aria-pressed="false"/);
@@ -79,8 +92,8 @@ test("white selection border follows the image alpha and rounds its edge, never 
   assert.match(css, /\.landing-cutout.is-selected \.landing-sticker-art,[\s\S]*?filter: url\(#landing-sticker-outline\)/);
   assert.match(css, /\.landing-doodle svg \{ overflow: visible; \}/);
   assert.match(css, /filter: drop-shadow\(0 5px 2px rgb\(0 0 0 \/ 38%\)\)/);
-  assert.match(html, /class="landing-shape-shadow"[^>]*transform="translate\(0 5\)"/);
-  assert.doesNotMatch(css, /\.landing-sticker-button(?:\.is-selected|:focus-visible)[^{]*\{[^}]*filter:/);
+  assert.doesNotMatch(html, /landing-shape-shadow/);
+  assert.match(css, /\.landing-sticker-button.is-selected,\s*\.landing-sticker-button:focus-visible\s*\{[^}]*drop-shadow\(0 5px 2px/);
   assert.match(css, /\.landing-sticker-button\s*\{[^}]*border: 0;[^}]*outline: none;/);
 });
 
@@ -136,7 +149,7 @@ test("Get started has a generated cursor image without blocking taps or changing
 test("the Y2K collage uses Cosmos photos without floating text badges or retired assets", () => {
   assert.doesNotMatch(html, /landing-tape|landing-photo-note|landing-sticker-label|landing-link-sticker/);
   assert.doesNotMatch(html, /photo-booth|photo-picnic|photo-sea|sticker-film|sticker-sunglasses|poolside|afternoon/);
-  for (const name of ["sky", "street", "ocean"]) {
+  for (const name of ["sky", "street", "ocean", "sunshade"]) {
     assert.match(html, new RegExp(`cosmos-${name}\\.webp`));
     const sources = readFileSync(new URL("../public/landing/SOURCES.md", import.meta.url), "utf8");
     assert.ok(sources.includes(`cosmos-${name}.webp`), "Every Cosmos photo has a source record");
@@ -156,7 +169,7 @@ test("each landing section has exactly one photo, surrounded only by object stic
 });
 
 test("all collage stickers are anchored to a photo-sized wrapper, not the surrounding section", () => {
-  for (const name of ["hero-stickers", "meadow-photo", "make-collage", "share-photo"]) {
+  for (const name of ["hero-stickers", "feature-photo", "make-collage", "share-photo"]) {
     assert.match(html, new RegExp(`class="landing-${name}"`));
     const rule = css.match(new RegExp(`\\.landing-${name} \\{([^}]+)\\}`))?.[1];
     assert.ok(rule && !/height:\s*\d+px/.test(rule), "Photo dimensions determine the sticker anchor");
@@ -164,9 +177,28 @@ test("all collage stickers are anchored to a photo-sized wrapper, not the surrou
   assert.match(css, /\.landing-sticker-sky \{ width: 100%; \}/);
   assert.match(css, /\.landing-make-scrap-street \{ width: 100%; height: auto; \}/);
   assert.doesNotMatch(css, /\.landing-full-photo[^}]*object-fit:\s*cover/);
-  assert.match(css, /\.landing-meadow-photo \{ position: relative; width: 100%; \}/);
+  assert.match(css, /\.landing-feature-photo \{ position: relative; width: 100%; \}/);
   assert.match(css, /\.landing-hero-stickers\s*\{[^}]*bottom: -50px;/);
   assert.match(css, /\.landing-make-collage\s*\{[^}]*bottom: -35px;/);
+});
+
+test("moving a sticker never raises its section or clips a neighboring collage", () => {
+  assert.match(html, /class="landing-sticker-layer"/);
+  assert.match(source, /createPortal\(sticker, layer\)/);
+  assert.match(source, /observer\.observe\(layer\)/);
+  assert.match(source, /observer\.disconnect\(\)/);
+  assert.match(css, /\.landing-sticker-anchor\s*\{[^}]*visibility: hidden;[^}]*pointer-events: none;/);
+  assert.match(css, /\.landing-sticker-layer\s*\{[^}]*position: absolute;[^}]*inset: 0;[^}]*z-index: 3;/);
+  assert.doesNotMatch(css, /\.landing-block:has\(/);
+});
+
+test("the refreshed collage uses pack stickers and an unobstructed full-width photo", () => {
+  assert.match(html, /sticker-pack\/nature\/white-daisy\.webp/);
+  assert.match(html, /sticker-pack\/nature\/warm-sun\.webp/);
+  assert.doesNotMatch(html, /sticker-ball|sticker-daisy|meadow\.webp|landing-photo-caption|landing-photo-spark/);
+  assert.match(css, /\.landing-hero-ring\s*\{[^}]*color: #ffbf38;/);
+  assert.match(css, /\.landing-play-arrow\s*\{[^}]*transform: rotate\(30deg\)/);
+  assert.match(css, /\.auth-step-landing \.auth-action-button\s*\{[^}]*box-shadow:/);
 });
 
 test("landing content scrolls behind the status bar without a fixed top color layer", () => {

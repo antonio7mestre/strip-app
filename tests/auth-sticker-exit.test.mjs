@@ -70,7 +70,7 @@ test("suspensions, densely overlapped stickers, and disposal cannot explode the 
 });
 
 test("only cutouts and doodles detach; frozen Cosmos photos are never physics bodies", () => {
-  assert.match(source, /FLOATING_STICKER_SELECTOR = "\.landing-cutout, \.landing-doodle"/);
+  assert.match(source, /FLOATING_STICKER_SELECTOR = "\[data-landing-sticker\]"/);
   assert.doesNotMatch(source, /querySelectorAll[^\n]*landing-sticker/);
   assert.match(source, /frozen\.querySelectorAll\(FLOATING_STICKER_SELECTOR\)\.forEach\(element => element\.remove\(\)\)/);
   assert.match(source, /translate: "none", transform: "none"/);

@@ -18,6 +18,7 @@ function harness({ pending = false, exiting = false } = {}) {
     flushSync: update => { calls.push("commit-code-screen"); update(); },
     setAuthPending: value => { state.pending = value; },
     setAuthSendingCode: value => { state.sending = value; },
+    setAuthCodeDeliveryFailed: value => { state.deliveryFailed = value; },
     setAuthError: value => { state.error = value; },
     setAuthDevelopmentCode: value => { state.developmentCode = value; },
     setAuthTransitionDirection: () => {},
@@ -47,6 +48,7 @@ test("OTP is focused synchronously before SMS, not when the network response arr
   assert.equal(qa.state.code, "123456");
   assert.equal(qa.state.pending, false);
   assert.equal(qa.state.sending, false);
+  assert.equal(qa.state.deliveryFailed, false);
   assert.equal(qa.state.resend, 30);
   assert.equal(qa.calls.filter(call => call === "focus-code").length, 1);
 });
@@ -55,6 +57,7 @@ test("failed sends release the controls without replacing or blurring the OTP fi
   const qa = harness();
   const running = qa.run(); qa.resolve(false); await running;
   assert.equal(qa.state.error, "Couldn’t send a code.");
+  assert.equal(qa.state.deliveryFailed, true);
   assert.equal(qa.state.pending, false);
   assert.equal(qa.state.sending, false);
   assert.equal(qa.state.step, "code");

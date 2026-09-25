@@ -1,7 +1,7 @@
 import { createStickerPhysics, type FloatingSticker } from "./sticker-physics";
 
 // Photo wrappers contain the Cosmos pictures too. Only detach the object cutouts and drawings.
-export const FLOATING_STICKER_SELECTOR = ".landing-cutout, .landing-doodle";
+export const FLOATING_STICKER_SELECTOR = "[data-landing-sticker]";
 const BLEED = 160;
 export const AUTH_FORM_FADE_MS = 620;
 

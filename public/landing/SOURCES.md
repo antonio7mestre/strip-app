@@ -1,5 +1,13 @@
 # Login Strip image sources
 
+## September 24 home refresh
+
+- `cosmos-sunshade.webp`: https://www.cosmos.so/e/1227749909, selected visually in Chrome.
+  Cosmos caption credits photographer Gueorgui Pinkhassov. Replaces the meadow photo, displayed full-width without cropping or overlaid copy.
+  Source: https://cdn.cosmos.so/d5b5a10c-418f-4015-a764-9cabd72bf1b1?format=webp
+  Native size: 584 × 388. Reuse rights have not been independently verified.
+- Stemless daisy and sun reuse the existing pack assets at `/sticker-pack/nature/white-daisy.webp` and `/sticker-pack/nature/warm-sun.webp`. The original landing camera is retained. No new generated stickers.
+
 Selected in Cosmos using Chrome on September 21, 2026 at the user's request.
 Cosmos uploader names identify the source posts, not verified copyright owners.
 No independent reuse license is asserted by this record.
