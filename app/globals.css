@@ -790,11 +790,11 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: calc(-17% - 16px); transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: 1%; transform: rotate(6deg); }
 .landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -5%; color: #ffbf38; transform: rotate(6deg); }
-.landing-hero-spark { z-index: 3; width: 42%; height: auto; aspect-ratio: 1; left: 10%; top: calc(-29% - 36px); color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-spark { z-index: 3; width: 42%; height: auto; aspect-ratio: 1; left: 10%; top: calc(-29% - 36px); color: #ff90cb; transform: rotate(-5deg); }
 .landing-hero-squiggle { width: 44%; height: auto; aspect-ratio: 1; left: calc(-24% + 8px); top: 47%; color: #d4ff00; transform: rotate(-21deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
 .landing-photo-daisy { width: clamp(120px, 32%, 280px); right: 3%; bottom: -46px; transform: rotate(16deg); z-index: 3; }
-.landing-make-collage { position: relative; bottom: -35px; width: min(64%, 340px); margin: 38px auto 0; transform: translateX(12px); pointer-events: none; z-index: 2; }
+.landing-make-collage { position: relative; bottom: -35px; width: min(64%, 340px); margin: 38px auto 0; transform: translateX(24px); pointer-events: none; z-index: 2; }
 .landing-make-scrap-street { width: 100%; height: auto; }
 .landing-make-cassette { width: 56%; left: 36%; bottom: -15%; transform: rotate(20deg); z-index: 3; }
 .landing-make-skate { width: 58%; left: -25%; bottom: -12%; transform: rotate(-11deg); z-index: 3; }
