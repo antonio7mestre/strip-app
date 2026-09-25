@@ -232,6 +232,7 @@ export function AuthLandingStrip() {
         <section className="landing-block landing-make">
           <div className="landing-content">
             <h2 className="landing-section-title"><span>01 /</span> MAKE IT YOURS</h2>
+            <p className="landing-make-headline">Your photos.<br />Your words.<br />Your world.</p>
             <p className="landing-description">Stack photos and videos. Add a thought, a color, a sticker. Keep going.</p>
             <div className="landing-make-collage">
               <img className="landing-sticker landing-make-scrap-street" src="/landing/cosmos-street.webp" alt="" width="900" height="1126" loading="lazy" decoding="async" />

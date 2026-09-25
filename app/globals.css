@@ -697,6 +697,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 }
 .landing-hero h1,
 .landing-block h2,
+.landing-make-headline,
 .landing-signoff {
   font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
   font-weight: 900;
@@ -727,6 +728,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-make { background: #d4ff00; color: #17220a; }
 .landing-make .landing-content { padding: 64px clamp(24px, 6vw, 72px) 0; }
 .landing-block h2 { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
+.landing-make-headline { margin: 0 0 28px; font-size: clamp(52px, 12vw, 108px); }
 .landing-block .landing-section-title { margin: 0 0 18px; font-size: clamp(24px, 5.2vw, 42px); line-height: 1.1; letter-spacing: -0.045em; }
 .landing-section-title span { font-variant-numeric: tabular-nums; }
 .landing-description { max-width: 400px; margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.4; letter-spacing: -0.035em; }
@@ -776,7 +778,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-play-hint {
   position: absolute;
   right: -22%;
-  top: -90px;
+  top: -114px;
   width: 146px;
   height: 112px;
   transform: rotate(-7deg);
@@ -786,11 +788,11 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: visible; transform: rotate(30deg); }
 .landing-play-arrow img { position: absolute; max-width: none; width: 174px; height: 116px; left: -58px; top: -29px; }
 .landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -11%; transform: rotate(7deg); }
-.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: -17%; transform: rotate(-19deg); }
+.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: calc(-17% - 24px); transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: 1%; transform: rotate(6deg); }
 .landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -5%; color: #ffbf38; transform: rotate(6deg); }
-.landing-hero-spark { z-index: 3; width: 36%; height: auto; aspect-ratio: 1; left: 20%; top: -29%; color: #ff90cb; transform: rotate(5deg); }
-.landing-hero-squiggle { width: 44%; height: auto; aspect-ratio: 1; left: -24%; top: 47%; color: #d4ff00; transform: rotate(-21deg); }
+.landing-hero-spark { z-index: 3; width: 36%; height: auto; aspect-ratio: 1; left: 20%; top: calc(-29% - 24px); color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-squiggle { width: 44%; height: auto; aspect-ratio: 1; left: calc(-24% + 8px); top: 47%; color: #d4ff00; transform: rotate(-21deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
 .landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -42px; transform: rotate(16deg); z-index: 2; }
 .landing-photo-sun { width: clamp(100px, 26%, 220px); right: 3%; bottom: -46px; transform: rotate(12deg); z-index: 3; }
@@ -862,7 +864,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   border-color: #080808;
   background: #080808;
   color: #ffffff;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
 }
 
 .auth-step-landing .auth-action-button::after {
@@ -878,7 +880,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 
 .auth-step-landing .auth-action-button:active {
   background: #242424;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
 .auth-step-landing .auth-action-controls.dock-controls {

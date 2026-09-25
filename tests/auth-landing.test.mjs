@@ -31,10 +31,11 @@ test("the longer intro flows above the collage and both section labels are real 
   assert.match(html, /<h2 class="landing-section-title"><span>01 \/<\/span> MAKE IT YOURS<\/h2>/);
   assert.match(html, /<h2 class="landing-section-title"><span>02 \/<\/span> PASS IT AROUND<\/h2>/);
   assert.match(css, /\.landing-block \.landing-section-title\s*\{[^}]*font-size: clamp\(24px, 5.2vw, 42px\)/);
-  assert.doesNotMatch(html, /Your photos\.|Your world\.|For your<br\/>people\./);
-  assert.match(css, /\.landing-play-hint\s*\{[^}]*right: -22%;[^}]*top: -90px;/);
-  assert.match(css, /\.landing-hero-camera\s*\{[^}]*top: -17%;/);
-  assert.match(css, /\.landing-hero-spark\s*\{[^}]*top: -29%;/);
+  assert.match(html, /<p class="landing-make-headline">Your photos\.<br\/>Your words\.<br\/>Your world\.<\/p>/);
+  assert.doesNotMatch(html, /For your<br\/>people\./);
+  assert.match(css, /\.landing-play-hint\s*\{[^}]*right: -22%;[^}]*top: -114px;/);
+  assert.match(css, /\.landing-hero-camera\s*\{[^}]*top: calc\(-17% - 24px\);/);
+  assert.match(css, /\.landing-hero-spark\s*\{[^}]*top: calc\(-29% - 24px\);/);
 });
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {
