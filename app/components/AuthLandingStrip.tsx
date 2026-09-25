@@ -21,6 +21,11 @@ export function landingStickerBounds(rect: { left: number; right: number; width:
   return { minX: Math.min(0, visible - rect.right), maxX: Math.max(0, canvasWidth - visible - rect.left) };
 }
 
+/** Keep the rotated collage's top edge 16px below the explainer at every width. */
+export function landingCollageMargin(currentMargin: number, visibleGap: number) {
+  return Math.max(0, currentMargin + 16 - visibleGap);
+}
+
 const OUTLINE_OFFSETS = Array.from({ length: 32 }, (_, index) => {
   const angle = index * Math.PI / 16;
   return { x: 3 * Math.cos(angle), y: 3 * Math.sin(angle) };
@@ -159,7 +164,27 @@ function CollageBurst({ className }: { className: string }) {
 export function AuthLandingStrip() {
   const [selected, select] = useState<string | null>(null);
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
+  const intro = useRef<HTMLParagraphElement>(null);
+  const heroCollage = useRef<HTMLDivElement>(null);
   const backgroundTap = useRef<{ id: number; x: number; y: number; scrollY: number } | null>(null);
+  useLayoutEffect(() => {
+    const copy = intro.current, collage = heroCollage.current;
+    if (!copy || !collage) return;
+    // Measure the stationary anchors, not draggable buttons, so playing with
+    // stickers never moves the text, photo, or surrounding sections.
+    const edges = [...collage.querySelectorAll<HTMLElement>(".landing-sticker-anchor, .landing-play-hint, .landing-sticker-sky")];
+    const measure = () => {
+      const top = Math.min(...edges.map(element => element.getBoundingClientRect().top));
+      const margin = parseFloat(getComputedStyle(collage).marginTop) || 0;
+      const next = landingCollageMargin(margin, top - copy.getBoundingClientRect().bottom);
+      if (Math.abs(next - margin) > 0.25) collage.style.setProperty("--landing-hero-clearance", `${next}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const element of [copy, collage, ...edges]) observer.observe(element);
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
+  }, [layer]);
   useLayoutEffect(() => {
     // A fixed theme color would conceal the content behind the status bar.
     const theme = document.getElementById("strip-theme-color");
@@ -196,8 +221,8 @@ export function AuthLandingStrip() {
         <header className="landing-block landing-hero">
           <div className="landing-content">
             <h1 id="auth-heading">Want to<br />strip?</h1>
-            <p className="landing-intro">This is what a Strip looks like. A place to tell a story, mix photos, videos and words, and make something that feels like you.</p>
-            <div className="landing-hero-stickers">
+            <p ref={intro} className="landing-intro">This is what a Strip looks like. A place to tell a story, mix photos, videos and words, and make something that feels like you.</p>
+            <div ref={heroCollage} className="landing-hero-stickers">
               <div className="landing-play-hint" aria-hidden="true">
                 <img className="landing-play-lettering" src="/landing/sticker-help-text.png" alt="click a sticker to move it around" width="1536" height="1024" draggable={false} />
                 <span className="landing-play-arrow"><img src="/landing/sticker-help-arrow.png" alt="" width="1536" height="1024" draggable={false} /></span>

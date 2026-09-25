@@ -27,7 +27,7 @@ test("login is a sample Strip with a title, media, explainers, and overlaid phot
 
 test("the longer intro flows above the collage and both section labels are real headings", () => {
   assert.match(css, /\.landing-intro\s*\{[^}]*width: 100%;[^}]*max-width: none;/);
-  assert.match(css, /\.landing-hero-stickers\s*\{[^}]*position: relative;[^}]*margin: 110px auto 0;/);
+  assert.match(css, /\.landing-hero-stickers\s*\{[^}]*position: relative;[^}]*margin: var\(--landing-hero-clearance, 96px\) auto 0;/);
   assert.match(html, /<h2 class="landing-section-title"><span>01 \/<\/span> MAKE IT YOURS<\/h2>/);
   assert.match(html, /<h2 class="landing-section-title"><span>02 \/<\/span> PASS IT AROUND<\/h2>/);
   assert.match(css, /\.landing-block \.landing-section-title\s*\{[^}]*font-size: clamp\(24px, 5.2vw, 42px\)/);
@@ -35,7 +35,19 @@ test("the longer intro flows above the collage and both section labels are real 
   assert.doesNotMatch(html, /For your<br\/>people\./);
   assert.match(css, /\.landing-play-hint\s*\{[^}]*right: -22%;[^}]*top: -114px;/);
   assert.match(css, /\.landing-hero-camera\s*\{[^}]*top: calc\(-17% - 16px\);/);
-  assert.match(css, /\.landing-hero-spark\s*\{[^}]*left: 14%;[^}]*top: calc\(-29% - 36px\);/);
+  assert.match(css, /\.landing-hero-spark\s*\{[^}]*left: 10%;[^}]*top: calc\(-29% - 36px\);/);
+});
+
+test("the hero collage keeps one compact gap across viewport sizes without reacting to dragged stickers", () => {
+  for (const [margin, gap] of [[96, 46], [110, 4], [130, -30]]) {
+    const next = exports.landingCollageMargin(margin, gap);
+    assert.equal(gap + next - margin, 16);
+    assert.equal(exports.landingCollageMargin(next, 16), next, "The second measurement is stable");
+  }
+  assert.match(source, /querySelectorAll<HTMLElement>\("\.landing-sticker-anchor, \.landing-play-hint, \.landing-sticker-sky"\)/);
+  assert.match(source, /for \(const element of \[copy, collage, \.\.\.edges\]\) observer.observe\(element\)/);
+  assert.doesNotMatch(css, /\.landing-hero-stickers\s*\{[^}]*margin-top:/);
+  assert.doesNotMatch(css, /\.landing-hero \.landing-content\s*\{[^}]*min-height:/);
 });
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {
@@ -125,6 +137,8 @@ test("dragging stays under the finger on both rotated photo collages", () => {
 
 test("lower collages follow their copy instead of reserving a large fixed-height gap", () => {
   assert.match(css, /\.landing-make-collage\s*\{[^}]*position: relative;[^}]*margin: 38px auto 0;/);
+  assert.match(css, /\.landing-make-collage\s*\{[^}]*transform: translateX\(12px\);/);
+  assert.doesNotMatch(css, /\.landing-make-collage\s*\{[^}]*rotate\(/);
   assert.doesNotMatch(css, /\.landing-make \.landing-content\s*\{[^}]*(?:390px|480px)/);
   assert.match(css, /\.landing-share-photo\s*\{[^}]*margin: 56px auto 78px;/);
 });
