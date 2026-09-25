@@ -2480,6 +2480,14 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   justify-self: end;
 }
 
+/* Animate the tools' size, never Safari's changing browser/safe-area extension.
+   An unregistered variable would jump instead of interpolating. */
+@property --sticker-dock-visible-height {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 64px;
+}
+
 .composer-dock {
   /* Keep the current dock painted behind the native keyboard. Compensate
      Safari's viewport pan instantly, separately from normal tool transitions. */

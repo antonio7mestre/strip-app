@@ -8128,7 +8128,7 @@ export default function Home() {
           minHeight: 0,
           alignItems: stickerPickerOpen ? "flex-start" : undefined,
           transition:
-            "height 360ms cubic-bezier(0.22, 0.86, 0.28, 1), transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
+            "--sticker-dock-visible-height 360ms cubic-bezier(0.22, 0.86, 0.28, 1), transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
         } as CSSProperties}
       >
         {dockTransitionLayer}
