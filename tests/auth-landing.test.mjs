@@ -35,7 +35,7 @@ test("the longer intro flows above the collage and both section labels are real 
   assert.doesNotMatch(html, /For your<br\/>people\./);
   assert.match(css, /\.landing-play-hint\s*\{[^}]*right: -22%;[^}]*top: -114px;/);
   assert.match(css, /\.landing-hero-camera\s*\{[^}]*top: calc\(-17% - 16px\);/);
-  assert.match(css, /\.landing-hero-spark\s*\{[^}]*top: calc\(-29% - 28px\);/);
+  assert.match(css, /\.landing-hero-spark\s*\{[^}]*left: 14%;[^}]*top: calc\(-29% - 36px\);/);
 });
 
 test("photos are local, have stable dimensions and accessible or decorative alt text", () => {

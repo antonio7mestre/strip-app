@@ -791,7 +791,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: calc(-17% - 16px); transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: 1%; transform: rotate(6deg); }
 .landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -5%; color: #ffbf38; transform: rotate(6deg); }
-.landing-hero-spark { z-index: 3; width: 42%; height: auto; aspect-ratio: 1; left: 20%; top: calc(-29% - 28px); color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-spark { z-index: 3; width: 42%; height: auto; aspect-ratio: 1; left: 14%; top: calc(-29% - 36px); color: #ff90cb; transform: rotate(5deg); }
 .landing-hero-squiggle { width: 44%; height: auto; aspect-ratio: 1; left: calc(-24% + 8px); top: 47%; color: #d4ff00; transform: rotate(-21deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
 .landing-photo-daisy { width: clamp(120px, 32%, 280px); right: 3%; bottom: -46px; transform: rotate(16deg); z-index: 3; }
