@@ -721,8 +721,8 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   transform: rotate(7deg);
   pointer-events: none;
 }
-.landing-sticker-sky { width: 100%; }
-.landing-photo-block { background: #d09837; }
+.landing-sticker-sky { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: center; }
+.landing-photo-block { background: #101a26; }
 .landing-feature-photo { position: relative; width: 100%; }
 .landing-full-photo { display: block; width: 100%; height: auto; }
 .landing-make { background: #d4ff00; color: #17220a; }
@@ -788,14 +788,13 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 .landing-play-arrow { position: absolute; right: 0; bottom: -4px; width: 58px; height: 58px; overflow: visible; transform: rotate(30deg); }
 .landing-play-arrow img { position: absolute; max-width: none; width: 174px; height: 116px; left: -58px; top: -29px; }
 .landing-hero-glasses { z-index: 4; width: 76%; right: -30%; bottom: -11%; transform: rotate(7deg); }
-.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: calc(-17% - 24px); transform: rotate(-19deg); }
+.landing-hero-camera { z-index: 4; width: 91%; left: -42%; top: calc(-17% - 16px); transform: rotate(-19deg); }
 .landing-hero-phone { z-index: 3; width: 60%; right: -28%; top: 1%; transform: rotate(6deg); }
 .landing-hero-ring { width: 25%; height: auto; aspect-ratio: 1; left: 81%; top: -5%; color: #ffbf38; transform: rotate(6deg); }
-.landing-hero-spark { z-index: 3; width: 36%; height: auto; aspect-ratio: 1; left: 20%; top: calc(-29% - 24px); color: #ff90cb; transform: rotate(5deg); }
+.landing-hero-spark { z-index: 3; width: 42%; height: auto; aspect-ratio: 1; left: 20%; top: calc(-29% - 28px); color: #ff90cb; transform: rotate(5deg); }
 .landing-hero-squiggle { width: 44%; height: auto; aspect-ratio: 1; left: calc(-24% + 8px); top: 47%; color: #d4ff00; transform: rotate(-21deg); }
 .landing-photo-scraps { position: absolute; inset: 0; pointer-events: none; }
-.landing-photo-daisy { width: clamp(90px, 24%, 240px); left: 1%; bottom: -42px; transform: rotate(16deg); z-index: 2; }
-.landing-photo-sun { width: clamp(100px, 26%, 220px); right: 3%; bottom: -46px; transform: rotate(12deg); z-index: 3; }
+.landing-photo-daisy { width: clamp(120px, 32%, 280px); right: 3%; bottom: -46px; transform: rotate(16deg); z-index: 3; }
 .landing-make-collage { position: relative; bottom: -35px; width: min(64%, 340px); margin: 38px auto 0; transform: rotate(-6deg); pointer-events: none; z-index: 2; }
 .landing-make-scrap-street { width: 100%; height: auto; }
 .landing-make-cassette { width: 56%; left: 36%; bottom: -15%; transform: rotate(20deg); z-index: 3; }

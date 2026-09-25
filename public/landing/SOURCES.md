@@ -1,5 +1,12 @@
 # Login Strip image sources
 
+## User-selected photos
+
+- `story-night.webp`: supplied directly by the user on September 24, 2026 as `codex-clipboard-469b88d0-5450-4881-a0d8-d11723ec631b.png`.
+  Original 1280 × 768 dimensions preserved in a quality-94 WebP web copy. Replaces the umbrella photo in the full-width block without cropping. The sun charm is removed; the larger daisy occupies its lower-right position.
+- `story-friends.webp`: supplied directly by the user on September 24, 2026 as `codex-clipboard-66c6861a-ede1-49d6-b2b0-4c3df85a3068.png`.
+  Original 1080 × 1349 dimensions preserved in a quality-94 WebP web copy. Replaces the sky photo. The displayed 3:4 frame, rotation and sticker anchors are unchanged, using a centered side crop.
+
 ## September 24 home refresh
 
 - `cosmos-sunshade.webp`: https://www.cosmos.so/e/1227749909, selected visually in Chrome.

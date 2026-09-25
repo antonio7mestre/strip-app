@@ -3,10 +3,9 @@ import { createPortal } from "react-dom";
 
 export const AUTH_LANDING_COLOR = "#304dff";
 
-const STICKER_HEIGHTS = { camera: 512, flipphone: 1152, "green-glasses": 512, daisy: 922, sun: 768, cherries: 790, cassette: 512, headphones: 816, cd: 768, "ticket-admit": 511, shell: 702, rollerskate: 814, clip: 640 } as const;
+const STICKER_HEIGHTS = { camera: 512, flipphone: 1152, "green-glasses": 512, daisy: 922, cherries: 790, cassette: 512, headphones: 816, cd: 768, "ticket-admit": 511, shell: 702, rollerskate: 814, clip: 640 } as const;
 const PACK_CUTOUTS = {
   daisy: { src: "/sticker-pack/nature/white-daisy.webp", width: 512, height: 490 },
-  sun: { src: "/sticker-pack/nature/warm-sun.webp", width: 512, height: 509 },
 } as const;
 
 const StickerSelection = createContext<{ selected: string | null; select: (id: string | null) => void; layer: HTMLDivElement | null }>({ selected: null, select: () => {}, layer: null });
@@ -203,7 +202,7 @@ export function AuthLandingStrip() {
                 <img className="landing-play-lettering" src="/landing/sticker-help-text.png" alt="click a sticker to move it around" width="1536" height="1024" draggable={false} />
                 <span className="landing-play-arrow"><img src="/landing/sticker-help-arrow.png" alt="" width="1536" height="1024" draggable={false} /></span>
               </div>
-              <img className="landing-sticker landing-sticker-sky" src="/landing/cosmos-sky.webp" width="900" height="1200" alt="" decoding="async" />
+              <img className="landing-sticker landing-sticker-sky" src="/landing/story-friends.webp" width="900" height="1200" alt="Friends laughing together in the sunshine" decoding="async" />
               <PhotoCutout kind="green-glasses" className="landing-hero-glasses" />
               <PhotoCutout kind="camera" className="landing-hero-camera" />
               <PhotoCutout kind="flipphone" className="landing-hero-phone" />
@@ -221,10 +220,9 @@ export function AuthLandingStrip() {
 
         <section className="landing-block landing-photo-block" aria-label="A moment worth keeping">
           <div className="landing-feature-photo">
-            <img className="landing-full-photo" src="/landing/cosmos-sunshade.webp" alt="A sunlit silhouette behind a yellow and orange striped beach umbrella" width="584" height="388" decoding="async" />
+            <img className="landing-full-photo" src="/landing/story-night.webp" alt="Two silhouettes leaning together against blurred blue and pink city lights" width="1280" height="768" decoding="async" />
             <div className="landing-photo-scraps">
               <PhotoCutout kind="daisy" className="landing-photo-daisy" />
-              <PhotoCutout kind="sun" className="landing-photo-sun" />
             </div>
           </div>
         </section>
