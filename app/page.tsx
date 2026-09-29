@@ -22,7 +22,7 @@ import {
   Eye,
   Files,
   GripHorizontal,
-  House,
+  UserRound,
   History,
   ImagePlus,
   Link2,
@@ -80,6 +80,8 @@ import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { installEndingContact } from "@/app/lib/ending-contact";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
+import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
+import { useStripProfile } from "@/app/components/useStripProfile";
 
 type TextBlock = {
   id: string;
@@ -2991,6 +2993,7 @@ export default function Home() {
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const stripProfile = useStripProfile(authUser?.id);
   const [authStep, setAuthStep] = useState<AuthStep>("landing");
   const [authStickerRevealed, setAuthStickerRevealed] = useState(false);
   const authStickerExitRef = useRef<(() => void) | null>(null);
@@ -3269,6 +3272,9 @@ export default function Home() {
 
   const homeIsVisible = initialRouteReady && authStatus === "signed-in" && !needsAuthUsername &&
     ["library", "drafts", "history", "settings"].includes(view);
+  useEffect(() => {
+    if (view !== "library") stripProfile.cancel();
+  }, [view, stripProfile.cancel]);
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
     const theme = document.getElementById("strip-theme-color");
@@ -3570,6 +3576,17 @@ export default function Home() {
     root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
     root.style.backgroundColor = topSafeAreaColor;
   }, [topSafeAreaColor]);
+
+  useLayoutEffect(() => {
+    if (!homeIsVisible || view !== "library") return;
+    const root = document.documentElement;
+    root.style.setProperty("--profile-page-background", stripProfile.profile.background);
+    root.classList.add("profile-page-active");
+    return () => {
+      root.classList.remove("profile-page-active");
+      root.style.removeProperty("--profile-page-background");
+    };
+  }, [homeIsVisible, view, stripProfile.profile.background]);
 
 
   useLayoutEffect(() => installFooterSafeAreaColor({
@@ -7100,7 +7117,7 @@ export default function Home() {
                 : void openPublishedStrip(strip, event.currentTarget)
             }
             disabled={
-              isDraft ? openingDraftId === strip.id : openingStripId === strip.id
+              stripProfile.editing || (isDraft ? openingDraftId === strip.id : openingStripId === strip.id)
             }
             aria-label={`Open ${cardTitle}`}
           >
@@ -7150,11 +7167,12 @@ export default function Home() {
         {legacyTransitionLayer}
         <main
           inert={openingCover !== null}
-          className={`app-shell library-mode ${openingCover ? "is-opening-strip" : ""} ${
+          className={`app-shell library-mode ${view === "library" ? "profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
             isDraftLibrary ? "drafts-library-mode" : ""
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
           }`}
+          style={view === "library" ? profilePageStyle(stripProfile) : undefined}
         >
           <section
             className={`strip-library ${legacyPageEnterClass}`}
@@ -7164,7 +7182,8 @@ export default function Home() {
               } as CSSProperties
             }
           >
-            <header className="library-header">
+            {view === "library" ? <ProfileHeader controller={stripProfile} username={authUser?.username ?? null}
+              count={publishedStrips.length} loading={libraryLoading} /> : <header className="library-header">
               <h1>
                 {isSettings
                   ? "SETTINGS"
@@ -7174,7 +7193,7 @@ export default function Home() {
                       ? "HISTORY"
                       : "STRIP"}
               </h1>
-            </header>
+            </header>}
             {isSettings ? (
               <div className="settings-content">
                 <section className="settings-section" aria-labelledby="account-settings-heading">
@@ -7268,6 +7287,12 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+            ) : view === "library" && libraryItems.length === 0 ? (
+              <div className="profile-empty-state">
+                <strong>A little space for your world.</strong>
+                <p>Your published Strips live here.</p>
+                {!stripProfile.editing ? <button type="button" onClick={beginNewStrip}><Plus aria-hidden="true" />Make your first Strip</button> : null}
+              </div>
             ) : isHistory && libraryItems.length === 0 ? (
               <div className="library-empty-state">
                 <strong>No viewing history yet.</strong>
@@ -7297,7 +7322,7 @@ export default function Home() {
             )}
           </section>
 
-          {!isSettings ? (
+          {!isSettings && !stripProfile.editing ? (
             <button
               className="library-add-button"
               type="button"
@@ -7312,9 +7337,9 @@ export default function Home() {
               edge paint even with visibility:hidden or an offscreen transform. */}
           {!openingCover ? <footer
             key="persistent-composer-dock"
-            className="composer-dock app-navigation-dock"
+            className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
           >
-            {dockTransitionLayer}
+            {view === "library" && stripProfile.editing ? <ProfileTools controller={stripProfile} /> : <>{dockTransitionLayer}
             <nav
               className={`${currentDockControlsClass} app-navigation-controls`}
               key={`dock-controls:${view}`}
@@ -7326,11 +7351,11 @@ export default function Home() {
                 }`}
                 type="button"
                 onClick={() => void returnToLibrary()}
-                aria-label="Home"
+                aria-label="Profile"
                 aria-current={view === "library" ? "page" : undefined}
               >
-                <House aria-hidden="true" />
-                <span className="visually-hidden">Home</span>
+                <UserRound aria-hidden="true" />
+                <span className="visually-hidden">Profile</span>
               </button>
               <button
                 className={`app-navigation-button ${
@@ -7368,7 +7393,7 @@ export default function Home() {
                 <Settings aria-hidden="true" />
                 <span className="visually-hidden">Settings</span>
               </button>
-            </nav>
+            </nav></>}
           </footer> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal

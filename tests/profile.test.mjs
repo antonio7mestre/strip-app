@@ -1,0 +1,146 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import test from "node:test";
+import ts from "typescript";
+import { DatabaseSync } from "node:sqlite";
+import { imageSize } from "image-size";
+import * as profile from "../app/lib/profile.ts";
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+function compile(path, imports = {}) {
+  const exports = {};
+  runInNewContext(ts.transpileModule(read(path), { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+  } }).outputText, {
+    exports, require: (name) => { if (!(name in imports)) throw new Error(name); return imports[name]; },
+    Uint8Array, TextDecoder, atob, Response, Headers, crypto, console,
+  });
+  return exports;
+}
+const server = compile("app/server/profile.ts", { "image-size": { imageSize }, "@/app/lib/profile": profile });
+const request = (body, origin = "http://localhost:3035") => new Request(`${origin}/api/profile`, {
+  method: "PUT", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(body),
+});
+function fixture() {
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE users (id TEXT PRIMARY KEY); INSERT INTO users VALUES ('one'), ('two');");
+  db.exec(read("drizzle/0006_cool_stone_men.sql"));
+  const objects = new Map();
+  let user = "one";
+  let failing = false;
+  const env = {
+    DB: { prepare(sql) { return { bind(...args) {
+      return {
+        first: async () => db.prepare(sql).get(...args) ?? null,
+        run: async () => {
+          if (failing) throw new Error("Database unavailable");
+          return { meta: db.prepare(sql).run(...args) };
+        },
+      };
+    } }; } },
+    STRIP_MEDIA: {
+      put: async (key, bytes) => objects.set(key, bytes),
+      delete: async (key) => objects.delete(key),
+    },
+  };
+  const routes = compile("app/api/profile/route.ts", {
+    "cloudflare:workers": { env },
+    "@/app/lib/profile": profile,
+    "@/app/server/profile": server,
+    "@/app/server/auth": {
+      requireAuthUser: async () => user ? { user: { id: user } } : { response: new Response(null, { status: 401 }) },
+      isSameOrigin: (req) => req.headers.get("Origin") === new URL(req.url).origin,
+      consumeRateLimit: async () => true,
+    },
+  });
+  return { ...routes, db, objects, asUser: (value) => { user = value; }, fail: () => { failing = true; } };
+}
+
+test("username is the default title, custom titles do not change usernames", () => {
+  assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, "antonio"), "antonio");
+  assert.equal(profile.profileTitle({ title: "my little world" }, "antonio"), "my little world");
+  assert.equal(profile.profileTitle({ title: "   " }, "antonio"), "antonio");
+});
+test("font, colors, title length and revision are validated", () => {
+  assert.ok(profile.validateProfile(profile.DEFAULT_PROFILE));
+  for (const bad of [null, [], { font: "url(evil)" }, { title: "a".repeat(61) }, { background: "red" }, { accent: "#fff;" }, { revision: -1 }, { revision: 1.1 }]) {
+    assert.equal(profile.validateProfile(bad === null || Array.isArray(bad) ? bad : { ...profile.DEFAULT_PROFILE, ...bad }), null);
+  }
+  assert.equal(profile.profileInk("#000000"), "#FFFFFF");
+  assert.equal(profile.profileInk("#FFFFFF"), "#000000");
+  assert.equal(profile.profileInk("#3155FF"), "#FFFFFF");
+});
+test("profile settings persist and remain scoped to the authenticated owner", async () => {
+  const api = fixture();
+  const get = () => api.GET(new Request("http://localhost:3035/api/profile"));
+  assert.deepEqual((await (await get()).json()).profile, profile.DEFAULT_PROFILE);
+  const response = await api.PUT(request({ ...profile.DEFAULT_PROFILE, title: "My world", font: "serif", background: "#FF8CCC" }));
+  assert.equal(response.status, 200);
+  assert.equal((await (await get()).json()).profile.title, "My world");
+  api.asUser("two");
+  assert.deepEqual((await (await get()).json()).profile, profile.DEFAULT_PROFILE);
+  api.asUser(null);
+  assert.equal((await get()).status, 401);
+  assert.equal((await api.PUT(request(profile.DEFAULT_PROFILE))).status, 401);
+  api.db.close();
+});
+test("stale saves and cross-origin requests cannot overwrite a profile", async () => {
+  const api = fixture();
+  assert.equal((await api.PUT(request(profile.DEFAULT_PROFILE))).status, 200);
+  assert.equal((await api.PUT(request({ ...profile.DEFAULT_PROFILE, title: "stale" }))).status, 409);
+  const crossOrigin = request(profile.DEFAULT_PROFILE);
+  crossOrigin.headers.set("Origin", "https://evil.example");
+  assert.equal((await api.PUT(crossOrigin)).status, 403);
+  assert.equal((await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 1, title: "latest" }))).status, 200);
+  api.db.close();
+});
+test("profile photos accept only bounded raster JPEGs and reject arbitrary URLs", async () => {
+  for (const value of ["https://example.com/avatar.jpg", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/jpeg;base64,SGVsbG8=", "data:image/jpeg;base64," + "A".repeat(700000)]) {
+    assert.equal(server.decodeProfilePhoto(value), null);
+    const api = fixture();
+    assert.equal((await api.PUT(request({ ...profile.DEFAULT_PROFILE, photo: value }))).status, 400);
+    assert.equal(api.objects.size, 0);
+    api.db.close();
+  }
+});
+test("request size is bounded even without a Content-Length header", async () => {
+  await assert.rejects(server.readProfileInput(request({ padding: "x".repeat(710000) })), /too large/);
+});
+test("a profile photo is stored, retained on design edits, removed, and cleaned up if saving fails", async () => {
+  const photo = "data:image/jpeg;base64," + readFileSync(new URL("../public/apple-messages.jpg", import.meta.url)).toString("base64");
+  assert.ok(server.decodeProfilePhoto(photo));
+  const api = fixture();
+  const upload = await api.PUT(request({ ...profile.DEFAULT_PROFILE, photo }));
+  assert.equal(upload.status, 200);
+  assert.equal((await upload.json()).profile.photoUrl, "/api/profile/photo?v=1");
+  assert.equal(api.objects.size, 1);
+  const key = [...api.objects.keys()][0];
+  assert.ok(key.startsWith("profiles/one/"));
+  const design = await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 1, background: "#FF8CCC" }));
+  assert.equal(design.status, 200);
+  assert.equal(api.objects.size, 1);
+  assert.equal([...api.objects.keys()][0], key);
+  const remove = await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 2, photo: null }));
+  assert.equal((await remove.json()).profile.photoUrl, null);
+  assert.equal(api.objects.size, 0);
+  api.fail();
+  assert.equal((await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 3, photo }))).status, 503);
+  assert.equal(api.objects.size, 0, "Failed saves do not leave orphan uploads");
+  api.db.close();
+});
+test("failed saves are explicit and do not claim success", async () => {
+  const api = fixture(); api.fail();
+  assert.equal((await api.PUT(request(profile.DEFAULT_PROFILE))).status, 503);
+  assert.equal(api.db.prepare("SELECT count(*) AS count FROM profiles").get().count, 0);
+  api.db.close();
+});
+test("profile tools reuse the dock on the profile and preserve the main editor", () => {
+  const page = read("app/page.tsx");
+  assert.match(page, /composer-dock app-navigation-dock.*profile-editor-dock/);
+  assert.match(page, /view === "library" && stripProfile.editing \? <ProfileTools/);
+  assert.match(page, /stripProfile.editing \|\| \(isDraft/);
+  assert.match(page, /installKeyboardDockPosition/);
+  assert.match(read("app/components/ProfileEditor.tsx"), /aria-label="Profile title"/);
+  assert.doesNotMatch(read("app/components/ProfileEditor.tsx"), /role="dialog"/);
+});

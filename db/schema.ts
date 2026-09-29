@@ -18,6 +18,16 @@ export const users = sqliteTable(
   (table) => [index("idx_users_phone").on(table.phoneE164)],
 );
 
+export const profiles = sqliteTable("profiles", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default(""),
+  font: text("font").notNull().default("sans"),
+  background: text("background").notNull().default("#000000"),
+  accent: text("accent").notNull().default("#3155FF"),
+  photoKey: text("photo_key"),
+  revision: integer("revision").notNull().default(1),
+});
+
 export const authSessions = sqliteTable(
   "auth_sessions",
   {

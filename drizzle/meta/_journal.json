@@ -43,6 +43,13 @@
       "when": 1788311108727,
       "tag": "0005_third_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790643342554,
+      "tag": "0006_cool_stone_men",
+      "breakpoints": true
     }
   ]
 }
