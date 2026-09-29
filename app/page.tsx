@@ -7182,8 +7182,7 @@ export default function Home() {
               } as CSSProperties
             }
           >
-            {view === "library" ? <ProfileHeader controller={stripProfile} username={authUser?.username ?? null}
-              count={publishedStrips.length} loading={libraryLoading} /> : <header className="library-header">
+            {view === "library" ? <ProfileHeader controller={stripProfile} username={authUser?.username ?? null} /> : <header className="library-header">
               <h1>
                 {isSettings
                   ? "SETTINGS"
@@ -7306,7 +7305,7 @@ export default function Home() {
                     ? "Your drafts"
                     : isHistory
                       ? "Your viewed Strips"
-                      : "Your Strips"
+                      : "Published Strips"
                 }
                 aria-busy="false"
               >

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, Camera, Check, Palette, Pencil, Type, UserRound } from "lucide-react";
+import { ArrowLeft, Camera, Check, PaintBucket, Palette, Pencil, Type, UserRound } from "lucide-react";
 import { PROFILE_COLORS, PROFILE_FONTS, profileInk, profileTitle } from "@/app/lib/profile";
 import { prepareProfilePhoto, type useStripProfile } from "./useStripProfile";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
-type Props = { controller: ProfileController; username: string | null; count: number; loading: boolean };
+type Props = { controller: ProfileController; username: string | null };
 
-export function ProfileHeader({ controller, username, count, loading }: Props) {
+export function ProfileHeader({ controller, username }: Props) {
   const { profile, editing, pending, update } = controller;
   const photoInput = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -30,7 +30,6 @@ export function ProfileHeader({ controller, username, count, loading }: Props) {
     } finally { controller.setPreparingPhoto(false); if (request === photoRequest.current) setPhotoBusy(false); }
   };
   return <header className={`profile-header ${editing ? "is-editing" : ""}`}>
-    <div className="profile-eyebrow"><span>Your Strip profile</span><span className="profile-brand">striiip</span></div>
     <div className="profile-identity">
       <div className="profile-photo-column">
         <button type="button" className="profile-avatar" aria-label={editing ? "Change profile photo" : "Edit profile photo"}
@@ -53,44 +52,24 @@ export function ProfileHeader({ controller, username, count, loading }: Props) {
         {username ? <p className="profile-handle">@{username}</p> : null}
       </div>
     </div>
-    {editing ? <p className="profile-edit-hint">Tap your photo or title to make it yours.</p> :
-      <button type="button" className="profile-edit-button" disabled={controller.loading || controller.loadFailed}
-        onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button>}
+    {!editing ? <button type="button" className="profile-edit-button" disabled={controller.loading || controller.loadFailed}
+        onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button> : null}
     {editing && photoBusy ? <p className="profile-feedback" role="status">Preparing photo…</p> : null}
     {editing && photoError ? <p className="profile-feedback" role="alert">{photoError}</p> : null}
     {controller.loadFailed ? <p className="profile-feedback" role="alert">{controller.error} <button type="button" onClick={controller.retry}>Retry</button></p> : null}
-    <div className="profile-collection-label"><span>Your Strips</span><span>{loading ? "…" : count}</span></div>
   </header>;
 }
 
 export function ProfileTools({ controller }: { controller: ProfileController }) {
-  const [tab, setTab] = useState<"edit" | "design">("edit");
-  const [tool, setTool] = useState<"background" | "accent" | "font">("background");
+  const [tool, setTool] = useState<"background" | "accent" | "font" | null>(null);
   const { profile, update, pending } = controller;
-  const initialFocus = useRef<HTMLButtonElement>(null);
-  useEffect(() => { initialFocus.current?.focus({ preventScroll: true }); }, []);
-  const focusTitle = () => {
-    const input = document.querySelector<HTMLInputElement>("#profile-title-input");
-    input?.focus();
-    input?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
+  const toggleTool = (next: NonNullable<typeof tool>) => setTool((current) => current === next ? null : next);
   return <div className="profile-tools" aria-label="Edit your profile">
-    <div className="profile-tool-tabs" role="tablist" aria-label="Profile tools">
-      <button ref={initialFocus} id="profile-edit-tab" type="button" role="tab" aria-selected={tab === "edit"} aria-controls="profile-tools-panel" onClick={() => setTab("edit")}><Pencil aria-hidden="true" />Edit</button>
-      <button id="profile-design-tab" type="button" role="tab" aria-selected={tab === "design"} aria-controls="profile-tools-panel" onClick={() => setTab("design")}><Palette aria-hidden="true" />Design</button>
-    </div>
-    <div className="profile-tools-panel" id="profile-tools-panel" role="tabpanel" aria-labelledby={`profile-${tab}-tab`}>
-      {tab === "edit" ? <div className="profile-edit-actions">
-        <button type="button" disabled={pending} onClick={() => document.querySelector<HTMLInputElement>("#profile-photo-input")?.click()}><Camera aria-hidden="true" /><span>Photo</span></button>
-        <button type="button" disabled={pending} onClick={focusTitle}><Type aria-hidden="true" /><span>Title</span></button>
-      </div> : <>
-        <div className="profile-design-options" aria-label="Design tools">
-          {(["background", "accent", "font"] as const).map((item) => <button key={item} type="button" aria-pressed={tool === item} onClick={() => setTool(item)}>{item === "background" ? "Background" : item === "accent" ? "Accent" : "Font"}</button>)}
-        </div>
-        {tool === "font" ? <div className="profile-font-options" aria-label="Profile font">
+    {tool ? <div className="profile-tools-panel" id="profile-tools-panel" aria-label={tool === "font" ? "Profile font" : `${tool} color`}>
+        {tool === "font" ? <div className="profile-font-options">
           {PROFILE_FONTS.map((font) => <button key={font.id} type="button" disabled={pending} style={{ fontFamily: font.family }}
             aria-pressed={profile.font === font.id} onClick={() => update({ font: font.id })}>{font.label}</button>)}
-        </div> : <div className="profile-color-options" aria-label={`${tool} color`}>
+        </div> : <div className="profile-color-options">
           {PROFILE_COLORS.map((color) => <button type="button" key={color.value} disabled={pending}
             aria-label={`${color.name} ${tool}`} aria-pressed={profile[tool] === color.value}
             style={{ backgroundColor: color.value, color: profileInk(color.value) }} onClick={() => update({ [tool]: color.value })}>
@@ -100,11 +79,14 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
             <input type="color" value={profile[tool]} aria-label={`Custom ${tool} color`} disabled={pending} onChange={(event) => update({ [tool]: event.target.value.toUpperCase() })} />
           </label>
         </div>}
-      </>}
-    </div>
+    </div> : null}
     {controller.error ? <p className="profile-save-error" role="alert">{controller.error}</p> : null}
-    <div className="profile-save-actions">
-      <button type="button" disabled={pending} onClick={controller.cancel}><ArrowLeft aria-hidden="true" />Cancel</button>
+    <p className="profile-tray-instruction">Tap element to edit</p>
+    <div className="profile-tool-row" aria-label="Profile editor toolbar">
+      <button type="button" className="profile-tool-icon" aria-label="Cancel editing" disabled={pending} onClick={controller.cancel}><ArrowLeft aria-hidden="true" /></button>
+      <button type="button" className="profile-tool-icon" aria-label="Background color" aria-pressed={tool === "background"} aria-controls={tool ? "profile-tools-panel" : undefined} onClick={() => toggleTool("background")}><PaintBucket aria-hidden="true" /></button>
+      <button type="button" className="profile-tool-icon" aria-label="Accent color" aria-pressed={tool === "accent"} aria-controls={tool ? "profile-tools-panel" : undefined} onClick={() => toggleTool("accent")}><Palette aria-hidden="true" /></button>
+      <button type="button" className="profile-tool-icon" aria-label="Profile font" aria-pressed={tool === "font"} aria-controls={tool ? "profile-tools-panel" : undefined} onClick={() => toggleTool("font")}><Type aria-hidden="true" /></button>
       <button type="button" className="profile-save-button" disabled={pending} onClick={() => void controller.save()}>{controller.preparingPhoto ? "Preparing…" : pending ? "Saving…" : "Save"}<Check aria-hidden="true" /></button>
     </div>
   </div>;
