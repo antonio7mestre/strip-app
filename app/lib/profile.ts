@@ -1,9 +1,12 @@
 export const PROFILE_FONTS = [
-  { id: "sans", label: "Classic", family: '"Helvetica Neue", Arial, sans-serif' },
-  { id: "serif", label: "Editorial", family: 'Georgia, "Times New Roman", serif' },
-  { id: "mono", label: "Typewriter", family: '"Courier New", monospace' },
-  { id: "rounded", label: "Soft", family: 'ui-rounded, "Arial Rounded MT Bold", sans-serif' },
-  { id: "condensed", label: "Bold", family: 'Impact, "Arial Narrow", sans-serif' },
+  { id: "letter", label: "Letter", family: '"Arial Black", "Helvetica Neue", Arial, sans-serif' },
+  { id: "sans", label: "Sans", family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif' },
+  { id: "serif", label: "Serif", family: '"Iowan Old Style", "Baskerville", Georgia, serif' },
+  { id: "mono", label: "Mono", family: '"SFMono-Regular", "SF Mono", Menlo, Consolas, monospace' },
+  { id: "rounded", label: "Rounded", family: 'ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif' },
+  { id: "condensed", label: "Condensed", family: '"Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif' },
+  { id: "display", label: "Display", family: 'Didot, "Bodoni 72", "Times New Roman", serif' },
+  { id: "hand", label: "Handwritten", family: '"Noteworthy", "Bradley Hand", "Comic Sans MS", cursive' },
 ] as const;
 
 export type ProfileFont = (typeof PROFILE_FONTS)[number]["id"];
@@ -16,14 +19,15 @@ export type StripProfile = {
   revision: number;
 };
 export const DEFAULT_PROFILE: StripProfile = {
-  title: "", font: "sans", background: "#000000", accent: "#3155FF",
+  title: "", font: "letter", background: "#000000", accent: "#3155FF",
   photoUrl: null, revision: 0,
 };
 export const PROFILE_COLORS = [
-  { name: "Black", value: "#000000" }, { name: "Paper", value: "#F5F1E8" },
-  { name: "Cobalt", value: "#3155FF" }, { name: "Pink", value: "#FF8CCC" },
-  { name: "Acid", value: "#D7FF00" }, { name: "Orange", value: "#FF4D00" },
-  { name: "Lavender", value: "#A78BFA" }, { name: "Sky", value: "#B8E6F1" },
+  { name: "Black", value: "#000000" }, { name: "Acid", value: "#8ACE00" },
+  { name: "Hot pink", value: "#FF4FA3" }, { name: "Chrome", value: "#D9D9D9" },
+  { name: "Electric blue", value: "#3155FF" }, { name: "Laser violet", value: "#7A2CFF" },
+  { name: "Safety orange", value: "#FF4D00" }, { name: "Paper", value: "#F5F1E8" },
+  { name: "Pink", value: "#FF8CCC" }, { name: "Acid yellow", value: "#D7FF00" },
 ] as const;
 
 export function profileInk(color: string) {

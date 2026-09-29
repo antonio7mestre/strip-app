@@ -3207,8 +3207,9 @@ export default function Home() {
       : view === "library" ||
     view === "drafts" ||
     view === "history" ||
-    view === "settings" ||
-    view === "publish-setup" ||
+    view === "settings"
+      ? stripProfile.profile.background
+      : view === "publish-setup" ||
     view === "title-setup" ||
     view === "share"
       ? DEFAULT_BACKGROUND
@@ -3578,7 +3579,7 @@ export default function Home() {
   }, [topSafeAreaColor]);
 
   useLayoutEffect(() => {
-    if (!homeIsVisible || view !== "library") return;
+    if (!homeIsVisible) return;
     const root = document.documentElement;
     root.style.setProperty("--profile-page-background", stripProfile.profile.background);
     root.classList.add("profile-page-active");
@@ -7167,12 +7168,12 @@ export default function Home() {
         {legacyTransitionLayer}
         <main
           inert={openingCover !== null}
-          className={`app-shell library-mode ${view === "library" ? "profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
+          className={`app-shell library-mode profile-theme-mode ${view === "library" ? "profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
             isDraftLibrary ? "drafts-library-mode" : ""
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
           }`}
-          style={view === "library" ? profilePageStyle(stripProfile) : undefined}
+          style={profilePageStyle(stripProfile)}
         >
           <section
             className={`strip-library ${legacyPageEnterClass}`}
@@ -7185,11 +7186,11 @@ export default function Home() {
             {view === "library" ? <ProfileHeader controller={stripProfile} username={authUser?.username ?? null} /> : <header className="library-header">
               <h1>
                 {isSettings
-                  ? "SETTINGS"
+                  ? "Settings"
                   : isDraftLibrary
-                    ? "DRAFTS"
+                    ? "Drafts"
                     : isHistory
-                      ? "HISTORY"
+                      ? "History"
                       : "STRIP"}
               </h1>
             </header>}
@@ -7334,6 +7335,8 @@ export default function Home() {
 
           {/* Remove the fixed surface entirely: Safari retains its white
               edge paint even with visibility:hidden or an offscreen transform. */}
+          {view === "library" && stripProfile.editing && !openingCover ?
+            <p className="profile-editor-hint">Tap element to edit</p> : null}
           {!openingCover ? <footer
             key="persistent-composer-dock"
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}

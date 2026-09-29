@@ -58,6 +58,8 @@ function fixture() {
 }
 
 test("username is the default title, custom titles do not change usernames", () => {
+  assert.equal(profile.DEFAULT_PROFILE.font, "letter");
+  assert.ok(profile.PROFILE_FONTS.some(({ id, family }) => id === "letter" && family.includes("Arial Black")));
   assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, "antonio"), "antonio");
   assert.equal(profile.profileTitle({ title: "my little world" }, "antonio"), "my little world");
   assert.equal(profile.profileTitle({ title: "   " }, "antonio"), "antonio");
@@ -70,6 +72,14 @@ test("font, colors, title length and revision are validated", () => {
   assert.equal(profile.profileInk("#000000"), "#FFFFFF");
   assert.equal(profile.profileInk("#FFFFFF"), "#000000");
   assert.equal(profile.profileInk("#3155FF"), "#FFFFFF");
+  for (const { value } of profile.PROFILE_COLORS) {
+    const luminance = (hex) => hex.slice(1).match(/.{2}/g).map((part) => {
+      const channel = parseInt(part, 16) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    }).reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index], 0);
+    const values = [luminance(value), luminance(profile.profileInk(value))].sort((a, b) => b - a);
+    assert.ok((values[0] + 0.05) / (values[1] + 0.05) >= 4.5, `${value} has readable theme ink`);
+  }
 });
 test("profile settings persist and remain scoped to the authenticated owner", async () => {
   const api = fixture();
@@ -139,8 +149,16 @@ test("profile tools reuse the dock on the profile and preserve the main editor",
   const page = read("app/page.tsx");
   assert.match(page, /composer-dock app-navigation-dock.*profile-editor-dock/);
   assert.match(page, /view === "library" && stripProfile.editing \? <ProfileTools/);
+  assert.match(page, /<p className="profile-editor-hint">Tap element to edit<\/p>/);
   assert.match(page, /stripProfile.editing \|\| \(isDraft/);
   assert.match(page, /installKeyboardDockPosition/);
-  assert.match(read("app/components/ProfileEditor.tsx"), /aria-label="Profile title"/);
-  assert.doesNotMatch(read("app/components/ProfileEditor.tsx"), /role="dialog"/);
+  const editor = read("app/components/ProfileEditor.tsx");
+  assert.match(editor, /aria-label="Profile title"/);
+  assert.match(editor, /<textarea ref=\{titleInput\}/);
+  assert.doesNotMatch(editor, /profile-photo-input/);
+  assert.match(editor, /Discard profile changes\?/);
+  assert.match(editor, /aria-label="Done choosing styles"/);
+  assert.match(editor, /profile-save-button.*Save"/);
+  assert.doesNotMatch(editor, /profile-tray-instruction/);
+  assert.doesNotMatch(editor, /profile-save-button.*<Check/);
 });

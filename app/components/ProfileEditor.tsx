@@ -1,94 +1,222 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, Camera, Check, PaintBucket, Palette, Pencil, Type, UserRound } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { Check, ChevronLeft, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
 import { PROFILE_COLORS, PROFILE_FONTS, profileInk, profileTitle } from "@/app/lib/profile";
-import { prepareProfilePhoto, type useStripProfile } from "./useStripProfile";
+import { type useStripProfile } from "./useStripProfile";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
 type Props = { controller: ProfileController; username: string | null };
 
 export function ProfileHeader({ controller, username }: Props) {
   const { profile, editing, pending, update } = controller;
-  const photoInput = useRef<HTMLInputElement>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const [photoError, setPhotoError] = useState("");
-  const photoRequest = useRef(0);
-  useEffect(() => {
-    if (!editing) photoRequest.current += 1;
-  }, [editing]);
-  useEffect(() => () => { photoRequest.current += 1; }, []);
-  const choosePhoto = async (file: File | undefined) => {
-    if (!file) return;
-    const request = ++photoRequest.current;
-    setPhotoBusy(true); controller.setPreparingPhoto(true); setPhotoError("");
-    try {
-      const photo = await prepareProfilePhoto(file);
-      if (request === photoRequest.current) controller.changePhoto(photo);
-    } catch (cause) {
-      if (request === photoRequest.current) setPhotoError(cause instanceof Error ? cause.message : "Choose another photo.");
-    } finally { controller.setPreparingPhoto(false); if (request === photoRequest.current) setPhotoBusy(false); }
-  };
+  const titleInput = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const input = titleInput.current;
+    if (!editing || !input) return;
+    const sizeToContent = () => {
+      input.style.height = "0px";
+      input.style.height = `${input.scrollHeight}px`;
+    };
+    sizeToContent();
+    const observer = new ResizeObserver(sizeToContent);
+    observer.observe(input.parentElement!);
+    return () => observer.disconnect();
+  }, [editing, profile.title, profile.font]);
   return <header className={`profile-header ${editing ? "is-editing" : ""}`}>
     <div className="profile-identity">
-      <div className="profile-photo-column">
-        <button type="button" className="profile-avatar" aria-label={editing ? "Change profile photo" : "Edit profile photo"}
-          disabled={pending || photoBusy || controller.loading || controller.loadFailed}
-          onClick={() => { if (!editing) controller.begin(); photoInput.current?.click(); }}>
-          {profile.photoUrl ? <img src={profile.photoUrl} alt="Your profile" /> : <UserRound aria-hidden="true" />}
-          {editing ? <span className="profile-avatar-edit"><Camera aria-hidden="true" /></span> : null}
-        </button>
-        {editing && profile.photoUrl ? <button type="button" className="profile-remove-photo" disabled={pending || photoBusy}
-          onClick={() => controller.changePhoto(null)}>Remove</button> : null}
-        <input ref={photoInput} id="profile-photo-input" type="file" accept="image/*" hidden
-          onChange={(event) => { void choosePhoto(event.target.files?.[0]); event.target.value = ""; }} />
-      </div>
       <div className="profile-name">
-        {editing ? <input id="profile-title-input" className="profile-title-input" aria-label="Profile title" type="text"
+        {editing ? <textarea ref={titleInput} id="profile-title-input" className="profile-title-input" aria-label="Profile title" rows={1}
           maxLength={60} value={profile.title} placeholder={username || "Your profile"} disabled={pending}
           autoComplete="off" enterKeyHint="done" onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-          onChange={(event) => update({ title: event.target.value })} /> :
+          onChange={(event) => update({ title: event.target.value.replace(/\s*\n\s*/g, " ") })} /> :
           <h1>{profileTitle(profile, username)}</h1>}
-        {username ? <p className="profile-handle">@{username}</p> : null}
+        <div className="profile-meta-row">
+          {username ? <p className="profile-handle">@{username}</p> : null}
+          {username && !editing ? <span className="profile-meta-divider" aria-hidden="true" /> : null}
+          {!editing ? <button type="button" className="profile-edit-button" disabled={controller.loading || controller.loadFailed}
+            onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button> : null}
+        </div>
       </div>
     </div>
-    {!editing ? <button type="button" className="profile-edit-button" disabled={controller.loading || controller.loadFailed}
-        onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button> : null}
-    {editing && photoBusy ? <p className="profile-feedback" role="status">Preparing photo…</p> : null}
-    {editing && photoError ? <p className="profile-feedback" role="alert">{photoError}</p> : null}
     {controller.loadFailed ? <p className="profile-feedback" role="alert">{controller.error} <button type="button" onClick={controller.retry}>Retry</button></p> : null}
   </header>;
 }
 
+type ProfileTool = "background" | "accent" | "font";
+
+function hslToHex(hue: number, lightness: number) {
+  const saturation = 1;
+  const l = lightness / 100;
+  const chroma = (1 - Math.abs(2 * l - 1)) * saturation;
+  const segment = hue / 60;
+  const secondary = chroma * (1 - Math.abs((segment % 2) - 1));
+  let red = 0, green = 0, blue = 0;
+  if (segment < 1) [red, green, blue] = [chroma, secondary, 0];
+  else if (segment < 2) [red, green, blue] = [secondary, chroma, 0];
+  else if (segment < 3) [red, green, blue] = [0, chroma, secondary];
+  else if (segment < 4) [red, green, blue] = [0, secondary, chroma];
+  else if (segment < 5) [red, green, blue] = [secondary, 0, chroma];
+  else [red, green, blue] = [chroma, 0, secondary];
+  const match = l - chroma / 2;
+  return `#${[red, green, blue].map((channel) => Math.round((channel + match) * 255).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+}
+
+function hexPosition(hex: string) {
+  const [red, green, blue] = hex.slice(1).match(/.{2}/g)!.map((part) => parseInt(part, 16) / 255);
+  const maximum = Math.max(red, green, blue), minimum = Math.min(red, green, blue), delta = maximum - minimum;
+  let hue = 0;
+  if (delta) {
+    if (maximum === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (maximum === green) hue = 60 * ((blue - red) / delta + 2);
+    else hue = 60 * ((red - green) / delta + 4);
+  }
+  if (hue < 0) hue += 360;
+  return { hue, lightness: ((maximum + minimum) / 2) * 100 };
+}
+
+function sampleProfilePageColor(clientX: number, clientY: number) {
+  const elements = document.elementsFromPoint(clientX, clientY).filter((element) =>
+    !element.closest(".profile-editor-dock, .page-color-picker-indicator, .profile-editor-hint"));
+  for (const element of elements) {
+    if (!(element instanceof HTMLImageElement)) continue;
+    const bounds = element.getBoundingClientRect();
+    if (!element.naturalWidth || !element.naturalHeight || !bounds.width || !bounds.height) continue;
+    try {
+      const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) continue;
+      context.drawImage(element,
+        Math.max(0, Math.min(element.naturalWidth - 1, (clientX - bounds.left) / bounds.width * element.naturalWidth)),
+        Math.max(0, Math.min(element.naturalHeight - 1, (clientY - bounds.top) / bounds.height * element.naturalHeight)),
+        1, 1, 0, 0, 1, 1);
+      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+      if (a > 8) return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+    } catch { /* Fall back to the page surface if the image is cross-origin. */ }
+  }
+  for (const element of elements) {
+    const match = getComputedStyle(element).backgroundColor.match(/^rgba?\(([^)]+)\)$/i);
+    if (!match) continue;
+    const [r, g, b, a] = match[1].replace("/", " ").split(/[\s,]+/).filter(Boolean).map(Number);
+    if ([r, g, b].some(Number.isNaN) || (a !== undefined && a <= 0.01)) continue;
+    return `#${[r, g, b].map((channel) => Math.round(channel).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+  }
+  return null;
+}
+
 export function ProfileTools({ controller }: { controller: ProfileController }) {
-  const [tool, setTool] = useState<"background" | "accent" | "font" | null>(null);
+  const [tool, setTool] = useState<ProfileTool | null>(null);
+  const [wheel, setWheel] = useState(false);
+  const [pickingPage, setPickingPage] = useState(false);
+  const [pickerPoint, setPickerPoint] = useState<{ x: number; y: number; color: string } | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const keepEditing = useRef<HTMLButtonElement>(null);
   const { profile, update, pending } = controller;
-  const toggleTool = (next: NonNullable<typeof tool>) => setTool((current) => current === next ? null : next);
-  return <div className="profile-tools" aria-label="Edit your profile">
-    {tool ? <div className="profile-tools-panel" id="profile-tools-panel" aria-label={tool === "font" ? "Profile font" : `${tool} color`}>
-        {tool === "font" ? <div className="profile-font-options">
-          {PROFILE_FONTS.map((font) => <button key={font.id} type="button" disabled={pending} style={{ fontFamily: font.family }}
-            aria-pressed={profile.font === font.id} onClick={() => update({ font: font.id })}>{font.label}</button>)}
-        </div> : <div className="profile-color-options">
-          {PROFILE_COLORS.map((color) => <button type="button" key={color.value} disabled={pending}
-            aria-label={`${color.name} ${tool}`} aria-pressed={profile[tool] === color.value}
-            style={{ backgroundColor: color.value, color: profileInk(color.value) }} onClick={() => update({ [tool]: color.value })}>
-            {profile[tool] === color.value ? <Check aria-hidden="true" /> : null}
-          </button>)}
-          <label className="profile-custom-color" title="Custom color"><Palette aria-hidden="true" />
-            <input type="color" value={profile[tool]} aria-label={`Custom ${tool} color`} disabled={pending} onChange={(event) => update({ [tool]: event.target.value.toUpperCase() })} />
-          </label>
-        </div>}
-    </div> : null}
+  const colorTool = tool === "background" || tool === "accent" ? tool : null;
+  const activeColor = colorTool ? profile[colorTool] : profile.background;
+  const position = hexPosition(activeColor);
+  const customColor = colorTool && !PROFILE_COLORS.some((option) => option.value === activeColor)
+    ? [{ name: "Current", value: activeColor }] : [];
+  const changeColor = (color: string) => { if (colorTool) update({ [colorTool]: color.toUpperCase() }); };
+  const chooseTool = (next: ProfileTool) => { setTool(next); setWheel(false); setPickingPage(false); setPickerPoint(null); };
+  const leaveTool = () => { setTool(null); setWheel(false); setPickingPage(false); setPickerPoint(null); };
+  const cancel = () => controller.dirty ? setConfirmCancel(true) : controller.cancel();
+
+  useEffect(() => { if (confirmCancel) keepEditing.current?.focus(); }, [confirmCancel]);
+  useEffect(() => {
+    if (!pickingPage) return;
+    document.documentElement.classList.add("page-color-picking");
+    return () => document.documentElement.classList.remove("page-color-picking");
+  }, [pickingPage]);
+  const updatePickerPoint = (clientX: number, clientY: number) => {
+    const color = sampleProfilePageColor(clientX, clientY);
+    if (!color) return;
+    setPickerPoint({ x: clientX + window.scrollX, y: clientY + window.scrollY, color });
+    changeColor(color);
+  };
+  const startPagePicker = () => {
+    const dockTop = document.querySelector<HTMLElement>(".profile-editor-dock")?.getBoundingClientRect().top ?? window.innerHeight;
+    const x = window.innerWidth / 2, y = Math.max(72, dockTop) / 2;
+    setWheel(false); setPickingPage(true);
+    const color = sampleProfilePageColor(x, y) ?? activeColor;
+    setPickerPoint({ x: x + window.scrollX, y: y + window.scrollY, color });
+    changeColor(color);
+  };
+  const setWheelPoint = (event: PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const hue = Math.min(359.99, Math.max(0, (event.clientX - bounds.left) / bounds.width * 360));
+    const lightness = Math.min(100, Math.max(0, (1 - (event.clientY - bounds.top) / bounds.height) * 100));
+    changeColor(hslToHex(hue, lightness));
+  };
+  const wheelKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+    let { hue, lightness } = position;
+    if (event.key === "ArrowLeft") hue -= 5;
+    else if (event.key === "ArrowRight") hue += 5;
+    else if (event.key === "ArrowUp") lightness += 5;
+    else if (event.key === "ArrowDown") lightness -= 5;
+    else return;
+    event.preventDefault(); changeColor(hslToHex((hue + 360) % 360, Math.min(100, Math.max(0, lightness))));
+  };
+
+  return <div className={`profile-tools ${wheel ? "is-gradient-picker" : ""}`} aria-label="Edit your profile">
     {controller.error ? <p className="profile-save-error" role="alert">{controller.error}</p> : null}
-    <p className="profile-tray-instruction">Tap element to edit</p>
-    <div className="profile-tool-row" aria-label="Profile editor toolbar">
-      <button type="button" className="profile-tool-icon" aria-label="Cancel editing" disabled={pending} onClick={controller.cancel}><ArrowLeft aria-hidden="true" /></button>
-      <button type="button" className="profile-tool-icon" aria-label="Background color" aria-pressed={tool === "background"} aria-controls={tool ? "profile-tools-panel" : undefined} onClick={() => toggleTool("background")}><PaintBucket aria-hidden="true" /></button>
-      <button type="button" className="profile-tool-icon" aria-label="Accent color" aria-pressed={tool === "accent"} aria-controls={tool ? "profile-tools-panel" : undefined} onClick={() => toggleTool("accent")}><Palette aria-hidden="true" /></button>
-      <button type="button" className="profile-tool-icon" aria-label="Profile font" aria-pressed={tool === "font"} aria-controls={tool ? "profile-tools-panel" : undefined} onClick={() => toggleTool("font")}><Type aria-hidden="true" /></button>
-      <button type="button" className="profile-save-button" disabled={pending} onClick={() => void controller.save()}>{controller.preparingPhoto ? "Preparing…" : pending ? "Saving…" : "Save"}<Check aria-hidden="true" /></button>
-    </div>
+    {tool ? <div className="profile-selector-row" id="profile-tools-panel" aria-label={tool === "font" ? "Typeface selector" : `${tool} color selector`}>
+      <div className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${tool} color choices`}>
+        {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id}
+          className={`selector-option font-selector-option ${profile.font === font.id ? "is-selected" : ""}`}
+          style={{ fontFamily: font.family }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
+          disabled={pending} onClick={() => update({ font: font.id })}>Aa</button>) : wheel ? <div className="full-gradient-picker"
+          role="slider" tabIndex={0} aria-label={`Choose any ${tool} color`} aria-valuenow={Math.round(position.lightness)}
+          aria-valuemin={0} aria-valuemax={100} aria-valuetext={activeColor}
+          onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); setWheelPoint(event); }}
+          onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWheelPoint(event); }}
+          onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+          onKeyDown={wheelKeys}>
+          <span className="gradient-picker-value" style={{ left: `${Math.min(94, Math.max(6, position.hue / 360 * 100))}%`,
+            top: `${Math.min(72, Math.max(28, 100 - position.lightness))}%`, backgroundColor: activeColor }} aria-hidden="true" />
+        </div> : <>{[...PROFILE_COLORS, ...customColor].map((color) => {
+          const selected = activeColor === color.value;
+          return <button key={color.value} type="button" className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
+            style={{ backgroundColor: color.value, color: profileInk(color.value), "--swatch-foreground": profileInk(color.value) } as CSSProperties}
+            aria-label={`${color.name} ${tool}`} aria-pressed={selected} disabled={pending}
+            onClick={() => { setPickingPage(false); changeColor(color.value); }}>{selected ? <Check className="swatch-check" aria-hidden="true" /> : null}</button>;
+        })}
+          <button type="button" className="selector-option color-selector-option gradient-trigger" aria-label={`Open the ${tool} color wheel`}
+            onClick={() => { setPickingPage(false); setWheel(true); }}><Palette aria-hidden="true" /></button>
+          <button type="button" className="selector-option color-selector-option page-color-trigger"
+            style={{ backgroundColor: activeColor, color: profileInk(activeColor) }} aria-label={`Match a ${tool} color from the page`}
+            aria-pressed={pickingPage} onClick={startPagePicker}><Pipette aria-hidden="true" /></button>
+        </>}
+      </div>
+      <div className="selector-leading"><button type="button" className="dock-icon-button selector-back-button"
+        aria-label="Done choosing styles" onClick={leaveTool}><Check className="dock-glyph" aria-hidden="true" /></button></div>
+    </div> : <div className="profile-tool-row" aria-label="Profile editor toolbar">
+      <button type="button" className="profile-tool-icon profile-cancel-button" aria-label="Cancel editing" disabled={pending} onClick={cancel}><ChevronLeft aria-hidden="true" /></button>
+      <button type="button" className="profile-tool-icon" aria-label="Background color" onClick={() => chooseTool("background")}><PaintBucket aria-hidden="true" /></button>
+      <button type="button" className="profile-tool-icon" aria-label="Accent color" onClick={() => chooseTool("accent")}><Palette aria-hidden="true" /></button>
+      <button type="button" className="profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><Type aria-hidden="true" /></button>
+      <button type="button" className="profile-save-button" disabled={pending} onClick={() => void controller.save()}>{pending ? "Saving…" : "Save"}</button>
+    </div>}
+    {pickingPage && pickerPoint && typeof document !== "undefined" ? createPortal(<button type="button" className="page-color-picker-indicator"
+      style={{ left: pickerPoint.x, top: pickerPoint.y, color: pickerPoint.color }} aria-label="Drag to sample a page color"
+      onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); updatePickerPoint(event.clientX, event.clientY); }}
+      onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updatePickerPoint(event.clientX, event.clientY); }}
+      onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+      onKeyDown={(event) => {
+        const step = 10;
+        const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+        const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+        if (!dx && !dy) return;
+        event.preventDefault(); updatePickerPoint(pickerPoint.x - window.scrollX + dx, pickerPoint.y - window.scrollY + dy);
+      }}><span className="page-color-picker-indicator-core" /></button>, document.body) : null}
+    {confirmCancel && typeof document !== "undefined" ? createPortal(<div className="profile-discard-backdrop">
+      <button type="button" className="profile-discard-shade" aria-label="Keep editing" onClick={() => setConfirmCancel(false)} />
+      <div className="profile-discard-card" role="alertdialog" aria-modal="true" aria-labelledby="profile-discard-title">
+        <strong id="profile-discard-title">Discard profile changes?</strong>
+        <div><button ref={keepEditing} type="button" onClick={() => setConfirmCancel(false)}>Keep editing</button>
+          <button type="button" onClick={() => { setConfirmCancel(false); controller.cancel(); }}>Discard changes</button></div>
+      </div></div>, document.body) : null}
   </div>;
 }
 

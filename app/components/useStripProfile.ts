@@ -69,9 +69,14 @@ export function useStripProfile(userId: string | undefined) {
   };
   const update = (changes: Partial<StripProfile>) => setDraft((value) => value ? { ...value, ...changes } : value);
   const changePhoto = (value: string | null) => { setPhoto(value); update({ photoUrl: value }); };
+  const dirty = draft !== null && (
+    draft.title !== saved.title || draft.font !== saved.font ||
+    draft.background !== saved.background || draft.accent !== saved.accent ||
+    draft.photoUrl !== saved.photoUrl || photo !== undefined
+  );
   return {
     profile: owner === userId ? draft ?? saved : DEFAULT_PROFILE,
-    editing: owner === userId && draft !== null,
+    editing: owner === userId && draft !== null, dirty: owner === userId && dirty,
     loading: Boolean(userId && (owner !== userId || loading)),
     pending: pending || preparingPhoto, preparingPhoto, setPreparingPhoto,
     error: owner === userId ? error : "", loadFailed: owner === userId && loadFailed,
