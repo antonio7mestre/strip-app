@@ -3,8 +3,34 @@ export const COVER_FADE_MS = 650;
 export const COVER_PROGRESS_CELLS = 24;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
-export type CoverOrigin = { left: number; top: number; width: number; height: number };
+export type CoverOrigin = { left: number; top: number; width: number; height: number;
+  snapshot?: HTMLCanvasElement; boxShadow?: string };
 export type CoverDockOrigin = CoverOrigin & { markup: string; padding: string; borderRadius: string; cornerShape: string; boxShadow: string };
+
+/** Copy already-decoded pixels before React hides the card. No request, image
+ * encoding, or asynchronous decode can leave a blank frame during the handoff. */
+export function captureCoverOrigin(cover: HTMLElement | null): CoverOrigin | undefined {
+  if (!cover) return;
+  const bounds = cover.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return;
+  const origin: CoverOrigin = { left: bounds.left, top: bounds.top, width: bounds.width,
+    height: bounds.height, boxShadow: getComputedStyle(cover).boxShadow };
+  const image = cover.querySelector("img");
+  if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return origin;
+  try {
+    const snapshot = document.createElement("canvas");
+    const density = Math.min(2, window.devicePixelRatio || 1, 1024 / Math.max(bounds.width, bounds.height));
+    snapshot.width = Math.max(1, Math.ceil(bounds.width * density));
+    snapshot.height = Math.max(1, Math.ceil(bounds.height * density));
+    const context = snapshot.getContext("2d");
+    if (context) {
+      context.drawImage(image, 0, 0, snapshot.width, snapshot.height);
+      snapshot.setAttribute("aria-hidden", "true");
+      origin.snapshot = snapshot;
+    }
+  } catch { /* If allocation fails, the regular cached cover remains available. */ }
+  return origin;
+}
 
 /** Capture only our own navigation markup, before hiding the live controls. */
 export function captureCoverDock(dock: HTMLElement | null): CoverDockOrigin | undefined {

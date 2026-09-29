@@ -6,6 +6,9 @@ import {
   STICKER_CATEGORIES,
   STICKER_PACK,
   stickersByCategory,
+  stickerTrayMaxWidth,
+  STICKER_TRAY_MAX_HEIGHT,
+  initialPackStickerWidth,
 } from "../app/lib/sticker-pack.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -42,7 +45,37 @@ test("every generated sticker is a compact WebP asset", () => {
     assert.equal(size.type, "webp", sticker.src);
     assert.ok(size.width > 80 && size.width <= 512, sticker.src);
     assert.ok(size.height > 80 && size.height <= 512, sticker.src);
+    assert.equal(sticker.width, size.width, `${sticker.id} reserves its exact width`);
+    assert.equal(sticker.height, size.height, `${sticker.id} reserves its exact height`);
   }
+});
+
+test("tall thumbnails fit three normal rows, with varied sizes and no cropping", () => {
+  for (const columnWidth of [88, 112, 150, 220]) {
+    for (const sticker of STICKER_PACK) {
+      for (const preferredWidth of [68, 84, 100]) {
+        const width = columnWidth * Math.min(preferredWidth, stickerTrayMaxWidth(sticker)) / 100;
+        const height = width * sticker.height / sticker.width;
+        assert.ok(height <= columnWidth * STICKER_TRAY_MAX_HEIGHT + 0.001, sticker.id);
+      }
+    }
+  }
+  assert.match(picker, /maxWidth: `\$\{stickerTrayMaxWidth\(sticker\)\}%`/);
+  assert.match(picker, /<StickerImage[^>]*width=\{sticker.width\} height=\{sticker.height\}/);
+  assert.match(css, /\.stickerButton\s*\{[^}]*display: block/);
+  assert.doesNotMatch(css, /object-fit:\s*cover/);
+  const gummyWidths = STICKER_PACK.filter(s => s.id.startsWith("gummy-bear")).map(s => Math.min(84, stickerTrayMaxWidth(s)));
+  assert.deepEqual(gummyWidths, [84, 84, 84, 84]);
+});
+
+test("new tall pack stickers also start at a manageable size without resizing existing artwork", () => {
+  for (const sticker of STICKER_PACK) {
+    const width = initialPackStickerWidth(132, sticker);
+    assert.ok(width <= 132);
+    assert.ok(width * sticker.height / sticker.width <= 396 + 0.001);
+  }
+  assert.equal(initialPackStickerWidth(132), 132, "custom photo and video stickers retain their placement");
+  assert.match(page, /width: initialPackStickerWidth\(placement.width, packStickerForSource\(src\)\)/);
 });
 
 test("the sticker action offers the pack or the existing camera-roll flow", () => {
@@ -87,7 +120,7 @@ test("the pack is a dense, scrollable masonry sheet", () => {
   assert.match(page, /"80px"/);
   assert.doesNotMatch(page, /paddingTop: stickerPickerOpen/);
   assert.match(css, /\.stickerButton\.isPicking img/);
-  assert.match(css, /\.categories\s*\{[^}]*grid-template-columns:\s*repeat\(5,/s);
+  assert.match(css, /\.categories\s*\{[^}]*grid-template-columns:\s*repeat\(6,/s);
   assert.match(css, /\.scrollArea\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y;/s);
   assert.doesNotMatch(css.match(/\.masonry\s*\{[^}]*\}/s)[0], /height:|overflow:|flex:/);
   assert.match(picker, /ref=\{scrollRef\} className=\{styles.scrollArea\}[\s\S]*?<div className=\{styles.masonry\}/);

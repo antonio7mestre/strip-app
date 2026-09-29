@@ -9,10 +9,10 @@ type ContentBlock = {
 export function minimumStripHeight(document: Document): number {
   const probe = document.createElement("div");
   probe.setAttribute("aria-hidden", "true");
-  // Use the dock's shared size, so reaching the visible bottom is enough.
-  // Small viewport units keep this stable through keyboard and Safari changes.
+  // Ask for one more short beat after the content reaches the toolbar. Small
+  // viewport units keep the requirement stable through keyboard and Safari changes.
   const occupied = "var(--dock-visible-height, 64px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)";
-  probe.style.cssText = `position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:calc(100vh - ${occupied});height:calc(100svh - ${occupied});`;
+  probe.style.cssText = `position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:calc(100vh - ${occupied} + 48px);height:calc(100svh - ${occupied} + 48px);`;
   document.body.appendChild(probe);
   try {
     return probe.getBoundingClientRect().height;

@@ -54,10 +54,12 @@ import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
-import type { StickerAsset } from "@/app/lib/sticker-pack";
+import { initialPackStickerWidth, packStickerForSource, type StickerAsset } from "@/app/lib/sticker-pack";
+import { StickerImage } from "@/app/components/StickerImage";
+import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
-import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
+import { AuthLandingStrip, AUTH_LANDING_COLOR, STICKER_OUTLINE_OFFSETS } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
@@ -71,7 +73,7 @@ import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { StoryShareConfirmation } from "@/app/components/StoryShareConfirmation";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
-import { COVER_MOVE_MS, captureCoverDock, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
@@ -81,6 +83,7 @@ import { installEndingContact } from "@/app/lib/ending-contact";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
+import { profileCoverOutline } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
 
 type TextBlock = {
@@ -225,6 +228,7 @@ type HeightCropSession = {
 
 const STORAGE_KEY = "strip-draft-v1";
 const OWNER_STORAGE_KEY = "strip-owner-v1";
+const SHAPE_COLOR_STORAGE_KEY = "strip-shape-color-v1";
 const DEFAULT_BACKGROUND = "#000000";
 const DEFAULT_BLOCK_BACKGROUND = "#3155FF";
 const DEFAULT_TEXT = "#FFFFFF";
@@ -1444,6 +1448,11 @@ function TextStyleSelector({
         setPageColorDragging(false);
       }
     };
+    // Mobile Safari can still scroll a captured pointer's ancestor. Only the
+    // active picker drag owns touch movement; normal page scrolling stays native.
+    const preventPickerTouchScroll = (event: TouchEvent) => {
+      if (pageColorPointerIdRef.current !== null && event.cancelable) event.preventDefault();
+    };
     document.addEventListener("pointerdown", handlePointerDown, {
       capture: true,
       passive: false,
@@ -1458,6 +1467,7 @@ function TextStyleSelector({
     });
     document.addEventListener("pointercancel", handlePointerCancel, true);
     document.addEventListener("lostpointercapture", handleLostPointerCapture, true);
+    document.addEventListener("touchmove", preventPickerTouchScroll, { capture: true, passive: false });
     document.addEventListener("selectstart", preventTextSelection, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
@@ -1465,6 +1475,7 @@ function TextStyleSelector({
       document.removeEventListener("pointerup", handlePointerUp, true);
       document.removeEventListener("pointercancel", handlePointerCancel, true);
       document.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
+      document.removeEventListener("touchmove", preventPickerTouchScroll, true);
       document.removeEventListener("selectstart", preventTextSelection, true);
       pageColorPointerIdRef.current = null;
       root.classList.remove("page-color-picking");
@@ -2161,6 +2172,7 @@ function StripStickerBlock({
   controls?: ReactNode;
 }) {
   const stickerElementRef = useRef<HTMLElement>(null);
+  const packAsset = packStickerForSource(block.src);
   const liveBlockRef = useRef(block);
   const selectionTapRef = useRef<{
     pointerId: number;
@@ -2885,24 +2897,19 @@ function StripStickerBlock({
             onError={() => onLoadSettled?.(false)}
           />
         ) : (
-          <img
+          <StickerImage
             src={block.src}
             alt={block.alt}
+            width={packAsset?.width}
+            height={packAsset?.height}
             loading="eager"
             decoding="async"
             draggable={false}
             style={block.src.startsWith("/sticker-pack/") ? { filter: "brightness(1.06)" } : undefined}
-            onLoad={(event) => {
-              const image = event.currentTarget;
-              void image
-                .decode()
-                .catch(() => {})
-                .then(() => {
-                  settleStickerWithinBounds();
-                  onLoadSettled?.(true);
-                });
+            onSettled={(loaded) => {
+              if (loaded) settleStickerWithinBounds();
+              onLoadSettled?.(loaded);
             }}
-            onError={() => onLoadSettled?.(false)}
           />
         )}
       </span>
@@ -3016,7 +3023,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingCover, setOpeningCover] = useState<{
-    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin;
+    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string;
   } | null>(null);
   const openingCoverRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
@@ -3049,7 +3056,14 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [inlinePreview, setInlinePreview] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
-  const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack">("source");
+  const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack" | "page-color">("source");
+  const [shapeStickerColor, setShapeStickerColor] = useState(() => {
+    if (typeof window === "undefined") return SHAPE_STICKER_DEFAULT_COLOR;
+    try {
+      return normalizeShapeColor(localStorage.getItem(SHAPE_COLOR_STORAGE_KEY) ?? "")
+        ?? SHAPE_STICKER_DEFAULT_COLOR;
+    } catch { return SHAPE_STICKER_DEFAULT_COLOR; }
+  });
   const stickerPlacementRef = useRef<StickerPlacement | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
@@ -3225,6 +3239,9 @@ export default function Home() {
       : blocks,
     imageTrayColors,
   );
+  const endingSurfaceColor = view === "published"
+    ? "#FFFFFF"
+    : visibleEndingStyle.backgroundColor;
   const publishedAssetIds =
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.flatMap((block) =>
@@ -3596,12 +3613,12 @@ export default function Home() {
       ? ".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"
       : ".published-mode .published-bottom-sheet"),
     topColor: topSafeAreaColor,
-    bottomColor: visibleEndingStyle.backgroundColor,
+    bottomColor: endingSurfaceColor,
     defaultColor: DEFAULT_BACKGROUND,
     activeClassName: cleanViewBottomSurfaceColor !== null
       ? "preview-bottom-canvas-active"
       : "published-bottom-sheet-canvas-active",
-  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, visibleEndingStyle.backgroundColor]);
+  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, endingSurfaceColor]);
 
 
   useLayoutEffect(installKeyboardDockPosition, []);
@@ -4157,6 +4174,9 @@ export default function Home() {
         alt,
         mediaType,
         ...placement,
+        // Keep newly added tall pack objects proportional on the canvas, too.
+        // Existing user-resized stickers retain their saved dimensions.
+        width: initialPackStickerWidth(placement.width, packStickerForSource(src)),
       },
     ]);
     setSelectedBlockId(id);
@@ -4196,6 +4216,22 @@ export default function Home() {
     placeSticker(sticker.src, sticker.name);
     setStickerPickerOpen(false);
   };
+
+  const addStickerFromShape = async (shape: ShapeSticker, color: string) => {
+    try {
+      const source = await renderShapeSticker(shape, color);
+      placeSticker(source, `${shape.name} shape`);
+      setStickerPickerOpen(false);
+    } catch {
+      setNotice("Couldn’t add that shape. Try again.");
+      setStickerPickerOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    try { localStorage.setItem(SHAPE_COLOR_STORAGE_KEY, shapeStickerColor); }
+    catch { /* The current session still remembers its shape color. */ }
+  }, [shapeStickerColor]);
 
   const updateText = (id: string, content: string) => {
     setBlocks((current) =>
@@ -5484,9 +5520,7 @@ export default function Home() {
     if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     const cover = button.querySelector<HTMLElement>(".library-cover");
-    const bounds = cover?.getBoundingClientRect();
-    const origin = bounds && bounds.width > 0 && bounds.height > 0
-      ? { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height } : undefined;
+    const origin = captureCoverOrigin(cover ?? null);
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
     const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
@@ -5496,7 +5530,7 @@ export default function Home() {
     setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
-      setOpeningCover({ strip, origin, dock });
+      setOpeningCover({ strip, origin, dock, background: stripProfile.profile.background });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -6402,6 +6436,18 @@ export default function Home() {
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
+        {isEditing && sourceBlocks.some((block) => block.type === "sticker") ? (
+          <svg className="editor-sticker-filters" aria-hidden="true" width="0" height="0" focusable="false">
+            <defs>
+              <filter id="editor-sticker-outline" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+                {STICKER_OUTLINE_OFFSETS.map((offset, index) => <feOffset key={index} in="SourceAlpha" dx={offset.x} dy={offset.y} result={`editor-rim-${index}`} />)}
+                <feMerge result="edge"><feMergeNode in="SourceAlpha" />{STICKER_OUTLINE_OFFSETS.map((_, index) => <feMergeNode key={index} in={`editor-rim-${index}`} />)}</feMerge>
+                <feFlood floodColor="white" /><feComposite in2="edge" operator="in" />
+                <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+          </svg>
+        ) : null}
         {sourceBlocks.length === 0 && isEditing ? (
           <div className="empty-strip">
             <p>Your Strip starts here.</p>
@@ -6864,10 +6910,8 @@ export default function Home() {
         cover={entranceStrip.cover}
         origin={openingCover?.origin}
         dock={openingCover?.dock}
+        backgroundColor={openingCover?.background}
         requestPending={view !== "published"}
-        blocks={openedPublishedStrip?.blocks ?? []}
-        endingStyle={openedPublishedStrip?.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE}
-        mediaReady={view === "published" && publishedContentReady}
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
           (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}
         totalAssets={publishedAssetIds.length + (entranceStrip.cover.kind === "image" ? 1 : 0)}
@@ -7097,9 +7141,12 @@ export default function Home() {
       const cardTitle =
         strip.title ||
         (isDraft ? draftFallbackTitle(strip.createdAt) : "Untitled");
+      const coverOutline = strip.cover.kind === "color"
+        ? profileCoverOutline(strip.cover.color, stripProfile.profile.background) : undefined;
       const coverStyle: CSSProperties | undefined =
         strip.cover.kind === "color"
-          ? { backgroundColor: strip.cover.color }
+          ? { backgroundColor: strip.cover.color,
+              ...(coverOutline ? { boxShadow: `inset 0 0 0 1px ${coverOutline}` } : {}) }
           : strip.cover.aspectRatio
             ? { aspectRatio: String(strip.cover.aspectRatio) }
             : undefined;
@@ -7943,17 +7990,13 @@ export default function Home() {
         authStatus === "signed-in" &&
         openedPublishedStrip?.viewerIsOwner === true;
       const publishedStripStyle = {
-        "--ending-background": visibleEndingStyle.backgroundColor,
+        "--ending-background": "#FFFFFF",
         "--ending-corner-color": publishedEndsWithText
           ? trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND
           : undefined,
-        "--ending-foreground": contrastColor(
-          visibleEndingStyle.backgroundColor,
-        ),
-        "--ending-button": visibleEndingStyle.buttonColor,
-        "--ending-button-foreground": contrastColor(
-          visibleEndingStyle.buttonColor,
-        ),
+        "--ending-foreground": "#000000",
+        "--ending-button": "#000000",
+        "--ending-button-foreground": "#FFFFFF",
       } as CSSProperties;
       return (
         <>
@@ -7986,6 +8029,11 @@ export default function Home() {
                 className="published-bottom-sheet strip-end-sheet"
                 aria-label="Strip actions"
               >
+                <h2 className="published-bottom-sheet-title">
+                  {openedPublishedStrip?.username ? (
+                    <>A Strip by <span>@{openedPublishedStrip.username}</span></>
+                  ) : "Made with Strip"}
+                </h2>
                 <StripEndActions
                   primaryAction={publishedViewerCanEdit ? "edit" : "create"}
                   primaryPending={publishedViewerCanEdit && openingPublishedEditor}
@@ -8146,7 +8194,7 @@ export default function Home() {
         } ${stickerPickerOpen ? `is-sticker-picker-open is-sticker-picker-${stickerPickerView}` : ""}`}
         style={{
           "--sticker-dock-visible-height": stickerPickerOpen
-            ? stickerPickerView === "pack"
+            ? stickerPickerView !== "source"
               ? "min(78dvh, 720px)"
               : "80px"
             : "var(--dock-visible-height)",
@@ -8200,6 +8248,10 @@ export default function Home() {
               stickerInputRef.current?.click();
             }}
             onSticker={addStickerFromPack}
+            onShape={(shape, color) => void addStickerFromShape(shape, color)}
+            shapeColor={shapeStickerColor}
+            onShapeColorChange={setShapeStickerColor}
+            samplePageColor={samplePageColorAtPoint}
           />
         ) : (
         <div className={currentDockControlsClass} key={`dock-controls:${view}`}>

@@ -282,9 +282,8 @@ export function installLeadingMediaTop({
   };
 }
 
-/** The restored anchor changes scroll position, not the content's flow layout. */
-export function scrollAfterLeadingInsetChange(scrollTop: number, _previousInset: number, _nextInset: number) {
+/** Preserve the viewport after a reorder, without leaving media below its top anchor. */
+export function scrollAfterLeadingInsetChange(scrollTop: number, _previousInset: number, nextInset: number) {
   void _previousInset;
-  void _nextInset;
-  return Math.max(0, scrollTop);
+  return Math.max(0, scrollTop, nextInset);
 }

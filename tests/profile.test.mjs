@@ -81,6 +81,20 @@ test("font, colors, title length and revision are validated", () => {
     assert.ok((values[0] + 0.05) / (values[1] + 0.05) >= 4.5, `${value} has readable theme ink`);
   }
 });
+test("matching and near-matching covers get a contrasting edge without resizing", () => {
+  for (const { value } of profile.PROFILE_COLORS) {
+    assert.equal(profile.profileCoverOutline(value, value), profile.profileInk(value));
+  }
+  assert.equal(profile.profileCoverOutline("#fff", "#FFFFFF"), "#000000");
+  assert.equal(profile.profileCoverOutline("#080808", "#000000"), "#FFFFFF");
+  assert.equal(profile.profileCoverOutline("#f0f0f0", "#FFFFFF"), "#000000");
+  for (const [cover, background] of [["#000000", "#FFFFFF"], ["#3155FF", "#FF8CCC"], ["bad", "#000000"], ["#fff", "invalid"]]) {
+    assert.equal(profile.profileCoverOutline(cover, background), undefined);
+  }
+  const page = read("app/page.tsx");
+  assert.match(page, /profileCoverOutline\(strip.cover.color, stripProfile.profile.background\)/);
+  assert.match(page, /boxShadow: `inset 0 0 0 1px \$\{coverOutline\}`/);
+});
 test("profile settings persist and remain scoped to the authenticated owner", async () => {
   const api = fixture();
   const get = () => api.GET(new Request("http://localhost:3035/api/profile"));
@@ -155,10 +169,28 @@ test("profile tools reuse the dock on the profile and preserve the main editor",
   const editor = read("app/components/ProfileEditor.tsx");
   assert.match(editor, /aria-label="Profile title"/);
   assert.match(editor, /<textarea ref=\{titleInput\}/);
+  assert.doesNotMatch(editor, /new ResizeObserver\(/, "resizing the title must not loop on its own parent");
   assert.doesNotMatch(editor, /profile-photo-input/);
   assert.match(editor, /Discard profile changes\?/);
   assert.match(editor, /aria-label="Done choosing styles"/);
   assert.match(editor, /profile-save-button.*Save"/);
   assert.doesNotMatch(editor, /profile-tray-instruction/);
   assert.doesNotMatch(editor, /profile-save-button.*<Check/);
+});
+
+test("profile edit tools keep mobile swipes inside the dock", () => {
+  const editor = read("app/components/ProfileEditor.tsx");
+  const css = read("app/globals.css");
+  assert.match(editor, /className="dock-icon-button profile-tool-icon"/, "profile actions use editor button feedback");
+  assert.match(editor, /ref=\{selectorScrollRef\} className=\{`selector-scroll profile-selector-scroll/, "profile options use the editor's horizontal selector");
+  assert.match(editor, /selectorScrollRef\.current\.scrollLeft = 0/, "switching profile tools returns to the first choice");
+  assert.match(css, /html\.page-zoom-locked:has\(\.profile-editor-dock\)\s*\{ touch-action: pan-x pan-y; \}/);
+  assert.match(css, /\.profile-mode\.is-profile-editing :is\(\.profile-editor-dock, \.profile-tools, \.profile-selector-row, \.profile-selector-scroll, \.profile-selector-row \*\)\s*\{ touch-action: pan-x; \}/);
+  assert.match(css, /\.profile-mode\.is-profile-editing :is\(\.profile-tool-row, \.profile-tool-row \*, \.full-gradient-picker, \.full-gradient-picker \*\)\s*\{ touch-action: none; \}/);
+  assert.match(css, /\.profile-selector-scroll\s*\{[^}]*overscroll-behavior: contain;/);
+  assert.match(css, /\.profile-tools \.selector-scroll\.is-gradient-mode\s*\{[^}]*position: relative;[^}]*height: 48px;/);
+  assert.match(editor, /pickerPointerIdRef\.current = event\.pointerId/);
+  assert.match(editor, /addEventListener\("touchmove", preventPickerTouchScroll, \{ capture: true, passive: false \}\)/);
+  assert.match(editor, /removeEventListener\("touchmove", preventPickerTouchScroll, true\)/);
+  assert.match(editor, /activePosition\.saturation > 0 \? activePosition\.hue : wheelHue/, "gray swatches retain the last selected wheel hue");
 });

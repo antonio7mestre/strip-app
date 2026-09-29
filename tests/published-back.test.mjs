@@ -46,6 +46,8 @@ function harness(needsAuthUsername = false) {
     inlinePreviewHistoryEntryRef: { current: false },
     inlinePreviewBasePathRef: { current: null }, inlinePreviewExitLockRef: { current: null },
     captureCoverDock: () => null,
+    captureCoverOrigin: cover => ({ ...cover.getBoundingClientRect(), snapshot: "existing pixels" }),
+    stripProfile: { profile: { background: "#FF8CCC" } },
     flushSync: fn => fn(),
     setBrowserPath: path => {
       events.push({ type: "push", cover: state.cover, view: state.view });
@@ -91,7 +93,10 @@ test("save clean home in history before showing the cover, with just one strip e
   assert.deepEqual(h.events[0], { type: "push", cover: null, view: "library" });
   assert.equal(h.state.path, "/strip/strip-12345");
   assert.equal(h.state.cover.strip.id, strip.id);
+  assert.equal(h.state.cover.background, "#FF8CCC");
+  assert.equal(h.state.cover.origin.snapshot, "existing pixels");
   h.requests[0].resolve(success); h.moveComplete(); await request;
+  assert.equal(h.state.cover.background, "#FF8CCC", "keep profile color through the reader handoff");
   assert.equal(h.events.filter(e => e.type === "push").length, 1);
   assert.equal(h.state.view, "published");
 });

@@ -131,6 +131,7 @@ function fixture({ top = 900, reveal = true, view = "published", inlinePreview =
     IntersectionObserver: Observer, ResizeObserver: Observer,
     view, inlinePreview, publishedContentCanReveal: reveal,
     visibleEndingStyle: { backgroundColor: bottomColor },
+    endingSurfaceColor: view === "published" ? "#FFFFFF" : bottomColor,
     DEFAULT_BACKGROUND: "#000000", topSafeAreaColor: "#3333ff",
     getSafeAreaPaintViewport, shouldUseFooterSafeAreaColor,
   };
@@ -164,7 +165,7 @@ test("the actual footer effect switches at its bounds, not a page percentage", (
   assert.equal(f.active(), true, "switches in the scroll event, before another frame");
   f.flush();
   assert.equal(f.active(), true);
-  assert.equal(f.writes.at(-1), "#66ff8a");
+  assert.equal(f.writes.at(-1), "#FFFFFF");
   f.moveTo(863);
   f.window.emit("scroll");
   f.flush();
@@ -215,7 +216,7 @@ test("scroll events update synchronously and an unchanged state never rewrites t
 test("the later top-color effect cannot overwrite an active bottom color", () => {
   const f = fixture({ top: 740 });
   f.runTopEffect();
-  assert.equal(f.writes.at(-1), "#66ff8a");
+  assert.equal(f.writes.at(-1), "#FFFFFF");
   f.moveTo(950);
   f.window.emit("scroll");
   f.flush();
@@ -345,7 +346,7 @@ test("rapid alternation crosses both boundaries immediately without a queued sta
     f.moveTo(760);
     f.window.emit("scroll");
     assert.equal(f.active(), true);
-    assert.equal(f.writes.at(-1), "#66ff8a");
+    assert.equal(f.writes.at(-1), "#FFFFFF");
     f.moveTo(870);
     f.visual.emit("scroll");
     assert.equal(f.active(), false);

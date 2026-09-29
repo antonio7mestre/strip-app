@@ -67,14 +67,19 @@ test("edit mode never mounts the ending, while both preview routes retain it", (
   assert.match(source, /\{!isEditing && trailingFlowBlock\?\.id === block\.id \? \(\s*<MediaEdgeExtension/);
 });
 
-test("published and preview colors derive from their own blocks and drive the safe area too", () => {
+test("preview follows block colors while published actions and safe area stay white", () => {
   const expression = initializer("visibleEndingStyle");
   const bindings = { automaticStripEndingStyle, blocks: [text("#fff")], openedPublishedStrip: { blocks: [text("#000")] }, imageTrayColors: {} };
   assert.deepEqual(runInNewContext(expression, { ...bindings, view: "published" }), white);
   assert.deepEqual(runInNewContext(expression, { ...bindings, view: "edit" }), black);
   assert.deepEqual(runInNewContext(expression, { ...bindings, view: "preview" }), black);
-  assert.match(source, /bottomColor: visibleEndingStyle\.backgroundColor/);
+  const surface = initializer("endingSurfaceColor");
+  assert.equal(runInNewContext(surface, { view: "published", visibleEndingStyle: black }), "#FFFFFF");
+  assert.equal(runInNewContext(surface, { view: "preview", visibleEndingStyle: black }), "#000000");
+  assert.match(source, /bottomColor: endingSurfaceColor/);
   assert.match(source, /const cleanViewBottomSurfaceColor =[\s\S]*?\? visibleEndingStyle\.backgroundColor/);
+  assert.match(source, /"--ending-background": "#FFFFFF"/);
+  assert.match(source, /"--ending-button": "#000000"/);
 });
 
 function renderFixture(blocks, isEditing) {

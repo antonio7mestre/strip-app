@@ -1,0 +1,59 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import {
+  SHAPE_STICKERS, SHAPE_STICKER_COLORS, SHAPE_STICKER_DEFAULT_COLOR,
+  normalizeShapeColor, shapeColorFromHsl, shapeColorInk, shapeColorPosition, shapeStickerSvg,
+} from "../app/lib/shape-stickers.ts";
+
+const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const picker = readFileSync(new URL("../app/components/StickerPicker.tsx", import.meta.url), "utf8");
+const pickerCss = readFileSync(new URL("../app/components/StickerPicker.module.css", import.meta.url), "utf8");
+const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+
+test("shapes have distinct alpha silhouettes and safe, persistent colors", () => {
+  assert.equal(SHAPE_STICKERS.length, 12);
+  assert.equal(new Set(SHAPE_STICKERS.map(shape => shape.id)).size, 12);
+  assert.ok(SHAPE_STICKER_COLORS.some(color => color.value === SHAPE_STICKER_DEFAULT_COLOR));
+  assert.equal(normalizeShapeColor("#ff4fa3"), "#FF4FA3");
+  assert.equal(normalizeShapeColor('red" onload="alert(1)'), null);
+  for (const shape of SHAPE_STICKERS) {
+    const svg = shapeStickerSvg(shape, "#ff4fa3");
+    assert.match(svg, /viewBox="0 0 256 256"/);
+    assert.match(svg, /fill="#FF4FA3"/);
+    assert.doesNotMatch(svg, /<script|onload=/i);
+  }
+  assert.match(shapeStickerSvg(SHAPE_STICKERS[0], "malicious"), /fill="#3155FF"/);
+  assert.equal(shapeColorFromHsl(0, 50), "#FF0000");
+  assert.equal(Math.round(shapeColorPosition("#FF0000").hue), 0);
+  assert.equal(shapeColorInk("#8ACE00"), "#000000");
+  assert.equal(shapeColorInk("#3155FF"), "#FFFFFF");
+});
+
+test("shape picks become passive PNG media through the normal sticker path", () => {
+  const source = readFileSync(new URL("../app/lib/shape-stickers.ts", import.meta.url), "utf8");
+  assert.match(source, /canvas\.toDataURL\("image\/png"\)/);
+  assert.match(page, /const addStickerFromShape = async[\s\S]*?renderShapeSticker\(shape, color\)[\s\S]*?placeSticker\(source,/);
+  assert.match(page, /shapeColor=\{shapeStickerColor\}/);
+  assert.match(page, /localStorage\.getItem\(SHAPE_COLOR_STORAGE_KEY\)/);
+  assert.match(page, /localStorage\.setItem\(SHAPE_COLOR_STORAGE_KEY, shapeStickerColor\)/);
+  assert.match(picker, /category === "shapes"/);
+  assert.match(picker, /SHAPE_STICKERS\.map/);
+});
+
+test("shape color controls overlay the pack and page sampling drops the tray", () => {
+  assert.match(picker, /className=\{styles\.shapePalette\}/);
+  assert.match(picker, /SHAPE_STICKER_COLORS/);
+  assert.match(picker, /full-gradient-picker/);
+  assert.match(picker, /startPageSampling/);
+  assert.match(picker, /onViewChange\("page-color"\)/);
+  assert.match(picker, /setSamplingPage\(false\); onViewChange\("pack"\)/);
+  assert.match(pickerCss, /\.shapePalette\s*\{[^}]*position: absolute;[^}]*bottom: 0;/);
+  assert.match(css, /\.main-composer-dock\.is-sticker-picker-page-color\s*\{[^}]*transform: translateY/);
+});
+
+test("editor sticker selection reuses the landing outline and hard shadow", () => {
+  assert.match(page, /STICKER_OUTLINE_OFFSETS\.map/);
+  assert.match(page, /id="editor-sticker-outline"/);
+  assert.match(css, /\.sticker-block\.is-editing\.is-selected \.sticker-visual\s*\{[^}]*url\(#editor-sticker-outline\) drop-shadow\(0 5px 2px/);
+});

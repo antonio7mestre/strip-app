@@ -386,10 +386,17 @@ test("editor anchors and keyboard interactions override the return without froze
   f.cleanup();
 });
 
-test("reordering preserves scroll position and does not arm a correction until the next gesture", () => {
+test("reordering anchors newly first media immediately while preserving deeper scroll positions", () => {
   const f = fixture({ scrollY: 20, resetScroll: false });
   f.emit("scroll");
   assert.equal(f.writes.length + f.frames.size, 0);
+  for (const inset of [47, 54, 59, 62]) {
+    for (const scrollTop of [-20, 0, 20, inset - 0.5, inset, 450]) {
+      assert.equal(f.remap(scrollTop, 0, inset), Math.max(inset, scrollTop),
+        "the reorder restores the new anchor synchronously, without a later touch or scroll");
+    }
+    assert.equal(f.remap(0, inset, 0), 0, "text-first strips do not retain the media offset");
+  }
   for (const [before, after] of [[0, 59], [59, 0], [59, 59]]) {
     assert.equal(f.remap(450, before, after), 450);
   }
@@ -413,10 +420,38 @@ test("forced offset has enough range, and the return never transforms the fixed 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /html\.leading-image-inset-active \.app-shell\.has-leading-image \{\s*min-height: calc\(100lvh \+ var\(--leading-image-inset\)\)/);
   assert.match(css, /html\.leading-image-inset-active \.has-leading-image \.strip-canvas \{\s*margin-top: 0;\s*padding-top: 0;/);
-  assert.match(css, /html\.leading-image-inset-active \.has-leading-image > \.editor-canvas,\s*html\.leading-image-inset-active \.has-leading-image > \.published-strip/);
+  assert.match(css, /html\.leading-image-inset-active\.leading-media-return-active \.has-leading-image > \.editor-canvas,\s*html\.leading-image-inset-active\.leading-media-return-active \.has-leading-image > \.published-strip/);
   assert.doesNotMatch(css, /leading-media-return-active[^{]*\.composer-dock/);
   assert.doesNotMatch(source, /setTimeout\(|addEventListener\("scrollend"/);
   assert.doesNotMatch(css, /scroll-snap-type/);
+});
+
+test("long readers and inline previews are not permanently promoted into a tiled scroll layer", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  const returnRules = rules.filter(([, selector, body]) =>
+    /\.editor-canvas|\.published-strip/.test(selector) && body.includes("--leading-media-return-y"));
+  assert.equal(returnRules.length, 1);
+  for (const selector of returnRules[0][1].replace(/\/\*[\s\S]*?\*\//g, "").split(",")) {
+    assert.match(selector, /\.leading-media-return-active/, "only an actual top pull can translate the document");
+  }
+  assert.doesNotMatch(returnRules[0][2], /will-change|translateZ/);
+  assert.match(returnRules[0][1], /\.editor-canvas/, "preview and editor share the correction");
+  assert.match(returnRules[0][1], /\.published-strip/, "published readers share the correction");
+
+  const f = fixture({ scrollY: 1800, resetScroll: false });
+  f.emit("touchstart", [600]);
+  f.emit("touchmove", [120]);
+  f.emit("touchend");
+  for (const y of [2600, 3900, 5000, 4800, 3500, 1700]) {
+    f.window.scrollY = y;
+    f.emit("scroll");
+    f.frame();
+    assert.equal(f.styles.has("--leading-media-return-y"), false);
+    assert.equal(f.classes.has("leading-media-return-active"), false);
+  }
+  assert.equal(f.writes.length, 0, "fast bottom scrolling must not trigger a corrective page scroll");
+  f.cleanup();
 });
 
 test("new input cancels the route-entry retry before it can reposition a live gesture", () => {

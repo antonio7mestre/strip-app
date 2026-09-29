@@ -20,9 +20,8 @@ export function ProfileHeader({ controller, username }: Props) {
       input.style.height = `${input.scrollHeight}px`;
     };
     sizeToContent();
-    const observer = new ResizeObserver(sizeToContent);
-    observer.observe(input.parentElement!);
-    return () => observer.disconnect();
+    window.addEventListener("resize", sizeToContent);
+    return () => window.removeEventListener("resize", sizeToContent);
   }, [editing, profile.title, profile.font]);
   return <header className={`profile-header ${editing ? "is-editing" : ""}`}>
     <div className="profile-identity">
@@ -73,7 +72,9 @@ function hexPosition(hex: string) {
     else hue = 60 * ((red - green) / delta + 4);
   }
   if (hue < 0) hue += 360;
-  return { hue, lightness: ((maximum + minimum) / 2) * 100 };
+  const lightness = (maximum + minimum) / 2;
+  return { hue, lightness: lightness * 100,
+    saturation: delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)) };
 }
 
 function sampleProfilePageColor(clientX: number, clientY: number) {
@@ -110,24 +111,49 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   const [wheel, setWheel] = useState(false);
   const [pickingPage, setPickingPage] = useState(false);
   const [pickerPoint, setPickerPoint] = useState<{ x: number; y: number; color: string } | null>(null);
+  const selectorScrollRef = useRef<HTMLDivElement>(null);
+  const pickerPointerIdRef = useRef<number | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const keepEditing = useRef<HTMLButtonElement>(null);
   const { profile, update, pending } = controller;
   const colorTool = tool === "background" || tool === "accent" ? tool : null;
   const activeColor = colorTool ? profile[colorTool] : profile.background;
-  const position = hexPosition(activeColor);
+  const [wheelHue, setWheelHue] = useState(() => hexPosition(activeColor).hue);
+  const activePosition = hexPosition(activeColor);
+  const position = { ...activePosition, hue: activePosition.saturation > 0 ? activePosition.hue : wheelHue };
   const customColor = colorTool && !PROFILE_COLORS.some((option) => option.value === activeColor)
     ? [{ name: "Current", value: activeColor }] : [];
-  const changeColor = (color: string) => { if (colorTool) update({ [colorTool]: color.toUpperCase() }); };
+  const changeColor = (color: string) => {
+    if (!colorTool) return;
+    const nextColor = color.toUpperCase();
+    const nextPosition = hexPosition(nextColor);
+    if (nextPosition.saturation > 0) setWheelHue(nextPosition.hue);
+    update({ [colorTool]: nextColor });
+  };
   const chooseTool = (next: ProfileTool) => { setTool(next); setWheel(false); setPickingPage(false); setPickerPoint(null); };
   const leaveTool = () => { setTool(null); setWheel(false); setPickingPage(false); setPickerPoint(null); };
   const cancel = () => controller.dirty ? setConfirmCancel(true) : controller.cancel();
 
   useEffect(() => { if (confirmCancel) keepEditing.current?.focus(); }, [confirmCancel]);
   useEffect(() => {
+    if (!tool) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (selectorScrollRef.current) selectorScrollRef.current.scrollLeft = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tool, wheel]);
+  useEffect(() => {
     if (!pickingPage) return;
     document.documentElement.classList.add("page-color-picking");
-    return () => document.documentElement.classList.remove("page-color-picking");
+    const preventPickerTouchScroll = (event: TouchEvent) => {
+      if (pickerPointerIdRef.current !== null && event.cancelable) event.preventDefault();
+    };
+    document.addEventListener("touchmove", preventPickerTouchScroll, { capture: true, passive: false });
+    return () => {
+      pickerPointerIdRef.current = null;
+      document.removeEventListener("touchmove", preventPickerTouchScroll, true);
+      document.documentElement.classList.remove("page-color-picking");
+    };
   }, [pickingPage]);
   const updatePickerPoint = (clientX: number, clientY: number) => {
     const color = sampleProfilePageColor(clientX, clientY);
@@ -162,7 +188,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   return <div className={`profile-tools ${wheel ? "is-gradient-picker" : ""}`} aria-label="Edit your profile">
     {controller.error ? <p className="profile-save-error" role="alert">{controller.error}</p> : null}
     {tool ? <div className="profile-selector-row" id="profile-tools-panel" aria-label={tool === "font" ? "Typeface selector" : `${tool} color selector`}>
-      <div className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${tool} color choices`}>
+      <div ref={selectorScrollRef} className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${tool} color choices`}>
         {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id}
           className={`selector-option font-selector-option ${profile.font === font.id ? "is-selected" : ""}`}
           style={{ fontFamily: font.family }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
@@ -192,17 +218,34 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
       <div className="selector-leading"><button type="button" className="dock-icon-button selector-back-button"
         aria-label="Done choosing styles" onClick={leaveTool}><Check className="dock-glyph" aria-hidden="true" /></button></div>
     </div> : <div className="profile-tool-row" aria-label="Profile editor toolbar">
-      <button type="button" className="profile-tool-icon profile-cancel-button" aria-label="Cancel editing" disabled={pending} onClick={cancel}><ChevronLeft aria-hidden="true" /></button>
-      <button type="button" className="profile-tool-icon" aria-label="Background color" onClick={() => chooseTool("background")}><PaintBucket aria-hidden="true" /></button>
-      <button type="button" className="profile-tool-icon" aria-label="Accent color" onClick={() => chooseTool("accent")}><Palette aria-hidden="true" /></button>
-      <button type="button" className="profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><Type aria-hidden="true" /></button>
+      <button type="button" className="dock-icon-button profile-tool-icon profile-cancel-button" aria-label="Cancel editing" disabled={pending} onClick={cancel}><ChevronLeft aria-hidden="true" /></button>
+      <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Background color" onClick={() => chooseTool("background")}><PaintBucket aria-hidden="true" /></button>
+      <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Accent color" onClick={() => chooseTool("accent")}><Palette aria-hidden="true" /></button>
+      <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><Type aria-hidden="true" /></button>
       <button type="button" className="profile-save-button" disabled={pending} onClick={() => void controller.save()}>{pending ? "Saving…" : "Save"}</button>
     </div>}
     {pickingPage && pickerPoint && typeof document !== "undefined" ? createPortal(<button type="button" className="page-color-picker-indicator"
       style={{ left: pickerPoint.x, top: pickerPoint.y, color: pickerPoint.color }} aria-label="Drag to sample a page color"
-      onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); updatePickerPoint(event.clientX, event.clientY); }}
-      onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updatePickerPoint(event.clientX, event.clientY); }}
-      onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        pickerPointerIdRef.current = event.pointerId;
+        updatePickerPoint(event.clientX, event.clientY);
+      }}
+      onPointerMove={(event) => {
+        if (pickerPointerIdRef.current !== event.pointerId) return;
+        event.preventDefault();
+        updatePickerPoint(event.clientX, event.clientY);
+      }}
+      onPointerUp={(event) => {
+        if (pickerPointerIdRef.current !== event.pointerId) return;
+        event.preventDefault();
+        updatePickerPoint(event.clientX, event.clientY);
+        pickerPointerIdRef.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={(event) => { if (pickerPointerIdRef.current === event.pointerId) pickerPointerIdRef.current = null; }}
+      onLostPointerCapture={(event) => { if (pickerPointerIdRef.current === event.pointerId) pickerPointerIdRef.current = null; }}
       onKeyDown={(event) => {
         const step = 10;
         const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;

@@ -25,7 +25,7 @@ const compiled = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
 ).outputText;
 
-function render({ ready = false, owner = false, last = "image" } = {}) {
+function render({ ready = false, owner = false, last = "image", username = "antonio" } = {}) {
   const exports = {};
   const calls = [];
   const icon = () => createElement("svg", { "aria-hidden": true });
@@ -36,6 +36,7 @@ function render({ ready = false, owner = false, last = "image" } = {}) {
     publishedEndsWithVideo: last === "video",
     publishedEndsWithText: last === "text",
     publishedViewerCanEdit: owner,
+    openedPublishedStrip: { username },
     openingPublishedEditor: false,
     publishedStripStyle: { "--ending-background": "#66FF8A" },
     legacyPageEnterClass: "",
@@ -66,8 +67,23 @@ test("owner and visitor footers are complete from first render for every last-bl
       assert.ok(loading.html.includes(owner ? "Edit this Strip" : "Make your own Strip"));
       assert.match(loading.html, /Last block<\/div><footer/);
       assert.equal(loading.element.props.children[1].type, "footer", "always a direct in-flow child");
+      assert.match(footer(loading.html), /A Strip by <span>@antonio<\/span>/);
     }
   }
+});
+
+test("the footer credits the author for every viewer and handles legacy Strips without a username", () => {
+  for (const owner of [false, true]) {
+    assert.match(render({owner, username: "someone_else"}).html, /A Strip by <span>@someone_else<\/span>/);
+    const legacy = render({owner, username: null}).html;
+    assert.match(legacy, /Made with Strip/);
+    assert.doesNotMatch(legacy, /@null|@undefined|Keep the story going/);
+  }
+  const title = rule(".published-bottom-sheet-title");
+  assert.match(title, /text-align: center/);
+  assert.match(title, /overflow-wrap: anywhere/);
+  assert.match(title, /color: #000000/);
+  assert.match(rule(".published-bottom-sheet"), /align-items: center/);
 });
 
 test("prepainted content remains inaccessible until the existing loading gate opens", () => {
@@ -77,7 +93,7 @@ test("prepainted content remains inaccessible until the existing loading gate op
   assert.doesNotMatch(ready, / inert=/);
   for (const owner of [false, true]) {
     const result = render({ owner, ready: true });
-    const actions = result.element.props.children[1].props.children;
+    const actions = result.element.props.children[1].props.children[1];
     actions.props.onPrimary();
     actions.props.onShare();
     assert.deepEqual(result.calls, [owner ? "edit" : "create", "share"]);
@@ -110,7 +126,7 @@ test("the cover entrance owns the opaque loading backdrop and crossfade", () => 
   const entrance = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
   const backdrop = rule(".strip-entrance-backdrop");
   assert.match(backdrop, /inset: 0/);
-  assert.match(backdrop, /background: #000/);
+  assert.match(backdrop, /background: var\(--entrance-background, #000\)/);
   assert.match(entrance, /className="strip-entrance-backdrop"/);
   assert.match(entrance, /!revealing \|\| displayPercent !== 100/);
   assert.match(entrance, /return fadeCoverEntrance\(host, \(\) => completeCallback.current\(\)\)/);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
+import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
 
 test("portrait, landscape and square covers stay centered, uncropped, with room for the bar", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
@@ -29,7 +29,7 @@ test("all poster shapes enlarge to the same shared width and retain their propor
   }
 });
 
-test("the tray drops immediately while cover arrival reveals the loading bar", () => {
+test("the tray drops immediately and the blinking loading bar travels with the cover", () => {
   const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /holdCoverDock/);
   assert.match(component, /return dropCoverDock\([^;]+setDockDropped\(true\)/);
@@ -42,10 +42,14 @@ test("the tray drops immediately while cover arrival reveals the loading bar", (
   assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
   assert.match(component, /requestPending \|\| !dockDropped/);
   assert.match(component, /scale\(\$\{initialOrigin.width \/ target.width\}/);
+  assert.match(component, /const animation = stage.animate/);
+  assert.match(component, /index === 0 && filled === 0 \? "is-waiting"/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, new RegExp(`animation: cover-backdrop-in ${COVER_MOVE_MS}ms`));
   assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
   assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-progress \{ opacity: 1; \}/);
+  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-progress \{ opacity: 1; transition: none; \}/);
+  assert.match(css, /span.is-waiting\s*\{\s*opacity: 1;\s*animation: cover-first-square-blink 700ms ease-in-out infinite alternate;/);
   assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-cover \{ opacity: 0; \}/);
 });
 
@@ -125,7 +129,8 @@ test("the final crossfade keeps its previous timing, is monotonic, and cleans up
 test("home click preserves a single portal and cannot navigate away or race a Back gesture", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const open = page.slice(page.indexOf("const openPublishedStrip ="), page.indexOf("const returnToLibraryFromPublished ="));
-  assert.match(open, /getBoundingClientRect/);
+  assert.match(open, /captureCoverOrigin/);
+  assert.ok(open.indexOf("captureCoverOrigin(") < open.indexOf("flushSync("));
   assert.match(open, /flushSync/);
   assert.match(open, /Promise.all/);
   assert.match(open, /openingCoverRequestRef.current !== controller/);
@@ -140,6 +145,34 @@ test("home click preserves a single portal and cannot navigate away or race a Ba
   assert.doesNotMatch(css, /\.library-mode.is-opening-strip \.composer-dock/);
   assert.match(css, /\.strip-entrance \.strip-entrance-dock\s*\{[^}]*position: absolute;[^}]*transform: none;[^}]*transition: none/);
   assert.ok(open.indexOf("captureCoverDock(") < open.indexOf("flushSync("));
+});
+
+test("the clicked cover's already-visible pixels are captured synchronously with bounded memory", () => {
+  const image = { complete: true, naturalWidth: 2400, naturalHeight: 3000 };
+  const bounds = { left: 23, top: 98, width: 180, height: 225 };
+  const draws = [], canvas = { setAttribute() {}, getContext: () => ({ drawImage: (...args) => draws.push(args) }) };
+  globalThis.window = { devicePixelRatio: 3 };
+  globalThis.document = { createElement: () => canvas };
+  globalThis.getComputedStyle = () => ({ boxShadow: "inset 0 0 0 1px white" });
+  const cover = { getBoundingClientRect: () => bounds, querySelector: () => image };
+  try {
+    assert.equal(captureCoverOrigin(null), undefined);
+    const captured = captureCoverOrigin(cover);
+    assert.equal(captured.snapshot, canvas);
+    assert.equal(captured.boxShadow, "inset 0 0 0 1px white");
+    assert.equal(captured.top, 98);
+    assert.equal(canvas.width, 360); assert.equal(canvas.height, 450);
+    assert.deepEqual(draws, [[image, 0, 0, 360, 450]]);
+    bounds.width = 4000; bounds.height = 5000;
+    captureCoverOrigin(cover);
+    assert.ok(canvas.width <= 1024 && canvas.height <= 1024);
+    image.complete = false;
+    assert.equal(captureCoverOrigin(cover).snapshot, undefined);
+    image.complete = true;
+    globalThis.document.createElement = () => { throw new Error("Allocation unavailable"); };
+    assert.equal(captureCoverOrigin(cover).snapshot, undefined);
+    assert.equal(captureCoverOrigin({ ...cover, querySelector: () => null }).boxShadow, captured.boxShadow);
+  } finally { delete globalThis.window; delete globalThis.document; delete globalThis.getComputedStyle; }
 });
 
 test("dock capture includes the exact controls, geometry and Safari corner treatment", () => {

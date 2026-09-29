@@ -26,7 +26,7 @@ export function landingCollageMargin(currentMargin: number, visibleGap: number) 
   return Math.max(0, currentMargin + 16 - visibleGap);
 }
 
-const OUTLINE_OFFSETS = Array.from({ length: 32 }, (_, index) => {
+export const STICKER_OUTLINE_OFFSETS = Array.from({ length: 32 }, (_, index) => {
   const angle = index * Math.PI / 16;
   return { x: 3 * Math.cos(angle), y: 3 * Math.sin(angle) };
 });
@@ -209,8 +209,8 @@ export function AuthLandingStrip() {
       <svg className="landing-sticker-filters" aria-hidden="true" width="0" height="0" focusable="false">
         <defs>
           <filter id="landing-sticker-outline" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
-            {OUTLINE_OFFSETS.map((offset, index) => <feOffset key={index} in="SourceAlpha" dx={offset.x} dy={offset.y} result={`rim-${index}`} />)}
-            <feMerge result="edge"><feMergeNode in="SourceAlpha" />{OUTLINE_OFFSETS.map((_, index) => <feMergeNode key={index} in={`rim-${index}`} />)}</feMerge>
+            {STICKER_OUTLINE_OFFSETS.map((offset, index) => <feOffset key={index} in="SourceAlpha" dx={offset.x} dy={offset.y} result={`rim-${index}`} />)}
+            <feMerge result="edge"><feMergeNode in="SourceAlpha" />{STICKER_OUTLINE_OFFSETS.map((_, index) => <feMergeNode key={index} in={`rim-${index}`} />)}</feMerge>
             <feFlood floodColor="white" /><feComposite in2="edge" operator="in" />
             <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>

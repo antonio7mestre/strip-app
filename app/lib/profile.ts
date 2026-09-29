@@ -39,6 +39,19 @@ export function profileInk(color: string) {
   return luminance > 0.179 ? "#000000" : "#FFFFFF";
 }
 
+/** Preserve a cover's edge when it blends into the profile canvas. */
+export function profileCoverOutline(cover: string, background: string) {
+  const channels = (color: string) => {
+    const hex = color.trim().replace(/^#/, "");
+    const full = hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
+    return /^[\da-f]{6}$/i.test(full)
+      ? full.match(/.{2}/g)!.map((part) => parseInt(part, 16)) : null;
+  };
+  const a = channels(cover), b = channels(background);
+  if (!a || !b || a.some((channel, index) => Math.abs(channel - b[index]) > 16)) return undefined;
+  return profileInk(`#${b.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`);
+}
+
 export function profileTitle(profile: Pick<StripProfile, "title">, username: string | null | undefined) {
   return profile.title.trim() || username || "Your profile";
 }

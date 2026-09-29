@@ -227,6 +227,6 @@ test("text corner fill is confined to the rounded cutouts in editor and live str
       DEFAULT_BACKGROUND: "#000000", contrastColor: () => "#000000",
     }).publishedStripStyle;
     assert.equal(result["--ending-corner-color"], publishedEndsWithText ? "#9772FF" : undefined);
-    assert.equal(result["--ending-background"], "#66FF8A", "the footer keeps its own color");
+    assert.equal(result["--ending-background"], "#FFFFFF", "published actions always sit on white");
   }
 });

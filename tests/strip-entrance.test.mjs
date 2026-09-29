@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
+import { profileInk } from "../app/lib/profile.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -64,7 +65,8 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
-    ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance : require(name) });
+    ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
+      : name === "@/app/lib/profile" ? { profileInk } : require(name) });
 test("renders a centered cover and 24 square progress cells, without a full-screen drawing", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
@@ -74,24 +76,46 @@ test("renders a centered cover and 24 square progress cells, without a full-scre
   }));
   assert.equal((html.match(/<canvas/g) ?? []).length, 0);
   assert.equal((html.match(/role="status"/g) ?? []).length, 1);
-  assert.ok(html.includes(`--entrance-a:${chooseScribbleColor(makeEntrancePalette(["#FF3366", "#FFFFFF", "#000000"], []))}`));
+  assert.ok(html.includes("--entrance-a:#FFFFFF"));
+  assert.ok(html.includes("--entrance-background:#000000"));
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
   assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 24);
+  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 23);
+  assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
   assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
+});
+test("the first render uses contrasting monochrome ink and the originating profile background", () => {
+  for (const backgroundColor of ["#FFFFFF", "#000000", "#FF8CCC", "#3155FF"]) {
+    const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
+      cover: { kind: "image", src: "/cover.jpg" }, backgroundColor,
+      origin: { left: 20, top: 150, width: 150, height: 200, snapshot: {} },
+      settledAssets: 0, totalAssets: 2, requestPending: true, revealing: false,
+      onCoverSettled() {}, onExitComplete() {},
+    }));
+    assert.ok(html.includes(`--entrance-a:${profileInk(backgroundColor)}`));
+    assert.ok(html.includes(`--entrance-background:${backgroundColor}`));
+    assert.match(html, /is-from-library.*is-cover-visible/);
+    assert.match(html, /strip-entrance-snapshot/);
+    assert.match(html, /is-waiting/);
+    assert.doesNotMatch(html, /<img/, "reuse captured pixels, never mount a second image");
+  }
+  assert.match(componentSource, /const \[initialBackground\] = useState\(backgroundColor\)/);
+  assert.match(componentSource, /snapshotRef.current.appendChild\(snapshot\)/);
+  assert.match(componentSource, /snapshot.remove\(\)/);
+  assert.match(componentSource, /root.style.removeProperty\("--cover-entrance-background"\)/);
+  assert.match(componentSource, /root.style.setProperty\("--cover-entrance-background", previousBackground, previousPriority\)/);
 });
 test("readiness and timeout preserve the loading contract", () => {
   assert.match(page, /publishedAssetsReady && publishedMinimumElapsed/);
   assert.match(page, /PUBLISHED_MEDIA_LOAD_TIMEOUT_MS/);
   assert.match(page, /setPublishedLoaderDismissedKey\(entranceStrip.id\)/);
   assert.doesNotMatch(page, /PUBLISHED_LOADING_RELEASE_MS/);
-  assert.match(componentSource, /cancelAnimationFrame\(frame\)/);
   assert.match(componentSource, /if \(!mounted.current\) return/);
-  assert.match(componentSource, /if \(!hasPalette \|\| ink\) return/);
+  assert.doesNotMatch(componentSource, /sampleEntranceMedia|chooseScribbleColor|setInk/);
   assert.doesNotMatch(componentSource, /scrollTo|scrollBy|new Image|fetch\(/);
 });
 
@@ -112,7 +136,7 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
   assert.match(css,/font-variant-numeric: tabular-nums/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
-  assert.match(readoutCss,/color: #fff;/);
+  assert.match(readoutCss,/color: var\(--entrance-a\);/);
   assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
   assert.match(readoutCss,/right: 0;/);
   assert.match(readoutCss,/gap: 14px;/);
@@ -157,7 +181,7 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
 });
 
 test("text-first reader reveals the real edge underneath its opaque cover surface before fading", () => {
-  assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) body\s*\{\s*background: #000 !important;/);
+  assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) body\s*\{\s*background: var\(--cover-entrance-background, #000\) !important;/);
   assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) \.published-mode\.has-leading-text > \.top-safe-area-anchor\s*\{\s*display: none;/);
   assert.doesNotMatch(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body/);
   assert.match(css, /html:has\(\.published-mode\.has-leading-text\):has\(\.cover-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color 650ms ease-in-out;/);

@@ -1,22 +1,33 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, ImagePlus, Sticker, X } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { ArrowLeft, Check, ImagePlus, Palette, Pipette, Sticker, X } from "lucide-react";
 import {
   STICKER_CATEGORIES,
   stickersByCategory,
+  stickerTrayMaxWidth,
   type StickerAsset,
   type StickerCategory,
 } from "@/app/lib/sticker-pack";
 import styles from "./StickerPicker.module.css";
+import { StickerImage } from "./StickerImage";
 import { installStickerTrayScroll } from "@/app/lib/sticker-tray-scroll";
+import {
+  SHAPE_STICKERS, SHAPE_STICKER_COLORS,
+  shapeColorFromHsl, shapeColorInk, shapeColorPosition, type ShapeSticker,
+} from "@/app/lib/shape-stickers";
 
-const labels: Record<StickerCategory, string> = {
+type PickerCategory = StickerCategory | "shapes";
+type PickerView = "source" | "pack" | "page-color";
+const categories: readonly PickerCategory[] = [...STICKER_CATEGORIES, "shapes"];
+const labels: Record<PickerCategory, string> = {
   random: "Random",
   animals: "Animals",
   items: "Items",
   nature: "Nature",
   clothing: "Clothing",
+  shapes: "Shapes",
 };
 
 const stickerSizeClasses = [
@@ -39,13 +50,21 @@ export function StickerPicker({
   onClose,
   onPhotoVideo,
   onSticker,
+  onShape,
+  shapeColor,
+  onShapeColorChange,
+  samplePageColor,
   onViewChange,
 }: {
   open: boolean;
   onClose: () => void;
   onPhotoVideo: () => void;
   onSticker: (sticker: StickerAsset) => void;
-  onViewChange: (view: "source" | "pack") => void;
+  onShape: (shape: ShapeSticker, color: string) => void;
+  shapeColor: string;
+  onShapeColorChange: (color: string) => void;
+  samplePageColor: (x: number, y: number) => string | null;
+  onViewChange: (view: PickerView) => void;
 }) {
   if (!open) return null;
   return (
@@ -53,6 +72,10 @@ export function StickerPicker({
       onClose={onClose}
       onPhotoVideo={onPhotoVideo}
       onSticker={onSticker}
+      onShape={onShape}
+      shapeColor={shapeColor}
+      onShapeColorChange={onShapeColorChange}
+      samplePageColor={samplePageColor}
       onViewChange={onViewChange}
     />
   );
@@ -62,23 +85,50 @@ function StickerPickerDialog({
   onClose,
   onPhotoVideo,
   onSticker,
+  onShape,
+  shapeColor,
+  onShapeColorChange,
+  samplePageColor,
   onViewChange,
 }: {
   onClose: () => void;
   onPhotoVideo: () => void;
   onSticker: (sticker: StickerAsset) => void;
-  onViewChange: (view: "source" | "pack") => void;
+  onShape: (shape: ShapeSticker, color: string) => void;
+  shapeColor: string;
+  onShapeColorChange: (color: string) => void;
+  samplePageColor: (x: number, y: number) => string | null;
+  onViewChange: (view: PickerView) => void;
 }) {
   const [view, setView] = useState<"source" | "pack">("source");
   const [pickingId, setPickingId] = useState<string | null>(null);
-  const [category, setCategory] = useState<StickerCategory>("random");
+  const [category, setCategory] = useState<PickerCategory>("random");
+  const [shapePaletteOpen, setShapePaletteOpen] = useState(false);
+  const [shapeWheelOpen, setShapeWheelOpen] = useState(false);
+  const [samplingPage, setSamplingPage] = useState(false);
+  const [samplePoint, setSamplePoint] = useState<{ x: number; y: number; color: string } | null>(null);
+  const samplePointerRef = useRef<number | null>(null);
+  const pageTapRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  const [wheelHue, setWheelHue] = useState(() => shapeColorPosition(shapeColor).hue);
   const firstActionRef = useRef<HTMLButtonElement>(null);
   const pickTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
+  const samplePageColorRef = useRef(samplePageColor);
+  const onShapeColorChangeRef = useRef(onShapeColorChange);
+  const sampleAt = useCallback((clientX: number, clientY: number) => {
+    const color = samplePageColorRef.current(clientX, clientY);
+    if (!color) return;
+    setSamplePoint({ x: clientX + window.scrollX, y: clientY + window.scrollY, color });
+    onShapeColorChangeRef.current(color);
+  }, []);
 
-  useLayoutEffect(() => installStickerTrayScroll(() => scrollRef.current), []);
+  useLayoutEffect(() => samplingPage ? undefined : installStickerTrayScroll(() => scrollRef.current), [samplingPage]);
   useLayoutEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useLayoutEffect(() => {
+    samplePageColorRef.current = samplePageColor;
+    onShapeColorChangeRef.current = onShapeColorChange;
+  }, [samplePageColor, onShapeColorChange]);
 
   useEffect(() => {
     // Keep keyboard focus useful, but do not summon a focus ring on a touch tap.
@@ -86,7 +136,10 @@ function StickerPickerDialog({
       ? requestAnimationFrame(() => firstActionRef.current?.focus({ preventScroll: true }))
       : null;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCloseRef.current();
+      if (event.key !== "Escape") return;
+      if (samplingPage) { setSamplingPage(false); onViewChange("pack"); }
+      else if (shapePaletteOpen) { setShapePaletteOpen(false); setShapeWheelOpen(false); }
+      else onCloseRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -94,11 +147,88 @@ function StickerPickerDialog({
       if (pickTimerRef.current !== null) window.clearTimeout(pickTimerRef.current);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [samplingPage, shapePaletteOpen, onViewChange]);
 
-  const stickers = stickersByCategory(category);
+  useEffect(() => {
+    if (!samplingPage) return;
+    const root = document.documentElement;
+    root.classList.add("page-color-picking");
+    let suppressNextClick: ((event: MouseEvent) => void) | null = null;
+    let suppressClickTimer: number | null = null;
+    const clearClickSuppression = () => {
+      if (suppressNextClick) document.removeEventListener("click", suppressNextClick, true);
+      if (suppressClickTimer !== null) window.clearTimeout(suppressClickTimer);
+      suppressNextClick = null;
+      suppressClickTimer = null;
+    };
+    const pointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || event.button !== 0 ||
+        event.target.closest(".page-color-picker-indicator, .shape-page-color-done")) return;
+      pageTapRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const pointerMove = (event: PointerEvent) => {
+      const tap = pageTapRef.current;
+      if (tap?.id === event.pointerId && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 8) tap.moved = true;
+    };
+    const pointerUp = (event: PointerEvent) => {
+      const tap = pageTapRef.current;
+      if (tap?.id !== event.pointerId) return;
+      pageTapRef.current = null;
+      if (tap.moved) return;
+      event.preventDefault();
+      event.stopPropagation();
+      sampleAt(event.clientX, event.clientY);
+      clearClickSuppression();
+      suppressNextClick = (click) => {
+        click.preventDefault();
+        click.stopImmediatePropagation();
+        clearClickSuppression();
+      };
+      document.addEventListener("click", suppressNextClick, true);
+      suppressClickTimer = window.setTimeout(clearClickSuppression, 450);
+      setSamplingPage(false);
+      onViewChange("pack");
+    };
+    const pointerCancel = (event: PointerEvent) => {
+      if (pageTapRef.current?.id === event.pointerId) pageTapRef.current = null;
+      if (samplePointerRef.current === event.pointerId) samplePointerRef.current = null;
+    };
+    const preventPickerTouchScroll = (event: TouchEvent) => {
+      if (samplePointerRef.current !== null && event.cancelable) event.preventDefault();
+    };
+    document.addEventListener("pointerdown", pointerDown, true);
+    document.addEventListener("pointermove", pointerMove, true);
+    document.addEventListener("pointerup", pointerUp, true);
+    document.addEventListener("pointercancel", pointerCancel, true);
+    document.addEventListener("touchmove", preventPickerTouchScroll, { capture: true, passive: false });
+    return () => {
+      document.removeEventListener("pointerdown", pointerDown, true);
+      document.removeEventListener("pointermove", pointerMove, true);
+      document.removeEventListener("pointerup", pointerUp, true);
+      document.removeEventListener("pointercancel", pointerCancel, true);
+      document.removeEventListener("touchmove", preventPickerTouchScroll, true);
+      samplePointerRef.current = null;
+      pageTapRef.current = null;
+      root.classList.remove("page-color-picking");
+    };
+  }, [samplingPage, onViewChange, sampleAt]);
+
+  const stickers = category === "shapes" ? [] : stickersByCategory(category);
+  const colorPosition = shapeColorPosition(shapeColor);
+  const position = { ...colorPosition, hue: colorPosition.saturation > 0 ? colorPosition.hue : wheelHue };
+  const customColor = SHAPE_STICKER_COLORS.some((color) => color.value === shapeColor)
+    ? [] : [{ name: "Current", value: shapeColor }];
+  const chooseShapeColor = (color: string) => {
+    const next = shapeColorPosition(color);
+    if (next.saturation > 0) setWheelHue(next.hue);
+    onShapeColorChange(color);
+  };
   const showView = (nextView: "source" | "pack") => {
     setView(nextView);
+    setShapePaletteOpen(false);
+    setShapeWheelOpen(false);
     onViewChange(nextView);
   };
   const chooseSticker = (sticker: StickerAsset) => {
@@ -106,8 +236,29 @@ function StickerPickerDialog({
     setPickingId(sticker.id);
     pickTimerRef.current = window.setTimeout(() => onSticker(sticker), 140);
   };
+  const chooseShape = (shape: ShapeSticker) => {
+    if (pickingId) return;
+    setPickingId(shape.id);
+    pickTimerRef.current = window.setTimeout(() => onShape(shape, shapeColor), 140);
+  };
+  const setWheelPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const hue = Math.max(0, Math.min(359.99, (event.clientX - bounds.left) / bounds.width * 360));
+    const lightness = Math.max(0, Math.min(100, (1 - (event.clientY - bounds.top) / bounds.height) * 100));
+    chooseShapeColor(shapeColorFromHsl(hue, lightness));
+  };
+  const startPageSampling = () => {
+    const dockTop = document.querySelector<HTMLElement>(".main-composer-dock")?.getBoundingClientRect().top ?? window.innerHeight;
+    const x = window.innerWidth / 2, y = Math.max(72, dockTop) / 2;
+    setSamplePoint({ x: x + window.scrollX, y: y + window.scrollY,
+      color: samplePageColorRef.current(x, y) ?? shapeColor });
+    setShapeWheelOpen(false);
+    setSamplingPage(true);
+    onViewChange("page-color");
+  };
 
   return (
+    <>
       <section className={`${styles.tray} ${view === "pack" ? styles.packTray : styles.sourceTray}`}
         aria-label={view === "source" ? "Add sticker" : undefined}
         aria-labelledby={view === "pack" ? "sticker-picker-title" : undefined}>
@@ -134,35 +285,120 @@ function StickerPickerDialog({
                 aria-label="Back to sticker options">
                 <ArrowLeft aria-hidden="true" />
               </button>
-              <h2 id="sticker-picker-title">Sticker pack</h2>
+              <h2 id="sticker-picker-title">{category === "shapes" ? "Shapes" : "Sticker pack"}</h2>
               <button className={styles.iconButton} type="button" onClick={onClose} aria-label="Close sticker pack">
                 <X aria-hidden="true" />
               </button>
             </header>
             <div className={styles.categories} role="tablist" aria-label="Sticker categories">
-              {STICKER_CATEGORIES.map(item => (
+              {categories.map(item => (
                 <button key={item} className={category === item ? styles.activeCategory : ""}
                   type="button" role="tab" aria-selected={category === item}
                   onClick={() => {
                     setCategory(item);
+                    setShapePaletteOpen(false);
+                    setShapeWheelOpen(false);
                     scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
                   }}>{labels[item]}</button>
               ))}
             </div>
+            {category === "shapes" ? <div className={styles.shapeHeading}>
+              <span>Pick a shape</span>
+              <button type="button" className={styles.shapeColorButton} onClick={() => setShapePaletteOpen(true)}
+                aria-label="Choose shape color" aria-expanded={shapePaletteOpen}>
+                <span style={{ backgroundColor: shapeColor }} aria-hidden="true" />Color
+              </button>
+            </div> : null}
             <div ref={scrollRef} className={styles.scrollArea} role="tabpanel" tabIndex={0}
-              aria-label={`${labels[category]} stickers`}>
+              aria-label={category === "shapes" ? "Shapes" : `${labels[category]} stickers`}>
+              {category === "shapes" ? <div className={styles.shapeGrid}>
+                {SHAPE_STICKERS.map((shape) => <button key={shape.id} type="button"
+                  className={`${styles.shapeButton} ${pickingId === shape.id ? styles.isPicking : ""}`}
+                  onClick={() => chooseShape(shape)} aria-label={`Add ${shape.name} shape`}>
+                  <svg viewBox="0 0 256 256" aria-hidden="true"><path d={shape.path} fill={shapeColor}
+                    fillRule={"fillRule" in shape ? shape.fillRule : undefined} /></svg>
+                </button>)}
+              </div> :
               <div className={styles.masonry}>
               {stickers.map((sticker, index) => (
                 <button key={sticker.id} type="button"
                   className={`${styles.stickerButton} ${stickerSizeClass(sticker, index)} ${pickingId === sticker.id ? styles.isPicking : ""}`}
+                  style={{ maxWidth: `${stickerTrayMaxWidth(sticker)}%` }}
                   onClick={() => chooseSticker(sticker)} aria-label={`Add ${sticker.name}`}>
-                  <img src={sticker.src} alt="" loading="lazy" decoding="async" />
+                  <StickerImage src={sticker.src} alt="" width={sticker.width} height={sticker.height}
+                    loading="lazy" decoding="async" draggable={false} />
                 </button>
               ))}
-              </div>
+              </div>}
             </div>
+            {category === "shapes" && shapePaletteOpen ? <div className={styles.shapePalette} aria-label="Shape color selector">
+              {shapeWheelOpen ? <div className={`${styles.shapeWheel} full-gradient-picker`} role="slider" tabIndex={0}
+                aria-label="Choose any shape color" aria-valuenow={Math.round(position.lightness)}
+                aria-valuemin={0} aria-valuemax={100} aria-valuetext={shapeColor}
+                onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setWheelPoint(event); }}
+                onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWheelPoint(event); }}
+                onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+                onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+                onKeyDown={(event) => {
+                  const hue = position.hue + (event.key === "ArrowLeft" ? -5 : event.key === "ArrowRight" ? 5 : 0);
+                  const lightness = position.lightness + (event.key === "ArrowUp" ? 5 : event.key === "ArrowDown" ? -5 : 0);
+                  if (hue === position.hue && lightness === position.lightness) return;
+                  event.preventDefault(); chooseShapeColor(shapeColorFromHsl(hue, lightness));
+                }}>
+                <span className="gradient-picker-value" style={{ left: `${Math.min(94, Math.max(6, position.hue / 360 * 100))}%`,
+                  top: `${Math.min(72, Math.max(28, 100 - position.lightness))}%`, backgroundColor: shapeColor }} aria-hidden="true" />
+              </div> : <div className={styles.paletteScroll} role="group" aria-label="Shape color choices">
+                {[...SHAPE_STICKER_COLORS, ...customColor].map((color) => {
+                  const selected = color.value === shapeColor;
+                  const ink = shapeColorInk(color.value);
+                  return <button key={color.value} type="button"
+                    className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
+                    style={{ backgroundColor: color.value, color: ink,
+                      "--swatch-foreground": ink } as CSSProperties}
+                    aria-label={`${color.name} shape color`} aria-pressed={selected}
+                    onClick={() => chooseShapeColor(color.value)}>{selected ? <Check className="swatch-check" aria-hidden="true" /> : null}</button>;
+                })}
+                <button type="button" className="selector-option color-selector-option gradient-trigger"
+                  aria-label="Open the shape color wheel" onClick={() => setShapeWheelOpen(true)}><Palette aria-hidden="true" /></button>
+                <button type="button" className="selector-option color-selector-option page-color-trigger"
+                  style={{ backgroundColor: shapeColor, color: shapeColorInk(shapeColor) }}
+                  aria-label="Match a shape color from the page" onClick={startPageSampling}><Pipette aria-hidden="true" /></button>
+              </div>}
+              <button type="button" className={`${styles.paletteDone} dock-icon-button selector-back-button`}
+                aria-label="Done choosing shape color" onClick={() => { setShapePaletteOpen(false); setShapeWheelOpen(false); }}>
+                <Check className="dock-glyph" aria-hidden="true" />
+              </button>
+            </div> : null}
           </>
         )}
       </section>
+      {samplingPage && samplePoint && typeof document !== "undefined" ? createPortal(<>
+        <button type="button" className="page-color-picker-indicator" aria-label="Drag to sample a shape color"
+          style={{ left: samplePoint.x, top: samplePoint.y, color: samplePoint.color }}
+          onPointerDown={(event) => {
+            event.preventDefault(); event.stopPropagation();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            samplePointerRef.current = event.pointerId;
+            sampleAt(event.clientX, event.clientY);
+          }}
+          onPointerMove={(event) => {
+            if (samplePointerRef.current !== event.pointerId) return;
+            event.preventDefault(); event.stopPropagation(); sampleAt(event.clientX, event.clientY);
+          }}
+          onPointerUp={(event) => {
+            if (samplePointerRef.current !== event.pointerId) return;
+            event.preventDefault(); event.stopPropagation(); sampleAt(event.clientX, event.clientY);
+            samplePointerRef.current = null;
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+            setSamplingPage(false); onViewChange("pack");
+          }}
+          onPointerCancel={(event) => { if (samplePointerRef.current === event.pointerId) samplePointerRef.current = null; }}>
+          <span className="page-color-picker-indicator-core" />
+        </button>
+        <button type="button" className="shape-page-color-done" onClick={() => { setSamplingPage(false); onViewChange("pack"); }}>
+          Done
+        </button>
+      </>, document.body) : null}
+    </>
   );
 }

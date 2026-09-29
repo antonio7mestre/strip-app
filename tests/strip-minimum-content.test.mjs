@@ -12,7 +12,7 @@ function fixture(heights, types = heights.map(() => "text"), screenHeight = 760,
     createElement() {
       return {
         style: {}, setAttribute() {},
-        getBoundingClientRect: () => ({ height: screenHeight - insets.dock - insets.top - insets.bottom }),
+        getBoundingClientRect: () => ({ height: screenHeight - insets.dock - insets.top - insets.bottom + 48 }),
         remove() { probes.delete(this); },
       };
     },
@@ -27,8 +27,8 @@ function fixture(heights, types = heights.map(() => "text"), screenHeight = 760,
   return { canvas, blocks, probes, document, ready: () => hasScreenfulOfContent(canvas, blocks) };
 }
 
-test("content touching the bottom toolbar counts immediately, without another toolbar's worth of content", () => {
-  for (const [heights, expected] of [[[90], false], [[350, 343], false], [[350, 346], true], [[1200], true], [[695.5], true], [[750], true]]) {
+test("content needs a short extra beat beyond the bottom toolbar", () => {
+  for (const [heights, expected] of [[[90], false], [[350, 343], false], [[350, 346], false], [[350, 394], true], [[1200], true], [[695.5], false], [[750], true]]) {
     const f = fixture(heights);
     assert.equal(f.ready(), expected);
     assert.equal(f.probes.size, 0);
@@ -52,9 +52,9 @@ test("floating stickers, missing sources, tools and footer cannot fill a screen"
 
 test("full-screen mixed strips count colored text blocks even without words", () => {
   for (const content of ["", " \n\t ", "A caption"]) {
-    const f = fixture([110.078125, 560], ["text", "image"], 714);
+    const f = fixture([138.078125, 560], ["text", "image"], 714);
     f.blocks[0].content = content;
-    assert.equal(f.ready(), true, "670px of rendered blocks reaches the 650px toolbar edge");
+    assert.equal(f.ready(), true, "698px of rendered blocks clears the toolbar edge by 48px");
   }
   const short = fixture([71, 240], ["text", "image"], 714);
   short.blocks[0].content = "";
@@ -93,9 +93,9 @@ test("keyboard height, scroll position, Safari chrome and canvas padding do not 
 
 test("iPhone safe areas and the toolbar are not treated as missing content", () => {
   const insets = { dock: 64, top: 62, bottom: 34 };
-  assert.equal(fixture([600], ["text"], 760, insets).ready(), true);
-  assert.equal(fixture([599.5], ["image"], 760, insets).ready(), true);
-  assert.equal(fixture([597], ["video"], 760, insets).ready(), false);
+  assert.equal(fixture([648], ["text"], 760, insets).ready(), true);
+  assert.equal(fixture([647.5], ["image"], 760, insets).ready(), true);
+  assert.equal(fixture([645], ["video"], 760, insets).ready(), false);
 });
 
 test("missing layout and invalid measurements fail safely; probes are always removed", () => {
