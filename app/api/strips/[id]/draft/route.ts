@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import {
   readStripContent,
   writeStripContent,
@@ -35,6 +36,7 @@ type StoredBlock =
       objectKey: string;
       alt: string;
       mediaType?: "image" | "video";
+      stickerOrigin?: StickerOrigin;
       x: number;
       y: number;
       width: number;

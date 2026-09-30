@@ -41,6 +41,6 @@ export async function prepareStickerUploads<T extends { type: string; src?: stri
     if (block.type !== "sticker" || !block.src || !packSources.has(block.src)) {
       return block;
     }
-    return { ...block, src: await stickerUploadSource(block.src) };
+    return { ...block, stickerOrigin: "pack", src: await stickerUploadSource(block.src) };
   }));
 }

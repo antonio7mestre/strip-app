@@ -44,13 +44,13 @@
 .stickerButton:nth-child(3n + 1) { margin-right: auto; }
 .stickerButton:nth-child(3n + 2) { margin-right: auto; margin-left: auto; }
 .stickerButton:nth-child(3n) { margin-left: auto; }
-.stickerButton img { display: block; width: 100%; height: auto; filter: brightness(1.06) drop-shadow(2px 3px 0 rgba(0, 0, 0, .22)); transition: transform 120ms ease; }
+.stickerButton img { display: block; width: 100%; height: auto; filter: brightness(1.06); transition: transform 120ms ease; }
 .stickerButton:active img { transform: scale(.94); }
 .stickerButton.isPicking img { animation: stickerPickZoom 150ms cubic-bezier(.2,.85,.25,1) both; }
 .shapeHeading { display: flex; flex: none; align-items: center; justify-content: flex-start; padding: 2px 2px 12px; font-size: 14px; font-weight: 750; }
 .shapeColorButton { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 4px 10px; border: 1px solid #d5d5cf; border-radius: 999px; background: #fff; color: #111; font-size: 12px; font-weight: 750; }
 .shapeColorButton span { display: block; width: 20px; height: 20px; border: 1px solid #0003; border-radius: 50%; }
-.shapeButton svg { display: block; width: 100%; height: auto; filter: drop-shadow(2px 3px 0 rgb(0 0 0 / 18%)); }
+.shapeButton svg { display: block; width: 100%; height: auto; filter: none; }
 .shapeButton:active { transform: scale(.94); }
 .shapeButton.isPicking { animation: stickerPickZoom 150ms cubic-bezier(.2,.85,.25,1) both; }
 .hasPalette .masonry { padding-bottom: calc(30px + var(--dock-visible-height, 76px) + env(safe-area-inset-bottom)); }

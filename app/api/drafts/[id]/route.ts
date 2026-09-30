@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 
@@ -35,6 +36,7 @@ type StoredDraftBlock =
       objectKey: string;
       alt: string;
       mediaType?: "image" | "video";
+      stickerOrigin?: StickerOrigin;
       x: number;
       y: number;
       width: number;
@@ -118,6 +120,7 @@ export async function GET(
       ...(block.type === "sticker"
         ? {
             mediaType: block.mediaType === "video" ? "video" : "image",
+            stickerOrigin: normalizeStickerOrigin(block.stickerOrigin),
             x: block.x,
             y: block.y,
             width: block.width,

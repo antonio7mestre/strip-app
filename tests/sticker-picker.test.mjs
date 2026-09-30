@@ -30,11 +30,11 @@ test("the sticker pack has six complete categories plus the added animals", () =
     "clothing",
     "scrap",
   ]);
-  assert.equal(STICKER_PACK.length, 126);
-  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.id)).size, 126);
-  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.src)).size, 126);
+  assert.equal(STICKER_PACK.length, 246);
+  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.id)).size, 246);
+  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.src)).size, 246);
   for (const category of STICKER_CATEGORIES) {
-    assert.equal(stickersByCategory(category).length, category === "animals" ? 22 : category === "scrap" ? 24 : 20, category);
+    assert.equal(stickersByCategory(category).length, category === "animals" ? 42 : category === "scrap" ? 44 : 40, category);
   }
 });
 
@@ -84,7 +84,7 @@ test("the sticker action offers the pack or the existing camera-roll flow", () =
   assert.match(page, /<StickerPicker[\s\S]*?onPhotoVideo=/);
   assert.match(page, /stickerInputRef\.current\?\.click\(\)/);
   assert.match(page, /accept="image\/\*,video\/\*"/);
-  assert.match(page, /placeSticker\(sticker\.src, sticker\.name\)/);
+  assert.match(page, /placeSticker\(sticker\.src, sticker\.name, "image", "pack"\)/);
   const openCamera = page.match(/onPhotoVideo=\{\(\) => \{([\s\S]*?)\}\}/)[1];
   assert.match(openCamera, /stickerInputRef\.current\?\.click\(\)/);
   assert.doesNotMatch(openCamera, /setStickerPickerOpen/, "Keep the source tray behind the camera roll and after cancel");
@@ -132,7 +132,7 @@ test("the pack is a dense, scrollable masonry sheet", () => {
   const mediaTop = readFileSync(new URL("../app/lib/leading-media-top.ts", import.meta.url), "utf8");
   assert.match(globals, /html\.sticker-tray-open,[\s\S]*?html\.sticker-tray-open body\s*\{[^}]*overscroll-behavior: none;/);
   assert.doesNotMatch(globals.match(/html\.sticker-tray-open body\s*\{[^}]*\}/)[0], /overflow:\s*hidden|position:\s*fixed/);
-  assert.match(css, /drop-shadow\(2px 3px 0 rgba\(0, 0, 0, \.22\)\)/, "Thumbnail shadows have a crisp offset with no blur");
+  assert.doesNotMatch(css, /drop-shadow|box-shadow|text-shadow/, "All sticker tray previews stay shadow-free");
   assert.match(mediaTop, /const editorOwnsPosition[\s\S]*?html\.sticker-tray-open/);
   assert.match(css, /brightness\(1\.06\)/);
   assert.match(page, /block\.src\.startsWith\("\/sticker-pack\/"\)[^\n]*brightness\(1\.06\)/);

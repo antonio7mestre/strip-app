@@ -5,15 +5,16 @@ import sharp from "sharp";
 import { stickersByCategory } from "../app/lib/sticker-pack.ts";
 
 const root = new URL("../", import.meta.url);
-test("Scrap includes the original 20 materials and four additional open frames", () => {
+test("Scrap preserves its original materials and adds 20 new pieces with the frame count capped", () => {
   const scraps = stickersByCategory("scrap");
-  assert.equal(scraps.length, 24);
-  assert.equal(scraps.filter(sticker => sticker.id.endsWith("frame")).length, 5);
+  assert.equal(scraps.length, 44);
+  assert.equal(scraps.filter(sticker => sticker.id.endsWith("frame")).length, 8);
   for (const id of ["clear-tape", "frosted-tape", "cobalt-tape", "gingham-tape", "notebook-scrap", "paperclip", "blank-ticket"]) {
     assert.ok(scraps.some(sticker => sticker.id === id), id);
   }
   const prompts = JSON.parse(readFileSync(new URL("docs/sticker-pack-scrap.prompts.json", root), "utf8"));
-  assert.deepEqual(prompts.assets.map(asset => asset.id), scraps.map(sticker => sticker.id));
+  const expansion = JSON.parse(readFileSync(new URL("docs/sticker-pack-expansion.prompts.json", root), "utf8"));
+  assert.deepEqual([...prompts.assets, ...expansion.assets.filter(asset => asset.category === "scrap")].map(asset => asset.id), scraps.map(sticker => sticker.id));
 });
 
 test("all Scrap assets retain alpha transparency and compact upload sizes", () => {

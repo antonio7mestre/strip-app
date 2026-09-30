@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 import { STICKER_PACK } from "../app/lib/sticker-pack.ts";
+import * as stickerOrigin from "../app/lib/sticker-origin.ts";
 
 const root = new URL("../", import.meta.url);
 function compile(source, globals = {}) {
@@ -16,7 +17,7 @@ function compile(source, globals = {}) {
 const security = compile(readFileSync(new URL("app/server/media-security.ts", root), "utf8"));
 function validator(route, name) {
   return compile(readFileSync(new URL(`app/api/${route}/route.ts`, root), "utf8") + `\nexports.validate = ${name};`, {
-    require: (id) => id.endsWith("media-security") ? security : {},
+    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : {},
   }).validate;
 }
 const draft = validator("drafts", "prepareDraftBlocks");
@@ -28,7 +29,7 @@ function client(fetch) {
 }
 const sticker = (asset, index = 0) => ({
   id: `sticker-${index}`, type: "sticker", src: asset.src, alt: asset.name,
-  mediaType: "image", x: 50, y: 520, width: 32,
+  mediaType: "image", stickerOrigin: "pack", x: 50, y: 520, width: 32,
 });
 const file = (src) => readFileSync(new URL(`public${src}`, root));
 const imageResponse = (src) => new Response(file(src), { headers: { "Content-Type": "image/webp" } });
@@ -50,6 +51,8 @@ test("all pack cutouts save and publish through the real server validators", asy
       assert.equal(saved.storedBlocks[i].x, original[i].x);
       assert.equal(saved.storedBlocks[i].y, original[i].y);
       assert.equal(saved.storedBlocks[i].width, original[i].width);
+      assert.equal(saved.storedBlocks[i].stickerOrigin, "pack");
+      assert.equal(published.storedBlocks[i].stickerOrigin, "pack");
     }
     const restored = original.map((block) => ({ ...block, src: `/api/drafts/draft-qa/media/${block.id}` }));
     const resaved = draft("owner-qa", "draft-qa", await prepare(restored));
@@ -91,4 +94,22 @@ test("draft autosave, legacy migration and publishing all prepare pack media", (
   assert.match(page, /prepareStickerUploads\(blocks\)\.then/);
   assert.match(page, /const uploadBlocks = await prepareStickerUploads\(blocks\)/);
   assert.equal((page.match(/blocks: uploadBlocks/g) ?? []).length, 3);
+});
+
+test("saving and publishing preserve valid sticker origins and ignore unrecognized ones", () => {
+  for (const value of ["upload", "pack", "shape", undefined, "invalid", { type: "pack" }]) {
+    const block = { ...sticker(STICKER_PACK[0]), src: "data:image/png;base64,AA==", stickerOrigin: value };
+    const expected = stickerOrigin.normalizeStickerOrigin(value);
+    assert.equal(draft("owner-qa", "draft-qa", [block]).storedBlocks[0].stickerOrigin, expected);
+    assert.equal(publish("owner-qa", "strip-qa", null, [block]).storedBlocks[0].stickerOrigin, expected);
+  }
+});
+
+test("legacy bundled sources gain pack provenance before upload without changing the editor source", async () => {
+  const prepare = client(async src => imageResponse(src));
+  const original = { ...sticker(STICKER_PACK[0]), stickerOrigin: undefined };
+  const [uploaded] = await prepare([original]);
+  assert.equal(uploaded.stickerOrigin, "pack");
+  assert.equal(original.stickerOrigin, undefined);
+  assert.equal(original.src, STICKER_PACK[0].src);
 });

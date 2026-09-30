@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronLeft, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
 import { PROFILE_COLORS, PROFILE_FONTS, profileInk, profileTitle } from "@/app/lib/profile";
 import { type useStripProfile } from "./useStripProfile";
+import { pageColorPickerCenter } from "@/app/lib/page-color-picker";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
 type Props = { controller: ProfileController; username: string | null };
@@ -162,8 +163,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
     changeColor(color);
   };
   const startPagePicker = () => {
-    const dockTop = document.querySelector<HTMLElement>(".profile-editor-dock")?.getBoundingClientRect().top ?? window.innerHeight;
-    const x = window.innerWidth / 2, y = Math.max(72, dockTop) / 2;
+    const { x, y } = pageColorPickerCenter(window);
     setWheel(false); setPickingPage(true);
     const color = sampleProfilePageColor(x, y) ?? activeColor;
     setPickerPoint({ x: x + window.scrollX, y: y + window.scrollY, color });

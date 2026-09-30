@@ -2708,23 +2708,6 @@ html.sticker-tray-open body {
 /* Use the editor's actual full-width color dock, outside the inset pack. */
 .composer-dock.shape-selector-dock { z-index: 40; }
 .shape-selector-dock .selector-scroll:not(.is-gradient-mode) { touch-action: pan-x; }
-.shape-selector-dock.is-sampling-page { transform: translateY(125%); pointer-events: none; }
-
-.shape-page-color-done {
-  position: fixed;
-  z-index: 85;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  min-height: 44px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #000000;
-  font-size: 14px;
-  font-weight: 750;
-  box-shadow: 0 3px 10px rgb(0 0 0 / 25%);
-}
 
 .main-composer-dock.is-entering-editor {
   animation: editor-dock-enter 340ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
@@ -4412,6 +4395,11 @@ html.page-color-picking * {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+}
+
+/* The page-anchored handle can scroll under the dock, never over its controls. */
+html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
+  z-index: 81;
 }
 
 .page-color-picker-indicator {

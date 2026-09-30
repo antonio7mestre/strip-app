@@ -54,11 +54,14 @@ import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
+import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { initialPackStickerWidth, packStickerForSource, type StickerAsset } from "@/app/lib/sticker-pack";
 import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
+import { isCoverMedia } from "@/app/lib/cover-media";
+import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
@@ -81,6 +84,7 @@ import {
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { installEndingContact } from "@/app/lib/ending-contact";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
+import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { profileCoverOutline } from "@/app/lib/profile";
@@ -128,6 +132,7 @@ type StickerBlock = {
   src: string;
   alt: string;
   mediaType?: "image" | "video";
+  stickerOrigin?: StickerOrigin;
   x: number;
   y: number;
   width: number;
@@ -1320,7 +1325,6 @@ function TextStyleSelector({
   const fontSizeRepeatDelayRef = useRef<number | null>(null);
   const fontSizeRepeatIntervalRef = useRef<number | null>(null);
   const fontSizeDidRepeatRef = useRef(false);
-  const pageColorPointerIdRef = useRef<number | null>(null);
   const onChangeRef = useRef(onChange);
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
   const [pageColorMode, setPageColorMode] = useState<TextTool | null>(null);
@@ -1357,7 +1361,6 @@ function TextStyleSelector({
 
   useEffect(() => {
     if (!visible || pageColorMode !== tool || tool === "font") return;
-    const root = document.documentElement;
     const pausedVideos = Array.from(document.querySelectorAll<HTMLVideoElement>("video")).map(
       (video) => ({ video, wasPlaying: !video.paused }),
     );
@@ -1365,7 +1368,6 @@ function TextStyleSelector({
       cachePageColorVideoFrame(video);
       video.pause();
     });
-    root.classList.add("page-color-picking");
     const focusedTextField = document.activeElement;
     if (
       (focusedTextField instanceof HTMLInputElement ||
@@ -1379,14 +1381,6 @@ function TextStyleSelector({
     }
     window.getSelection()?.removeAllRanges();
 
-    const targetIsPickerControl = (event: Event) =>
-      event.target instanceof Element &&
-      Boolean(event.target.closest(".selector-dock, .block-controls"));
-    const preventTextSelection = (event: Event) => event.preventDefault();
-    const pickerIndicatorForEvent = (event: Event) =>
-      event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".page-color-picker-indicator")
-        : null;
     const sampleAtPoint = (clientX: number, clientY: number) => {
       const color = samplePageColorAtPoint(clientX, clientY);
       if (!color) return;
@@ -1407,78 +1401,12 @@ function TextStyleSelector({
         tool === "background" ? { backgroundColor: color } : { textColor: color },
       );
     };
-    const sampleAtPointer = (event: PointerEvent) => {
-      sampleAtPoint(event.clientX, event.clientY);
-    };
-    const handlePointerDown = (event: PointerEvent) => {
-      if (targetIsPickerControl(event)) return;
-      const pickerIndicator = pickerIndicatorForEvent(event);
-      if (!pickerIndicator) return;
-      if (event.pointerType === "mouse" && event.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      pickerIndicator.setPointerCapture(event.pointerId);
-      pageColorPointerIdRef.current = event.pointerId;
-      setPageColorDragging(true);
-      sampleAtPointer(event);
-    };
-    const handlePointerMove = (event: PointerEvent) => {
-      if (pageColorPointerIdRef.current !== event.pointerId) return;
-      event.preventDefault();
-      event.stopPropagation();
-      sampleAtPointer(event);
-    };
-    const handlePointerUp = (event: PointerEvent) => {
-      if (pageColorPointerIdRef.current !== event.pointerId) return;
-      event.preventDefault();
-      event.stopPropagation();
-      sampleAtPointer(event);
-      pageColorPointerIdRef.current = null;
-      setPageColorDragging(false);
-    };
-    const handlePointerCancel = (event: PointerEvent) => {
-      if (pageColorPointerIdRef.current === event.pointerId) {
-        pageColorPointerIdRef.current = null;
-        setPageColorDragging(false);
-      }
-    };
-    const handleLostPointerCapture = (event: PointerEvent) => {
-      if (pageColorPointerIdRef.current === event.pointerId) {
-        pageColorPointerIdRef.current = null;
-        setPageColorDragging(false);
-      }
-    };
-    // Mobile Safari can still scroll a captured pointer's ancestor. Only the
-    // active picker drag owns touch movement; normal page scrolling stays native.
-    const preventPickerTouchScroll = (event: TouchEvent) => {
-      if (pageColorPointerIdRef.current !== null && event.cancelable) event.preventDefault();
-    };
-    document.addEventListener("pointerdown", handlePointerDown, {
-      capture: true,
-      passive: false,
+    const stopDragging = installPageColorDrag({
+      onSample: sampleAtPoint,
+      onDraggingChange: setPageColorDragging,
     });
-    document.addEventListener("pointermove", handlePointerMove, {
-      capture: true,
-      passive: false,
-    });
-    document.addEventListener("pointerup", handlePointerUp, {
-      capture: true,
-      passive: false,
-    });
-    document.addEventListener("pointercancel", handlePointerCancel, true);
-    document.addEventListener("lostpointercapture", handleLostPointerCapture, true);
-    document.addEventListener("touchmove", preventPickerTouchScroll, { capture: true, passive: false });
-    document.addEventListener("selectstart", preventTextSelection, true);
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("pointermove", handlePointerMove, true);
-      document.removeEventListener("pointerup", handlePointerUp, true);
-      document.removeEventListener("pointercancel", handlePointerCancel, true);
-      document.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
-      document.removeEventListener("touchmove", preventPickerTouchScroll, true);
-      document.removeEventListener("selectstart", preventTextSelection, true);
-      pageColorPointerIdRef.current = null;
-      root.classList.remove("page-color-picking");
+      stopDragging();
       pausedVideos.forEach(({ video, wasPlaying }) => {
         pageColorVideoFrames.delete(video);
         if (wasPlaying) void video.play().catch(() => {});
@@ -1610,15 +1538,7 @@ function TextStyleSelector({
     document
       .querySelectorAll<HTMLVideoElement>("video")
       .forEach(cachePageColorVideoFrame);
-    const viewport = window.visualViewport;
-    const viewportLeft = viewport?.offsetLeft ?? 0;
-    const viewportTop = viewport?.offsetTop ?? 0;
-    const viewportWidth = viewport?.width ?? window.innerWidth;
-    const dockTop =
-      document.querySelector<HTMLElement>(".selector-dock")?.getBoundingClientRect().top ??
-      viewportTop + (viewport?.height ?? window.innerHeight);
-    const x = viewportLeft + viewportWidth / 2;
-    const y = viewportTop + Math.max(72, dockTop - viewportTop) / 2;
+    const { x, y } = pageColorPickerCenter(window);
     const color = samplePageColorAtPoint(x, y) ?? activeColor;
     const nextPoint = {
       x: x + window.scrollX,
@@ -3704,11 +3624,7 @@ export default function Home() {
         scrollTopBeforeKeyboard = null;
         return;
       }
-      const obscuredHeight = Math.max(
-        0,
-        layoutHeight - (viewport.height + viewport.offsetTop),
-      );
-      const keyboardInset = textIsFocused && obscuredHeight > 80 ? obscuredHeight : 0;
+      const keyboardInset = keyboardInsetForViewport(layoutHeight, viewport.height, textIsFocused);
       const keyboardIsOpen = keyboardInset > 0;
       root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
       root.classList.toggle("keyboard-open", keyboardIsOpen);
@@ -4153,6 +4069,7 @@ export default function Home() {
     src: string,
     alt: string,
     mediaType: "image" | "video" = "image",
+    stickerOrigin: StickerOrigin = "upload",
   ) => {
     if (!hasStickerAnchorBlock) {
       setNotice("Add a text or image block before adding a sticker.");
@@ -4173,6 +4090,7 @@ export default function Home() {
         src,
         alt,
         mediaType,
+        stickerOrigin,
         ...placement,
         // Keep newly added tall pack objects proportional on the canvas, too.
         // Existing user-resized stickers retain their saved dimensions.
@@ -4213,14 +4131,14 @@ export default function Home() {
   };
 
   const addStickerFromPack = (sticker: StickerAsset) => {
-    placeSticker(sticker.src, sticker.name);
+    placeSticker(sticker.src, sticker.name, "image", "pack");
     setStickerPickerOpen(false);
   };
 
   const addStickerFromShape = async (shape: ShapeSticker, color: string) => {
     try {
       const source = await renderShapeSticker(shape, color);
-      placeSticker(source, `${shape.name} shape`);
+      placeSticker(source, `${shape.name} shape`, "image", "shape");
       setStickerPickerOpen(false);
     } catch {
       setNotice("Couldn’t add that shape. Try again.");
@@ -4442,9 +4360,7 @@ export default function Home() {
   }, [blocks, editingTextBlockId, selectedBlockId, view]);
   const pendingDeleteBlock = blocks.find((block) => block.id === pendingDeleteId);
   const visualCoverBlocks = blocks.filter(
-    (block): block is ImageBlock | StickerBlock =>
-      block.type === "image" ||
-      (block.type === "sticker" && block.mediaType !== "video"),
+    (block): block is ImageBlock | StickerBlock => isCoverMedia(block),
   );
   const usedCoverColors = Array.from(
     new Set(
