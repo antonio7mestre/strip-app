@@ -18,7 +18,8 @@ test("only intentional tool-size changes animate, not Safari's scroll-driven doc
 test("browser chrome cancels instantly between bottom, height and padding at every tray size", () => {
   assert.match(css, /bottom: calc\(-180px - var\(--dock-browser-extension\)\)/);
   assert.match(editor, /calc\(var\(--sticker-dock-visible-height\) \+ 180px \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)\)/);
-  assert.match(css, /182px \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)/);
+  assert.match(css, /180px \+ var\(--dock-bottom-gap\) \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)/);
+  assert.match(css, /--dock-bottom-gap: 2px/);
   for (const visible of [64, 80, 320, 560, 720]) {
     for (const safeArea of [0, 21, 34]) {
       const tops = [0, 8, 42, 96, 120, 96, 42, 0].map(extension => {

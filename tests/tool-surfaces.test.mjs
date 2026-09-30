@@ -38,7 +38,7 @@ test("the join fits the same tray width and does not cover its outline", () => {
 
 test("all bottom bars share one compact shadow instead of per-page treatments", () => {
   assert.match(rule(":root"), /--bottom-bar-shadow: 0 -4px 12px -4px rgba\(0, 0, 0, 0\.18\)/);
-  for (const selector of [".composer-dock", ".strip-end-sheet"]) {
+  for (const selector of [".composer-dock", ".strip-end-sheet-surface"]) {
     assert.match(rule(selector), /box-shadow: var\(--bottom-bar-shadow\)/, selector);
   }
   // These variants must inherit the base shadow, including during transitions.
@@ -52,10 +52,17 @@ test("all bottom bars share one compact shadow instead of per-page treatments", 
   }
 });
 
-test("published shadow extends above the bar without enlarging the scroll surface", () => {
+test("reader shadow extends above the bar and its white paint seals the bottom edge", () => {
   const footer = rule(".published-bottom-sheet");
   assert.match(footer, /overflow: visible/);
   assert.doesNotMatch(footer, /clip-path:|contain:|filter:|margin|padding/);
-  assert.match(rule(".strip-end-sheet"), /box-shadow: var\(--bottom-bar-shadow\)/,
+  assert.match(rule(".strip-end-sheet-surface"), /box-shadow: var\(--bottom-bar-shadow\)/,
     "published and preview endings share the same shadow");
+  assert.match(rule(".strip-end-sheet-surface"), /clip-path: inset\(-24px 0 0\)/,
+    "only the lower shadow is cut so it cannot draw a line into the safe area");
+  assert.match(rule(".strip-end-sheet-surface"), /bottom: calc\(-1 \* var\(--ending-paint-overlap\)\)/,
+    "white paint overlaps Safari's fractional document boundary");
+  assert.match(rule(".strip-end-sheet-corner-fill"), /z-index: 0/);
+  assert.match(rule(".strip-end-sheet-surface"), /z-index: 1/);
+  assert.match(rule(".strip-ending-card-inner"), /z-index: 2/);
 });

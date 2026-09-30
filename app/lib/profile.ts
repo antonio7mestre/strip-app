@@ -19,10 +19,11 @@ export type StripProfile = {
   revision: number;
 };
 export const DEFAULT_PROFILE: StripProfile = {
-  title: "", font: "letter", background: "#000000", accent: "#3155FF",
+  title: "", font: "letter", background: "#000000", accent: "#FFFFFF",
   photoUrl: null, revision: 0,
 };
 export const PROFILE_COLORS = [
+  { name: "White", value: "#FFFFFF" },
   { name: "Black", value: "#000000" }, { name: "Acid", value: "#8ACE00" },
   { name: "Hot pink", value: "#FF4FA3" }, { name: "Chrome", value: "#D9D9D9" },
   { name: "Electric blue", value: "#3155FF" }, { name: "Laser violet", value: "#7A2CFF" },
@@ -30,13 +31,42 @@ export const PROFILE_COLORS = [
   { name: "Pink", value: "#FF8CCC" }, { name: "Acid yellow", value: "#D7FF00" },
 ] as const;
 
-export function profileInk(color: string) {
+function profileLuminance(color: string) {
   const channels = color.slice(1).match(/.{2}/g)!.map((part) => {
     const value = parseInt(part, 16) / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   });
-  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  return luminance > 0.179 ? "#000000" : "#FFFFFF";
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+export function profileInk(color: string) {
+  return profileLuminance(color) > 0.179 ? "#000000" : "#FFFFFF";
+}
+
+export const PROFILE_COLOR_ERROR = "Change colors so text is readable";
+
+export function profileContrast(background: string, text: string) {
+  const a = profileLuminance(background), b = profileLuminance(text);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+export function profileColorsReadable(profile: Pick<StripProfile, "background" | "accent">) {
+  return profileContrast(profile.background, profile.accent) >= 4.5;
+}
+
+/** Older profiles used accent only on buttons, so they may need safe reading ink.
+ * Editing always previews the exact choice, even before it passes Save. */
+export function profileTextColor(profile: Pick<StripProfile, "background" | "accent">, editing = false) {
+  return editing || profileColorsReadable(profile) ? profile.accent : profileInk(profile.background);
+}
+
+/** Only neutral ink follows the background. A chosen color belongs to its owner. */
+export function applyProfileChanges(profile: StripProfile, changes: Partial<StripProfile>): StripProfile {
+  const next = { ...profile, ...changes };
+  if (changes.background && changes.accent === undefined && /^#(?:000000|ffffff)$/i.test(profile.accent)) {
+    next.accent = profileInk(changes.background);
+  }
+  return next;
 }
 
 /** Preserve a cover's edge when it blends into the profile canvas. */

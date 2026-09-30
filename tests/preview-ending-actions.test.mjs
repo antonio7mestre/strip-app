@@ -15,7 +15,7 @@ function find(predicate) {
 }
 const declaration = name => find(node => ts.isVariableDeclaration(node) && node.name.getText(tree) === name).getText(tree);
 const code = ts.transpileModule([
-  "toggleInlinePreview", "handlePreviewEndingEdit", "handlePreviewEndingShare",
+  "toggleInlinePreview", "handlePreviewEndingEdit", "handlePreviewEndingPublish",
 ].map(name => `export const ${declaration(name)};`).join("\n"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText;
@@ -52,6 +52,7 @@ function fixture({ view = "edit", inlinePreview = true, historyEntry = true } = 
     setInlinePreview: update => calls.push(["preview", update(inlinePreview)]),
     setActiveTextTool: () => {}, setEditingTextBlockId: () => {},
     setNotice: message => calls.push(["notice", message]),
+    continueToPublish: () => calls.push("publish-setup"),
     changeViewWithDockTransition: view => calls.push(["view", view]),
   });
   return { ...exports, calls, lock, scrollRef, restoration, history };
@@ -89,18 +90,24 @@ test("standalone preview uses its existing editor transition", () => {
   assert.deepEqual(f.calls, [["notice", ""], ["view", "edit"]]);
 });
 
-test("Share still only warns, without changing history, preview or selection", () => {
-  const f = fixture();
-  f.handlePreviewEndingShare();
-  assert.deepEqual(f.calls, [["notice", "Publish to use these buttons."]]);
-  assert.equal(f.lock.current, null);
+test("preview Publish enters the existing validated cover flow", () => {
+  for (const view of ["edit", "preview"]) {
+    const f = fixture({ view });
+    f.handlePreviewEndingPublish();
+    assert.deepEqual(f.calls, ["publish-setup"]);
+    assert.equal(f.lock.current, null);
+  }
+  const published = fixture({ view: "published", inlinePreview: false });
+  published.handlePreviewEndingPublish();
+  assert.deepEqual(published.calls, []);
 });
 
-test("actual preview buttons use separate edit and share actions", () => {
-  const node = find(node => ts.isJsxSelfClosingElement(node) && node.tagName.getText(tree) === "StripEndActions" && node.attributes.getText(tree).includes('primaryLabel="Edit this Strip"'));
+test("actual preview buttons use Edit Strip and Publish, never Send", () => {
+  const node = find(node => ts.isJsxSelfClosingElement(node) && node.tagName.getText(tree) === "StripEndActions" && node.attributes.getText(tree).includes('primaryLabel="Edit Strip"'));
   const props = node.attributes.getText(tree);
   assert.match(props, /onPrimary=\{handlePreviewEndingEdit\}/);
-  assert.match(props, /onShare=\{handlePreviewEndingShare\}/);
+  assert.match(props, /onPublish=\{handlePreviewEndingPublish\}/);
+  assert.doesNotMatch(props, /onShare/);
   assert.doesNotMatch(source, /handlePreviewEndingAction/);
   const published = fixture({ view: "published", inlinePreview: false });
   published.handlePreviewEndingEdit();

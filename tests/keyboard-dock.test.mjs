@@ -81,6 +81,18 @@ test("dock pan follows dismissal and focus transfers without a premature reset",
  }finally{f.cleanup();}
 });
 
+test("the in-place profile title keeps the same behind-keyboard dock behavior",()=>{
+ const f=viewportFixture();
+ try{
+  document.activeElement={matches:selector=>selector.includes('[contenteditable="plaintext-only"]')};
+  f.events.get("focusin")();
+  f.pan(120);
+  assert.equal(f.offset(),120);
+  f.focus(false);f.pan(0);
+  assert.equal(f.offset(),0);
+ }finally{f.cleanup();}
+});
+
 test("pinch zoom and negative overscroll are not treated as keyboard pan; cleanup removes listeners",()=>{
  const f=viewportFixture();
  try{

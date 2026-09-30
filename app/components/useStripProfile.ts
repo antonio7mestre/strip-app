@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { DEFAULT_PROFILE, type StripProfile } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, applyProfileChanges, profileColorsReadable, PROFILE_COLOR_ERROR, type StripProfile } from "@/app/lib/profile";
 
 export function useStripProfile(userId: string | undefined) {
   const [owner, setOwner] = useState<string>();
@@ -50,6 +50,7 @@ export function useStripProfile(userId: string | undefined) {
   }, []);
   const save = async () => {
     if (!draft || saving.current || preparingPhoto || !userId) return;
+    if (!profileColorsReadable(draft)) { setError(PROFILE_COLOR_ERROR); return; }
     const savingUser = userId;
     saving.current = true;
     setPending(true); setError("");
@@ -67,7 +68,10 @@ export function useStripProfile(userId: string | undefined) {
       if (currentUser.current === savingUser) setError(cause instanceof Error ? cause.message : "Could not save your profile.");
     } finally { saving.current = false; setPending(false); }
   };
-  const update = (changes: Partial<StripProfile>) => setDraft((value) => value ? { ...value, ...changes } : value);
+  const update = (changes: Partial<StripProfile>) => {
+    setError("");
+    setDraft((value) => value ? applyProfileChanges(value, changes) : value);
+  };
   const changePhoto = (value: string | null) => { setPhoto(value); update({ photoUrl: value }); };
   const dirty = draft !== null && (
     draft.title !== saved.title || draft.font !== saved.font ||

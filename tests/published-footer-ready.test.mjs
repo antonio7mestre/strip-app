@@ -6,6 +6,7 @@ import { runInNewContext } from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 
 const require = createRequire(import.meta.url);
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -30,11 +31,12 @@ function render({ ready = false, owner = false, last = "image", username = "anto
   const calls = [];
   const icon = () => createElement("svg", { "aria-hidden": true });
   runInNewContext(compiled, {
-    require, exports, Pencil: icon, Plus: icon, Send: icon,
+    require, exports, Pencil: icon, Plus: icon, Send: icon, StripEndingSheet,
     publishedContentCanReveal: ready,
     publishedEndsWithMedia: last !== "text",
     publishedEndsWithVideo: last === "video",
     publishedEndsWithText: last === "text",
+    trailingPublishedBlock: { backgroundColor: "#9772FF" }, DEFAULT_BACKGROUND: "#000000",
     publishedViewerCanEdit: owner,
     openedPublishedStrip: { username },
     openingPublishedEditor: false,
@@ -66,7 +68,7 @@ test("owner and visitor footers are complete from first render for every last-bl
       assert.equal((footer(loading.html).match(/<button/g) ?? []).length, 2);
       assert.ok(loading.html.includes(owner ? "Edit this Strip" : "Make your own Strip"));
       assert.match(loading.html, /Last block<\/div><footer/);
-      assert.equal(loading.element.props.children[1].type, "footer", "always a direct in-flow child");
+      assert.equal(loading.element.props.children[1].type, StripEndingSheet, "always the shared in-flow footer");
       assert.match(footer(loading.html), /A Strip by <span>@antonio<\/span>/);
     }
   }
@@ -93,7 +95,7 @@ test("prepainted content remains inaccessible until the existing loading gate op
   assert.doesNotMatch(ready, / inert=/);
   for (const owner of [false, true]) {
     const result = render({ owner, ready: true });
-    const actions = result.element.props.children[1].props.children[1];
+    const actions = result.element.props.children[1].props.children;
     actions.props.onPrimary();
     actions.props.onShare();
     assert.deepEqual(result.calls, [owner ? "edit" : "create", "share"]);
@@ -119,7 +121,8 @@ test("only the small footer gets a permanent rendering layer, without moving or 
   assert.doesNotMatch(footer, /animation:|transition:|opacity:|contain:|height:|margin:|padding:|position:/);
   const shared = rule(".strip-end-sheet");
   assert.match(shared, /position: relative/);
-  assert.match(shared, /background: var\(--ending-background/);
+  assert.match(shared, /background: transparent/);
+  assert.match(rule(".strip-end-sheet-surface"), /background: var\(--ending-background/);
   assert.match(shared, /border-radius: var\(--iphone-panel-radius\)/);
 });
 

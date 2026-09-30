@@ -22,8 +22,9 @@ function fixture(legacy = false) {
   const events = new Map(), viewportEvents = new Map(), timers = new Map();
   const classes = new Set(), styles = new Map(), scrolls = [], corrections = [];
   let clock = 0, sequence = 0;
-  class Textarea { closest() { return null; } }
-  class Input { type = "text"; closest() { return null; } }
+  class Element { isContentEditable = false; closest() { return null; } }
+  class Textarea extends Element {}
+  class Input extends Element { type = "text"; }
   const document = { activeElement: null, documentElement: {
     style: { setProperty: (key, value) => styles.set(key, value), removeProperty: key => styles.delete(key) },
     classList: {
@@ -47,7 +48,7 @@ function fixture(legacy = false) {
     "(textIsFocused && layoutHeight - viewport.height - viewport.offsetTop > 80 ? layoutHeight - viewport.height - viewport.offsetTop : 0)",
   ) : compiled;
   runInNewContext(script, {
-    exports, document, window, HTMLTextAreaElement: Textarea, HTMLInputElement: Input,
+    exports, document, window, HTMLElement: Element, HTMLTextAreaElement: Textarea, HTMLInputElement: Input,
     KEYBOARD_SCROLL_SETTLE_MS: 90, KEYBOARD_SCROLL_RELEASE_MS: 420, keyboardInsetForViewport,
     keepFocusedTextBlockVisible: behavior => corrections.push(behavior),
   });

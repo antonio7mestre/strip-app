@@ -50,6 +50,7 @@ import {
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
+import { StripEndingSheet } from "@/app/components/StripEndingSheet";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
@@ -83,11 +84,11 @@ import {
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
-import { installEndingContact } from "@/app/lib/ending-contact";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
+import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
 
@@ -541,51 +542,6 @@ function nearestTextBlock(blocks: StripBlock[], insertionIndex: number) {
   return below.block;
 }
 
-function hslToHex(hue: number, saturation: number, lightness: number) {
-  const s = saturation / 100;
-  const l = lightness / 100;
-  const chroma = (1 - Math.abs(2 * l - 1)) * s;
-  const segment = hue / 60;
-  const secondary = chroma * (1 - Math.abs((segment % 2) - 1));
-  let red = 0;
-  let green = 0;
-  let blue = 0;
-
-  if (segment < 1) [red, green, blue] = [chroma, secondary, 0];
-  else if (segment < 2) [red, green, blue] = [secondary, chroma, 0];
-  else if (segment < 3) [red, green, blue] = [0, chroma, secondary];
-  else if (segment < 4) [red, green, blue] = [0, secondary, chroma];
-  else if (segment < 5) [red, green, blue] = [secondary, 0, chroma];
-  else [red, green, blue] = [chroma, 0, secondary];
-
-  const match = l - chroma / 2;
-  return `#${[red, green, blue]
-    .map((channel) => Math.round((channel + match) * 255).toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-function hexToHsl(hex: string) {
-  const [red, green, blue] = hex
-    .replace("#", "")
-    .match(/.{2}/g)!
-    .map((value) => Number.parseInt(value, 16) / 255);
-  const maximum = Math.max(red, green, blue);
-  const minimum = Math.min(red, green, blue);
-  const delta = maximum - minimum;
-  let hue = 0;
-
-  if (delta !== 0) {
-    if (maximum === red) hue = 60 * (((green - blue) / delta) % 6);
-    else if (maximum === green) hue = 60 * ((blue - red) / delta + 2);
-    else hue = 60 * ((red - green) / delta + 4);
-  }
-
-  if (hue < 0) hue += 360;
-  const lightness = (maximum + minimum) / 2;
-  const saturation =
-    delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
-  return { hue, saturation: saturation * 100, lightness: lightness * 100 };
-}
 
 const pageColorVideoFrames = new WeakMap<HTMLVideoElement, HTMLCanvasElement>();
 
@@ -657,15 +613,15 @@ function StripEndActions({
   primaryPending = false,
   onPrimary,
   onShare,
+  onPublish,
 }: {
   primaryAction: "edit" | "create";
   primaryLabel: string;
   primaryPending?: boolean;
   onPrimary: () => void;
-  onShare: () => void;
-}) {
+} & ({ onShare: () => void; onPublish?: never } | { onPublish: () => void; onShare?: never })) {
   return (
-    <div className="strip-end-sheet-controls">
+    <div className={`strip-end-sheet-controls${onPublish ? " is-preview" : ""}`}>
       <button
         className={`strip-end-sheet-primary${primaryPending ? " is-opening" : ""}`}
         type="button"
@@ -679,7 +635,7 @@ function StripEndActions({
       >
         {primaryPending ? (
           <span className="strip-end-sheet-spinner" aria-hidden="true" />
-        ) : primaryAction === "edit" ? (
+        ) : onPublish ? null : primaryAction === "edit" ? (
           <Pencil aria-hidden="true" />
         ) : (
           <Plus aria-hidden="true" />
@@ -687,17 +643,17 @@ function StripEndActions({
         <span aria-live="polite">{primaryPending ? "Opening editor…" : primaryLabel}</span>
       </button>
       <button
-        className="strip-end-sheet-share"
+        className={onPublish ? "strip-end-sheet-primary strip-end-sheet-publish" : "strip-end-sheet-share"}
         type="button"
         disabled={primaryPending}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
-          onShare();
+          (onPublish ?? onShare)();
         }}
-        aria-label="Share this Strip"
+        aria-label={onPublish ? undefined : "Share this Strip"}
       >
-        <Send aria-hidden="true" />
+        {onPublish ? "Publish" : <Send aria-hidden="true" />}
       </button>
     </div>
   );
@@ -1262,15 +1218,6 @@ function TextStyleSelector({
   pageColorPointRef.current = pageColorPoint;
   fontSizeRef.current = fontSize;
   const activeColor = tool === "background" ? background : textColor;
-  const decodedGradientPosition = hexToHsl(activeColor);
-  const [gradientHue, setGradientHue] = useState(decodedGradientPosition.hue);
-  const gradientPosition = {
-    ...decodedGradientPosition,
-    hue:
-      decodedGradientPosition.saturation > 0
-        ? decodedGradientPosition.hue
-        : gradientHue,
-  };
 
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
@@ -1358,37 +1305,6 @@ function TextStyleSelector({
     [],
   );
 
-  useEffect(() => {
-    if (decodedGradientPosition.saturation > 0) {
-      setGradientHue(decodedGradientPosition.hue);
-    }
-  }, [activeColor, decodedGradientPosition.hue, decodedGradientPosition.saturation]);
-
-  const applyGradientPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const horizontal = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
-    const vertical = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
-    const nextHue = horizontal * 360;
-    setGradientHue(nextHue);
-    const nextColor = hslToHex(nextHue, 100, (1 - vertical) * 100);
-    onChange(tool === "background" ? { backgroundColor: nextColor } : { textColor: nextColor });
-  };
-
-  const handleGradientKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    let nextHue = gradientPosition.hue;
-    let nextLightness = gradientPosition.lightness;
-    if (event.key === "ArrowLeft") nextHue -= 5;
-    else if (event.key === "ArrowRight") nextHue += 5;
-    else if (event.key === "ArrowUp") nextLightness += 5;
-    else if (event.key === "ArrowDown") nextLightness -= 5;
-    else return;
-    event.preventDefault();
-    nextHue = (nextHue + 360) % 360;
-    nextLightness = Math.min(100, Math.max(0, nextLightness));
-    setGradientHue(nextHue);
-    const nextColor = hslToHex(nextHue, 100, nextLightness);
-    onChange(tool === "background" ? { backgroundColor: nextColor } : { textColor: nextColor });
-  };
 
   const changeFontSize = (direction: -1 | 1) => {
     const currentSize = fontSizeRef.current;
@@ -1513,36 +1429,9 @@ function TextStyleSelector({
         }
       >
         {gradientMode === tool && tool !== "font" ? (
-          <div
-            className="full-gradient-picker"
-            role="slider"
-            tabIndex={visible ? 0 : -1}
-            aria-label={tool === "background" ? "Choose any background color" : "Choose any text color"}
-            aria-valuetext={activeColor}
-            onPointerDown={(event) => {
-              event.currentTarget.setPointerCapture(event.pointerId);
-              applyGradientPoint(event);
-            }}
-            onPointerMove={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) applyGradientPoint(event);
-            }}
-            onPointerUp={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }
-            }}
-            onKeyDown={handleGradientKey}
-          >
-            <span
-              className="gradient-picker-value"
-              style={{
-                left: `${Math.min(94, Math.max(6, (gradientPosition.hue / 360) * 100))}%`,
-                top: `${Math.min(72, Math.max(28, 100 - gradientPosition.lightness))}%`,
-                backgroundColor: activeColor,
-              }}
-              aria-hidden="true"
-            />
-          </div>
+          <GradientColorPicker color={activeColor} visible={visible}
+            label={tool === "background" ? "Choose any background color" : "Choose any text color"}
+            onChange={(color) => onChange(tool === "background" ? { backgroundColor: color } : { textColor: color })} />
         ) : null}
 
         {gradientMode !== tool && !pageColorPickerActive && tool === "font"
@@ -3514,6 +3403,7 @@ export default function Home() {
       const activeElement = document.activeElement;
       if (activeElement?.closest(".auth-shell")) return false;
       return (
+        (activeElement instanceof HTMLElement && activeElement.isContentEditable) ||
         activeElement instanceof HTMLTextAreaElement ||
         (activeElement instanceof HTMLInputElement &&
           (activeElement.type === "text" || activeElement.type === "tel"))
@@ -6311,8 +6201,10 @@ export default function Home() {
     }
   };
 
-  const handlePreviewEndingShare = () => {
-    setNotice("Publish to use these buttons.");
+  const handlePreviewEndingPublish = () => {
+    if (view === "preview" || (view === "edit" && inlinePreview)) {
+      continueToPublish();
+    }
   };
 
   const renderStrip = (
@@ -6753,31 +6645,18 @@ export default function Home() {
         );
         })}
         {showsEndingCard ? (
-        <section
-          ref={installEndingContact}
-          className="strip-block strip-ending-card strip-end-sheet"
-          aria-label="Strip actions preview"
-          style={
-            {
-              "--ending-background": "#FFFFFF",
-              "--ending-corner-color": endingFollowsText
-                ? trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND
-                : undefined,
-              "--ending-foreground": "#000000",
-              "--ending-button": "#000000",
-              "--ending-button-foreground": "#FFFFFF",
-            } as CSSProperties
-          }
-        >
-          <div className="strip-ending-card-inner">
+          <StripEndingSheet
+            preview
+            username={authUser?.username}
+            cornerColor={endingFollowsText ? trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND : undefined}
+          >
             <StripEndActions
               primaryAction="edit"
-              primaryLabel="Edit this Strip"
+              primaryLabel="Edit Strip"
               onPrimary={handlePreviewEndingEdit}
-              onShare={handlePreviewEndingShare}
+              onPublish={handlePreviewEndingPublish}
             />
-          </div>
-        </section>
+          </StripEndingSheet>
         ) : null}
       </div>
     );
@@ -7134,7 +7013,7 @@ export default function Home() {
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
           }`}
-          style={profilePageStyle({ profile: visibleProfile })}
+          style={profilePageStyle({ profile: visibleProfile, editing: !viewingPublicProfile && stripProfile.editing })}
         >
           <section
             className={`strip-library ${legacyPageEnterClass}`}
@@ -7260,7 +7139,7 @@ export default function Home() {
               <div className="profile-empty-state">
                 <strong>A little space for your world.</strong>
                 <p>Your published Strips live here.</p>
-                {!stripProfile.editing ? <button type="button" onClick={beginNewStrip}><Plus aria-hidden="true" />Make your first Strip</button> : null}
+                <button type="button" disabled={stripProfile.editing} onClick={beginNewStrip}><Plus aria-hidden="true" />Make your first Strip</button>
               </div>
             ) : isHistory && libraryItems.length === 0 ? (
               <div className="library-empty-state">
@@ -7304,8 +7183,8 @@ export default function Home() {
 
           {/* Remove the fixed surface entirely: Safari retains its white
               edge paint even with visibility:hidden or an offscreen transform. */}
-          {!viewingPublicProfile && view === "library" && stripProfile.editing && !openingCover ?
-            <p className="profile-editor-hint">Tap element to edit</p> : null}
+          {!viewingPublicProfile && view === "library" && stripProfile.editing && !stripProfile.error && !openingCover ?
+            <p className="profile-editor-hint">Tap title to edit</p> : null}
           {!viewingPublicProfile && !openingCover ? <footer
             key="persistent-composer-dock"
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
@@ -7947,15 +7826,10 @@ export default function Home() {
               inert={!publishedContentCanReveal}
             >
               {renderStrip(false, publishedBlocks)}
-              <footer
-                className="published-bottom-sheet strip-end-sheet"
-                aria-label="Strip actions"
+              <StripEndingSheet
+                username={openedPublishedStrip?.username}
+                cornerColor={publishedEndsWithText ? trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND : undefined}
               >
-                <h2 className="published-bottom-sheet-title">
-                  {openedPublishedStrip?.username ? (
-                    <>A Strip by <span>@{openedPublishedStrip.username}</span></>
-                  ) : "Made with Strip"}
-                </h2>
                 <StripEndActions
                   primaryAction={publishedViewerCanEdit ? "edit" : "create"}
                   primaryPending={publishedViewerCanEdit && openingPublishedEditor}
@@ -7973,7 +7847,7 @@ export default function Home() {
                   }}
                   onShare={() => void sharePublishedStripFromReader()}
                 />
-              </footer>
+              </StripEndingSheet>
             </article>
             {notice ? <div className="notice">{notice}</div> : null}
           </main>

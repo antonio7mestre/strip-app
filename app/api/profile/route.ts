@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { isSameOrigin, requireAuthUser, consumeRateLimit } from "@/app/server/auth";
-import { validateProfile } from "@/app/lib/profile";
+import { validateProfile, profileColorsReadable, PROFILE_COLOR_ERROR } from "@/app/lib/profile";
 import { decodeProfilePhoto, readProfileInput, serializeProfile, type ProfileRow } from "@/app/server/profile";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,7 @@ export async function PUT(request: Request) {
   catch { return Response.json({ error: "Use a smaller photo and try again." }, { status: 400, headers }); }
   const profile = validateProfile(input);
   if (!profile) return Response.json({ error: "Check your profile and try again." }, { status: 400, headers });
+  if (!profileColorsReadable(profile)) return Response.json({ error: PROFILE_COLOR_ERROR }, { status: 400, headers });
   const photo = (input as Record<string, unknown>).photo;
   const bytes = photo === undefined || photo === null ? null : decodeProfilePhoto(photo);
   if (photo !== undefined && photo !== null && !bytes) {

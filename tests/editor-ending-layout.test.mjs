@@ -50,7 +50,8 @@ test("stickers leave the editor's content height unchanged; previews retain thei
 test("published sticker floors and editor toolbar clearance stay unchanged", () => {
   assert.equal(runInNewContext(minHeight, {stickerFloor: 180, view: "published", inlinePreview: false, isEditing: false}), "180px");
   assert.match(css, /\.editor-mode \.strip-canvas \{[^}]*padding-bottom: calc\(148px \+ env\(safe-area-inset-bottom\)\);/);
-  assert.match(css, /\.editor-mode \.strip-ending-card \{\s*min-height: 0;\s*padding-bottom: 12px;/);
+  assert.match(css, /\.strip-end-sheet \{[^}]*min-height: 0;[^}]*var\(--dock-bottom-gap\) - var\(--ending-paint-overlap\)/);
+  assert.doesNotMatch(css, /\.editor-mode \.strip-ending-card \{/);
 });
 
 test("keyboard scroll room stays below the ending instead of collapsing its auto margin", () => {

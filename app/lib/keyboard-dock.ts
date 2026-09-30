@@ -1,4 +1,4 @@
-const TEXT_ENTRY = 'textarea, input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="search"], input[type="password"], input[type="number"]';
+const TEXT_ENTRY = 'textarea, input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="search"], input[type="password"], input[type="number"], [contenteditable="true"], [contenteditable="plaintext-only"]';
 
 /** Cancel Safari's keyboard pan for docks only, without moving the text/caret. */
 export function installKeyboardDockPosition() {

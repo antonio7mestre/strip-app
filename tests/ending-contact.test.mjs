@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import test from "node:test";
 import {installEndingContact} from "../app/lib/ending-contact.ts";
 
-function fixture({ gap = 100, empty = false } = {}) {
+function fixture({ gap = 100, empty = false, published = false } = {}) {
   const callbacks = [], observers = [], events = new Map(), viewportEvents = new Map();
   class Observer {
     targets = [];
@@ -33,8 +33,8 @@ function fixture({ gap = 100, empty = false } = {}) {
     toggleAttribute: (name, on) => on ? attributes.add(name) : attributes.delete(name),
     removeAttribute: name => attributes.delete(name),
   };
-  const canvas = { children: [...(empty ? [] : [first]), ending] };
-  ending.parentElement = canvas;
+  const canvas = { children: [...(empty ? [] : [first]), ...(!published ? [ending] : [])], classList: { contains: name => name === "strip-canvas" } };
+  ending.parentElement = published ? { children: [canvas, ending], classList: { contains: () => false }, querySelector: () => canvas } : canvas;
   const dispose = installEndingContact(ending);
   return {
     canvas, ending, first, block, callbacks, observers, events, viewportEvents,
@@ -101,11 +101,16 @@ test("ref cleanup cancels observers, listeners, and late callbacks", () => {
   assert(f.observers.every(observer=>observer.targets.length===0));
 });
 
-test("only the preview card requires contact; the published in-flow footer is unchanged", () => {
+test("preview and published footers use the same contact-aware backing below the shadow", () => {
   const css = readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
-  const page = readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
-  assert.match(css,/\.strip-ending-card\[data-touches-block\]::after,/);
-  assert.doesNotMatch(css,/\.strip-canvas\.has-trailing-text > \.strip-ending-card::after/);
-  assert.match(css,/\.published-strip\.has-trailing-text > \.published-bottom-sheet::after/);
-  assert.match(page,/<section\s+ref=\{installEndingContact\}\s+className="strip-block strip-ending-card/);
+  const sheet = readFileSync(new URL("../app/components/StripEndingSheet.tsx",import.meta.url),"utf8");
+  assert.match(css,/\.strip-end-sheet\[data-touches-block\] > \.strip-end-sheet-corner-fill/);
+  assert.doesNotMatch(css,/\.published-bottom-sheet::after|\.strip-ending-card\[data-touches-block\]::after/);
+  assert.match(sheet,/<footer\s+ref=\{installEndingContact\}/);
+  const f = fixture({ published: true, gap: 0 });
+  try {
+    assert(f.touching());
+    f.setTop(280); f.resize(); assert(!f.touching());
+    f.canvas.children.push(f.block(280)); f.mutate(); assert(f.touching());
+  } finally { f.cleanup(); }
 });

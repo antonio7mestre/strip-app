@@ -99,7 +99,7 @@ test("profile settings persist and remain scoped to the authenticated owner", as
   const api = fixture();
   const get = () => api.GET(new Request("http://localhost:3035/api/profile"));
   assert.deepEqual((await (await get()).json()).profile, profile.DEFAULT_PROFILE);
-  const response = await api.PUT(request({ ...profile.DEFAULT_PROFILE, title: "My world", font: "serif", background: "#FF8CCC" }));
+  const response = await api.PUT(request({ ...profile.DEFAULT_PROFILE, title: "My world", font: "serif", background: "#FF8CCC", accent: "#000000" }));
   assert.equal(response.status, 200);
   assert.equal((await (await get()).json()).profile.title, "My world");
   api.asUser("two");
@@ -141,7 +141,7 @@ test("a profile photo is stored, retained on design edits, removed, and cleaned 
   assert.equal(api.objects.size, 1);
   const key = [...api.objects.keys()][0];
   assert.ok(key.startsWith("profiles/one/"));
-  const design = await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 1, background: "#FF8CCC" }));
+  const design = await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 1, background: "#FF8CCC", accent: "#000000" }));
   assert.equal(design.status, 200);
   assert.equal(api.objects.size, 1);
   assert.equal([...api.objects.keys()][0], key);
@@ -163,12 +163,14 @@ test("profile tools reuse the dock on the profile and preserve the main editor",
   const page = read("app/page.tsx");
   assert.match(page, /composer-dock app-navigation-dock.*profile-editor-dock/);
   assert.match(page, /view === "library" && stripProfile.editing \? <ProfileTools/);
-  assert.match(page, /<p className="profile-editor-hint">Tap element to edit<\/p>/);
+  assert.match(page, /<p className="profile-editor-hint">Tap title to edit<\/p>/);
   assert.match(page, /stripProfile.editing \|\| \(isDraft/);
   assert.match(page, /installKeyboardDockPosition/);
   const editor = read("app/components/ProfileEditor.tsx");
-  assert.match(editor, /aria-label="Profile title"/);
-  assert.match(editor, /<textarea ref=\{titleInput\}/);
+  assert.match(editor, /aria-label=\{editing \? "Profile title" : undefined\}/);
+  assert.match(editor, /<h1 ref=\{titleInput\}/);
+  assert.match(editor, /contentEditable=\{editing && !pending \? "plaintext-only" : false\}/);
+  assert.doesNotMatch(editor, /<textarea|style.height|scrollHeight/, "one unclipped title stays in flow across editing");
   assert.doesNotMatch(editor, /new ResizeObserver\(/, "resizing the title must not loop on its own parent");
   assert.doesNotMatch(editor, /profile-photo-input/);
   assert.match(editor, /Discard profile changes\?/);
@@ -188,9 +190,79 @@ test("profile edit tools keep mobile swipes inside the dock", () => {
   assert.match(css, /\.profile-mode\.is-profile-editing :is\(\.profile-editor-dock, \.profile-tools, \.profile-selector-row, \.profile-selector-scroll, \.profile-selector-row \*\)\s*\{ touch-action: pan-x; \}/);
   assert.match(css, /\.profile-mode\.is-profile-editing :is\(\.profile-tool-row, \.profile-tool-row \*, \.full-gradient-picker, \.full-gradient-picker \*\)\s*\{ touch-action: none; \}/);
   assert.match(css, /\.profile-selector-scroll\s*\{[^}]*overscroll-behavior: contain;/);
-  assert.match(css, /\.profile-tools \.selector-scroll\.is-gradient-mode\s*\{[^}]*position: relative;[^}]*height: 48px;/);
+  assert.match(css, /\.profile-tools\.is-gradient-picker\s*\{ position: static; animation: none; \}/);
+  assert.doesNotMatch(css, /\.profile-tools \.selector-scroll\.is-gradient-mode\s*\{|\.profile-selector-scroll \.full-gradient-picker\s*\{/);
   assert.match(editor, /return installPageColorDrag\(/);
   assert.match(editor, /onSample: \(x, y\) => samplePointRef\.current\(x, y\)/);
   assert.match(editor, /samplePointRef\.current = updatePickerPoint/);
-  assert.match(editor, /activePosition\.saturation > 0 \? activePosition\.hue : wheelHue/, "gray swatches retain the last selected wheel hue");
+  for (const source of [editor, read("app/page.tsx")]) assert.match(source, /<GradientColorPicker/, "both pickers share one gesture and rendering implementation");
+  assert.match(read("app/components/GradientColorPicker.tsx"), /decoded.saturation > 0 \? decoded.hue : lastHue/, "gray swatches retain the last selected wheel hue");
+});
+
+test("background changes only auto-flip pure black or white text", () => {
+  for (const accent of ["#000000", "#FFFFFF", "#ffffff"]) {
+    for (const { value: background } of profile.PROFILE_COLORS) {
+      const next = profile.applyProfileChanges({ ...profile.DEFAULT_PROFILE, accent }, { background });
+      assert.equal(next.accent, profile.profileInk(background));
+      assert.ok(profile.profileColorsReadable(next));
+    }
+  }
+  for (const accent of ["#3155FF", "#FFFFFE", "#000001", "#FF8CCC"]) {
+    assert.equal(profile.applyProfileChanges({ ...profile.DEFAULT_PROFILE, accent }, { background: "#FFFFFF" }).accent, accent);
+  }
+  assert.equal(profile.applyProfileChanges(profile.DEFAULT_PROFILE, { background: "#FFFFFF", accent: "#FF8CCC" }).accent, "#FF8CCC");
+  assert.equal(profile.applyProfileChanges(profile.DEFAULT_PROFILE, { title: "hello" }).accent, "#FFFFFF");
+});
+
+test("readability uses full contrast precision and allows non-neutral readable text", () => {
+  assert.equal(profile.profileContrast("#000000", "#FFFFFF"), 21);
+  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#767676" }), true);
+  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#777777" }), false);
+  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#3155FF" }), true);
+  assert.equal(profile.profileColorsReadable({ background: "#3155FF", accent: "#3155FF" }), false);
+  assert.ok(profile.profileColorsReadable(profile.DEFAULT_PROFILE));
+});
+
+test("unreadable combinations can be previewed but Save rejects them without writing", async () => {
+  const api = fixture();
+  const bad = { ...profile.DEFAULT_PROFILE, background: "#FFFFFF", accent: "#FF8CCC" };
+  assert.ok(profile.validateProfile(bad), "color controls permit any valid hex combination");
+  const result = await api.PUT(request(bad));
+  assert.equal(result.status, 400);
+  assert.equal((await result.json()).error, "Change colors so text is readable");
+  assert.equal(api.db.prepare("SELECT count(*) AS count FROM profiles").get().count, 0);
+  assert.equal(api.objects.size, 0);
+  assert.equal((await api.PUT(request({ ...bad, accent: "#3155FF" }))).status, 200);
+  const saved = api.db.prepare("SELECT * FROM profiles").get();
+  assert.equal((await api.PUT(request({ ...bad, revision: 1 }))).status, 400);
+  assert.deepEqual(api.db.prepare("SELECT * FROM profiles").get(), saved);
+  api.db.close();
+  const hook = read("app/components/useStripProfile.ts");
+  assert.match(hook, /if \(!profileColorsReadable\(draft\)\) \{ setError\(PROFILE_COLOR_ERROR\); return; \}/);
+  assert.ok(hook.indexOf("!profileColorsReadable(draft)") < hook.indexOf('method: "PUT"'));
+  const editor = read("app/components/ProfileEditor.tsx");
+  assert.doesNotMatch(editor, /profileColorsReadable/, "checkmark previews without validating");
+  assert.match(editor, /createPortal\(<p className="notice profile-save-notice" role="alert"/);
+  assert.match(editor, /"--profile-ink": profileTextColor\(profile, controller.editing\)/);
+  assert.match(editor, /aria-label="Text color"[^\n]*<Baseline/);
+});
+
+test("editing preserves header and content geometry with readable, independent controls", () => {
+  const css = read("app/globals.css");
+  assert.match(css, /\.profile-title-input:focus \{ outline: none; \}/);
+  assert.match(css, /\.profile-title-input \{[^}]*overflow: visible;/);
+  assert.match(css, /\.profile-header\.is-editing :is\(\.profile-edit-button, \.profile-meta-divider\),\s*\.is-profile-editing \.profile-empty-state button \{ visibility: hidden; \}/);
+  assert.doesNotMatch(css, /\.is-profile-editing \.library-grid\s*\{/);
+  assert.match(css, /\.profile-editor-hint \{[^}]*\+ 8px\)[^}]*var\(--profile-ui-ink\)[^}]*font-size: 14px/);
+  assert.match(css, /\.profile-mode \.library-add-button \{ background: #3155ff; color: #fff; \}/);
+});
+
+test("legacy button accents stay readable outside editing without changing their saved color", () => {
+  const legacy = { background: "#000000", accent: "#3155FF" };
+  assert.equal(profile.profileTextColor(legacy), "#FFFFFF");
+  assert.equal(profile.profileTextColor(legacy, true), "#3155FF");
+  assert.equal(legacy.accent, "#3155FF");
+  const readable = { background: "#FFFFFF", accent: "#3155FF" };
+  assert.equal(profile.profileTextColor(readable), "#3155FF");
+  assert.equal(profile.profileTextColor(readable, true), "#3155FF");
 });

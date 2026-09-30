@@ -3,7 +3,11 @@ export function installEndingContact(ending: HTMLElement | null) {
   const canvas = ending?.parentElement;
   if (!ending || !canvas) return;
   let disposed = false;
-  const flowBlocks = () => Array.from(canvas.children).filter((element) =>
+  // Published content is grouped in its own canvas; inline preview owns its
+  // footer inside that canvas. Both use the last real block, not its wrapper.
+  const blockParent = () => canvas.classList.contains("strip-canvas")
+    ? canvas : canvas.querySelector(".strip-canvas") ?? canvas;
+  const flowBlocks = () => Array.from(blockParent().children).filter((element) =>
     element !== ending && element.classList.contains("strip-block") &&
     !element.classList.contains("sticker-block"));
   const update = () => {
@@ -23,7 +27,7 @@ export function installEndingContact(ending: HTMLElement | null) {
     update();
   };
   const mutations = new MutationObserver(observeBlocks);
-  mutations.observe(canvas, { childList: true });
+  mutations.observe(canvas, { childList: true, subtree: true });
   window.addEventListener("resize", update);
   window.visualViewport?.addEventListener("resize", update);
   observeBlocks();

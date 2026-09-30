@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { automaticStripEndingStyle, readStripContent, writeStripContent } from "../app/lib/strip-ending.ts";
 
 const black = { backgroundColor: "#000000", buttonColor: "#FFFFFF" };
@@ -62,7 +63,7 @@ test("edit mode never mounts the ending, while both preview routes retain it", (
   for (const [view, isEditing, expected] of [["edit", true, false], ["edit", false, true], ["preview", false, true], ["published", false, false]]) {
     assert.equal(runInNewContext(gate, { view, isEditing }), expected);
   }
-  assert.match(source, /\{showsEndingCard \? \(\s*<section/);
+  assert.match(source, /\{showsEndingCard \? \(\s*<StripEndingSheet/);
   assert.match(source, /extendBottomEdge=\{!isEditing && trailingFlowBlock\?\.id === block\.id\}/);
   assert.match(source, /\{!isEditing && trailingFlowBlock\?\.id === block\.id \? \(\s*<MediaEdgeExtension/);
 });
@@ -86,7 +87,8 @@ function renderFixture(blocks, isEditing) {
   const stub = () => null;
   runInNewContext(code, {
     exports,
-    require: () => ({ jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) }),
+    require: () => ({ jsx: (type, props) => type === StripEndingSheet ? type(props) : ({ type, props }), jsxs: (type, props) => type === StripEndingSheet ? type(props) : ({ type, props }) }),
+    StripEndingSheet, authUser: { username: "antonio" },
     blocks, visibleEndingStyle: automaticStripEndingStyle(blocks),
     view: "edit", inlinePreview: !isEditing,
     stripCanvasRef: { current: null },
@@ -98,7 +100,7 @@ function renderFixture(blocks, isEditing) {
     DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" },
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
     installEndingContact: stub, StripEndActions: stub,
-    handlePreviewEndingEdit: stub, handlePreviewEndingShare: stub,
+    handlePreviewEndingEdit: stub, handlePreviewEndingPublish: stub,
     MediaEdgeExtension: "media-edge-extension",
   });
   return exports.renderStrip(isEditing);

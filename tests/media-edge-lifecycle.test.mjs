@@ -142,7 +142,7 @@ test("a matching source-edge overlap seals the join without moving the footer", 
   assert.match(rule, /height: calc\(var\(--iphone-panel-radius\) \+ var\(--media-edge-overlap\)\)/);
   assert.match(rule, /pointer-events: none/);
   assert.doesNotMatch(css, /margin-top: calc\(-1 \* var\(--iphone-panel-radius\)\)/);
-  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: var\(--bottom-bar-shadow\);/);
+  assert.match(css, /\.strip-end-sheet-surface \{[^}]*box-shadow: var\(--bottom-bar-shadow\);/);
 });
 
 test("the seam is repainted with both original and mirrored pixels at fractional positions", () => {
@@ -180,44 +180,48 @@ function evaluate(source, bindings = {}) {
   return exports;
 }
 
-test("preview share still warns without selecting a removed editor block", () => {
-  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handlePreviewEndingShare");
+test("preview Publish enters cover setup without selecting an editor block", () => {
+  const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handlePreviewEndingPublish");
   const actions = findNode((node) => ts.isFunctionDeclaration(node) && node.name?.text === "StripEndActions");
   for (const buttonIndex of [1]) {
     let propagationStops = 0;
-    const notices = [];
+    const calls = [];
     const evaluated = evaluate(`export const ${handler.getText(pageTree)};\nexport ${actions.getText(pageTree)}`, {
-      setNotice: (message) => notices.push(message),
+      view: "edit", inlinePreview: true, continueToPublish: () => calls.push("publish"),
       Pencil: "pencil", Plus: "plus", Send: "send",
     });
     const tree = evaluated.StripEndActions({
-      primaryAction: "edit", primaryLabel: "Edit this Strip",
-      onPrimary: () => assert.fail("Share must not edit"), onShare: evaluated.handlePreviewEndingShare,
+      primaryAction: "edit", primaryLabel: "Edit Strip",
+      onPrimary: () => assert.fail("Publish must not select a block"), onPublish: evaluated.handlePreviewEndingPublish,
     });
     tree.props.children[buttonIndex].props.onClick({ stopPropagation: () => propagationStops++ });
     assert.equal(propagationStops, 1);
-    assert.deepEqual(notices, ["Publish to use these buttons."]);
+    assert.deepEqual(calls, ["publish"]);
+    assert.equal(tree.props.children[buttonIndex].props.children, "Publish");
+    assert.equal(tree.props.children[buttonIndex].props["aria-label"], undefined);
   }
 });
 
 test("the preview footer has no editing tools and uses the shared bottom-bar shadow", () => {
-  const footer = findNode((node) => ts.isJsxOpeningElement(node) && node.tagName.getText(pageTree) === "section" && node.attributes.getText(pageTree).includes("strip-ending-card strip-end-sheet"));
+  const footer = findNode((node) => ts.isJsxOpeningElement(node) && node.tagName.getText(pageTree) === "StripEndingSheet" && node.attributes.getText(pageTree).includes("preview"));
   const props = footer.attributes.getText(pageTree);
   assert.doesNotMatch(props, /data-block-id|is-selected|onClick|tabIndex/);
   assert.doesNotMatch(pageSource, /renderEndingControls|activeEndingTool|endingIsSelected/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: var\(--bottom-bar-shadow\);/);
+  assert.match(css, /\.strip-end-sheet-surface \{[^}]*box-shadow: var\(--bottom-bar-shadow\);/);
 });
 
-test("text corner fill is confined to the rounded cutouts in editor and live strips", () => {
+test("text backing sits under the entire raised surface in preview and live strips", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const rule = css.match(/\.strip-canvas\.has-trailing-text > \.strip-ending-card\[data-touches-block\]::after,\s*\.published-strip\.has-trailing-text > \.published-bottom-sheet::after \{([^}]+)\}/)[1];
-  assert.match(rule, /inset: 0/);
-  assert.match(rule, /clip-path: inset\(0\)/);
-  assert.match(rule, /border-radius: inherit/);
-  assert.match(rule, /corner-shape: inherit/);
-  assert.match(rule, /var\(--ending-corner-color\)/);
-  assert.match(rule, /pointer-events: none/);
+  const backing = css.match(/\.strip-end-sheet-corner-fill \{([^}]+)\}/)[1];
+  assert.match(backing, /height: var\(--iphone-panel-radius\)/);
+  assert.match(backing, /z-index: 0/);
+  assert.match(backing, /pointer-events: none/);
+  assert.match(css, /\.strip-end-sheet\[data-touches-block\] > \.strip-end-sheet-corner-fill \{[^}]*var\(--ending-corner-color, transparent\)/);
+  const surface = css.match(/\.strip-end-sheet-surface \{([^}]+)\}/)[1];
+  assert.match(surface, /z-index: 1/);
+  assert.match(surface, /border-radius: inherit/);
+  assert.match(surface, /corner-shape: inherit/);
   const style = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "publishedStripStyle");
   for (const publishedEndsWithText of [false, true]) {
     const result = evaluate(`export const ${style.getText(pageTree)};`, {

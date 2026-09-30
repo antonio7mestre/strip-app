@@ -179,12 +179,12 @@ test("public header reuses title styling but has no edit controls, divider or pr
     publicProfile: { ...profile.DEFAULT_PROFILE, title: "Our world" }, username: "antonio",
     controller: { editing: true, pending: false, loadFailed: true, error: "Private failure" },
   }));
-  assert.match(html, /<h1>Our world<\/h1>/);
+  assert.match(html, /<h1[^>]*>Our world<\/h1>/);
   assert.match(html, /@antonio/);
   assert.doesNotMatch(html, /button|textarea|Private failure|divider/);
   assert.match(page, /!viewingPublicProfile && !openingCover \? <footer/);
   assert.match(page, /!viewingPublicProfile && !isSettings && !stripProfile.editing/);
-  assert.match(page, /profilePageStyle\(\{ profile: visibleProfile \}\)/);
+  assert.match(page, /profilePageStyle\(\{ profile: visibleProfile, editing: !viewingPublicProfile && stripProfile.editing \}\)/);
 });
 
 test("a public profile's initial safe area cannot be tinted by a local editor draft", () => {

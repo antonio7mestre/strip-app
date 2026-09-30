@@ -8,6 +8,7 @@
   --iphone-panel-radius: 44px;
   --dock-visible-height: 64px;
   --bottom-action-tray-max-width: 212px;
+  --dock-bottom-gap: 2px;
   /* Shared by fixed tool trays, navigation and the in-page Strip footer. */
   --bottom-bar-shadow: 0 -4px 12px -4px rgba(0, 0, 0, 0.18);
   --muted: #8a8a8a;
@@ -1291,16 +1292,16 @@ html.profile-page-active body {
 }
 .profile-theme-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); }
 .profile-theme-mode .library-empty-state strong { color: var(--profile-ink); font-family: var(--profile-font); }
-.profile-theme-mode .library-empty-state span { color: var(--profile-ink); opacity: 0.55; }
+.profile-theme-mode .library-empty-state span { color: var(--profile-ink); }
 .profile-theme-mode .library-skeleton-surface { background: color-mix(in srgb, var(--profile-background) 82%, var(--profile-ink) 18%); }
-.profile-theme-mode .settings-section > h2 { color: var(--profile-ink); opacity: 0.6; text-transform: none; }
+.profile-theme-mode .settings-section > h2 { color: var(--profile-ink); text-transform: none; }
 .profile-theme-mode .settings-card {
   border-color: color-mix(in srgb, var(--profile-ink) 12%, transparent);
   background: color-mix(in srgb, var(--profile-background) 88%, var(--profile-ink) 12%);
 }
 .profile-theme-mode .settings-row + .settings-row { border-top-color: color-mix(in srgb, var(--profile-ink) 12%, transparent); }
 .profile-theme-mode .settings-row span,
-.profile-theme-mode .settings-about-card p { color: var(--profile-ink); opacity: 0.62; }
+.profile-theme-mode .settings-about-card p { color: var(--profile-ink); }
 .profile-theme-mode .settings-row strong,
 .profile-theme-mode .settings-about-card strong { color: var(--profile-ink); }
 .profile-theme-mode .settings-about-card strong { font-family: var(--profile-font); }
@@ -1321,28 +1322,31 @@ html.profile-page-active body {
 }
 .profile-title-input {
   display: block; min-height: 0.92em; border: 0; border-radius: 0; background: transparent;
-  outline: none; -webkit-appearance: none; resize: none; overflow: hidden;
+  outline: none; overflow: visible; white-space: pre-wrap;
 }
-.profile-title-input:focus { outline: 2px solid currentColor; outline-offset: 5px; border-radius: 2px; }
-.profile-title-input::placeholder { color: inherit; opacity: 0.65; }
+.profile-title-input:focus { outline: none; }
+.profile-title-input:empty::before { content: attr(data-placeholder); pointer-events: none; }
+.profile-title-input[contenteditable="plaintext-only"] { -webkit-user-select: text; user-select: text; }
+.profile-header.is-editing :is(.profile-edit-button, .profile-meta-divider),
+.is-profile-editing .profile-empty-state button { visibility: hidden; }
 .profile-meta-row { display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 20px; margin-top: 6px; }
-.profile-handle { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; opacity: 0.7; }
+.profile-handle { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .profile-meta-divider { flex: 0 0 1px; width: 1px; height: 13px; background: currentColor; opacity: 0.4; }
 .profile-edit-button {
   display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 5px;
   padding: 2px 0; border: 0; background: transparent; color: inherit;
-  font-size: 13px; font-weight: 400; opacity: 0.7; cursor: pointer;
+  font-size: 13px; font-weight: 400; cursor: pointer;
 }
 .profile-edit-button svg { width: 12px; height: 12px; stroke-width: 2; }
 .profile-edit-button:disabled { opacity: 0.5; }
 .profile-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); }
-.profile-mode .library-add-button { background: var(--profile-accent); color: var(--profile-accent-ink); }
+.profile-mode .library-add-button { background: #3155ff; color: #fff; }
+.profile-mode .library-add-button svg, .profile-empty-state svg { color: #fff; }
 .is-profile-editing .library-card-open-button:disabled { opacity: 1; cursor: default; }
-.is-profile-editing .library-grid { padding-bottom: calc(190px + env(safe-area-inset-bottom)); }
 .profile-empty-state { padding: 32px 20px 180px; }
 .profile-empty-state strong { font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif; font-size: 24px; letter-spacing: -0.03em; }
-.profile-empty-state p { font-size: 14px; opacity: 0.65; }
-.profile-empty-state button { display: inline-flex; align-items: center; gap: 9px; margin-top: 12px; border: 0; border-radius: 999px; padding: 13px 18px; color: var(--profile-accent-ink); background: var(--profile-accent); font-weight: 600; cursor: pointer; }
+.profile-empty-state p { font-size: 14px; }
+.profile-empty-state button { display: inline-flex; align-items: center; gap: 9px; margin-top: 12px; border: 0; border-radius: 999px; padding: 13px 18px; color: #fff; background: #3155ff; font-weight: 600; cursor: pointer; }
 .profile-empty-state svg { width: 18px; height: 18px; }
 .public-profile-mode .library-grid { padding-bottom: 24px; }
 .public-profile-mode .profile-empty-state { padding-bottom: 32px; }
@@ -1351,11 +1355,12 @@ html.profile-page-active body {
 .profile-feedback button { background: none; border: none; color: inherit; text-decoration: underline; cursor: pointer; }
 .profile-editor-dock.composer-dock { align-items: flex-start; padding-top: 12px; color: #000; }
 .profile-editor-hint {
-  position: fixed; z-index: 43; right: 0; bottom: calc(var(--dock-visible-height) + env(safe-area-inset-bottom) + 18px); left: 0;
-  margin: 0; color: var(--profile-ink); text-align: center; font-size: 12px; font-weight: 650;
+  position: fixed; z-index: 43; right: 0; bottom: calc(var(--dock-visible-height) + env(safe-area-inset-bottom) + 8px); left: 0;
+  margin: 0; color: var(--profile-ui-ink); text-align: center; font-size: 14px; font-weight: 650;
   pointer-events: none; translate: 0 var(--keyboard-dock-pan, 0px);
 }
 .profile-tools { position: relative; width: var(--dock-controls-width); animation: profile-tools-in 200ms ease-out; }
+.profile-tools.is-gradient-picker { position: static; animation: none; }
 .profile-tool-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .profile-tool-icon { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #111; cursor: pointer; }
 .profile-tool-icon svg { width: 23px; height: 23px; stroke-width: 1.8; }
@@ -1367,14 +1372,12 @@ html.profile-page-active body {
 html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 .profile-mode.is-profile-editing :is(.profile-editor-dock, .profile-tools, .profile-selector-row, .profile-selector-scroll, .profile-selector-row *) { touch-action: pan-x; }
 .profile-mode.is-profile-editing :is(.profile-tool-row, .profile-tool-row *, .full-gradient-picker, .full-gradient-picker *) { touch-action: none; }
-.profile-selector-scroll.is-gradient-mode { height: 48px; padding-left: 0; }
-.profile-selector-scroll .full-gradient-picker { height: 48px; min-width: 0; border-radius: 24px; }
 .profile-selector-row .selector-leading { padding-right: 0; }
 .profile-tools.is-gradient-picker .selector-leading { position: relative; z-index: 2; margin-left: auto; }
 .font-selector-option[data-font="letter"] { font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif; font-weight: 900; }
 .profile-tool-row .profile-save-button { display: flex; flex: 0 0 auto; justify-content: center; align-items: center; min-width: 88px; height: 48px; margin-left: 2px; padding: 0 10px; border: 0; border-radius: 999px; background: #000; color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; }
 .profile-tool-row .profile-save-button:disabled { opacity: 0.5; cursor: wait; }
-.profile-save-error { color: #a51f1f; font-size: 13px; margin: 0 0 12px; }
+.profile-save-notice.notice { margin: 0; color: #fff; z-index: 90; translate: 0 var(--keyboard-dock-pan, 0px); }
 .profile-discard-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 24px; background: #0009; }
 .profile-discard-shade { position: absolute; inset: 0; border: 0; background: transparent; cursor: default; }
 .profile-discard-card { position: relative; width: min(100%, 360px); padding: 23px; border-radius: 22px; background: #fff; color: #000; box-shadow: 0 12px 50px #0005; }
@@ -1679,29 +1682,58 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 }
 
 .strip-end-sheet {
+  --ending-paint-overlap: 2px;
   position: relative;
   z-index: 2;
   display: flex;
   width: 100%;
-  min-height: calc(
-    var(--dock-visible-height) + env(safe-area-inset-bottom)
-  );
+  min-height: 0;
   align-items: flex-start;
   justify-content: center;
+  /* The seam overlap below is part of the scroll-floor clearance. Count it
+     inside, not in addition to, the cover toolbar's bottom gap. */
   padding: 12px max(18px, env(safe-area-inset-right))
-    env(safe-area-inset-bottom)
+    calc(var(--dock-bottom-gap) - var(--ending-paint-overlap) + env(safe-area-inset-bottom))
     max(18px, env(safe-area-inset-left));
   border: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
   corner-shape: squircle;
-  background: var(--ending-background, #ffffff);
+  background: transparent;
   color: var(--ending-foreground, #000000);
-  box-shadow: var(--bottom-bar-shadow);
+  isolation: isolate;
+  overflow: visible;
 }
 
-.editor-mode .strip-ending-card {
-  min-height: 0;
-  padding-bottom: 12px;
+.strip-end-sheet-corner-fill {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--iphone-panel-radius);
+  background: transparent;
+  pointer-events: none;
+}
+
+.strip-end-sheet[data-touches-block] > .strip-end-sheet-corner-fill {
+  background: var(--ending-corner-color, transparent);
+}
+
+.strip-end-sheet-surface {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  /* Fractional document heights can expose the dark backing for one device
+     pixel where Safari meets the page. Continue the white surface underneath. */
+  bottom: calc(-1 * var(--ending-paint-overlap));
+  border-radius: inherit;
+  corner-shape: inherit;
+  background: var(--ending-background, #ffffff);
+  box-shadow: var(--bottom-bar-shadow);
+  /* Expose the complete upper shadow, including the corners. Stop only its
+     bottom spill so it cannot draw a rule against Safari's white safe area. */
+  clip-path: inset(-24px 0 0);
+  pointer-events: none;
 }
 
 .published-bottom-sheet {
@@ -1733,19 +1765,6 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   font-weight: 650;
 }
 
-.strip-canvas.has-trailing-text > .strip-ending-card[data-touches-block]::after,
-.published-strip.has-trailing-text > .published-bottom-sheet::after {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  corner-shape: inherit;
-  /* Paint only the corner cutouts, not the footer or the canvas below it. */
-  box-shadow: 0 0 0 var(--iphone-panel-radius) var(--ending-corner-color);
-  clip-path: inset(0);
-  content: "";
-  pointer-events: none;
-}
-
 .media-edge-extension {
   --media-edge-overlap: 1px;
   position: absolute;
@@ -1762,6 +1781,11 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   width: min(calc(100% - 20px), 344px);
   grid-template-columns: minmax(0, 1fr) 52px;
   gap: 10px;
+}
+
+.strip-end-sheet-controls.is-preview {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .strip-end-sheet button {
@@ -2258,8 +2282,12 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 
 .strip-ending-card-inner {
+  position: relative;
+  z-index: 2;
   display: flex;
   width: 100%;
+  flex-direction: column;
+  gap: 12px;
   align-items: center;
   justify-content: center;
 }
@@ -2678,7 +2706,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   overflow: hidden;
   padding: 12px var(--dock-padding-right)
     calc(
-      182px + env(safe-area-inset-bottom) + var(--dock-browser-extension)
+      180px + var(--dock-bottom-gap) + env(safe-area-inset-bottom) + var(--dock-browser-extension)
     ) var(--dock-padding-left);
   transform: none;
   translate: 0 var(--keyboard-dock-pan, 0px);
@@ -4402,17 +4430,6 @@ html:has(.story-share-boundary) body {
   margin: 0;
   padding: 0;
   border-radius: var(--iphone-panel-radius) 0 0 0;
-}
-
-/* The profile picker stays inside its one-row dock instead of inheriting the
-   editor's full-width gradient surface and invisible touch area. */
-.profile-tools .selector-scroll.is-gradient-mode {
-  position: relative;
-  inset: auto;
-  width: auto;
-  height: 48px;
-  flex: 1 1 auto;
-  border-radius: 24px;
 }
 
 .selector-dock.is-gradient-picker .selector-leading {
