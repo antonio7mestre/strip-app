@@ -3,15 +3,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronLeft, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
-import { PROFILE_COLORS, PROFILE_FONTS, profileInk, profileTitle } from "@/app/lib/profile";
+import { PROFILE_COLORS, PROFILE_FONTS, profileInk, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { type useStripProfile } from "./useStripProfile";
-import { pageColorPickerCenter } from "@/app/lib/page-color-picker";
+import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
+import { samplePageColorAtPoint as sampleProfilePageColor } from "@/app/lib/page-color-sampler";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
-type Props = { controller: ProfileController; username: string | null };
+type Props = { controller: ProfileController; username: string | null; publicProfile?: StripProfile };
 
-export function ProfileHeader({ controller, username }: Props) {
-  const { profile, editing, pending, update } = controller;
+export function ProfileHeader({ controller, username, publicProfile }: Props) {
+  const { pending, update } = controller;
+  const profile = publicProfile ?? controller.profile;
+  const editing = !publicProfile && controller.editing;
   const titleInput = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const input = titleInput.current;
@@ -34,13 +37,13 @@ export function ProfileHeader({ controller, username }: Props) {
           <h1>{profileTitle(profile, username)}</h1>}
         <div className="profile-meta-row">
           {username ? <p className="profile-handle">@{username}</p> : null}
-          {username && !editing ? <span className="profile-meta-divider" aria-hidden="true" /> : null}
-          {!editing ? <button type="button" className="profile-edit-button" disabled={controller.loading || controller.loadFailed}
+          {username && !editing && !publicProfile ? <span className="profile-meta-divider" aria-hidden="true" /> : null}
+          {!editing && !publicProfile ? <button type="button" className="profile-edit-button" disabled={controller.loading || controller.loadFailed}
             onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button> : null}
         </div>
       </div>
     </div>
-    {controller.loadFailed ? <p className="profile-feedback" role="alert">{controller.error} <button type="button" onClick={controller.retry}>Retry</button></p> : null}
+    {!publicProfile && controller.loadFailed ? <p className="profile-feedback" role="alert">{controller.error} <button type="button" onClick={controller.retry}>Retry</button></p> : null}
   </header>;
 }
 
@@ -78,42 +81,14 @@ function hexPosition(hex: string) {
     saturation: delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1)) };
 }
 
-function sampleProfilePageColor(clientX: number, clientY: number) {
-  const elements = document.elementsFromPoint(clientX, clientY).filter((element) =>
-    !element.closest(".profile-editor-dock, .page-color-picker-indicator, .profile-editor-hint"));
-  for (const element of elements) {
-    if (!(element instanceof HTMLImageElement)) continue;
-    const bounds = element.getBoundingClientRect();
-    if (!element.naturalWidth || !element.naturalHeight || !bounds.width || !bounds.height) continue;
-    try {
-      const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) continue;
-      context.drawImage(element,
-        Math.max(0, Math.min(element.naturalWidth - 1, (clientX - bounds.left) / bounds.width * element.naturalWidth)),
-        Math.max(0, Math.min(element.naturalHeight - 1, (clientY - bounds.top) / bounds.height * element.naturalHeight)),
-        1, 1, 0, 0, 1, 1);
-      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
-      if (a > 8) return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
-    } catch { /* Fall back to the page surface if the image is cross-origin. */ }
-  }
-  for (const element of elements) {
-    const match = getComputedStyle(element).backgroundColor.match(/^rgba?\(([^)]+)\)$/i);
-    if (!match) continue;
-    const [r, g, b, a] = match[1].replace("/", " ").split(/[\s,]+/).filter(Boolean).map(Number);
-    if ([r, g, b].some(Number.isNaN) || (a !== undefined && a <= 0.01)) continue;
-    return `#${[r, g, b].map((channel) => Math.round(channel).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
-  }
-  return null;
-}
-
 export function ProfileTools({ controller }: { controller: ProfileController }) {
   const [tool, setTool] = useState<ProfileTool | null>(null);
   const [wheel, setWheel] = useState(false);
   const [pickingPage, setPickingPage] = useState(false);
   const [pickerPoint, setPickerPoint] = useState<{ x: number; y: number; color: string } | null>(null);
   const selectorScrollRef = useRef<HTMLDivElement>(null);
-  const pickerPointerIdRef = useRef<number | null>(null);
+  const [pickerDragging, setPickerDragging] = useState(false);
+  const samplePointRef = useRef<(x: number, y: number) => void>(() => {});
   const [confirmCancel, setConfirmCancel] = useState(false);
   const keepEditing = useRef<HTMLButtonElement>(null);
   const { profile, update, pending } = controller;
@@ -122,8 +97,6 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   const [wheelHue, setWheelHue] = useState(() => hexPosition(activeColor).hue);
   const activePosition = hexPosition(activeColor);
   const position = { ...activePosition, hue: activePosition.saturation > 0 ? activePosition.hue : wheelHue };
-  const customColor = colorTool && !PROFILE_COLORS.some((option) => option.value === activeColor)
-    ? [{ name: "Current", value: activeColor }] : [];
   const changeColor = (color: string) => {
     if (!colorTool) return;
     const nextColor = color.toUpperCase();
@@ -145,16 +118,10 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   }, [tool, wheel]);
   useEffect(() => {
     if (!pickingPage) return;
-    document.documentElement.classList.add("page-color-picking");
-    const preventPickerTouchScroll = (event: TouchEvent) => {
-      if (pickerPointerIdRef.current !== null && event.cancelable) event.preventDefault();
-    };
-    document.addEventListener("touchmove", preventPickerTouchScroll, { capture: true, passive: false });
-    return () => {
-      pickerPointerIdRef.current = null;
-      document.removeEventListener("touchmove", preventPickerTouchScroll, true);
-      document.documentElement.classList.remove("page-color-picking");
-    };
+    return installPageColorDrag({
+      onSample: (x, y) => samplePointRef.current(x, y),
+      onDraggingChange: setPickerDragging,
+    });
   }, [pickingPage]);
   const updatePickerPoint = (clientX: number, clientY: number) => {
     const color = sampleProfilePageColor(clientX, clientY);
@@ -162,6 +129,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
     setPickerPoint({ x: clientX + window.scrollX, y: clientY + window.scrollY, color });
     changeColor(color);
   };
+  useLayoutEffect(() => { samplePointRef.current = updatePickerPoint; });
   const startPagePicker = () => {
     const { x, y } = pageColorPickerCenter(window);
     setWheel(false); setPickingPage(true);
@@ -201,7 +169,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
           onKeyDown={wheelKeys}>
           <span className="gradient-picker-value" style={{ left: `${Math.min(94, Math.max(6, position.hue / 360 * 100))}%`,
             top: `${Math.min(72, Math.max(28, 100 - position.lightness))}%`, backgroundColor: activeColor }} aria-hidden="true" />
-        </div> : <>{[...PROFILE_COLORS, ...customColor].map((color) => {
+        </div> : <>{PROFILE_COLORS.map((color) => {
           const selected = activeColor === color.value;
           return <button key={color.value} type="button" className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
             style={{ backgroundColor: color.value, color: profileInk(color.value), "--swatch-foreground": profileInk(color.value) } as CSSProperties}
@@ -224,28 +192,8 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
       <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><Type aria-hidden="true" /></button>
       <button type="button" className="profile-save-button" disabled={pending} onClick={() => void controller.save()}>{pending ? "Saving…" : "Save"}</button>
     </div>}
-    {pickingPage && pickerPoint && typeof document !== "undefined" ? createPortal(<button type="button" className="page-color-picker-indicator"
+    {pickingPage && pickerPoint && typeof document !== "undefined" ? createPortal(<button type="button" className={`page-color-picker-indicator ${pickerDragging ? "is-dragging" : ""}`}
       style={{ left: pickerPoint.x, top: pickerPoint.y, color: pickerPoint.color }} aria-label="Drag to sample a page color"
-      onPointerDown={(event) => {
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        pickerPointerIdRef.current = event.pointerId;
-        updatePickerPoint(event.clientX, event.clientY);
-      }}
-      onPointerMove={(event) => {
-        if (pickerPointerIdRef.current !== event.pointerId) return;
-        event.preventDefault();
-        updatePickerPoint(event.clientX, event.clientY);
-      }}
-      onPointerUp={(event) => {
-        if (pickerPointerIdRef.current !== event.pointerId) return;
-        event.preventDefault();
-        updatePickerPoint(event.clientX, event.clientY);
-        pickerPointerIdRef.current = null;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-      }}
-      onPointerCancel={(event) => { if (pickerPointerIdRef.current === event.pointerId) pickerPointerIdRef.current = null; }}
-      onLostPointerCapture={(event) => { if (pickerPointerIdRef.current === event.pointerId) pickerPointerIdRef.current = null; }}
       onKeyDown={(event) => {
         const step = 10;
         const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
@@ -263,7 +211,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   </div>;
 }
 
-export function profilePageStyle(controller: ProfileController): CSSProperties {
+export function profilePageStyle(controller: Pick<ProfileController, "profile">): CSSProperties {
   const { profile } = controller;
   return {
     "--profile-background": profile.background,

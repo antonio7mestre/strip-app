@@ -8,6 +8,8 @@
   --iphone-panel-radius: 44px;
   --dock-visible-height: 64px;
   --bottom-action-tray-max-width: 212px;
+  /* Shared by fixed tool trays, navigation and the in-page Strip footer. */
+  --bottom-bar-shadow: 0 -4px 12px -4px rgba(0, 0, 0, 0.18);
   --muted: #8a8a8a;
   --line: rgba(255, 255, 255, 0.14);
   --glass: rgba(19, 19, 19, 0.76);
@@ -187,6 +189,14 @@ html.inline-preview-exit-locked .editor-canvas,
 html.inline-preview-exit-locked .strip-canvas {
   scroll-behavior: auto !important;
   overflow-anchor: none !important;
+}
+
+html.inline-preview-layout-moving,
+html.inline-preview-layout-moving body,
+html.inline-preview-layout-moving .editor-mode,
+html.inline-preview-layout-moving .editor-canvas,
+html.inline-preview-layout-moving .strip-canvas {
+  overflow-anchor: none;
 }
 
 .legacy-page-transition-overlay {
@@ -1334,6 +1344,9 @@ html.profile-page-active body {
 .profile-empty-state p { font-size: 14px; opacity: 0.65; }
 .profile-empty-state button { display: inline-flex; align-items: center; gap: 9px; margin-top: 12px; border: 0; border-radius: 999px; padding: 13px 18px; color: var(--profile-accent-ink); background: var(--profile-accent); font-weight: 600; cursor: pointer; }
 .profile-empty-state svg { width: 18px; height: 18px; }
+.public-profile-mode .library-grid { padding-bottom: 24px; }
+.public-profile-mode .profile-empty-state { padding-bottom: 32px; }
+.public-profile-mode .profile-empty-state strong { font-family: var(--profile-font); }
 .profile-feedback { font-size: 13px; }
 .profile-feedback button { background: none; border: none; color: inherit; text-decoration: underline; cursor: pointer; }
 .profile-editor-dock.composer-dock { align-items: flex-start; padding-top: 12px; color: #000; }
@@ -1617,9 +1630,6 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   border-top: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
   corner-shape: squircle;
-  box-shadow:
-    0 -20px 56px rgba(0, 0, 0, 0.14),
-    0 -6px 20px rgba(0, 0, 0, 0.08);
 }
 
 .app-navigation-controls {
@@ -1686,7 +1696,7 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   corner-shape: squircle;
   background: var(--ending-background, #ffffff);
   color: var(--ending-foreground, #000000);
-  box-shadow: none;
+  box-shadow: var(--bottom-bar-shadow);
 }
 
 .editor-mode .strip-ending-card {
@@ -1703,6 +1713,8 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  /* Keep the shared shadow outside the rounded surface and clipping masks. */
+  overflow: visible;
 }
 
 .published-bottom-sheet-title {
@@ -2069,6 +2081,11 @@ html.leading-image-inset-active.leading-media-return-active .published-mode.has-
   --editor-canvas-min-height: 100lvh;
   min-height: 100lvh;
   padding-bottom: 0;
+}
+
+.editor-mode.is-inline-preview .editor-canvas {
+  /* Temporary outgoing toolbar clearance belongs to the white reader ending. */
+  background: #ffffff;
 }
 
 .editor-mode.is-inline-preview
@@ -2669,7 +2686,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
   background: #ffffff;
-  box-shadow: 0 -16px 44px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--bottom-bar-shadow);
   transition:
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 160ms ease;
@@ -3729,7 +3746,7 @@ html:has(.story-share-boundary) body {
 @keyframes block-controls-shape-reveal {
   0% {
     transform: scaleY(0.04);
-    opacity: 0.55;
+    opacity: var(--block-controls-enter-opacity, 0.55);
   }
 
   100% {
@@ -3759,7 +3776,7 @@ html:has(.story-share-boundary) body {
 
   100% {
     transform: scaleY(0.04);
-    opacity: 0;
+    opacity: var(--block-controls-exit-opacity, 0);
   }
 }
 
@@ -3793,6 +3810,27 @@ html:has(.story-share-boundary) body {
   to {
     opacity: 1;
   }
+}
+
+.text-block > .block-controls-reveal {
+  /* The attached surface stays the exact block color throughout its motion. */
+  --block-controls-enter-opacity: 1;
+  --block-controls-exit-opacity: 1;
+}
+
+.block-controls-text-join {
+  /* This unanimated bridge seals fractional-pixel joins while the tray itself
+     scales in/out on a separate layer. It never changes document geometry. */
+  position: absolute;
+  z-index: 34;
+  top: calc(100% - 1px);
+  left: 50%;
+  width: 336px;
+  max-width: calc(100vw - 32px);
+  height: 2px;
+  transform: translateX(-50%);
+  background: var(--block-controls-surface, var(--white));
+  pointer-events: none;
 }
 
 .block-controls-reveal {
@@ -4042,7 +4080,7 @@ html:has(.story-share-boundary) body {
 }
 
 .block-controls.is-text-tray {
-  top: 0;
+  top: -1px;
   width: 336px;
   filter: none;
   -webkit-clip-path: path(

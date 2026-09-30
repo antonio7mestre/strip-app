@@ -67,17 +67,13 @@ test("edit mode never mounts the ending, while both preview routes retain it", (
   assert.match(source, /\{!isEditing && trailingFlowBlock\?\.id === block\.id \? \(\s*<MediaEdgeExtension/);
 });
 
-test("preview follows block colors while published actions and safe area stay white", () => {
-  const expression = initializer("visibleEndingStyle");
-  const bindings = { automaticStripEndingStyle, blocks: [text("#fff")], openedPublishedStrip: { blocks: [text("#000")] }, imageTrayColors: {} };
-  assert.deepEqual(runInNewContext(expression, { ...bindings, view: "published" }), white);
-  assert.deepEqual(runInNewContext(expression, { ...bindings, view: "edit" }), black);
-  assert.deepEqual(runInNewContext(expression, { ...bindings, view: "preview" }), black);
+test("preview and published actions and safe areas are always white", () => {
   const surface = initializer("endingSurfaceColor");
-  assert.equal(runInNewContext(surface, { view: "published", visibleEndingStyle: black }), "#FFFFFF");
-  assert.equal(runInNewContext(surface, { view: "preview", visibleEndingStyle: black }), "#000000");
+  for (const view of ["published", "preview", "edit"]) {
+    assert.equal(runInNewContext(surface, { view, visibleEndingStyle: black }), "#FFFFFF");
+  }
   assert.match(source, /bottomColor: endingSurfaceColor/);
-  assert.match(source, /const cleanViewBottomSurfaceColor =[\s\S]*?\? visibleEndingStyle\.backgroundColor/);
+  assert.match(source, /const cleanViewBottomSurfaceColor =[\s\S]*?\? endingSurfaceColor/);
   assert.match(source, /"--ending-background": "#FFFFFF"/);
   assert.match(source, /"--ending-button": "#000000"/);
 });
@@ -117,5 +113,17 @@ test("actual renderer removes the editor card and its extra paint for empty, tex
     assert.match(preview, /ending-background/);
     assert.doesNotMatch(preview, /data-block-id":"strip-ending"|is-selected/);
     if (blocks[0]?.type === "image") assert.match(preview, /media-edge-extension/);
+  }
+});
+
+test("preview stays white with black buttons for every trailing block color", () => {
+  for (const color of ["#000000", "#FFFFFF", "#CCFF00", "#FF8CCC", "#3155FF"]) {
+    const tree = renderFixture([{ ...text(color), content: "Hello" }], false);
+    const footer = tree.props.children.at(-1);
+    assert.equal(tree.props.style.backgroundColor, "#FFFFFF");
+    assert.equal(footer.props.style["--ending-background"], "#FFFFFF");
+    assert.equal(footer.props.style["--ending-button"], "#000000");
+    assert.equal(footer.props.style["--ending-button-foreground"], "#FFFFFF");
+    assert.equal(footer.props.style["--ending-corner-color"], color);
   }
 });

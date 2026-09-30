@@ -131,7 +131,7 @@ function fixture({ top = 900, reveal = true, view = "published", inlinePreview =
     IntersectionObserver: Observer, ResizeObserver: Observer,
     view, inlinePreview, publishedContentCanReveal: reveal,
     visibleEndingStyle: { backgroundColor: bottomColor },
-    endingSurfaceColor: view === "published" ? "#FFFFFF" : bottomColor,
+    endingSurfaceColor: "#FFFFFF",
     DEFAULT_BACKGROUND: "#000000", topSafeAreaColor: "#3333ff",
     getSafeAreaPaintViewport, shouldUseFooterSafeAreaColor,
   };
@@ -245,18 +245,18 @@ test("unmount cancels work, removes observers, and restores the top color", () =
   assert.equal(f.writes.at(-1), "#3333ff");
 });
 
-test("both preview routes paint the exact card color under Safari, independent of public loading", () => {
+test("both preview routes paint white under Safari regardless of trailing block color", () => {
   for (const bottomColor of ["#FFFFFF", "#000000"]) {
     for (const options of [{ view: "edit", inlinePreview: true }, { view: "preview" }]) {
       const f = fixture({ ...options, bottomColor, reveal: false, top: 740 });
       assert(f.active());
       assert(f.classes.has("preview-bottom-canvas-active"));
       assert(!f.classes.has("published-bottom-canvas-active"));
-      assert.equal(f.properties.get("--bottom-safe-area-color"), bottomColor);
-      assert.equal(f.writes.at(-1), bottomColor);
+      assert.equal(f.properties.get("--bottom-safe-area-color"), "#FFFFFF");
+      assert.equal(f.writes.at(-1), "#FFFFFF");
       assert(f.selectors.includes(".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"));
       f.runTopEffect();
-      assert.equal(f.writes.at(-1), bottomColor, "later top paint cannot overwrite preview");
+      assert.equal(f.writes.at(-1), "#FFFFFF", "later top paint cannot overwrite preview");
       f.cleanup();
     }
   }

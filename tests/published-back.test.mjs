@@ -48,6 +48,8 @@ function harness(needsAuthUsername = false) {
     captureCoverDock: () => null,
     captureCoverOrigin: cover => ({ ...cover.getBoundingClientRect(), snapshot: "existing pixels" }),
     stripProfile: { profile: { background: "#FF8CCC" } },
+    publicProfile: null, visibleProfile: { background: "#FF8CCC" },
+    usernameFromHostname: () => null, setPublicProfile: noop,
     flushSync: fn => fn(),
     setBrowserPath: path => {
       events.push({ type: "push", cover: state.cover, view: state.view });

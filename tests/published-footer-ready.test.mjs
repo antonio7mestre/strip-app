@@ -115,7 +115,8 @@ test("only the small footer gets a permanent rendering layer, without moving or 
   assert.match(footer, /transform: translateZ\(0\)/);
   assert.match(footer, /backface-visibility: hidden/);
   assert.match(footer, /content-visibility: visible/);
-  assert.doesNotMatch(footer, /animation:|transition:|opacity:|overflow:|contain:|height:|margin:|padding:|position:/);
+  assert.match(footer, /overflow: visible/);
+  assert.doesNotMatch(footer, /animation:|transition:|opacity:|contain:|height:|margin:|padding:|position:/);
   const shared = rule(".strip-end-sheet");
   assert.match(shared, /position: relative/);
   assert.match(shared, /background: var\(--ending-background/);

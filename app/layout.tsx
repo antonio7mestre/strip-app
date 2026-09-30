@@ -10,7 +10,7 @@ const initialThemeColorScript = `
       const segments = path.split("/").filter(Boolean);
       if (path.startsWith("/strip/") || path.startsWith("/share/") ||
           (/^[a-z0-9]+(?:-[a-z0-9]+)*\\.striiip\\.com$/.test(hostname) &&
-           segments.length === 1 && /^[a-zA-Z0-9_-]{8,128}$/.test(segments[0]))) return;
+           (segments.length === 0 || (segments.length === 1 && /^[a-zA-Z0-9_-]{8,128}$/.test(segments[0]))))) return;
       const saved = window.localStorage.getItem("strip-draft-v1");
       const blocks = saved ? JSON.parse(saved) : [];
       const firstBlock = Array.isArray(blocks) ? blocks[0] : null;

@@ -142,7 +142,7 @@ test("a matching source-edge overlap seals the join without moving the footer", 
   assert.match(rule, /height: calc\(var\(--iphone-panel-radius\) \+ var\(--media-edge-overlap\)\)/);
   assert.match(rule, /pointer-events: none/);
   assert.doesNotMatch(css, /margin-top: calc\(-1 \* var\(--iphone-panel-radius\)\)/);
-  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: none;/);
+  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: var\(--bottom-bar-shadow\);/);
 });
 
 test("the seam is repainted with both original and mirrored pixels at fractional positions", () => {
@@ -200,13 +200,13 @@ test("preview share still warns without selecting a removed editor block", () =>
   }
 });
 
-test("the preview footer is not selectable and has no editing tools or shadow", () => {
+test("the preview footer has no editing tools and uses the shared bottom-bar shadow", () => {
   const footer = findNode((node) => ts.isJsxOpeningElement(node) && node.tagName.getText(pageTree) === "section" && node.attributes.getText(pageTree).includes("strip-ending-card strip-end-sheet"));
   const props = footer.attributes.getText(pageTree);
   assert.doesNotMatch(props, /data-block-id|is-selected|onClick|tabIndex/);
   assert.doesNotMatch(pageSource, /renderEndingControls|activeEndingTool|endingIsSelected/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: none;/);
+  assert.match(css, /\.strip-end-sheet \{[^}]*box-shadow: var\(--bottom-bar-shadow\);/);
 });
 
 test("text corner fill is confined to the rounded cutouts in editor and live strips", () => {

@@ -92,7 +92,7 @@ test("matching and near-matching covers get a contrasting edge without resizing"
     assert.equal(profile.profileCoverOutline(cover, background), undefined);
   }
   const page = read("app/page.tsx");
-  assert.match(page, /profileCoverOutline\(strip.cover.color, stripProfile.profile.background\)/);
+  assert.match(page, /profileCoverOutline\(strip.cover.color, visibleProfile.background\)/);
   assert.match(page, /boxShadow: `inset 0 0 0 1px \$\{coverOutline\}`/);
 });
 test("profile settings persist and remain scoped to the authenticated owner", async () => {
@@ -189,8 +189,8 @@ test("profile edit tools keep mobile swipes inside the dock", () => {
   assert.match(css, /\.profile-mode\.is-profile-editing :is\(\.profile-tool-row, \.profile-tool-row \*, \.full-gradient-picker, \.full-gradient-picker \*\)\s*\{ touch-action: none; \}/);
   assert.match(css, /\.profile-selector-scroll\s*\{[^}]*overscroll-behavior: contain;/);
   assert.match(css, /\.profile-tools \.selector-scroll\.is-gradient-mode\s*\{[^}]*position: relative;[^}]*height: 48px;/);
-  assert.match(editor, /pickerPointerIdRef\.current = event\.pointerId/);
-  assert.match(editor, /addEventListener\("touchmove", preventPickerTouchScroll, \{ capture: true, passive: false \}\)/);
-  assert.match(editor, /removeEventListener\("touchmove", preventPickerTouchScroll, true\)/);
+  assert.match(editor, /return installPageColorDrag\(/);
+  assert.match(editor, /onSample: \(x, y\) => samplePointRef\.current\(x, y\)/);
+  assert.match(editor, /samplePointRef\.current = updatePickerPoint/);
   assert.match(editor, /activePosition\.saturation > 0 \? activePosition\.hue : wheelHue/, "gray swatches retain the last selected wheel hue");
 });

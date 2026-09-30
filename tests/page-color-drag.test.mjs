@@ -14,8 +14,8 @@ test("all page samplers start at the center of the visible screen, independent o
   for (const source of [page, shapes, profile]) assert.match(source, /pageColorPickerCenter\(window\)/);
 });
 
-test("shape and regular samplers share dragging, explicit confirmation, and dock layering", () => {
-  for (const source of [page, shapes]) assert.match(source, /installPageColorDrag\(/);
+test("shape, profile and regular samplers share dragging, explicit confirmation, and dock layering", () => {
+  for (const source of [page, shapes, profile]) assert.match(source, /installPageColorDrag\(/);
   assert.doesNotMatch(shapes, /pageTapRef|shape-page-color-done/);
   assert.match(shapes, /onClick=\{finishShapeColor\}/);
   assert.match(shapes, /const finishShapeColor = \(\) => \{[\s\S]*?setSamplingPage\(false\)[\s\S]*?onViewChange\("pack"\)/);
@@ -25,9 +25,25 @@ test("shape and regular samplers share dragging, explicit confirmation, and dock
   assert.match(css, /\.page-color-picker-indicator\s*\{[^}]*position: absolute;[^}]*z-index: 80;/);
 });
 
+test("shape and profile palettes never add a moving current-color swatch", () => {
+  for (const source of [shapes, profile]) assert.doesNotMatch(source, /customColor|name: "Current"/);
+  assert.match(shapes, /SHAPE_STICKER_COLORS\.map/);
+  assert.match(profile, /PROFILE_COLORS\.map/);
+  assert.match(shapes, /page-color-trigger"[\s\S]*?backgroundColor: shapeColor/);
+  assert.match(profile, /page-color-trigger"[\s\S]*?backgroundColor: activeColor/);
+});
+
+test("the profile safe-area anchor yields to a sampler drag", () => {
+  const anchor = page.slice(page.indexOf("const lockedScrollTop = libraryScrollInset"), page.indexOf("root.classList.add(\"library-scroll-top-locked\")"));
+  assert.match(anchor, /const restoreLockedScrollTop = \(\) => \{\s*if \(root.classList.contains\("page-color-dragging"\)\) return/);
+  assert.match(anchor, /const handleTouchMove = \(event: TouchEvent\) => \{\s*if \(root.classList.contains\("page-color-dragging"\)\) return/);
+  assert.match(anchor, /const handleWheel = \(event: WheelEvent\) => \{\s*if \(root.classList.contains\("page-color-dragging"\)\) return/);
+});
+
 test("only the handle claims touch gestures, and release never confirms or dismisses sampling", () => {
   const originalDocument = globalThis.document;
   const originalElement = globalThis.Element;
+  const originalWindow = globalThis.window;
   const listeners = new Map();
   const classes = new Set();
   class FakeElement {
@@ -43,6 +59,12 @@ test("only the handle claims touch gestures, and release never confirms or dismi
   globalThis.Element = FakeElement;
   globalThis.document = {
     documentElement: { classList: { add: value => classes.add(value), remove: value => classes.delete(value) } },
+    addEventListener: (name, callback) => listeners.set(name, callback),
+    removeEventListener: (name, callback) => { if (listeners.get(name) === callback) listeners.delete(name); },
+  };
+  globalThis.window = {
+    scrollX: 0, scrollY: 80,
+    scrollTo: ({ left, top }) => { window.scrollX = left; window.scrollY = top; },
     addEventListener: (name, callback) => listeners.set(name, callback),
     removeEventListener: (name, callback) => { if (listeners.get(name) === callback) listeners.delete(name); },
   };
@@ -65,6 +87,12 @@ test("only the handle claims touch gestures, and release never confirms or dismi
     const handle = new FakeElement("handle");
     assert.equal(fire("pointerdown", { target: handle }).prevented, true);
     assert.equal(handle.hasPointerCapture(1), true);
+    assert.equal(classes.has("page-color-dragging"), true);
+    assert.equal(fire("touchstart").prevented, true);
+    assert.equal(fire("wheel").prevented, true);
+    window.scrollY = 140;
+    fire("scroll");
+    assert.equal(window.scrollY, 80, "queued native pans are held at the drag's original position");
     assert.equal(fire("touchmove").prevented, true);
     assert.equal(fire("pointerdown", { target: handle, pointerId: 2 }).prevented, false);
     assert.equal(fire("pointermove", { pointerId: 2 }).prevented, false);
@@ -73,6 +101,11 @@ test("only the handle claims touch gestures, and release never confirms or dismi
     assert.deepEqual(samples, [[100, 200], [130, 250], [140, 260]]);
     assert.deepEqual(dragging, [true, false]);
     assert.equal(handle.hasPointerCapture(1), false);
+    assert.equal(classes.has("page-color-dragging"), false);
+    assert.equal(fire("wheel").prevented, false);
+    window.scrollY = 120;
+    fire("scroll");
+    assert.equal(window.scrollY, 120, "off-handle scrolling is not pinned");
     assert.equal(classes.has("page-color-picking"), true, "lifting the finger leaves sampling active");
     assert.equal(fire("touchmove").prevented, false, "native page scrolling resumes after drag");
     for (const ending of ["pointercancel", "lostpointercapture"]) {
@@ -92,5 +125,6 @@ test("only the handle claims touch gestures, and release never confirms or dismi
     cleanup?.();
     globalThis.document = originalDocument;
     globalThis.Element = originalElement;
+    globalThis.window = originalWindow;
   }
 });

@@ -47,7 +47,6 @@ import {
 } from "@/app/lib/username";
 import {
   DEFAULT_STRIP_ENDING_STYLE,
-  automaticStripEndingStyle,
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
 import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
@@ -55,6 +54,7 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
+import { samplePageColorAtPoint as sampleVisiblePageColor } from "@/app/lib/page-color-sampler";
 import { initialPackStickerWidth, packStickerForSource, type StickerAsset } from "@/app/lib/sticker-pack";
 import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
@@ -76,7 +76,8 @@ import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { StoryShareConfirmation } from "@/app/components/StoryShareConfirmation";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
-import { COVER_MOVE_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
@@ -87,7 +88,7 @@ import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
-import { profileCoverOutline } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
 
 type TextBlock = {
@@ -195,6 +196,7 @@ type DraftStripDetail = {
 };
 type AppRoute =
   | { kind: "library" }
+  | { kind: "profile"; username: string }
   | { kind: "drafts" }
   | { kind: "history" }
   | { kind: "settings" }
@@ -203,6 +205,12 @@ type AppRoute =
   | { kind: "published"; id: string; username?: string };
 type AuthUser = { id: string; phoneLabel: string; username: string | null };
 type AuthStatus = "loading" | "signed-out" | "signed-in";
+type PublicProfileState = {
+  username: string;
+  profile: StripProfile;
+  strips: PublishedStripSummary[];
+  status: "loading" | "ready" | "missing" | "error";
+};
 type AuthStep = "landing" | "phone" | "code";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
@@ -390,6 +398,7 @@ function routeFromLocation(pathname: string, hostname: string): AppRoute {
   if (/^\/history\/?$/.test(pathname)) return { kind: "history" };
   if (/^\/settings\/?$/.test(pathname)) return { kind: "settings" };
   const username = usernameFromHostname(hostname);
+  if (username && pathname === "/") return { kind: "profile", username };
   const rootPublishedMatch = /^\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (username && rootPublishedMatch) {
     return { kind: "published", id: rootPublishedMatch[1], username };
@@ -578,25 +587,6 @@ function hexToHsl(hex: string) {
   return { hue, saturation: saturation * 100, lightness: lightness * 100 };
 }
 
-function pixelToHex(red: number, green: number, blue: number) {
-  return `#${[red, green, blue]
-    .map((channel) => Math.round(channel).toString(16).padStart(2, "0"))
-    .join("")}`.toUpperCase();
-}
-
-function cssColorToHex(color: string) {
-  const match = color.match(/^rgba?\(([^)]+)\)$/i);
-  if (!match) return null;
-  const channels = match[1]
-    .replace("/", " ")
-    .split(/[\s,]+/)
-    .filter(Boolean)
-    .map(Number);
-  if (channels.length < 3 || channels.slice(0, 3).some(Number.isNaN)) return null;
-  if (channels.length > 3 && channels[3] <= 0.01) return null;
-  return pixelToHex(channels[0], channels[1], channels[2]);
-}
-
 const pageColorVideoFrames = new WeakMap<HTMLVideoElement, HTMLCanvasElement>();
 
 function cachePageColorVideoFrame(video: HTMLVideoElement) {
@@ -628,77 +618,8 @@ function cachePageColorVideoFrame(video: HTMLVideoElement) {
   }
 }
 
-function sampleMediaColorAtPoint(
-  media: HTMLImageElement | HTMLVideoElement,
-  clientX: number,
-  clientY: number,
-) {
-  const bounds = media.getBoundingClientRect();
-  const frozenFrame =
-    media instanceof HTMLVideoElement ? pageColorVideoFrames.get(media) : null;
-  const source = frozenFrame ?? media;
-  const sourceWidth = frozenFrame
-    ? frozenFrame.width
-    : media instanceof HTMLImageElement
-      ? media.naturalWidth
-      : media.videoWidth;
-  const sourceHeight = frozenFrame
-    ? frozenFrame.height
-    : media instanceof HTMLImageElement
-      ? media.naturalHeight
-      : media.videoHeight;
-  if (!sourceWidth || !sourceHeight || !bounds.width || !bounds.height) return null;
-
-  const sourceX = Math.min(
-    sourceWidth - 1,
-    Math.max(0, ((clientX - bounds.left) / bounds.width) * sourceWidth),
-  );
-  const sourceY = Math.min(
-    sourceHeight - 1,
-    Math.max(0, ((clientY - bounds.top) / bounds.height) * sourceHeight),
-  );
-  const canvas = document.createElement("canvas");
-  canvas.width = 1;
-  canvas.height = 1;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) return null;
-
-  try {
-    context.drawImage(source, sourceX, sourceY, 1, 1, 0, 0, 1, 1);
-    const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
-    return alpha > 8 ? pixelToHex(red, green, blue) : null;
-  } catch {
-    return null;
-  }
-}
-
 function samplePageColorAtPoint(clientX: number, clientY: number) {
-  const elements = document.elementsFromPoint(clientX, clientY).filter(
-    (element) =>
-      !element.closest(".selector-dock") &&
-      !element.closest(".page-color-picker-indicator"),
-  );
-  const sampledMedia = new Set<HTMLImageElement | HTMLVideoElement>();
-
-  for (const element of elements) {
-    const media =
-      element instanceof HTMLImageElement || element instanceof HTMLVideoElement
-        ? element
-        : element.closest(".video-block")?.querySelector<HTMLVideoElement>("video") ??
-          element.closest(".image-block")?.querySelector<HTMLImageElement>("img");
-    if (media && !sampledMedia.has(media)) {
-      sampledMedia.add(media);
-      const sampledColor = sampleMediaColorAtPoint(media, clientX, clientY);
-      if (sampledColor) return sampledColor;
-    }
-  }
-
-  for (const element of elements) {
-    const backgroundColor = cssColorToHex(getComputedStyle(element).backgroundColor);
-    if (backgroundColor) return backgroundColor;
-  }
-
-  return null;
+  return sampleVisiblePageColor(clientX, clientY, pageColorVideoFrames);
 }
 
 type SwatchStyle = CSSProperties & { "--swatch-foreground": string };
@@ -1182,6 +1103,9 @@ function BlockControls({
           style={style}
           aria-hidden="true"
         />
+      ) : null}
+      {onTextTool ? (
+        <span className="block-controls-text-join" style={style} aria-hidden="true" />
       ) : null}
       <div
         className={`block-controls-reveal ${closing ? "is-closing" : ""}`}
@@ -2920,7 +2844,11 @@ export default function Home() {
   const [libraryOwnerId, setLibraryOwnerId] = useState("");
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const stripProfile = useStripProfile(authUser?.id);
+  const [profileHostUsername, setProfileHostUsername] = useState<string | null>(null);
+  const visitingProfileHost = profileHostUsername !== null && profileHostUsername !== authUser?.username;
+  const stripProfile = useStripProfile(visitingProfileHost ? undefined : authUser?.id);
+  const [publicProfile, setPublicProfile] = useState<PublicProfileState | null>(null);
+  const visibleProfile = publicProfile?.profile ?? stripProfile.profile;
   const [authStep, setAuthStep] = useState<AuthStep>("landing");
   const [authStickerRevealed, setAuthStickerRevealed] = useState(false);
   const authStickerExitRef = useRef<(() => void) | null>(null);
@@ -2958,6 +2886,7 @@ export default function Home() {
   >(null);
   const [publishing, setPublishing] = useState(false);
   const [view, setView] = useState<View>("library");
+  const viewingPublicProfile = view === "library" && publicProfile !== null;
   const posters = useStoryPosters(view === "share" ? openedPublishedStrip : null);
   const { file: storyAssetFile, url: storyAssetUrl, loading: storyAssetLoading } = posters;
   const [storyShareSheetOpen, setStoryShareSheetOpen] = useState(false);
@@ -3044,7 +2973,9 @@ export default function Home() {
   const editorDockEntryTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
   const inlinePreviewScrollRef = useRef<number | null>(null);
+  const previewLayoutRef = useRef<PreviewLayoutTransition | null>(null);
   const inlinePreviewHistoryEntryRef = useRef(false);
+  const inlinePreviewRestorationRef = useRef<"auto" | "manual" | null>(null);
   const inlinePreviewBasePathRef = useRef<string | null>(null);
   const inlinePreviewSelectionRef = useRef<string | null>(null);
   const suppressSelectedBlockAutoFocusRef = useRef(false);
@@ -3127,7 +3058,7 @@ export default function Home() {
   const hasStickerAnchorBlock = blocks.some(
     (block) => block.type !== "sticker",
   );
-  const needsAuthUsername = authStatus === "signed-in" && Boolean(authUser && !authUser.username);
+  const needsAuthUsername = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser && !authUser.username);
   const authFlowStep = needsAuthUsername ? "username" : authStep;
   const authActiveInputRef = authFlowStep === "code" ? authCodeInputRef : authPhoneInputRef;
   useLayoutEffect(() => {
@@ -3142,7 +3073,7 @@ export default function Home() {
     view === "drafts" ||
     view === "history" ||
     view === "settings"
-      ? stripProfile.profile.background
+      ? visibleProfile.background
       : view === "publish-setup" ||
     view === "title-setup" ||
     view === "share"
@@ -3153,15 +3084,7 @@ export default function Home() {
   const hasLeadingImage =
     firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
   const hasLeadingText = firstVisibleBlock?.type === "text";
-  const visibleEndingStyle = automaticStripEndingStyle(
-    view === "published" && openedPublishedStrip
-      ? openedPublishedStrip.blocks
-      : blocks,
-    imageTrayColors,
-  );
-  const endingSurfaceColor = view === "published"
-    ? "#FFFFFF"
-    : visibleEndingStyle.backgroundColor;
+  const endingSurfaceColor = "#FFFFFF";
   const publishedAssetIds =
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.flatMap((block) =>
@@ -3198,8 +3121,21 @@ export default function Home() {
       publishedLoaderDismissedKey !== publishedStripLoadKey);
   const cleanViewBottomSurfaceColor =
     view === "preview" || (view === "edit" && inlinePreview)
-      ? visibleEndingStyle.backgroundColor
+      ? endingSurfaceColor
       : null;
+
+  const prepareInlinePreviewLayout = () => {
+    previewLayoutRef.current = preparePreviewLayout(
+      stripCanvasRef.current?.parentElement ?? null,
+      previewLayoutRef.current,
+      COVER_DOCK_DROP_MS,
+    );
+  };
+  useLayoutEffect(() => {
+    if (view === "edit") previewLayoutRef.current?.start(inlinePreview);
+    else { previewLayoutRef.current?.cancel(); previewLayoutRef.current = null; }
+  }, [inlinePreview, view]);
+  useEffect(() => () => { previewLayoutRef.current?.cancel(); }, []);
 
   const authFormIsVisible = needsAuthUsername ||
     (authenticationRequired && authStatus !== "signed-in" && authStep !== "landing");
@@ -3208,7 +3144,7 @@ export default function Home() {
     return installAuthFormViewport();
   }, [authFormIsVisible]);
 
-  const homeIsVisible = initialRouteReady && authStatus === "signed-in" && !needsAuthUsername &&
+  const homeIsVisible = initialRouteReady && (authStatus === "signed-in" || viewingPublicProfile) && !needsAuthUsername &&
     ["library", "drafts", "history", "settings"].includes(view);
   useEffect(() => {
     if (view !== "library") stripProfile.cancel();
@@ -3283,6 +3219,10 @@ export default function Home() {
     inlinePreviewScrollRef.current = null;
     inlinePreviewHistoryEntryRef.current = false;
     inlinePreviewBasePathRef.current = null;
+    if (inlinePreviewRestorationRef.current !== null) {
+      history.scrollRestoration = inlinePreviewRestorationRef.current;
+      inlinePreviewRestorationRef.current = null;
+    }
   }, [view]);
 
   useEffect(() => {
@@ -3322,12 +3262,14 @@ export default function Home() {
       restoringScroll = false;
     };
     const restoreLockedScrollTop = () => {
+      if (root.classList.contains("page-color-dragging")) return;
       if (window.scrollY < lockedScrollTop) setLockedScrollTop();
     };
     const handleTouchStart = (event: TouchEvent) => {
-      lastTouchY = event.touches[0]?.clientY ?? null;
+      lastTouchY = root.classList.contains("page-color-dragging") ? null : event.touches[0]?.clientY ?? null;
     };
     const handleTouchMove = (event: TouchEvent) => {
+      if (root.classList.contains("page-color-dragging")) return;
       const nextTouchY = event.touches[0]?.clientY;
       if (nextTouchY === undefined || lastTouchY === null) return;
 
@@ -3348,6 +3290,7 @@ export default function Home() {
       restoreLockedScrollTop();
     };
     const handleWheel = (event: WheelEvent) => {
+      if (root.classList.contains("page-color-dragging")) return;
       if (
         event.deltaY >= 0 ||
         window.scrollY + event.deltaY > lockedScrollTop
@@ -3491,6 +3434,10 @@ export default function Home() {
         document.documentElement.classList.remove("inline-preview-exit-locked");
         inlinePreviewExitLockRef.current = null;
       }
+      if (inlinePreviewRestorationRef.current !== null) {
+        history.scrollRestoration = inlinePreviewRestorationRef.current;
+        inlinePreviewRestorationRef.current = null;
+      }
       const originalOverflowAnchor = blockReorderOverflowAnchorRef.current;
       if (originalOverflowAnchor) {
         document.documentElement.style.overflowAnchor = originalOverflowAnchor.root;
@@ -3518,13 +3465,20 @@ export default function Home() {
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
     const root = document.documentElement;
-    root.style.setProperty("--profile-page-background", stripProfile.profile.background);
+    root.style.setProperty("--profile-page-background", visibleProfile.background);
     root.classList.add("profile-page-active");
     return () => {
       root.classList.remove("profile-page-active");
       root.style.removeProperty("--profile-page-background");
     };
-  }, [homeIsVisible, view, stripProfile.profile.background]);
+  }, [homeIsVisible, view, visibleProfile.background]);
+
+  useEffect(() => {
+    if (!viewingPublicProfile || !publicProfile) return;
+    const previousTitle = document.title;
+    document.title = `${profileTitle(publicProfile.profile, publicProfile.username)} | Strip`;
+    return () => { document.title = previousTitle; };
+  }, [viewingPublicProfile, publicProfile]);
 
 
   useLayoutEffect(() => installFooterSafeAreaColor({
@@ -3712,6 +3666,7 @@ export default function Home() {
     }
 
     const controller = new AbortController();
+    setProfileHostUsername(usernameFromHostname(window.location.hostname));
     void fetch("/api/auth/session", {
       cache: "no-store",
       signal: controller.signal,
@@ -3748,7 +3703,7 @@ export default function Home() {
   }, [authResendSeconds, authStep]);
 
   useEffect(() => {
-    if (!libraryOwnerId) return;
+    if (!libraryOwnerId || visitingProfileHost) return;
     const controller = new AbortController();
     setLibraryLoading(true);
     void fetch("/api/strips", {
@@ -3772,10 +3727,10 @@ export default function Home() {
         if (!controller.signal.aborted) setLibraryLoading(false);
       });
     return () => controller.abort();
-  }, [libraryOwnerId]);
+  }, [libraryOwnerId, visitingProfileHost]);
 
   useEffect(() => {
-    if (!libraryOwnerId) return;
+    if (!libraryOwnerId || visitingProfileHost) return;
     const controller = new AbortController();
     setDraftsLoading(true);
     void fetch("/api/drafts", {
@@ -3797,10 +3752,10 @@ export default function Home() {
         if (!controller.signal.aborted) setDraftsLoading(false);
       });
     return () => controller.abort();
-  }, [libraryOwnerId]);
+  }, [libraryOwnerId, visitingProfileHost]);
 
   useEffect(() => {
-    if (!libraryOwnerId) return;
+    if (!libraryOwnerId || visitingProfileHost) return;
     const controller = new AbortController();
     setHistoryLoading(true);
     void fetch("/api/history", {
@@ -3824,10 +3779,10 @@ export default function Home() {
         if (!controller.signal.aborted) setHistoryLoading(false);
       });
     return () => controller.abort();
-  }, [libraryOwnerId]);
+  }, [libraryOwnerId, visitingProfileHost]);
 
   useEffect(() => {
-    if (!loaded || !libraryOwnerId || !legacyDraftBlocksRef.current) return;
+    if (!loaded || !libraryOwnerId || visitingProfileHost || !legacyDraftBlocksRef.current) return;
     const legacyBlocks = legacyDraftBlocksRef.current;
     legacyDraftBlocksRef.current = null;
     const id = makeId();
@@ -3856,7 +3811,7 @@ export default function Home() {
       .catch(() => {
         legacyDraftBlocksRef.current = legacyBlocks;
       });
-  }, [libraryOwnerId, loaded]);
+  }, [libraryOwnerId, loaded, visitingProfileHost]);
 
   useEffect(() => {
     if (draftSaveTimerRef.current !== null) {
@@ -4751,6 +4706,11 @@ export default function Home() {
     const consumesPreviewHistory =
       inlinePreview && inlinePreviewHistoryEntryRef.current;
     if (!inlinePreview) {
+      // Mark the EDIT entry manual before pushing preview. Changing only the
+      // preview entry on exit is too late: Back can restore the old bottom for
+      // a frame before our current-position lock runs.
+      inlinePreviewRestorationRef.current ??= history.scrollRestoration;
+      history.scrollRestoration = "manual";
       const currentHistoryState =
         window.history.state && typeof window.history.state === "object"
           ? { ...window.history.state }
@@ -4768,6 +4728,7 @@ export default function Home() {
       window.history.back();
       return;
     }
+    prepareInlinePreviewLayout();
     flushSync(() => {
       setActiveTextTool(null);
       setEditingTextBlockId(null);
@@ -4796,8 +4757,14 @@ export default function Home() {
   const releaseInlinePreviewExitLock = () => {
     const lock = inlinePreviewExitLockRef.current;
     if (!lock) return;
+    if (inlinePreviewExitFrameRef.current !== null) window.cancelAnimationFrame(inlinePreviewExitFrameRef.current);
+    if (inlinePreviewExitSettleFrameRef.current !== null) window.cancelAnimationFrame(inlinePreviewExitSettleFrameRef.current);
+    if (inlinePreviewExitTimerRef.current !== null) window.clearTimeout(inlinePreviewExitTimerRef.current);
+    inlinePreviewExitFrameRef.current = null;
+    inlinePreviewExitSettleFrameRef.current = null;
     restoreInlinePreviewExitScroll(lock.scrollTop);
     history.scrollRestoration = lock.scrollRestoration;
+    inlinePreviewRestorationRef.current = null;
     document.documentElement.classList.remove("inline-preview-exit-locked");
     inlinePreviewExitLockRef.current = null;
     inlinePreviewScrollRef.current = null;
@@ -4822,7 +4789,7 @@ export default function Home() {
     if (!inlinePreviewExitLockRef.current) {
       inlinePreviewExitLockRef.current = {
         scrollTop,
-        scrollRestoration: history.scrollRestoration,
+        scrollRestoration: inlinePreviewRestorationRef.current ?? history.scrollRestoration,
       };
     } else {
       inlinePreviewExitLockRef.current.scrollTop = scrollTop;
@@ -4878,6 +4845,7 @@ export default function Home() {
       return;
     }
 
+    prepareInlinePreviewLayout();
     flushSync(() => {
       setInlinePreview(false);
       setSelectedBlockId(blockId);
@@ -5433,20 +5401,22 @@ export default function Home() {
   const returnToLibrary = () => openLibrarySection("library");
 
   const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLButtonElement) => {
-    if (!libraryOwnerId || openingStripId || pageTransitionInFlightRef.current) return;
+    if ((!libraryOwnerId && !publicProfile) || openingStripId || pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     const cover = button.querySelector<HTMLElement>(".library-cover");
     const origin = captureCoverOrigin(cover ?? null);
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
     const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
-    const publishedPath = `/strip/${encodeURIComponent(strip.id)}`;
+    const hostUsername = usernameFromHostname(window.location.hostname);
+    const publishedPath = hostUsername && hostUsername === strip.username
+      ? `/${encodeURIComponent(strip.id)}` : `/strip/${encodeURIComponent(strip.id)}`;
     // Safari snapshots the outgoing entry here. Save the untouched library,
     // before its cover becomes the loading poster, so Back never replays it.
     setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
-      setOpeningCover({ strip, origin, dock, background: stripProfile.profile.background });
+      setOpeningCover({ strip, origin, dock, background: visibleProfile.background });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -5495,7 +5465,7 @@ export default function Home() {
       setBrowserPath("/");
       await transitionToViewStandard("library");
       setOpenedPublishedStrip(null);
-      if (authStatus !== "signed-in") setAuthenticationRequired(true);
+      if (authStatus !== "signed-in" && !publicProfile) setAuthenticationRequired(true);
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -5509,7 +5479,7 @@ export default function Home() {
     let cancelled = false;
     let routeRequestId = 0;
 
-    const applyRoute = async () => {
+    const applyRoute = async (): Promise<void> => {
       const requestId = ++routeRequestId;
       const routeIsCurrent = () => !cancelled && requestId === routeRequestId;
       try {
@@ -5540,12 +5510,51 @@ export default function Home() {
           } catch {
             if (!routeIsCurrent()) return;
             setBrowserPath("/", true);
+            if (usernameFromHostname(window.location.hostname)) {
+              setNotice("Couldn’t open this Strip.");
+              await applyRoute();
+              return;
+            }
             setView("library");
             setAuthenticationRequired(authStatus !== "signed-in");
             setNotice("Couldn’t open this Strip.");
           }
           return;
         }
+
+        if (route.kind === "profile") {
+          setAuthenticationRequired(false);
+          setView("library");
+          setOpenedPublishedStrip(null);
+          window.scrollTo({ top: 0, behavior: "auto" });
+          // The authenticated session supplies the owner identity, never URL input.
+          if (authStatus === "signed-in" && authUser?.username === route.username) {
+            setPublicProfile(null);
+            return;
+          }
+          const placeholder: PublicProfileState = {
+            username: route.username, profile: DEFAULT_PROFILE, strips: [], status: "loading",
+          };
+          setPublicProfile((current) => current?.username === route.username && current.status === "ready" ? current : placeholder);
+          try {
+            const response = await fetch(`/api/profiles/${encodeURIComponent(route.username)}`, { cache: "no-store" });
+            if (!routeIsCurrent()) return;
+            if (response.status === 404) {
+              setPublicProfile({ ...placeholder, status: "missing" });
+              return;
+            }
+            if (!response.ok) throw new Error("Public profile request failed");
+            const data = await response.json() as Omit<PublicProfileState, "status">;
+            const strips = await prepareLibrarySummaries(data.strips);
+            if (!routeIsCurrent()) return;
+            setPublicProfile({ ...data, strips, status: "ready" });
+          } catch {
+            if (routeIsCurrent()) setPublicProfile({ ...placeholder, status: "error" });
+          }
+          return;
+        }
+
+        setPublicProfile(null);
 
         if (authStatus !== "signed-in" || !libraryOwnerId) {
           setAuthenticationRequired(true);
@@ -5651,6 +5660,7 @@ export default function Home() {
           suppressSelectedBlockAutoFocusRef.current = true;
         }
         beginInlinePreviewExitLock(scrollTop);
+        prepareInlinePreviewLayout();
         flushSync(() => {
           setInlinePreview(false);
           if (selectedPreviewBlockId) {
@@ -5671,9 +5681,13 @@ export default function Home() {
         routeFromLocation(window.location.pathname, window.location.hostname).kind ===
           "edit"
       ) {
+        if (inlinePreviewExitLockRef.current) releaseInlinePreviewExitLock();
+        inlinePreviewRestorationRef.current ??= history.scrollRestoration;
+        history.scrollRestoration = "manual";
         inlinePreviewHistoryEntryRef.current = true;
         inlinePreviewBasePathRef.current = window.location.pathname;
         inlinePreviewScrollRef.current = window.scrollY;
+        prepareInlinePreviewLayout();
         flushSync(() => {
           setActiveTextTool(null);
           setEditingTextBlockId(null);
@@ -5704,9 +5718,10 @@ export default function Home() {
     window.addEventListener("popstate", handlePopState);
     return () => {
       cancelled = true;
+      initialRouteHandledRef.current = false;
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [authStatus, libraryOwnerId, needsAuthUsername]);
+  }, [authStatus, libraryOwnerId, needsAuthUsername, authUser?.username]);
 
   const publish = async () => {
     if (!hasContent) {
@@ -6303,7 +6318,6 @@ export default function Home() {
   const renderStrip = (
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
-    sourceEndingStyle: StripEndingStyle = visibleEndingStyle,
   ) => {
     const mediaBlockIds = sourceBlocks.flatMap((block) =>
       block.type === "image" || block.type === "video" ? [block.id] : [],
@@ -6340,7 +6354,7 @@ export default function Home() {
     const canvasStyle = {
       ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
       ...(showsEndingCard
-        ? { backgroundColor: sourceEndingStyle.backgroundColor }
+        ? { backgroundColor: "#FFFFFF" }
         : {}),
     } satisfies CSSProperties;
 
@@ -6745,17 +6759,13 @@ export default function Home() {
           aria-label="Strip actions preview"
           style={
             {
-              "--ending-background": sourceEndingStyle.backgroundColor,
+              "--ending-background": "#FFFFFF",
               "--ending-corner-color": endingFollowsText
                 ? trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND
                 : undefined,
-              "--ending-foreground": contrastColor(
-                sourceEndingStyle.backgroundColor,
-              ),
-              "--ending-button": sourceEndingStyle.buttonColor,
-              "--ending-button-foreground": contrastColor(
-                sourceEndingStyle.buttonColor,
-              ),
+              "--ending-foreground": "#000000",
+              "--ending-button": "#000000",
+              "--ending-button-foreground": "#FFFFFF",
             } as CSSProperties
           }
         >
@@ -7007,7 +7017,7 @@ export default function Home() {
         ? viewedStrips
         : isDraftLibrary
           ? draftStrips
-          : publishedStrips;
+          : publicProfile?.strips ?? publishedStrips;
     const libraryColumns = [
       libraryItems.filter((_, index) => index % 2 === 0),
       libraryItems.filter((_, index) => index % 2 === 1),
@@ -7019,7 +7029,7 @@ export default function Home() {
       ? draftsLoading
       : isHistory
         ? historyLoading
-        : libraryLoading;
+        : publicProfile ? publicProfile.status === "loading" : libraryLoading;
     const pendingDraftDelete = draftStrips.find(
       (draft) => draft.id === pendingDraftDeleteId,
     );
@@ -7046,7 +7056,7 @@ export default function Home() {
         strip.title ||
         (isDraft ? draftFallbackTitle(strip.createdAt) : "Untitled");
       const coverOutline = strip.cover.kind === "color"
-        ? profileCoverOutline(strip.cover.color, stripProfile.profile.background) : undefined;
+        ? profileCoverOutline(strip.cover.color, visibleProfile.background) : undefined;
       const coverStyle: CSSProperties | undefined =
         strip.cover.kind === "color"
           ? { backgroundColor: strip.cover.color,
@@ -7119,12 +7129,12 @@ export default function Home() {
         {legacyTransitionLayer}
         <main
           inert={openingCover !== null}
-          className={`app-shell library-mode profile-theme-mode ${view === "library" ? "profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
+          className={`app-shell library-mode profile-theme-mode ${view === "library" ? "profile-mode" : ""} ${viewingPublicProfile ? "public-profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
             isDraftLibrary ? "drafts-library-mode" : ""
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
           }`}
-          style={profilePageStyle(stripProfile)}
+          style={profilePageStyle({ profile: visibleProfile })}
         >
           <section
             className={`strip-library ${legacyPageEnterClass}`}
@@ -7134,7 +7144,7 @@ export default function Home() {
               } as CSSProperties
             }
           >
-            {view === "library" ? <ProfileHeader controller={stripProfile} username={authUser?.username ?? null} /> : <header className="library-header">
+            {view === "library" ? <ProfileHeader controller={stripProfile} username={publicProfile?.username ?? authUser?.username ?? null} publicProfile={publicProfile?.profile} /> : <header className="library-header">
               <h1>
                 {isSettings
                   ? "Settings"
@@ -7238,6 +7248,14 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+            ) : viewingPublicProfile && publicProfile.status !== "ready" ? (
+              <div className="profile-empty-state" role="status">
+                <strong>{publicProfile.status === "missing" ? "This profile isn’t here." : "Couldn’t load this profile."}</strong>
+                <p>{publicProfile.status === "missing" ? "Check the username and try again." : "Try refreshing in a moment."}</p>
+                {publicProfile.status === "error" ? <button type="button" onClick={() => window.location.reload()}>Try again</button> : null}
+              </div>
+            ) : viewingPublicProfile && libraryItems.length === 0 ? (
+              <div className="profile-empty-state"><strong>No Strips yet.</strong><p>Published Strips will appear here.</p></div>
             ) : view === "library" && libraryItems.length === 0 ? (
               <div className="profile-empty-state">
                 <strong>A little space for your world.</strong>
@@ -7273,7 +7291,7 @@ export default function Home() {
             )}
           </section>
 
-          {!isSettings && !stripProfile.editing ? (
+          {!viewingPublicProfile && !isSettings && !stripProfile.editing ? (
             <button
               className="library-add-button"
               type="button"
@@ -7286,9 +7304,9 @@ export default function Home() {
 
           {/* Remove the fixed surface entirely: Safari retains its white
               edge paint even with visibility:hidden or an offscreen transform. */}
-          {view === "library" && stripProfile.editing && !openingCover ?
+          {!viewingPublicProfile && view === "library" && stripProfile.editing && !openingCover ?
             <p className="profile-editor-hint">Tap element to edit</p> : null}
-          {!openingCover ? <footer
+          {!viewingPublicProfile && !openingCover ? <footer
             key="persistent-composer-dock"
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
           >
@@ -7928,7 +7946,7 @@ export default function Home() {
               aria-hidden={!publishedContentCanReveal}
               inert={!publishedContentCanReveal}
             >
-              {renderStrip(false, publishedBlocks, visibleEndingStyle)}
+              {renderStrip(false, publishedBlocks)}
               <footer
                 className="published-bottom-sheet strip-end-sheet"
                 aria-label="Strip actions"

@@ -167,8 +167,6 @@ function StickerPickerDialog({
   const stickers = category === "shapes" ? [] : stickersByCategory(category);
   const colorPosition = shapeColorPosition(shapeColor);
   const position = { ...colorPosition, hue: colorPosition.saturation > 0 ? colorPosition.hue : wheelHue };
-  const customColor = SHAPE_STICKER_COLORS.some((color) => color.value === shapeColor)
-    ? [] : [{ name: "Current", value: shapeColor }];
   const chooseShapeColor = (color: string) => {
     setSamplePoint(null);
     const next = shapeColorPosition(color);
@@ -313,7 +311,7 @@ function StickerPickerDialog({
                 <span className="gradient-picker-value" style={{ left: `${Math.min(94, Math.max(6, position.hue / 360 * 100))}%`,
                   top: `${Math.min(72, Math.max(28, 100 - position.lightness))}%`, backgroundColor: shapeColor }} aria-hidden="true" />
               </div> : <>
-                {[...SHAPE_STICKER_COLORS, ...customColor].map((color) => {
+                {SHAPE_STICKER_COLORS.map((color) => {
                   const selected = color.value === shapeColor;
                   const ink = shapeColorInk(color.value);
                   return <button key={color.value} type="button"

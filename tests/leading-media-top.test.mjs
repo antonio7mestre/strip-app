@@ -169,7 +169,7 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
   };
   const document = {
     ...target("document"), documentElement: root,
-    querySelector: () => editorOwns ? {} : null,
+    querySelector: selector => editorOwns || (selector.includes("html.page-color-dragging") && classes.has("page-color-dragging")) ? {} : null,
   };
   const window = {
     ...target("window"), scrollY, innerHeight: 800,
@@ -217,6 +217,22 @@ function fixture({ scrollY = 450, inset = 59, resetScroll = true, reload = false
     },
   };
 }
+
+test("the top-edge spring cannot move the page while a color handle owns the gesture", () => {
+  const f = fixture({ scrollY: 80, resetScroll: false });
+  f.classes.add("page-color-dragging");
+  f.emit("touchstart", [100]);
+  assert.equal(f.emit("touchmove", [700]).defaultPrevented, false);
+  f.emit("scroll");
+  f.emit("touchend");
+  for (let n = 0; n < 5; n++) f.frame();
+  assert.equal(f.window.scrollY, 80);
+  assert.equal(f.styles.has("--leading-media-return-y"), false);
+  f.classes.delete("page-color-dragging");
+  f.emit("touchstart", [100]);
+  assert.equal(f.emit("touchmove", [700]).defaultPrevented, true, "normal overscroll resumes after release");
+  f.cleanup();
+});
 
 test("a photo-first page is genuinely scrolled under the safe area, not moved above the document", () => {
   for (const inset of [47, 54, 59, 62]) {
