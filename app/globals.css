@@ -2500,11 +2500,6 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   z-index: 37;
 }
 
-.editor-sticker-filters { position: absolute; width: 0; height: 0; pointer-events: none; }
-.sticker-block.is-editing.is-selected .sticker-visual {
-  filter: url(#editor-sticker-outline) drop-shadow(0 5px 2px rgb(0 0 0 / 38%));
-}
-
 .sticker-block.is-overlapping-selection {
   z-index: 33;
   opacity: 0.28;
@@ -2709,6 +2704,11 @@ html.sticker-tray-open body {
   transform: translateY(calc(var(--sticker-dock-visible-height) + 180px + env(safe-area-inset-bottom)));
   pointer-events: none;
 }
+
+/* Use the editor's actual full-width color dock, outside the inset pack. */
+.composer-dock.shape-selector-dock { z-index: 40; }
+.shape-selector-dock .selector-scroll:not(.is-gradient-mode) { touch-action: pan-x; }
+.shape-selector-dock.is-sampling-page { transform: translateY(125%); pointer-events: none; }
 
 .shape-page-color-done {
   position: fixed;

@@ -5,6 +5,7 @@ export const SHAPE_STICKER_COLORS = [
   { name: "White", value: "#FFFFFF" },
   { name: "Acid", value: "#8ACE00" },
   { name: "Hot pink", value: "#FF4FA3" },
+  { name: "Chrome", value: "#D9D9D9" },
   { name: "Electric blue", value: SHAPE_STICKER_DEFAULT_COLOR },
   { name: "Laser violet", value: "#7A2CFF" },
   { name: "Safety orange", value: "#FF4D00" },

@@ -28,9 +28,9 @@
 .sourceChoice { display: flex; height: 64px; min-width: 0; align-items: center; justify-content: center; gap: 9px; padding: 10px; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; font-size: 14px; font-weight: 650; line-height: 1.15; text-align: left; transition: transform 150ms cubic-bezier(.2,.8,.2,1), background-color 150ms ease; }
 .sourceChoice svg { width: 2.3em; height: 2.3em; flex: none; }
 .sourceChoice:active { transform: scale(.965); }
-.categories { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); flex: none; gap: 5px; padding: 8px 0 12px; overflow: visible; }
+.categories { display: flex; flex-wrap: nowrap; flex: none; gap: 5px; padding: 8px 0 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .categories::-webkit-scrollbar { display: none; }
-.categories button { min-width: 0; min-height: 36px; padding: 0 3px; border: 1.5px solid #d5d5cf; border-radius: 99px; background: transparent; color: #393936; font-size: clamp(10px, 3vw, 13px); font-weight: 750; }
+.categories button { flex: 0 0 auto; min-width: 0; min-height: 36px; padding: 0 14px; border: 1.5px solid #d5d5cf; border-radius: 99px; background: transparent; color: #393936; font-size: 13px; font-weight: 750; white-space: nowrap; }
 .categories button.activeCategory { border-color: #000000; background: #000000; color: #ffffff; }
 .scrollArea { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
 .scrollArea::-webkit-scrollbar { display: none; }
@@ -47,28 +47,20 @@
 .stickerButton img { display: block; width: 100%; height: auto; filter: brightness(1.06) drop-shadow(2px 3px 0 rgba(0, 0, 0, .22)); transition: transform 120ms ease; }
 .stickerButton:active img { transform: scale(.94); }
 .stickerButton.isPicking img { animation: stickerPickZoom 150ms cubic-bezier(.2,.85,.25,1) both; }
-.shapeHeading { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 2px 2px 12px; font-size: 14px; font-weight: 750; }
+.shapeHeading { display: flex; flex: none; align-items: center; justify-content: flex-start; padding: 2px 2px 12px; font-size: 14px; font-weight: 750; }
 .shapeColorButton { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 4px 10px; border: 1px solid #d5d5cf; border-radius: 999px; background: #fff; color: #111; font-size: 12px; font-weight: 750; }
 .shapeColorButton span { display: block; width: 20px; height: 20px; border: 1px solid #0003; border-radius: 50%; }
-.shapeGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 2px 2px 32px; }
-.shapeButton { display: grid; min-width: 0; aspect-ratio: 1; place-items: center; padding: 10px; border: 0; border-radius: 20px; background: #f0f0ed; transition: transform 140ms cubic-bezier(.2,.85,.25,1); }
-.shapeButton svg { display: block; width: 100%; height: 100%; filter: drop-shadow(2px 3px 0 rgb(0 0 0 / 18%)); }
+.shapeButton svg { display: block; width: 100%; height: auto; filter: drop-shadow(2px 3px 0 rgb(0 0 0 / 18%)); }
 .shapeButton:active { transform: scale(.94); }
 .shapeButton.isPicking { animation: stickerPickZoom 150ms cubic-bezier(.2,.85,.25,1) both; }
-.shapePalette { position: absolute; z-index: 5; right: 0; bottom: 0; left: 0; display: flex; align-items: center; gap: 8px; min-height: 68px; padding: 9px 2px 9px 10px; border: 1px solid #e6e6e2; border-radius: 24px 24px 0 0; background: #fff; box-shadow: 0 -8px 22px rgb(0 0 0 / 12%); animation: stickerTrayContentIn 190ms cubic-bezier(.22,.9,.3,1) both; }
-.paletteScroll { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; touch-action: pan-x; scrollbar-width: none; }
-.paletteScroll::-webkit-scrollbar { display: none; }
-.paletteScroll > button { flex: 0 0 44px; width: 44px; height: 44px; }
-.shapeWheel { flex: 1; min-width: 0; height: 48px; border-radius: 24px; }
-.paletteDone { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #f0f0ed; color: #111; }
+.hasPalette .masonry { padding-bottom: calc(30px + var(--dock-visible-height, 76px) + env(safe-area-inset-bottom)); }
 .sourceChoice:focus-visible,
 .sourceBackChoice:focus-visible,
 .iconButton:focus-visible,
 .categories button:focus-visible,
 .stickerButton:focus-visible,
 .shapeButton:focus-visible,
-.shapeColorButton:focus-visible,
-.paletteDone:focus-visible { outline: 3px solid #304dff; outline-offset: 2px; }
+.shapeColorButton:focus-visible { outline: 3px solid #304dff; outline-offset: 2px; }
 
 @keyframes stickerTrayContentIn { from { transform: translateY(8px); opacity: 0; } }
 @keyframes stickerPickZoom { 55% { transform: scale(1.12); } to { transform: scale(.9); opacity: .7; } }

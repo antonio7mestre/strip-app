@@ -1,0 +1,128 @@
+{
+  "pack": "Scrap",
+  "generator": "Built-in image generation",
+  "style": "Existing Strip cutouts: realistic tactile materials, Y2K-adjacent, no text or outlines",
+  "assets": [
+    {
+      "id": "clear-tape",
+      "name": "Clear tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app. Create a single short horizontal piece of clear translucent sticky tape, torn unevenly at both ends, gently crinkled with realistic adhesive texture and restrained glossy highlights. Flat overhead scanned-object photography, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect material, sharp complete cutout. The tape should genuinely be see-through with a partially transparent alpha channel across its middle, not an opaque gray rectangle. Entire object visible, centered, almost fills the canvas with a small clear margin, approximately 3:1 aspect ratio. Output a transparent PNG: fully transparent outside the object, partially transparent tape film, no backdrop, no checkerboard drawn into the image. No text, letters, logos, border, white sticker outline, hands, tape roll, other objects or cast shadow. Single separate piece only."
+    },
+    {
+      "id": "frosted-tape",
+      "name": "Frosted tape",
+      "refinementPrompt": "Edit target: the provided frosted tape cutout. Preserve its exact silhouette, wrinkles, overhead scanned realism and no text. Change only its optical transparency: make this genuine translucent adhesive film, with 65% see-through visibility throughout the broad flat center (approximately alpha 90 of 255), and subtly more visible folds around alpha 150. Not opaque paper. Outside the tape must be fully transparent alpha zero. The center must also have real partial alpha, not simulated transparency by painting gray or checkerboard. Export a transparent PNG, no background, no shadow, no new elements.",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One horizontal strip of milky frosted translucent adhesive tape with fine fibrous hazy film and torn ends. Approximate 3:1 shape. Real semi-transparent alpha across its middle so the underlying photograph remains visible, not opaque white.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "cobalt-tape",
+      "name": "Cobalt tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One short wide horizontal piece of cobalt blue painter's masking tape. Ragged hand-torn ends, matte crepe paper texture, lightly wrinkled, slightly lifted tiny corner, approximately 3:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "lime-tape",
+      "name": "Lime tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One horizontal piece of vivid chartreuse lime washi tape. Fine rice-paper fiber texture and ragged ends, approximately 3:1 shape. A little translucent in the actual alpha channel.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "pink-tape",
+      "name": "Pink tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One horizontal piece of pink paper masking tape, slightly wrinkled matte paper, casually torn ends, approximately 3:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "orange-tape",
+      "name": "Orange tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One short orange cloth gaffer-tape strip, frayed torn ends, subtle woven fabric grain, a slight crease, approximately 3:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "gingham-tape",
+      "name": "Gingham tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One horizontal piece of red-and-cream small gingham check washi tape, papery texture and irregular torn ends. Approximately 3:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "checker-tape",
+      "name": "Checker tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One strip of black-and-white checkerboard washi tape, bold simple square pattern, worn paper texture, torn irregular ends, approximately 3:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "silver-tape",
+      "name": "Silver duct tape",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One horizontal strip of realistic silver-gray duct tape with subtle woven crosshatch and slight wrinkles, torn ends. Ordinary utilitarian silver tape not glitter or chrome, approximately 3:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "notebook-scrap",
+      "name": "Notebook scrap",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One small torn piece of warm ivory ruled notebook paper, a few faint blue horizontal rules, ragged spiral-tear edge on its left. Blank with absolutely no handwriting or text. Slight wrinkles, portrait-ish irregular rectangle.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "grid-scrap",
+      "name": "Grid paper scrap",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One irregular roughly square torn scrap of cream graph paper with a delicate cobalt-blue grid, visible paper fibers, subtly curled corner. Completely blank except the grid. No text.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "kraft-scrap",
+      "name": "Kraft paper scrap",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One irregular horizontal ripped scrap of warm brown kraft paper, deckled fibrous edges, lightly creased tactile paper, approximately 2:1 shape, no text.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "pink-paper",
+      "name": "Pink paper scrap",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One imperfect torn rectangle of vibrant rose pink construction paper, fibrous ragged white-edged tears and a soft fold line, slightly wide shape, no text.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "vellum-scrap",
+      "name": "Vellum scrap",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One irregular torn rectangle of translucent milky tracing paper or vellum, a few delicate wrinkles and fibers, actual partial alpha through its entire interior. Photos beneath should clearly remain visible. No printing or text.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "paperclip",
+      "name": "Silver paperclip",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One oversized classic silver wire paperclip, straight overhead, realistic slightly scratched metal, clean bent wire loop. A single paperclip only, long axis vertical, completely transparent spaces between its wires.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "binder-clip",
+      "name": "Red binder clip",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One small cherry red metal binder clip with silver wire arms folded outwards, overhead, realistic enamel and worn metal, compact complete silhouette.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "photo-corner",
+      "name": "Photo corner",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One single black paper photo mounting corner, right-angle triangular pocket with subtle fold and real paper texture, flat overhead. A single corner, not a frame or group, no photograph.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "stamp-frame",
+      "name": "Perforated paper frame",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One small cream blank postage-stamp-shaped paper frame with perforated scalloped outer edges and a completely transparent rectangular opening in the middle. Real thin paper texture, warm ivory, no postage text, no numbers, no imagery. Full intact rectangular frame.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "red-stitch",
+      "name": "Red stitching",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One continuous short row of thick red cotton zigzag stitching, realistic fuzzy thread fibers and tiny connected loops, isolated without cloth or fabric backing. A connected horizontal stitch about 3:1 wide. No needle, no other objects.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "blank-ticket",
+      "name": "Blank yellow ticket",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook sticker for the Strip app.\nSubject: One single small yellow ochre paper admission-ticket stub with scalloped notches and tiny perforation holes on the short edges, worn tactile paper and a subtle fold. Blank ticket with absolutely no words, letters, numbers, symbols or printing. Horizontal 2:1 shape.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow."
+    },
+    {
+      "id": "instant-frame",
+      "name": "Instant photo frame",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook frame sticker for the Strip app.\nSubject: One empty ivory instant-photograph paper border, portrait rectangular silhouette, thin top and side borders and a deeper blank bottom border. Very subtle scuffs and paper texture. The entire inner picture opening is genuinely transparent alpha, completely empty, not black, gray, white or a photograph. No text or branding.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow.\nCRITICAL: true transparent background outside AND true transparent alpha inside the frame opening. One continuous frame only. No page, no scene, no cast shadow."
+    },
+    {
+      "id": "cobalt-frame",
+      "name": "Torn cobalt frame",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook frame sticker for the Strip app.\nSubject: One empty horizontal rectangular frame hand-torn from cobalt blue construction paper, four connected uneven fibrous narrow borders with pale torn edges, playful imperfect scrapbook cutout. The entire large inner opening must be genuinely transparent alpha, not colored or filled. Border about 8 percent of the width.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow.\nCRITICAL: true transparent background outside AND true transparent alpha inside the frame opening. One continuous frame only. No page, no scene, no cast shadow."
+    },
+    {
+      "id": "foil-frame",
+      "name": "Silver foil frame",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook frame sticker for the Strip app.\nSubject: One empty nearly square frame made of gently crumpled silver aluminum foil, four connected narrow irregular borders with small folds and realistic creases, tactile and imperfect rather than chrome jewelry. The entire large inner square opening is genuinely transparent alpha, not black or gray. Border about 9 percent of the width.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow.\nCRITICAL: true transparent background outside AND true transparent alpha inside the frame opening. One continuous frame only. No page, no scene, no cast shadow."
+    },
+    {
+      "id": "oval-frame",
+      "name": "Pink oval frame",
+      "prompt": "Use case: product-mockup. Asset type: one draggable scrapbook frame sticker for the Strip app.\nSubject: One empty oval picture frame cut from rose-pink textured cardstock with a charming gently scalloped outer edge and smooth oval inner opening. Flat thin paper with slight worn edges, not molded plastic or jewelry. The entire inner oval opening is genuinely transparent alpha, completely empty, not white, gray, black or a photograph. Border about 10 percent of the oval width.\nFlat overhead scanned-object photography. One realistic complete scrapbook material cutout, tactile, playful Y2K-adjacent not futuristic, slightly bright exposure, authentic imperfect texture, sharp silhouette. Entire object visible, centered, nearly fills the canvas with a small clear margin. Genuinely transparent PNG background with preserved alpha, no backdrop, no baked checkerboard. No text, letters, logos, white sticker outline, hands, extra objects or cast shadow.\nCRITICAL: true transparent background outside AND true transparent alpha inside the frame opening. One continuous frame only. No page, no scene, no cast shadow."
+    }
+  ]
+}

@@ -21,19 +21,20 @@ const css = readFileSync(
   "utf8",
 );
 
-test("the sticker pack has five complete categories plus the added animals", () => {
+test("the sticker pack has six complete categories plus the added animals", () => {
   assert.deepEqual(STICKER_CATEGORIES, [
     "random",
     "animals",
     "items",
     "nature",
     "clothing",
+    "scrap",
   ]);
-  assert.equal(STICKER_PACK.length, 102);
-  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.id)).size, 102);
-  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.src)).size, 102);
+  assert.equal(STICKER_PACK.length, 126);
+  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.id)).size, 126);
+  assert.equal(new Set(STICKER_PACK.map(sticker => sticker.src)).size, 126);
   for (const category of STICKER_CATEGORIES) {
-    assert.equal(stickersByCategory(category).length, category === "animals" ? 22 : 20, category);
+    assert.equal(stickersByCategory(category).length, category === "animals" ? 22 : category === "scrap" ? 24 : 20, category);
   }
 });
 
@@ -101,7 +102,7 @@ test("the sticker action offers the pack or the existing camera-roll flow", () =
 });
 
 test("the pack is a dense, scrollable masonry sheet", () => {
-  for (const label of ["Random", "Animals", "Items", "Nature", "Clothing"]) {
+  for (const label of ["Random", "Animals", "Items", "Nature", "Clothing", "Scrap"]) {
     assert.match(picker, new RegExp(`${label}`));
   }
   assert.match(css, /\.masonry\s*\{[^}]*columns:\s*3;/s);
@@ -120,11 +121,12 @@ test("the pack is a dense, scrollable masonry sheet", () => {
   assert.match(page, /"80px"/);
   assert.doesNotMatch(page, /paddingTop: stickerPickerOpen/);
   assert.match(css, /\.stickerButton\.isPicking img/);
-  assert.match(css, /\.categories\s*\{[^}]*grid-template-columns:\s*repeat\(6,/s);
+  assert.match(css, /\.categories\s*\{[^}]*flex-wrap:\s*nowrap;[^}]*overflow-x:\s*auto;[^}]*touch-action:\s*pan-x;/s);
+  assert.match(css, /\.categories button\s*\{[^}]*flex:\s*0 0 auto/s);
   assert.match(css, /\.scrollArea\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y;/s);
   assert.doesNotMatch(css.match(/\.masonry\s*\{[^}]*\}/s)[0], /height:|overflow:|flex:/);
   assert.match(picker, /ref=\{scrollRef\} className=\{styles.scrollArea\}[\s\S]*?<div className=\{styles.masonry\}/);
-  assert.match(picker, /installStickerTrayScroll\(\(\) => scrollRef.current\)/);
+  assert.match(picker, /installStickerTrayScroll\(\s*\(\) => scrollRef.current,\s*\(\) => \[categoriesRef.current, paletteScrollRef.current\]/);
   assert.match(picker, /focus\(\{ preventScroll: true \}\)/);
   const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const mediaTop = readFileSync(new URL("../app/lib/leading-media-top.ts", import.meta.url), "utf8");

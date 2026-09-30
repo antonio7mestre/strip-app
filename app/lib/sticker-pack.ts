@@ -1,4 +1,4 @@
-export const STICKER_CATEGORIES = ["random", "animals", "items", "nature", "clothing"] as const;
+export const STICKER_CATEGORIES = ["random", "animals", "items", "nature", "clothing", "scrap"] as const;
 
 export type StickerCategory = (typeof STICKER_CATEGORIES)[number];
 
@@ -12,6 +12,20 @@ export type StickerAsset = {
 };
 
 const names: Record<StickerCategory, Array<[string, string, number, number]>> = {
+  scrap: [
+    ["clear-tape", "Clear tape", 512, 173], ["frosted-tape", "Frosted tape", 512, 171],
+    ["cobalt-tape", "Cobalt tape", 512, 134], ["lime-tape", "Lime tape", 512, 155],
+    ["pink-tape", "Pink tape", 512, 145], ["orange-tape", "Orange tape", 512, 156],
+    ["gingham-tape", "Gingham tape", 512, 134], ["checker-tape", "Checker tape", 512, 143],
+    ["silver-tape", "Silver duct tape", 512, 133], ["notebook-scrap", "Notebook scrap", 411, 512],
+    ["grid-scrap", "Grid paper scrap", 512, 456], ["kraft-scrap", "Kraft paper scrap", 512, 235],
+    ["pink-paper", "Pink paper scrap", 512, 325], ["vellum-scrap", "Vellum scrap", 512, 341],
+    ["paperclip", "Silver paperclip", 321, 512], ["binder-clip", "Red binder clip", 512, 439],
+    ["photo-corner", "Photo corner", 512, 508], ["stamp-frame", "Perforated paper frame", 512, 427],
+    ["red-stitch", "Red stitching", 512, 159], ["blank-ticket", "Blank yellow ticket", 512, 229],
+    ["instant-frame", "Instant photo frame", 350, 512], ["cobalt-frame", "Torn cobalt frame", 512, 329],
+    ["foil-frame", "Silver foil frame", 507, 512], ["oval-frame", "Pink oval frame", 466, 512],
+  ],
   random: [
     ["silver-heart", "Silver heart", 373, 512], ["pearl-star", "Pearl star", 512, 507],
     ["jelly-bow", "Jelly bow", 512, 344], ["green-alien", "Green alien", 284, 512],

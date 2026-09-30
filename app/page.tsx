@@ -59,7 +59,7 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
-import { AuthLandingStrip, AUTH_LANDING_COLOR, STICKER_OUTLINE_OFFSETS } from "@/app/components/AuthLandingStrip";
+import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
@@ -6436,18 +6436,6 @@ export default function Home() {
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
-        {isEditing && sourceBlocks.some((block) => block.type === "sticker") ? (
-          <svg className="editor-sticker-filters" aria-hidden="true" width="0" height="0" focusable="false">
-            <defs>
-              <filter id="editor-sticker-outline" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
-                {STICKER_OUTLINE_OFFSETS.map((offset, index) => <feOffset key={index} in="SourceAlpha" dx={offset.x} dy={offset.y} result={`editor-rim-${index}`} />)}
-                <feMerge result="edge"><feMergeNode in="SourceAlpha" />{STICKER_OUTLINE_OFFSETS.map((_, index) => <feMergeNode key={index} in={`editor-rim-${index}`} />)}</feMerge>
-                <feFlood floodColor="white" /><feComposite in2="edge" operator="in" />
-                <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
-            </defs>
-          </svg>
-        ) : null}
         {sourceBlocks.length === 0 && isEditing ? (
           <div className="empty-strip">
             <p>Your Strip starts here.</p>

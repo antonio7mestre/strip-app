@@ -42,18 +42,35 @@ test("shape picks become passive PNG media through the normal sticker path", () 
 });
 
 test("shape color controls overlay the pack and page sampling drops the tray", () => {
-  assert.match(picker, /className=\{styles\.shapePalette\}/);
+  assert.match(picker, /createPortal\(\s*<footer className=\{`composer-dock selector-dock shape-selector-dock/);
   assert.match(picker, /SHAPE_STICKER_COLORS/);
   assert.match(picker, /full-gradient-picker/);
+  assert.match(picker, /ref=\{paletteScrollRef\} className=\{`selector-scroll/);
+  assert.match(picker, /<div className="selector-leading">\s*<button type="button" className="dock-icon-button selector-back-button"/);
   assert.match(picker, /startPageSampling/);
   assert.match(picker, /onViewChange\("page-color"\)/);
   assert.match(picker, /setSamplingPage\(false\); onViewChange\("pack"\)/);
-  assert.match(pickerCss, /\.shapePalette\s*\{[^}]*position: absolute;[^}]*bottom: 0;/);
+  assert.doesNotMatch(pickerCss, /\.shapePalette|\.paletteScroll|\.shapeWheel|\.paletteDone/);
+  assert.match(picker, /aria-hidden=\{!shapePaletteOpen \|\| samplingPage\} inert=\{!shapePaletteOpen \|\| samplingPage\}/);
+  assert.doesNotMatch(picker, /shapePaletteOpen && typeof document/, "The dock stays mounted for native-style open and close transitions");
+  assert.match(css, /\.shape-selector-dock\.is-sampling-page\s*\{[^}]*transform: translateY/);
   assert.match(css, /\.main-composer-dock\.is-sticker-picker-page-color\s*\{[^}]*transform: translateY/);
 });
 
-test("editor sticker selection reuses the landing outline and hard shadow", () => {
-  assert.match(page, /STICKER_OUTLINE_OFFSETS\.map/);
-  assert.match(page, /id="editor-sticker-outline"/);
-  assert.match(css, /\.sticker-block\.is-editing\.is-selected \.sticker-visual\s*\{[^}]*url\(#editor-sticker-outline\) drop-shadow\(0 5px 2px/);
+test("shapes keep the pack heading and masonry, with the color choice on the left", () => {
+  assert.match(picker, /<h2 id="sticker-picker-title">Sticker pack<\/h2>/);
+  assert.match(picker, /category === "shapes" \? <div className=\{styles.masonry\}/);
+  assert.match(picker, /styles.stickerButton\} \$\{styles.shapeButton\} \$\{stickerSizeClasses\[index % stickerSizeClasses.length\]/);
+  assert.doesNotMatch(picker, /Pick a shape|Pick a sticker/);
+  assert.match(picker, /aria-hidden="true" \/>Select a color/);
+  assert.match(pickerCss, /\.shapeHeading\s*\{[^}]*justify-content: flex-start/);
+  assert.doesNotMatch(pickerCss, /\.shapeGrid|\.shapeButton\s*\{[^}]*background:/);
+});
+
+test("placed editor stickers have no selection outline or shadow but retain drag controls", () => {
+  assert.doesNotMatch(page + css, /editor-sticker-outline|editor-sticker-filters/);
+  assert.doesNotMatch(css, /\.sticker-block\.is-editing\.is-selected \.sticker-visual\s*\{/);
+  assert.match(css, /\.sticker-block\.is-editing\.is-selected\s*\{[^}]*touch-action: none;/);
+  assert.match(page, /aria-label="Delete sticker"/);
+  assert.match(css, /\.landing-sticker-button\.is-selected/);
 });

@@ -27,6 +27,7 @@ const labels: Record<PickerCategory, string> = {
   items: "Items",
   nature: "Nature",
   clothing: "Clothing",
+  scrap: "Scrap",
   shapes: "Shapes",
 };
 
@@ -113,6 +114,8 @@ function StickerPickerDialog({
   const firstActionRef = useRef<HTMLButtonElement>(null);
   const pickTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const categoriesRef = useRef<HTMLDivElement>(null);
+  const paletteScrollRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const samplePageColorRef = useRef(samplePageColor);
   const onShapeColorChangeRef = useRef(onShapeColorChange);
@@ -123,7 +126,10 @@ function StickerPickerDialog({
     onShapeColorChangeRef.current(color);
   }, []);
 
-  useLayoutEffect(() => samplingPage ? undefined : installStickerTrayScroll(() => scrollRef.current), [samplingPage]);
+  useLayoutEffect(() => samplingPage ? undefined : installStickerTrayScroll(
+    () => scrollRef.current,
+    () => [categoriesRef.current, paletteScrollRef.current],
+  ), [samplingPage]);
   useLayoutEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useLayoutEffect(() => {
     samplePageColorRef.current = samplePageColor;
@@ -259,7 +265,8 @@ function StickerPickerDialog({
 
   return (
     <>
-      <section className={`${styles.tray} ${view === "pack" ? styles.packTray : styles.sourceTray}`}
+      <section className={`${styles.tray} ${view === "pack" ? styles.packTray : styles.sourceTray} ${shapePaletteOpen ? styles.hasPalette : ""}`}
+        inert={samplingPage}
         aria-label={view === "source" ? "Add sticker" : undefined}
         aria-labelledby={view === "pack" ? "sticker-picker-title" : undefined}>
         {view === "source" ? (
@@ -285,12 +292,12 @@ function StickerPickerDialog({
                 aria-label="Back to sticker options">
                 <ArrowLeft aria-hidden="true" />
               </button>
-              <h2 id="sticker-picker-title">{category === "shapes" ? "Shapes" : "Sticker pack"}</h2>
+              <h2 id="sticker-picker-title">Sticker pack</h2>
               <button className={styles.iconButton} type="button" onClick={onClose} aria-label="Close sticker pack">
                 <X aria-hidden="true" />
               </button>
             </header>
-            <div className={styles.categories} role="tablist" aria-label="Sticker categories">
+            <div ref={categoriesRef} className={styles.categories} role="tablist" aria-label="Sticker categories">
               {categories.map(item => (
                 <button key={item} className={category === item ? styles.activeCategory : ""}
                   type="button" role="tab" aria-selected={category === item}
@@ -303,17 +310,16 @@ function StickerPickerDialog({
               ))}
             </div>
             {category === "shapes" ? <div className={styles.shapeHeading}>
-              <span>Pick a shape</span>
               <button type="button" className={styles.shapeColorButton} onClick={() => setShapePaletteOpen(true)}
                 aria-label="Choose shape color" aria-expanded={shapePaletteOpen}>
-                <span style={{ backgroundColor: shapeColor }} aria-hidden="true" />Color
+                <span style={{ backgroundColor: shapeColor }} aria-hidden="true" />Select a color
               </button>
             </div> : null}
             <div ref={scrollRef} className={styles.scrollArea} role="tabpanel" tabIndex={0}
               aria-label={category === "shapes" ? "Shapes" : `${labels[category]} stickers`}>
-              {category === "shapes" ? <div className={styles.shapeGrid}>
-                {SHAPE_STICKERS.map((shape) => <button key={shape.id} type="button"
-                  className={`${styles.shapeButton} ${pickingId === shape.id ? styles.isPicking : ""}`}
+              {category === "shapes" ? <div className={styles.masonry}>
+                {SHAPE_STICKERS.map((shape, index) => <button key={shape.id} type="button"
+                  className={`${styles.stickerButton} ${styles.shapeButton} ${stickerSizeClasses[index % stickerSizeClasses.length]} ${pickingId === shape.id ? styles.isPicking : ""}`}
                   onClick={() => chooseShape(shape)} aria-label={`Add ${shape.name} shape`}>
                   <svg viewBox="0 0 256 256" aria-hidden="true"><path d={shape.path} fill={shapeColor}
                     fillRule={"fillRule" in shape ? shape.fillRule : undefined} /></svg>
@@ -331,8 +337,15 @@ function StickerPickerDialog({
               ))}
               </div>}
             </div>
-            {category === "shapes" && shapePaletteOpen ? <div className={styles.shapePalette} aria-label="Shape color selector">
-              {shapeWheelOpen ? <div className={`${styles.shapeWheel} full-gradient-picker`} role="slider" tabIndex={0}
+          </>
+        )}
+      </section>
+      {view === "pack" && category === "shapes" && typeof document !== "undefined" ? createPortal(
+        <footer className={`composer-dock selector-dock shape-selector-dock ${shapeWheelOpen ? "is-gradient-picker" : ""} ${samplingPage ? "is-sampling-page" : shapePaletteOpen ? "is-visible" : ""}`}
+          aria-label="Shape color selector" aria-hidden={!shapePaletteOpen || samplingPage} inert={!shapePaletteOpen || samplingPage}>
+          <div ref={paletteScrollRef} className={`selector-scroll ${shapeWheelOpen ? "is-gradient-mode" : ""}`}
+            role="group" aria-label="Shape color choices">
+              {shapeWheelOpen ? <div className="full-gradient-picker" role="slider" tabIndex={0}
                 aria-label="Choose any shape color" aria-valuenow={Math.round(position.lightness)}
                 aria-valuemin={0} aria-valuemax={100} aria-valuetext={shapeColor}
                 onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); setWheelPoint(event); }}
@@ -347,7 +360,7 @@ function StickerPickerDialog({
                 }}>
                 <span className="gradient-picker-value" style={{ left: `${Math.min(94, Math.max(6, position.hue / 360 * 100))}%`,
                   top: `${Math.min(72, Math.max(28, 100 - position.lightness))}%`, backgroundColor: shapeColor }} aria-hidden="true" />
-              </div> : <div className={styles.paletteScroll} role="group" aria-label="Shape color choices">
+              </div> : <>
                 {[...SHAPE_STICKER_COLORS, ...customColor].map((color) => {
                   const selected = color.value === shapeColor;
                   const ink = shapeColorInk(color.value);
@@ -363,15 +376,15 @@ function StickerPickerDialog({
                 <button type="button" className="selector-option color-selector-option page-color-trigger"
                   style={{ backgroundColor: shapeColor, color: shapeColorInk(shapeColor) }}
                   aria-label="Match a shape color from the page" onClick={startPageSampling}><Pipette aria-hidden="true" /></button>
-              </div>}
-              <button type="button" className={`${styles.paletteDone} dock-icon-button selector-back-button`}
+              </>}
+          </div>
+          <div className="selector-leading">
+              <button type="button" className="dock-icon-button selector-back-button"
                 aria-label="Done choosing shape color" onClick={() => { setShapePaletteOpen(false); setShapeWheelOpen(false); }}>
                 <Check className="dock-glyph" aria-hidden="true" />
               </button>
-            </div> : null}
-          </>
-        )}
-      </section>
+          </div>
+        </footer>, document.body) : null}
       {samplingPage && samplePoint && typeof document !== "undefined" ? createPortal(<>
         <button type="button" className="page-color-picker-indicator" aria-label="Drag to sample a shape color"
           style={{ left: samplePoint.x, top: samplePoint.y, color: samplePoint.color }}

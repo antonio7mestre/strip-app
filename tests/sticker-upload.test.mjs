@@ -33,7 +33,7 @@ const sticker = (asset, index = 0) => ({
 const file = (src) => readFileSync(new URL(`public${src}`, root));
 const imageResponse = (src) => new Response(file(src), { headers: { "Content-Type": "image/webp" } });
 
-test("all 102 pack cutouts save and publish through the real server validators", async () => {
+test("all pack cutouts save and publish through the real server validators", async () => {
   const prepare = client(async (src) => imageResponse(src));
   // Use category-sized batches, staying within the server's 100-block limit.
   for (let start = 0; start < STICKER_PACK.length; start += 20) {
