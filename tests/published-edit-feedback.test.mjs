@@ -30,6 +30,7 @@ function harness({ owner = true, signedIn = true } = {}) {
   runInNewContext(compiled, {
     require, exports, Pencil: icon, Plus: icon, Send: icon, HapticActionButton,
     authStatus: signedIn ? "signed-in" : "signed-out",
+    authUser: { username: "antonio" },
     openedPublishedStrip: { id: "published-123", viewerIsOwner: owner },
     pageTransitionInFlightRef: gate,
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen() {}, setStoryShareConfirmation() {},
@@ -40,7 +41,7 @@ function harness({ owner = true, signedIn = true } = {}) {
       events.push("request");
       return new Promise((resolve, reject) => requests.push({ url, options, resolve, reject }));
     },
-    mainAppOrigin: () => "https://striiip.com",
+    accountAppOrigin: (_location, username) => `https://${username}.striiip.com`,
     window: { location: { assign: url => navigations.push(url) } },
     setNotice: message => notices.push(message),
     document: { documentElement: { classList: { remove() {} }, style: { removeProperty() {} } } },
@@ -64,7 +65,7 @@ test("published Edit commits immediate feedback before waiting for any network r
   assert.equal(h.requests.length, 1, "repeated taps cannot create duplicate requests");
   h.requests[0].resolve(success);
   await opening;
-  assert.deepEqual(h.navigations, ["https://striiip.com/edit/published-123"]);
+  assert.deepEqual(h.navigations, ["https://antonio.striiip.com/edit/published-123"]);
   assert.equal(h.pending, true, "feedback stays visible through document navigation");
 });
 

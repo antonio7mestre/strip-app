@@ -45,6 +45,7 @@ import {
   PUBLIC_DOMAIN,
   usernameFromHostname,
 } from "@/app/lib/username";
+import { accountAppOrigin, baseAppOrigin, publishedStripUrl, routeFromLocation, workspaceRedirect } from "@/app/lib/app-routing";
 import {
   DEFAULT_STRIP_ENDING_STYLE,
   type StripEndingStyle,
@@ -199,15 +200,6 @@ type DraftStripDetail = {
   createdAt: number;
   updatedAt: number;
 };
-type AppRoute =
-  | { kind: "library" }
-  | { kind: "profile"; username: string }
-  | { kind: "drafts" }
-  | { kind: "history" }
-  | { kind: "settings" }
-  | { kind: "edit"; id: string }
-  | { kind: "share"; id: string }
-  | { kind: "published"; id: string; username?: string };
 type AuthUser = { id: string; phoneLabel: string; username: string | null };
 type AuthStatus = "loading" | "signed-out" | "signed-in";
 type PublicProfileState = {
@@ -392,46 +384,8 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function routeFromLocation(pathname: string, hostname: string): AppRoute {
-  const editMatch = /^\/edit\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
-  if (editMatch) return { kind: "edit", id: editMatch[1] };
-  const shareMatch = /^\/share\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
-  if (shareMatch) return { kind: "share", id: shareMatch[1] };
-  const publishedMatch = /^\/strip\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
-  if (publishedMatch) return { kind: "published", id: publishedMatch[1] };
-  if (/^\/drafts\/?$/.test(pathname)) return { kind: "drafts" };
-  if (/^\/history\/?$/.test(pathname)) return { kind: "history" };
-  if (/^\/settings\/?$/.test(pathname)) return { kind: "settings" };
-  const username = usernameFromHostname(hostname);
-  if (username && pathname === "/") return { kind: "profile", username };
-  const rootPublishedMatch = /^\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
-  if (username && rootPublishedMatch) {
-    return { kind: "published", id: rootPublishedMatch[1], username };
-  }
-  return { kind: "library" };
-}
-
 function publicStripUrl(strip: Pick<PublishedStripSummary, "id" | "username">) {
-  const id = encodeURIComponent(strip.id);
-  if (!strip.username) return `${window.location.origin}/strip/${id}`;
-  const hostname = window.location.hostname.toLowerCase();
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return `${window.location.origin}/strip/${id}`;
-  }
-  return `https://${strip.username}.${PUBLIC_DOMAIN}/${id}`;
-}
-
-function mainAppOrigin() {
-  const hostname = window.location.hostname.toLowerCase();
-  if (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname.endsWith(".workers.dev") ||
-    hostname.endsWith(".chatgpt.site")
-  ) {
-    return window.location.origin;
-  }
-  return `https://${PUBLIC_DOMAIN}`;
+  return publishedStripUrl(window.location, strip);
 }
 
 function draftFallbackTitle(timestamp: number) {
@@ -2850,6 +2804,7 @@ export default function Home() {
   const inlinePreviewExitSettleFrameRef = useRef<number | null>(null);
   const inlinePreviewExitTimerRef = useRef<number | null>(null);
   const legacyDraftBlocksRef = useRef<StripBlock[] | null>(null);
+  const legacyDraftMigrationRef = useRef<Promise<boolean> | null>(null);
   const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
@@ -3550,33 +3505,63 @@ export default function Home() {
 
     const controller = new AbortController();
     setProfileHostUsername(usernameFromHostname(window.location.hostname));
-    void fetch("/api/auth/session", {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Session request failed");
-        const data = (await response.json()) as { user?: AuthUser | null };
-        const cached = readProfileReload();
-        const publicOwner = `public:${usernameFromHostname(window.location.hostname)}`;
-        if (cached && cached.owner !== data.user?.id && cached.owner !== publicOwner) clearProfileReload();
-        if (data.user) {
-          setAuthUser(data.user);
-          setLibraryOwnerId(data.user.id);
-          setAuthStatus("signed-in");
-        } else {
+    let sessionRequest = 0;
+    const refreshSession = () => {
+      const requestId = ++sessionRequest;
+      void fetch("/api/auth/session", {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Session request failed");
+          const data = (await response.json()) as { user?: AuthUser | null };
+          if (controller.signal.aborted || requestId !== sessionRequest) return;
+          const cached = readProfileReload();
+          const publicOwner = `public:${usernameFromHostname(window.location.hostname)}`;
+          if (cached && cached.owner !== data.user?.id && cached.owner !== publicOwner) clearProfileReload();
+          if (data.user) {
+            setAuthUser(data.user);
+            setLibraryOwnerId(data.user.id);
+            setAuthStatus("signed-in");
+          } else {
+            setAuthUser(null);
+            setLibraryOwnerId("");
+            setPublishedStrips([]);
+            setDraftStrips([]);
+            setViewedStrips([]);
+            setAuthStatus("signed-out");
+          }
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted || requestId !== sessionRequest) return;
+          setAuthUser(null);
+          setLibraryOwnerId("");
+          setPublishedStrips([]);
+          setDraftStrips([]);
+          setViewedStrips([]);
           setAuthStatus("signed-out");
-        }
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setAuthStatus("signed-out");
-        setAuthError("Couldn’t check your sign-in. Try again.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoaded(true);
+          setAuthError("Couldn’t check your sign-in. Try again.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted && requestId === sessionRequest) setLoaded(true);
+        });
+    };
+    const recheckRestoredSession = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      // A different domain may have signed out or switched accounts while
+      // Safari kept this page alive in its Back cache. Revalidate before paint.
+      flushSync(() => {
+        setAuthStatus("loading");
+        setInitialRouteReady(false);
       });
-    return () => controller.abort();
+      refreshSession();
+    };
+    refreshSession();
+    window.addEventListener("pageshow", recheckRestoredSession);
+    return () => {
+      controller.abort();
+      window.removeEventListener("pageshow", recheckRestoredSession);
+    };
   }, []);
 
   useEffect(() => {
@@ -3667,13 +3652,13 @@ export default function Home() {
     return () => controller.abort();
   }, [libraryOwnerId, visitingProfileHost]);
 
-  useEffect(() => {
-    if (!loaded || !libraryOwnerId || visitingProfileHost || !legacyDraftBlocksRef.current) return;
+  const migrateLegacyDraft = (): Promise<boolean> => {
+    if (legacyDraftMigrationRef.current) return legacyDraftMigrationRef.current;
+    if (!libraryOwnerId || visitingProfileHost || !legacyDraftBlocksRef.current) return Promise.resolve(true);
     const legacyBlocks = legacyDraftBlocksRef.current;
-    legacyDraftBlocksRef.current = null;
     const id = makeId();
     const createdAt = Date.now();
-    void prepareStickerUploads(legacyBlocks).then((uploadBlocks) => fetch("/api/drafts", {
+    const migration = prepareStickerUploads(legacyBlocks).then((uploadBlocks) => fetch("/api/drafts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3692,11 +3677,21 @@ export default function Home() {
           data.draft,
           ...current.filter((draft) => draft.id !== data.draft.id),
         ]);
-        window.localStorage.removeItem(STORAGE_KEY);
+        legacyDraftBlocksRef.current = null;
+        try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* Already saved on the server. */ }
+        return true;
       })
       .catch(() => {
-        legacyDraftBlocksRef.current = legacyBlocks;
-      });
+        return false;
+      })
+      .finally(() => { legacyDraftMigrationRef.current = null; });
+    legacyDraftMigrationRef.current = migration;
+    return migration;
+  };
+
+  useEffect(() => {
+    if (!loaded) return;
+    void migrateLegacyDraft();
   }, [libraryOwnerId, loaded, visitingProfileHost]);
 
   useEffect(() => {
@@ -5149,8 +5144,8 @@ export default function Home() {
     if (authPending) return;
     setAuthPending(true);
     try {
-      await fetch("/api/auth/signout", { method: "POST" });
-    } finally {
+      const response = await fetch("/api/auth/signout", { method: "POST" });
+      if (!response.ok) throw new Error("Couldn’t sign out. Try again.");
       clearProfileReload();
       setPublishedStrips([]);
       setDraftStrips([]);
@@ -5166,10 +5161,19 @@ export default function Home() {
       setAuthPhone("");
       setAuthCode("");
       setAuthResendSeconds(0);
+      const signedOutOrigin = baseAppOrigin(window.location);
+      if (signedOutOrigin !== window.location.origin) {
+        setInitialRouteReady(false);
+        window.location.replace(`${signedOutOrigin}/`);
+        return;
+      }
       setBrowserPath("/", true);
       setView("library");
       initialRouteHandledRef.current = false;
       setInitialRouteReady(false);
+    } catch {
+      setNotice("Couldn’t sign out. Try again.");
+    } finally {
       setAuthPending(false);
     }
   };
@@ -5293,16 +5297,11 @@ export default function Home() {
   const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLElement) => {
     if ((!libraryOwnerId && !publicProfile) || openingStripId || pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
-    const hostname = window.location.hostname.toLowerCase();
-    if (
-      authStatus === "signed-in" &&
-      strip.username && strip.username === authUser?.username &&
-      (hostname === PUBLIC_DOMAIN || hostname === `www.${PUBLIC_DOMAIN}`)
-    ) {
-      // Published Strips belong at the owner's public URL, even when opened
-      // from their private profile. Leave this history entry visually intact
-      // so returning from the other origin restores the original profile.
-      window.location.assign(publicStripUrl(strip));
+    const destination = new URL(publicStripUrl(strip));
+    if (destination.origin !== window.location.origin) {
+      // History can include other people's Strips. Open on their domain;
+      // your own covers stay in this document for the continuous loader.
+      window.location.assign(destination.href);
       return;
     }
     const cover = button.querySelector<HTMLElement>(".library-cover");
@@ -5310,9 +5309,7 @@ export default function Home() {
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
     const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
-    const hostUsername = usernameFromHostname(window.location.hostname);
-    const publishedPath = hostUsername && hostUsername === strip.username
-      ? `/${encodeURIComponent(strip.id)}` : `/strip/${encodeURIComponent(strip.id)}`;
+    const publishedPath = destination.pathname;
     // Safari snapshots the outgoing entry here. Save the untouched library,
     // before its cover becomes the loading poster, so Back never replays it.
     setBrowserPath(publishedPath);
@@ -5363,16 +5360,11 @@ export default function Home() {
   const returnToLibraryFromPublished = async () => {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
-    const hostUsername = usernameFromHostname(window.location.hostname);
-    if (authStatus === "signed-in" && hostUsername && hostUsername === authUser?.username) {
-      window.location.assign(`${mainAppOrigin()}/`);
-      return;
-    }
     try {
       setBrowserPath("/");
-      await transitionToViewStandard("library");
-      setOpenedPublishedStrip(null);
-      if (authStatus !== "signed-in" && !publicProfile) setAuthenticationRequired(true);
+      // Use the same route resolver as browser Back, including direct-link
+      // visits where the public profile has not been fetched yet.
+      window.dispatchEvent(new PopStateEvent("popstate"));
     } finally {
       pageTransitionInFlightRef.current = false;
     }
@@ -5389,12 +5381,26 @@ export default function Home() {
     const applyRoute = async (): Promise<void> => {
       const requestId = ++routeRequestId;
       const routeIsCurrent = () => !cancelled && requestId === routeRequestId;
-      let leavingForMainProfile = false;
+      let leavingForCanonicalRoute = false;
       try {
         const route = routeFromLocation(
           window.location.pathname,
           window.location.hostname,
         );
+        const workspaceUrl = workspaceRedirect(window.location, authStatus === "signed-in" ? authUser?.username : null);
+        if (workspaceUrl) {
+          // Browser storage is origin-scoped. Preserve any pre-account local
+          // draft on the server before leaving the old main-site origin.
+          if (!await migrateLegacyDraft()) {
+            setNotice("Couldn’t save your existing draft. Refresh to try again.");
+            return;
+          }
+          if (!routeIsCurrent()) return;
+          leavingForCanonicalRoute = true;
+          setInitialRouteReady(false);
+          window.location.replace(workspaceUrl);
+          return;
+        }
         if (route.kind === "published") {
           setAuthenticationRequired(false);
           try {
@@ -5410,6 +5416,16 @@ export default function Home() {
               throw new Error("Published route username mismatch");
             }
             if (!routeIsCurrent()) return;
+            const destination = new URL(publicStripUrl(data.strip));
+            if (destination.origin !== window.location.origin) {
+              leavingForCanonicalRoute = true;
+              setInitialRouteReady(false);
+              window.location.replace(`${destination.href}${window.location.search}${window.location.hash}`);
+              return;
+            }
+            if (destination.pathname !== window.location.pathname) {
+              window.history.replaceState({}, "", `${destination.pathname}${window.location.search}${window.location.hash}`);
+            }
             setPublishedCoverSettledKey(null);
             setPublishedLoaderDismissedKey(null);
             setOpenedPublishedStrip(data.strip);
@@ -5418,26 +5434,21 @@ export default function Home() {
           } catch {
             if (!routeIsCurrent()) return;
             setBrowserPath("/", true);
-            if (usernameFromHostname(window.location.hostname)) {
-              setNotice("Couldn’t open this Strip.");
-              await applyRoute();
-              return;
-            }
-            setView("library");
-            setAuthenticationRequired(authStatus !== "signed-in");
             setNotice("Couldn’t open this Strip.");
+            await applyRoute();
           }
           return;
         }
 
         if (route.kind === "profile") {
-          // Owners use the canonical app origin for their profile and tools.
-          // Replace this entry so Back cannot bounce through the public URL.
-          // Identity comes from the verified session, never from the URL alone.
+          // The same public URL becomes the full workspace only for its
+          // verified owner. Other visitors never fetch private profile data.
           if (authStatus === "signed-in" && authUser?.username === route.username) {
-            leavingForMainProfile = true;
-            setInitialRouteReady(false);
-            window.location.replace(`${mainAppOrigin()}/`);
+            setPublicProfile(null);
+            setAuthenticationRequired(false);
+            setView("library");
+            setOpenedPublishedStrip(null);
+            window.scrollTo({ top: 0, behavior: "auto" });
             return;
           }
           setAuthenticationRequired(false);
@@ -5553,11 +5564,11 @@ export default function Home() {
         } catch {
           if (!routeIsCurrent()) return;
           setBrowserPath("/", true);
-          setView("library");
           setNotice("Couldn’t open this Strip.");
+          await applyRoute();
         }
       } finally {
-        if (routeIsCurrent() && !leavingForMainProfile) setInitialRouteReady(true);
+        if (routeIsCurrent() && !leavingForCanonicalRoute) setInitialRouteReady(true);
       }
     };
 
@@ -5777,7 +5788,7 @@ export default function Home() {
 
   const makeOwnStripFromReader = () => {
     window.location.assign(
-      `${mainAppOrigin()}/edit/${encodeURIComponent(makeId())}`,
+      `${accountAppOrigin(window.location, authUser?.username)}/edit/${encodeURIComponent(makeId())}`,
     );
   };
 
@@ -5800,7 +5811,7 @@ export default function Home() {
       if (!response.ok) throw new Error("Published draft request failed");
       const data = (await response.json()) as { draft: { id: string } };
       window.location.assign(
-        `${mainAppOrigin()}/edit/${encodeURIComponent(data.draft.id)}`,
+        `${accountAppOrigin(window.location, authUser?.username)}/edit/${encodeURIComponent(data.draft.id)}`,
       );
     } catch {
       pageTransitionInFlightRef.current = false;

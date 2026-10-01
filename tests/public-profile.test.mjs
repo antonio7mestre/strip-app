@@ -8,6 +8,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as username from "../app/lib/username.ts";
 import * as profile from "../app/lib/profile.ts";
+import { publishedStripUrl, routeFromLocation, workspaceRedirect } from "./helpers/app-routing.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const compile = (source, globals = {}) => {
@@ -82,10 +83,7 @@ test("unconfigured and empty profiles work, missing and invalid usernames do not
 const page = read("app/page.tsx");
 const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const find = (predicate, node = tree) => predicate(node) ? node : ts.forEachChild(node, child => find(predicate, child));
-const routeNode = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "routeFromLocation");
-const originNode = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "mainAppOrigin");
 const routeEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect" && n.arguments[0]?.getText(tree).includes("const applyRoute ="));
-const { routeFromLocation } = compile(`export ${routeNode.getText(tree)}`, { ...username });
 
 test("only a valid username subdomain root opens a profile; existing routes stay intact", () => {
   assert.equal(routeFromLocation("/", "antonio.striiip.com").kind, "profile");
@@ -104,13 +102,16 @@ function routeHarness(user, fetch, options = {}) {
   const listeners = {};
   const redirects = [];
   const hostname = options.hostname ?? "antonio.striiip.com";
-  const window = { location: { pathname: options.pathname ?? "/", hostname, origin: `https://${hostname}`, replace: url => redirects.push(url) }, scrollTo() {},
+  const window = { location: { pathname: options.pathname ?? "/", hostname, origin: `https://${hostname}`, search: options.search ?? "", hash: options.hash ?? "", replace: url => redirects.push(url) }, scrollTo() {},
+    history: { replaceState(_state, _title, path) { window.location.pathname = path; } },
     addEventListener: (name, fn) => { listeners[name] = fn; }, removeEventListener() {},
   };
-  const { mainAppOrigin } = compile(`export ${originNode.getText(tree)}`, { window, ...username });
   const no = () => {};
   const { install } = compile(`export const install = ${routeEffect.arguments[0].getText(tree)};`, {
-    window, fetch, routeFromLocation, mainAppOrigin, ...username, DEFAULT_PROFILE: profile.DEFAULT_PROFILE,
+    window, fetch, routeFromLocation, workspaceRedirect, URL,
+    migrateLegacyDraft: options.migrateLegacyDraft ?? (async () => true),
+    publicStripUrl: strip => publishedStripUrl(window.location, strip),
+    ...username, DEFAULT_PROFILE: profile.DEFAULT_PROFILE,
     authStatus: options.authStatus ?? (user ? "signed-in" : "signed-out"), authUser: user, libraryOwnerId: user?.id ?? "", needsAuthUsername: options.needsAuthUsername ?? false,
     initialRouteHandledRef: { current: false }, prepareLibrarySummaries: async items => items,
     setPublicProfile: value => { state.publicProfile = typeof value === "function" ? value(state.publicProfile) : value; },
@@ -125,7 +126,7 @@ function routeHarness(user, fetch, options = {}) {
   return { state, redirects, pop(path) { window.location.pathname = path; listeners.popstate({ state: null }); } };
 }
 const settle = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
-test("only the signed-in owner is forwarded to the canonical main profile", async () => {
+test("only the signed-in owner gets the full workspace on their personal domain", async () => {
   const api = fixture();
   for (const user of [null, { id: "owner-two", username: "friend" }, { id: "owner-one", username: "antonio" }]) {
     const requests = [];
@@ -133,8 +134,8 @@ test("only the signed-in owner is forwarded to the canonical main profile", asyn
     await settle();
     assert.equal(h.state.authRequired, false);
     if (user?.username === "antonio") {
-      assert.deepEqual(h.redirects, ["https://striiip.com/"]);
-      assert.equal(h.state.ready, false, "keep the loading surface until navigation, without flashing the subdomain library");
+      assert.deepEqual(h.redirects, []);
+      assert.equal(h.state.ready, true);
       assert.equal(h.state.publicProfile, null);
       assert.deepEqual(requests, []);
     } else {
@@ -157,13 +158,13 @@ test("owner forwarding waits for the session and completed username onboarding",
   }
 });
 
-test("owner forwarding does not redirect the main app or individual published Strips", async () => {
+test("the base site forwards to the owner's workspace, but individual published Strips stay on their domain", async () => {
   const user = { id: "owner-one", username: "antonio" };
   for (const hostname of ["striiip.com", "www.striiip.com", "localhost"]) {
     const h = routeHarness(user, () => assert.fail("main profile needs no public fetch"), { hostname });
     await settle();
-    assert.deepEqual(h.redirects, []);
-    assert.equal(h.state.ready, true);
+    assert.deepEqual(h.redirects, hostname === "localhost" ? [] : ["https://antonio.striiip.com/"]);
+    assert.equal(h.state.ready, hostname === "localhost");
     assert.equal(h.state.view, "library");
   }
   for (const pathname of ["/strip-newer", "/strip/strip-newer"]) {
@@ -173,8 +174,10 @@ test("owner forwarding does not redirect the main app or individual published St
     assert.equal(h.state.view, "published");
     h.pop("/");
     await settle();
-    assert.deepEqual(h.redirects, ["https://striiip.com/"], "Back to the owner's profile also leaves the public host");
-    assert.equal(h.state.ready, false);
+    assert.deepEqual(h.redirects, [], "Back stays in the owner's personal workspace");
+    assert.equal(h.state.ready, true);
+    assert.equal(h.state.publicProfile, null);
+    assert.equal(h.state.view, "library");
   }
 });
 
@@ -193,6 +196,42 @@ test("Back restores the public profile and a late Strip response cannot overwrit
   assert.equal(h.state.opened, null);
   assert.equal(h.state.authRequired, false);
   api.db.close();
+});
+
+test("canonical workspace redirects wait for legacy drafts and never reserve an extra history entry", async () => {
+  let finish;
+  const h = routeHarness({ id: "owner-one", username: "antonio" }, () => assert.fail("redirect before fetching the editor"), {
+    hostname: "striiip.com", pathname: "/edit/draft-12345", search: "?preview=1", hash: "#block-12345",
+    migrateLegacyDraft: () => new Promise(resolve => { finish = resolve; }),
+  });
+  await settle();
+  assert.deepEqual(h.redirects, []);
+  finish(true); await settle();
+  assert.deepEqual(h.redirects, ["https://antonio.striiip.com/edit/draft-12345?preview=1#block-12345"]);
+  assert.equal(h.state.ready, false);
+  const blocked = routeHarness({ id: "owner-one", username: "antonio" }, () => assert.fail("no fetch"), {
+    hostname: "striiip.com", migrateLegacyDraft: async () => false,
+  });
+  await settle();
+  assert.deepEqual(blocked.redirects, [], "failed local draft migration must not silently leave its origin");
+});
+
+test("legacy reader links normalize to the author's personal URL and wrong vanity owners remain rejected", async () => {
+  const h = routeHarness({ id: "owner-one", username: "antonio" }, async () => Response.json({ strip: { id: "strip-newer", username: "friend" } }), {
+    hostname: "striiip.com", pathname: "/strip/strip-newer", hash: "#hello",
+  });
+  await settle();
+  assert.deepEqual(h.redirects, ["https://friend.striiip.com/strip-newer#hello"]);
+  assert.equal(h.state.ready, false);
+  const requests = [];
+  const invalid = routeHarness(null, async url => {
+    requests.push(url);
+    return url.includes("/profiles/") ? new Response(null, { status: 404 }) : Response.json({ strip: { id: "strip-newer", username: "friend" } });
+  }, { pathname: "/strip-newer" });
+  await settle();
+  assert.equal(invalid.state.opened, null);
+  assert.equal(invalid.state.publicProfile.status, "missing");
+  assert.deepEqual(invalid.redirects, []);
 });
 
 test("public errors and empty states never fall back to the viewer's private library", async () => {

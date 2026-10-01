@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
-import { usernameFromHostname } from "@/app/lib/username";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
 import { recordStripView } from "@/app/server/view-history";
@@ -96,13 +95,9 @@ export async function GET(
           username: string | null;
       }>();
   if (!row) return new Response("Not found", { status: 404 });
-  const requestedUsername = usernameFromHostname(new URL(request.url).hostname);
-  if (
-    requestedUsername &&
-    row.username?.toLowerCase() !== requestedUsername
-  ) {
-    return new Response("Not found", { status: 404 });
-  }
+  // Published content is public by ID on every app host. The reader and its
+  // metadata enforce vanity-URL ownership; a viewer's workspace also needs
+  // to load other authors' public Strips for history and story posters.
   const viewer = await getAuthUser(request);
   if (viewer) {
     try {
@@ -211,5 +206,5 @@ export async function GET(
       blocks,
       endingStyle: storedContent.endingStyle,
     },
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
