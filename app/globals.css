@@ -2525,13 +2525,15 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 .strip-entrance-accent {
   position: absolute;
-  width: clamp(20px, 6vw, 28px);
+  width: clamp(14px, 4vw, 18px);
   aspect-ratio: 1;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--entrance-a);
   transform: translate(-50%, -50%);
 }
 .strip-entrance-accent.is-upper-left { top: 18%; left: 23%; }
+.strip-entrance-accent.is-upper-right { top: 31%; left: 87%; }
+.strip-entrance-accent.is-lower-left { top: 70%; left: 12%; }
 .strip-entrance-accent.is-lower-right { top: 82%; left: 77%; }
 .strip-entrance-progress {
   --entrance-line-height: calc(var(--entrance-line-start, 64px) + var(--entrance-line-travel, 0px) * var(--entrance-progress, 0));

@@ -100,11 +100,11 @@ test("the vertical line begins under the physical safe area and ends below the t
   }
 });
 
-test("both decorative circles use the exact profile ink without randomized shades", () => {
+test("all decorative squares use the exact profile ink without randomized shades", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const accent = css.match(/^\.strip-entrance-accent \{[^}]+\}/m)[0];
   assert.match(accent, /background: var\(--entrance-a\)/);
-  assert.match(accent, /border-radius: 50%/);
+  assert.match(accent, /border-radius: 0/);
   assert.doesNotMatch(accent, /opacity|color-mix|filter/);
   const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /accentColors|Math.random/);

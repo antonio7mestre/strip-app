@@ -206,6 +206,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
       <div className="strip-entrance-backdrop" />
       <div className="strip-entrance-accents" aria-hidden="true">
         <span className="strip-entrance-accent is-upper-left" />
+        <span className="strip-entrance-accent is-upper-right" />
+        <span className="strip-entrance-accent is-lower-left" />
         <span className="strip-entrance-accent is-lower-right" />
       </div>
       <h2 ref={titleRef} className="strip-entrance-title">{title.trim()}</h2>
