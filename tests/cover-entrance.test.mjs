@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverLineLayout, coverAccentColors, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
+import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverLineLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
 
 test("direct-link covers match the profile grid width, centered and uncropped", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
@@ -100,15 +100,13 @@ test("the vertical line begins under the physical safe area and ends below the t
   }
 });
 
-test("decorative squares choose distinct, stable tones from the author's palette", () => {
-  for (const random of [0, 0.5, 0.999]) {
-    const colors = coverAccentColors("#3155FF", "#F5F1E8", () => random);
-    assert.equal(colors.length, 2);
-    assert.notEqual(colors[0], colors[1]);
-    for (const color of colors) assert.match(color, /^color-mix\(in srgb, #3155FF \d+%, #F5F1E8\)$/);
-  }
+test("both decorative squares use the exact profile ink without randomized shades", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const accent = css.match(/^\.strip-entrance-accent \{[^}]+\}/m)[0];
+  assert.match(accent, /background: var\(--entrance-a\)/);
+  assert.doesNotMatch(accent, /opacity|color-mix|filter/);
   const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
-  assert.match(component, /useState\(\(\) => coverAccentColors\(ink, initialBackground\)\)/);
+  assert.doesNotMatch(component, /accentColors|Math.random/);
 });
 
 test("a raw-load cover finishes its quick fade before releasing progress", () => {

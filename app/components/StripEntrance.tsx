@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, profileTextColor, type ProfileTheme } from "@/app/lib/profile";
-import { COVER_MOVE_MS, coverEntranceLayout, coverLineLayout, coverAccentColors, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, coverEntranceLayout, coverLineLayout, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
@@ -28,7 +28,6 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const [initialDock] = useState(dock);
   const [initialBackground] = useState(theme?.background ?? backgroundColor);
   const [ink] = useState(() => theme ? profileTextColor(theme) : profileInk(initialBackground));
-  const [accentColors] = useState(() => coverAccentColors(ink, initialBackground));
   const [font] = useState(theme?.font ?? DEFAULT_PROFILE.font);
   const fontFamily = (PROFILE_FONTS.find(item => item.id === font) ?? PROFILE_FONTS[0]).family;
   const [centered, setCentered] = useState(!origin);
@@ -206,8 +205,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
       <div className="strip-entrance-accents" aria-hidden="true">
-        <span className="strip-entrance-accent is-upper-right" style={{ backgroundColor: accentColors[0] }} />
-        <span className="strip-entrance-accent is-lower-left" style={{ backgroundColor: accentColors[1] }} />
+        <span className="strip-entrance-accent is-upper-left" />
+        <span className="strip-entrance-accent is-lower-right" />
       </div>
       <h2 ref={titleRef} className="strip-entrance-title">{title.trim()}</h2>
       <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"

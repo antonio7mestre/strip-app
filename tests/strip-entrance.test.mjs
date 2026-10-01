@@ -84,8 +84,9 @@ test("renders a vertical line behind the cover with only the waiting zero blinki
   assert.match(html, /strip-entrance-line/);
   assert.match(html, /strip-entrance-accents" aria-hidden="true"/);
   assert.equal((html.match(/class="strip-entrance-accent is-/g) ?? []).length, 2);
-  assert.match(css, /\.strip-entrance-accent.is-upper-right \{ top: 25%; left: 77%; \}/);
-  assert.match(css, /\.strip-entrance-accent.is-lower-left \{ top: 75%; left: 23%; \}/);
+  assert.match(css, /\.strip-entrance-accent.is-upper-left \{ top: 18%; left: 23%; \}/);
+  assert.match(css, /\.strip-entrance-accent.is-lower-right \{ top: 82%; left: 77%; \}/);
+  assert.match(css, /\.strip-entrance-accent\s*\{[^}]*width: clamp\(20px, 6vw, 28px\)/);
   assert.equal((html.match(/strip-entrance-percent is-waiting/g) ?? []).length, 1);
   assert.doesNotMatch(html, /strip-entrance-squares/);
   assert.ok(html.indexOf('class="strip-entrance-progress"') < html.indexOf('class="strip-entrance-stage"'));

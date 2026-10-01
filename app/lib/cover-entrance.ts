@@ -116,12 +116,6 @@ export function coverLineLayout(surfaceTop: number, surfaceHeight: number,
   return { startHeight, travel: Math.max(0, startTip - endTip) };
 }
 
-/** Pick two distinct tones from the same profile palette once per entrance. */
-export function coverAccentColors(ink: string, background: string, random = Math.random) {
-  return [70 + Math.floor(random() * 31), 40 + Math.floor(random() * 21)]
-    .map(weight => `color-mix(in srgb, ${ink} ${weight}%, ${background})`);
-}
-
 /** Also handle cached images whose load event happened before hydration. */
 export function watchCoverImage(image: HTMLImageElement, onReady: () => void, onError: () => void) {
   let disposed = false, settling = false;
