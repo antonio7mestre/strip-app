@@ -83,6 +83,7 @@ const page = read("app/page.tsx");
 const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const find = (predicate, node = tree) => predicate(node) ? node : ts.forEachChild(node, child => find(predicate, child));
 const routeNode = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "routeFromLocation");
+const originNode = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "mainAppOrigin");
 const routeEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect" && n.arguments[0]?.getText(tree).includes("const applyRoute ="));
 const { routeFromLocation } = compile(`export ${routeNode.getText(tree)}`, { ...username });
 
@@ -98,16 +99,19 @@ test("only a valid username subdomain root opens a profile; existing routes stay
   }
 });
 
-function routeHarness(user, fetch) {
+function routeHarness(user, fetch, options = {}) {
   const state = { publicProfile: null, authRequired: false, ready: false, view: "library", opened: null };
   const listeners = {};
-  const window = { location: { pathname: "/", hostname: "antonio.striiip.com" }, scrollTo() {},
+  const redirects = [];
+  const hostname = options.hostname ?? "antonio.striiip.com";
+  const window = { location: { pathname: options.pathname ?? "/", hostname, origin: `https://${hostname}`, replace: url => redirects.push(url) }, scrollTo() {},
     addEventListener: (name, fn) => { listeners[name] = fn; }, removeEventListener() {},
   };
+  const { mainAppOrigin } = compile(`export ${originNode.getText(tree)}`, { window, ...username });
   const no = () => {};
   const { install } = compile(`export const install = ${routeEffect.arguments[0].getText(tree)};`, {
-    window, fetch, routeFromLocation, ...username, DEFAULT_PROFILE: profile.DEFAULT_PROFILE,
-    authStatus: user ? "signed-in" : "signed-out", authUser: user, libraryOwnerId: user?.id ?? "", needsAuthUsername: false,
+    window, fetch, routeFromLocation, mainAppOrigin, ...username, DEFAULT_PROFILE: profile.DEFAULT_PROFILE,
+    authStatus: options.authStatus ?? (user ? "signed-in" : "signed-out"), authUser: user, libraryOwnerId: user?.id ?? "", needsAuthUsername: options.needsAuthUsername ?? false,
     initialRouteHandledRef: { current: false }, prepareLibrarySummaries: async items => items,
     setPublicProfile: value => { state.publicProfile = typeof value === "function" ? value(state.publicProfile) : value; },
     setAuthenticationRequired: value => { state.authRequired = value; },
@@ -118,27 +122,60 @@ function routeHarness(user, fetch) {
     inlinePreviewHistoryEntryRef: { current: false }, inlinePreviewBasePathRef: { current: null }, inlinePreviewExitLockRef: { current: null },
   });
   install();
-  return { state, pop(path) { window.location.pathname = path; listeners.popstate({ state: null }); } };
+  return { state, redirects, pop(path) { window.location.pathname = path; listeners.popstate({ state: null }); } };
 }
 const settle = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
-test("signed-out and other signed-in visitors see public data, only the owner gets the main profile", async () => {
+test("only the signed-in owner is forwarded to the canonical main profile", async () => {
   const api = fixture();
   for (const user of [null, { id: "owner-two", username: "friend" }, { id: "owner-one", username: "antonio" }]) {
     const requests = [];
     const h = routeHarness(user, url => { requests.push(url); return api.get("antonio"); });
     await settle();
-    assert.equal(h.state.ready, true);
     assert.equal(h.state.authRequired, false);
     if (user?.username === "antonio") {
+      assert.deepEqual(h.redirects, ["https://striiip.com/"]);
+      assert.equal(h.state.ready, false, "keep the loading surface until navigation, without flashing the subdomain library");
       assert.equal(h.state.publicProfile, null);
       assert.deepEqual(requests, []);
     } else {
+      assert.deepEqual(h.redirects, []);
+      assert.equal(h.state.ready, true);
       assert.equal(h.state.publicProfile.status, "ready");
       assert.equal(h.state.publicProfile.profile.title, "My little world");
       assert.deepEqual(requests, ["/api/profiles/antonio"]);
     }
   }
   api.db.close();
+});
+
+test("owner forwarding waits for the session and completed username onboarding", async () => {
+  for (const options of [{ authStatus: "loading" }, { needsAuthUsername: true }]) {
+    const h = routeHarness({ id: "owner-one", username: "antonio" }, () => assert.fail("must wait for auth"), options);
+    await settle();
+    assert.deepEqual(h.redirects, []);
+    assert.equal(h.state.ready, false);
+  }
+});
+
+test("owner forwarding does not redirect the main app or individual published Strips", async () => {
+  const user = { id: "owner-one", username: "antonio" };
+  for (const hostname of ["striiip.com", "www.striiip.com", "localhost"]) {
+    const h = routeHarness(user, () => assert.fail("main profile needs no public fetch"), { hostname });
+    await settle();
+    assert.deepEqual(h.redirects, []);
+    assert.equal(h.state.ready, true);
+    assert.equal(h.state.view, "library");
+  }
+  for (const pathname of ["/strip-newer", "/strip/strip-newer"]) {
+    const h = routeHarness(user, async () => Response.json({ strip: { id: "strip-newer", username: "antonio" } }), { pathname });
+    await settle();
+    assert.deepEqual(h.redirects, []);
+    assert.equal(h.state.view, "published");
+    h.pop("/");
+    await settle();
+    assert.deepEqual(h.redirects, ["https://striiip.com/"], "Back to the owner's profile also leaves the public host");
+    assert.equal(h.state.ready, false);
+  }
 });
 
 test("Back restores the public profile and a late Strip response cannot overwrite it", async () => {

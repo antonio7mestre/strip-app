@@ -5372,6 +5372,7 @@ export default function Home() {
     const applyRoute = async (): Promise<void> => {
       const requestId = ++routeRequestId;
       const routeIsCurrent = () => !cancelled && requestId === routeRequestId;
+      let leavingForMainProfile = false;
       try {
         const route = routeFromLocation(
           window.location.pathname,
@@ -5413,15 +5414,19 @@ export default function Home() {
         }
 
         if (route.kind === "profile") {
+          // Owners use the canonical app origin for their profile and tools.
+          // Replace this entry so Back cannot bounce through the public URL.
+          // Identity comes from the verified session, never from the URL alone.
+          if (authStatus === "signed-in" && authUser?.username === route.username) {
+            leavingForMainProfile = true;
+            setInitialRouteReady(false);
+            window.location.replace(`${mainAppOrigin()}/`);
+            return;
+          }
           setAuthenticationRequired(false);
           setView("library");
           setOpenedPublishedStrip(null);
           window.scrollTo({ top: 0, behavior: "auto" });
-          // The authenticated session supplies the owner identity, never URL input.
-          if (authStatus === "signed-in" && authUser?.username === route.username) {
-            setPublicProfile(null);
-            return;
-          }
           const placeholder: PublicProfileState = {
             username: route.username, profile: DEFAULT_PROFILE, strips: [], status: "loading",
           };
@@ -5535,7 +5540,7 @@ export default function Home() {
           setNotice("Couldn’t open this Strip.");
         }
       } finally {
-        if (routeIsCurrent()) setInitialRouteReady(true);
+        if (routeIsCurrent() && !leavingForMainProfile) setInitialRouteReady(true);
       }
     };
 
