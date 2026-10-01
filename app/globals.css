@@ -2527,6 +2527,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: absolute;
   width: clamp(20px, 6vw, 28px);
   aspect-ratio: 1;
+  border-radius: 50%;
   background: var(--entrance-a);
   transform: translate(-50%, -50%);
 }
