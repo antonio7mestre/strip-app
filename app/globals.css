@@ -1798,8 +1798,8 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 .strip-end-sheet-controls {
   display: grid;
   width: min(calc(100% - 20px), 344px);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.52fr);
-  gap: 9px;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 10px;
 }
 
 .strip-end-sheet-controls.is-preview {
@@ -1878,61 +1878,18 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 }
 
 .strip-end-sheet-share {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
 }
 
 .strip-end-sheet-share svg {
   width: 20px;
   height: 20px;
-  flex: 0 0 auto;
-}
-
-.strip-end-sheet-controls.is-published button {
-  min-width: 0;
-  min-height: 53px;
-  gap: 8px;
-  padding: 12px 8px;
-  border: 1px solid #000000;
-  border-radius: 999px;
-  corner-shape: round;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.35px;
-}
-
-.strip-end-sheet-controls.is-published .strip-end-sheet-share {
-  background: #ffffff;
-  color: #000000;
-}
-
-.strip-end-sheet-primary .strip-end-sheet-solid-pencil {
-  width: 19px;
-  height: 19px;
-  fill: currentColor;
-  stroke-width: 1.5;
-}
-
-.strip-end-sheet-solid-pencil path:last-child {
-  fill: none;
-  stroke: var(--ending-button, #000000);
-}
-
-.strip-end-sheet-controls.is-published .is-opening {
-  font-size: 14px;
-}
-
-@media (max-width: 340px) {
-  .strip-end-sheet-controls.is-published button {
-    gap: 6px;
-    font-size: 14px;
-  }
-
-  .strip-end-sheet-controls.is-published .is-opening {
-    font-size: 12px;
-  }
+  stroke-width: 2.15;
 }
 
 .library-empty-state {
