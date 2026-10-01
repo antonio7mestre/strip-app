@@ -1,22 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
+import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverLineLayout, coverAccentColors, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
 
-test("portrait, landscape and square covers stay centered, uncropped, with room for the bar", () => {
+test("direct-link covers match the profile grid width, centered and uncropped", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
     for (const ratio of [0.75, 0.8, 1, 1.5, 5, NaN, 0]) {
       const box = coverEntranceLayout(w, h, offset, ratio);
       assert.ok(Math.abs(box.left + box.width / 2 - w / 2) < 0.01);
       assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.01);
-      assert.ok(box.top >= offset && box.left > 0);
-      assert.ok(box.top + box.height + 36 < offset + h);
-      assert.ok(box.width <= 320 && box.width < w);
+      assert.ok(box.left > 0);
+      assert.equal(box.width, (w - 36) / 2);
       assert.ok(Math.abs(box.width / box.height - (ratio > 0 ? ratio : 1)) < 0.01);
     }
   }
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const grid = css.match(/^\.library-grid \{[^}]+\}/m)[0];
+  assert.match(grid, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(grid, /gap: 12px/);
+  assert.match(grid, /padding: 0 12px/);
 });
-test("all poster shapes enlarge to the same shared width and retain their proportions", () => {
+test("direct-link poster shapes use a shared width and retain their proportions", () => {
   for (const [w, h, offset] of [[393, 714, 0], [393, 842, 0], [1440, 900, 15]]) {
     const expectedWidth = coverEntranceLayout(w, h, offset, 1).width;
     for (const ratio of [0.2, 0.75, 0.8, 1, 1.5, 5]) {
@@ -29,7 +33,30 @@ test("all poster shapes enlarge to the same shared width and retain their propor
   }
 });
 
-test("the tray drops immediately and the blinking loading bar travels with the cover", () => {
+test("profile covers keep their exact dimensions throughout the centered loader", () => {
+  for (const [w, h, offset] of [[393, 714, 0], [393, 842, 22], [1440, 900, 15]]) {
+    for (const origin of [{ width: 167.5, height: 232.75 }, { width: 174, height: 174 }, { width: 167.5, height: 110.2 }]) {
+      const box = coverEntranceLayout(w, h, offset, origin.width / origin.height, origin);
+      assert.equal(box.width, origin.width);
+      assert.equal(box.height, origin.height);
+      assert.equal(box.left + box.width / 2, w / 2);
+      assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.001);
+    }
+  }
+});
+
+test("reload and direct-link covers use the same image and color proportions as profile clicks", () => {
+  for (const w of [320, 390, 393, 430, 768, 1440]) {
+    for (const ratio of [1080 / 1497, 1080 / 1349, 4 / 5, 1, 3 / 2, 5]) {
+      const profileCover = { width: (w - 36) / 2, height: (w - 36) / 2 / ratio };
+      assert.deepEqual(coverEntranceLayout(w, 844, 0, ratio), coverEntranceLayout(w, 844, 0, ratio, profileCover));
+    }
+  }
+  const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
+  assert.match(component, /cover.shape === "portrait" \? 4 \/ 5 : cover.shape === "landscape" \? 3 \/ 2 : 1/);
+});
+
+test("the tray drops immediately while zero blinks independently behind the traveling cover", () => {
   const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /holdCoverDock/);
   assert.match(component, /return dropCoverDock\([^;]+setDockDropped\(true\)/);
@@ -41,16 +68,47 @@ test("the tray drops immediately and the blinking loading bar travels with the c
   assert.match(component, /if \(initialOrigin \|\| !coverReadyToAppear \|\| !visualRef.current\) return/);
   assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
   assert.match(component, /requestPending \|\| !dockDropped/);
-  assert.match(component, /scale\(\$\{initialOrigin.width \/ target.width\}/);
+  assert.match(component, /aspectRatio, initialOrigin\)/);
+  assert.doesNotMatch(component, /scale\(/);
   assert.match(component, /const animation = stage.animate/);
-  assert.match(component, /index === 0 && filled === 0 \? "is-waiting"/);
+  assert.match(component, /displayPercent === 0 \? " is-waiting"/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, new RegExp(`animation: cover-backdrop-in ${COVER_MOVE_MS}ms`));
   assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
-  assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-progress \{ opacity: 1; \}/);
-  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-progress \{ opacity: 1; transition: none; \}/);
-  assert.match(css, /span.is-waiting\s*\{\s*opacity: 1;\s*animation: cover-first-square-blink 700ms ease-in-out infinite alternate;/);
+  assert.match(css, /\.strip-entrance-percent.is-waiting\s*\{\s*animation: cover-zero-blink 700ms ease-in-out infinite alternate;/);
+  assert.doesNotMatch(css.match(/\.strip-entrance-line \{[^}]+\}/)[0], /animation:|opacity:/);
   assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-cover \{ opacity: 0; \}/);
+});
+
+test("the vertical line begins under the physical safe area and ends below the title", () => {
+  for (const [top, height, visibleTop, visibleHeight, titleBottom] of [
+    [-62, 914, 0, 740, 44], [-47, 860, 0, 680, 84], [0, 720, 0, 720, 44], [-20, 420, 15, 350, 60],
+  ]) {
+    const { startHeight, travel } = coverLineLayout(top, height, visibleTop, visibleHeight, titleBottom);
+    const bottom = top + height;
+    assert.ok(startHeight > 0);
+    assert.ok(travel > 0);
+    assert.equal(bottom - startHeight, visibleTop + visibleHeight - 64);
+    assert.equal(bottom - startHeight - travel, titleBottom + 52);
+    let lastTip = bottom;
+    for (let percent = 0; percent <= 100; percent++) {
+      const tip = bottom - startHeight - travel * percent / 100;
+      assert.ok(tip <= lastTip);
+      assert.ok(tip >= titleBottom + 52 - 0.0001);
+      lastTip = tip;
+    }
+  }
+});
+
+test("decorative squares choose distinct, stable tones from the author's palette", () => {
+  for (const random of [0, 0.5, 0.999]) {
+    const colors = coverAccentColors("#3155FF", "#F5F1E8", () => random);
+    assert.equal(colors.length, 2);
+    assert.notEqual(colors[0], colors[1]);
+    for (const color of colors) assert.match(color, /^color-mix\(in srgb, #3155FF \d+%, #F5F1E8\)$/);
+  }
+  const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
+  assert.match(component, /useState\(\(\) => coverAccentColors\(ink, initialBackground\)\)/);
 });
 
 test("a raw-load cover finishes its quick fade before releasing progress", () => {

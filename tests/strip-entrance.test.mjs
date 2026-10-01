@@ -9,7 +9,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
-import { profileInk } from "../app/lib/profile.ts";
+import * as profile from "../app/lib/profile.ts";
+const { profileInk } = profile;
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -66,8 +67,8 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
-      : name === "@/app/lib/profile" ? { profileInk } : require(name) });
-test("renders a centered cover and 24 square progress cells, without a full-screen drawing", () => {
+      : name === "@/app/lib/profile" ? profile : require(name) });
+test("renders a vertical line behind the cover with only the waiting zero blinking", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
@@ -80,12 +81,17 @@ test("renders a centered cover and 24 square progress cells, without a full-scre
   assert.ok(html.includes("--entrance-background:#000000"));
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
-  assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 23);
-  assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
+  assert.match(html, /strip-entrance-line/);
+  assert.match(html, /strip-entrance-accents" aria-hidden="true"/);
+  assert.equal((html.match(/class="strip-entrance-accent is-/g) ?? []).length, 2);
+  assert.match(css, /\.strip-entrance-accent.is-upper-right \{ top: 25%; left: 77%; \}/);
+  assert.match(css, /\.strip-entrance-accent.is-lower-left \{ top: 75%; left: 23%; \}/);
+  assert.equal((html.match(/strip-entrance-percent is-waiting/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /strip-entrance-squares/);
+  assert.ok(html.indexOf('class="strip-entrance-progress"') < html.indexOf('class="strip-entrance-stage"'));
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
-  assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
+  assert.match(html, /class="strip-entrance-percent-value">0<\/span>%/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
 test("the first render uses contrasting monochrome ink and the originating profile background", () => {
@@ -103,11 +109,26 @@ test("the first render uses contrasting monochrome ink and the originating profi
     assert.match(html, /is-waiting/);
     assert.doesNotMatch(html, /<img/, "reuse captured pixels, never mount a second image");
   }
-  assert.match(componentSource, /const \[initialBackground\] = useState\(backgroundColor\)/);
+  assert.match(componentSource, /const \[initialBackground\] = useState\(theme\?\.background \?\? backgroundColor\)/);
   assert.match(componentSource, /snapshotRef.current.appendChild\(snapshot\)/);
   assert.match(componentSource, /snapshot.remove\(\)/);
   assert.match(componentSource, /root.style.removeProperty\("--cover-entrance-background"\)/);
   assert.match(componentSource, /root.style.setProperty\("--cover-entrance-background", previousBackground, previousPriority\)/);
+});
+test("the title, percent and line inherit the author's theme rather than cover colors", () => {
+  for (const font of profile.PROFILE_FONTS) {
+    const theme = { font: font.id, background: "#F5F1E8", accent: "#AA3311" };
+    const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
+      cover: { kind: "color", color: "#3155FF" }, title: "slow sunday", theme,
+      settledAssets: 0, totalAssets: 2, revealing: false, onCoverSettled() {}, onExitComplete() {},
+    }));
+    assert.match(html, /--entrance-a:#AA3311/);
+    assert.match(html, /--entrance-background:#F5F1E8/);
+    assert.match(html, /strip-entrance-title">slow sunday<\/h2>/);
+    assert.ok(html.includes('--entrance-font:' + font.family.replaceAll('"', '&quot;')));
+  }
+  assert.match(page, /theme=\{openingCover\?\.theme \?\? openedPublishedStrip\?\.profileTheme \?\? DEFAULT_PROFILE\}/);
+  assert.match(page, /title=\{entranceStrip.title\}/);
 });
 test("readiness and timeout preserve the loading contract", () => {
   assert.match(page, /publishedAssetsReady && publishedMinimumElapsed/);
@@ -137,11 +158,12 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(css,/font-variant-numeric: tabular-nums/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
-  assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
-  assert.match(readoutCss,/right: 0;/);
-  assert.match(readoutCss,/gap: 14px;/);
-  assert.match(readoutCss,/white-space: nowrap;/);
-  assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*width: 3ch;\s*text-align: right;/);
+  assert.match(readoutCss,/z-index: 1;/);
+  assert.match(readoutCss,/bottom: 0;/);
+  assert.match(readoutCss,/width: 2px;/);
+  assert.match(css,/\.strip-entrance-percent\s*\{[^}]*bottom: calc\(var\(--entrance-line-height\) \+ 10px\)/);
+  assert.match(css,/\.strip-entrance-percent\s*\{[^}]*width: 5ch;/);
+  assert.match(css,/\.strip-entrance-stage\s*\{[^}]*z-index: 3;/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
   assert.match(componentSource,/!revealing \|\| displayPercent !== 100 \|\| !centered \|\| requestPending/);
 });
