@@ -5,6 +5,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Pencil } from "lucide-react";
 import ts from "typescript";
 import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { HapticActionButton } from "./helpers/haptic-action.mjs";
@@ -32,7 +33,7 @@ function render({ ready = false, owner = false, last = "image", username = "anto
   const calls = [];
   const icon = () => createElement("svg", { "aria-hidden": true });
   runInNewContext(compiled, {
-    require, exports, Pencil: icon, Plus: icon, Send: icon, StripEndingSheet, HapticActionButton,
+    require, exports, Pencil, Plus: icon, Send: icon, StripEndingSheet, HapticActionButton,
     publishedContentCanReveal: ready,
     publishedEndsWithMedia: last !== "text",
     publishedEndsWithVideo: last === "video",
@@ -67,12 +68,47 @@ test("owner and visitor footers are complete from first render for every last-bl
       const footer = (html) => html.match(/<footer[\s\S]*?<\/footer>/)[0];
       assert.equal(footer(loading.html), footer(ready.html), "loading cannot mount, replace or restyle the footer");
       assert.equal((footer(loading.html).match(/<button/g) ?? []).length, 2);
-      assert.ok(loading.html.includes(owner ? "Edit this Strip" : "Make your own Strip"));
+      assert.ok(loading.html.includes(owner ? "Edit Strip" : "Make a Strip"));
       assert.match(loading.html, /Last block<\/div><footer/);
       assert.equal(loading.element.props.children[1].type, StripEndingSheet, "always the shared in-flow footer");
       assert.match(footer(loading.html), /A Strip by <a href="https:\/\/antonio\.striiip\.com\/"[^>]*>@antonio<\/a>/);
     }
   }
+});
+
+test("pill styling preserves the original action structure, callbacks, and footer height", () => {
+  for (const owner of [false, true]) {
+    const result = render({ owner, ready: true });
+    const actionElement = result.element.props.children[1].props.children;
+    const controls = actionElement.type(actionElement.props);
+    assert.equal(controls.props.className, "strip-end-sheet-controls");
+    const [primary, share] = controls.props.children;
+    assert.equal(share.props.className, "strip-end-sheet-share");
+    assert.equal(share.props.label, "Share this Strip");
+    assert.equal(primary.type, "button");
+    assert.equal(primary.props.className, "strip-end-sheet-primary");
+    share.props.onClick();
+    let stopped = false;
+    primary.props.onClick({ stopPropagation() { stopped = true; } });
+    assert.equal(stopped, true);
+    assert.deepEqual(result.calls, ["share", owner ? "edit" : "create"]);
+    const buttons = result.html.match(/<button[\s\S]*?<\/button>/g);
+    assert.match(buttons[1], /viewBox="0 0 256 256" fill="currentColor"/);
+    assert.match(buttons[1], /<span>Share<\/span>/);
+    assert.match(buttons[0], /strip-end-sheet-solid-pencil/);
+    assert.doesNotMatch(buttons.join(""), /lucide-plus|lucide-send/);
+  }
+  assert.match(rule(".strip-end-sheet-controls"), /minmax\(0, 1fr\) minmax\(0, 1\.52fr\)/);
+  assert.match(rule(".strip-end-sheet-share"), /order: -1/);
+  assert.match(rule(".strip-end-sheet-controls"), /gap: 10px/);
+  const buttons = rule(".strip-end-sheet-controls:not(.is-preview) button");
+  assert.match(buttons, /border-radius: 999px/);
+  assert.match(buttons, /corner-shape: round/);
+  assert.doesNotMatch(buttons, /min-height:|height: 5/);
+  assert.match(buttons, /padding: 0 8px/);
+  assert.match(rule(".strip-end-sheet button"), /min-height: 52px/);
+  assert.match(rule(".strip-end-sheet-controls:not(.is-preview) .strip-end-sheet-share"), /background: #ffffff;\s*color: #000000/);
+  assert.match(rule(".strip-end-sheet-primary .strip-end-sheet-solid-pencil"), /fill: currentColor/);
 });
 
 test("the footer credits the author for every viewer and handles legacy Strips without a username", () => {

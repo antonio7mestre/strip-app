@@ -595,10 +595,8 @@ function StripEndActions({
       >
         {primaryPending ? (
           <span className="strip-end-sheet-spinner" aria-hidden="true" />
-        ) : onPublish ? null : primaryAction === "edit" ? (
-          <Pencil aria-hidden="true" />
-        ) : (
-          <Plus aria-hidden="true" />
+        ) : onPublish ? null : (
+          <Pencil className={`strip-end-sheet-solid-pencil is-${primaryAction}`} aria-hidden="true" />
         )}
         <span aria-live="polite">{primaryPending ? "Opening editor…" : primaryLabel}</span>
       </button>
@@ -609,7 +607,13 @@ function StripEndActions({
         onClick={() => (onPublish ?? onShare)()}
         label={onPublish ? "Publish" : "Share this Strip"}
       >
-        {onPublish ? "Publish" : <Send aria-hidden="true" />}
+        {onPublish ? "Publish" : <>
+          {/* Phosphor share-fat-fill, MIT. See /licenses/phosphor-icons.txt. */}
+          <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false">
+            <path d="M237.66,117.66l-80,80A8,8,0,0,1,144,192V152.23c-57.1,3.24-96.25,40.27-107.24,52h0a12,12,0,0,1-20.68-9.58c3.71-32.26,21.38-63.29,49.76-87.37,23.57-20,52.22-32.69,78.16-34.91V32a8,8,0,0,1,13.66-5.66l80,80A8,8,0,0,1,237.66,117.66Z" />
+          </svg>
+          <span>Share</span>
+        </>}
       </HapticActionButton>
     </div>
   );
@@ -7830,8 +7834,8 @@ export default function Home() {
                   primaryPending={publishedViewerCanEdit && openingPublishedEditor}
                   primaryLabel={
                     publishedViewerCanEdit
-                      ? "Edit this Strip"
-                      : "Make your own Strip"
+                      ? "Edit Strip"
+                      : "Make a Strip"
                   }
                   onPrimary={() => {
                     if (publishedViewerCanEdit) {
