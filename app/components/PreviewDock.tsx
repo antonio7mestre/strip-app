@@ -15,8 +15,10 @@ type Motion = {
 
 /** Swap the fixed toolbar for document paint during motion, including Safari's
  * safe-area extension. The strip's layout, selection and history stay untouched. */
-export function PreviewDock({ preview, children }: { preview: boolean; children: ReactNode }) {
-  const [motion, setMotion] = useState<Motion>({ preview, phase: "idle" });
+export function PreviewDock({ preview, children, enterOnMount = false, navigation = false }: {
+  preview: boolean; children: ReactNode; enterOnMount?: boolean; navigation?: boolean;
+}) {
+  const [motion, setMotion] = useState<Motion>({ preview, phase: enterOnMount && !preview ? "measure" : "idle" });
   const mountRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLElement>(null);
@@ -27,7 +29,7 @@ export function PreviewDock({ preview, children }: { preview: boolean; children:
 
   useLayoutEffect(() => {
     if (motion.phase !== "measure") return;
-    const liveDock = mountRef.current?.querySelector<HTMLElement>(".main-composer-dock") ?? null;
+    const liveDock = mountRef.current?.querySelector<HTMLElement>(".composer-dock") ?? null;
     const origin = captureCoverDock(liveDock);
     // Keep the moving copy during measurement so a fast Back can reverse in place.
     const fromTop = dockRef.current?.getBoundingClientRect().top;
@@ -53,9 +55,9 @@ export function PreviewDock({ preview, children }: { preview: boolean; children:
       </div>
     ) : null}
     {motion.origin && motion.phase !== "idle" ? createPortal(
-      <div className="preview-dock-boundary" style={{ height: motion.pageHeight }} aria-hidden="true" inert>
+      <div className={`preview-dock-boundary${navigation ? " is-navigation" : ""}`} style={{ height: motion.pageHeight }} aria-hidden="true" inert>
         <div ref={surfaceRef} className="preview-dock-surface" data-direction={preview ? "down" : "up"}>
-          <footer ref={dockRef} className="composer-dock main-composer-dock preview-motion-dock"
+          <footer ref={dockRef} className={`composer-dock ${navigation ? "app-navigation-dock" : "main-composer-dock"} preview-motion-dock`}
             dangerouslySetInnerHTML={{ __html: motion.origin.markup }} />
         </div>
       </div>, document.body,

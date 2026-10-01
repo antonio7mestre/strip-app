@@ -57,3 +57,12 @@ test("preview removes the fixed safe-area paint and shares home motion in both d
   assert.match(css, /\.composer-dock.preview-motion-dock \{[^}]*position: absolute;[^}]*transform: none/s);
   assert.doesNotMatch(css, /\.main-composer-dock\.is-inline-preview/);
 });
+
+test("home navigation enters using the same measured document-painted motion", () => {
+  const component = readFileSync(new URL("../app/components/PreviewDock.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(component, /enterOnMount && !preview \? "measure" : "idle"/);
+  assert.match(component, /querySelector<HTMLElement>\("\.composer-dock"\)/);
+  assert.match(component, /navigation \? "app-navigation-dock" : "main-composer-dock"/);
+  assert.match(page, /!viewingPublicProfile && !openingCover \? <PreviewDock preview=\{false\} enterOnMount navigation>/);
+});

@@ -174,14 +174,26 @@ test("the final crossfade keeps its previous timing, is monotonic, and cleans up
   globalThis.requestAnimationFrame = callback => { pending = callback; return 7; };
   globalThis.cancelAnimationFrame = () => { pending = null; };
   const host = { dataset: {}, style: { opacity: "1" } };
-  const cancel = fadeCoverEntrance(host, () => done++);
+  const edge = { style: { opacity: "1" } };
+  const cancel = fadeCoverEntrance(host, () => done++, edge);
   try {
     pending(100); assert.equal(host.style.opacity, "1");
     pending(425); assert.equal(Number(host.style.opacity), 0.5);
+    assert.equal(edge.style.opacity, host.style.opacity, "Safari's edge fades on exactly the same frame");
     pending(750); assert.equal(host.style.opacity, "0"); assert.equal(done, 1);
+    assert.equal(edge.style.opacity, "0");
     assert.equal(host.dataset.inkPhase, "fading");
     cancel(); assert.equal(pending, null);
   } finally { cancel(); delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+});
+
+test("Safari's bottom paint is separate from the clipped loader and is released with it", () => {
+  const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(component, /className="strip-entrance-edge"[^>]*[\s\S]*backgroundColor: initialBackground/);
+  assert.match(component, /fadeCoverEntrance\(host, \(\) => completeCallback.current\(\), edgeRef.current\)/);
+  assert.match(component, /initialDock && !dockDropped/);
+  assert.match(css, /\.strip-entrance-edge \{[^}]*position: fixed;[^}]*z-index: 49;[^}]*height: calc\(380px/s);
 });
 test("same-origin home click preserves a single portal and cannot race a Back gesture", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -200,7 +212,7 @@ test("same-origin home click preserves a single portal and cannot race a Back ge
   assert.match(page, /openingCoverRequestRef.current\?\.abort\(\)/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.library-card.is-opening-cover \.library-cover\s*\{\s*visibility: hidden/);
-  assert.match(page, /\{!viewingPublicProfile && !openingCover \? <footer\s*key="persistent-composer-dock"/);
+  assert.match(page, /\{!viewingPublicProfile && !openingCover \? <PreviewDock[^>]+><footer\s*key="persistent-composer-dock"/);
   assert.doesNotMatch(css, /\.library-mode.is-opening-strip \.composer-dock/);
   assert.match(css, /\.strip-entrance \.strip-entrance-dock\s*\{[^}]*position: absolute;[^}]*transform: none;[^}]*transition: none/);
   assert.ok(open.indexOf("captureCoverDock(") < open.indexOf("flushSync("));

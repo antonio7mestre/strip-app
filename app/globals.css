@@ -2446,6 +2446,17 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .strip-entrance {
   will-change: opacity;
 }
+.strip-entrance-edge {
+  /* Safari samples an area, not the last pixel. Paint 200px of overlap behind
+     the animation plus the dock's overscan, outside its composited clip. */
+  position: fixed;
+  z-index: 49;
+  left: 0;
+  right: 0;
+  bottom: calc(-180px - max(0px, 100lvh - 100dvh));
+  height: calc(380px + env(safe-area-inset-bottom) + max(0px, 100lvh - 100dvh));
+  pointer-events: none;
+}
 .strip-entrance-backdrop {
   position: absolute;
   inset: 0;
@@ -2957,6 +2968,10 @@ html.sticker-tray-open body {
   width: 100%;
   overflow: hidden;
   pointer-events: none;
+}
+
+.preview-dock-boundary.is-navigation {
+  z-index: 42;
 }
 
 .composer-dock.preview-motion-dock {

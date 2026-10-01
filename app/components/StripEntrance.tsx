@@ -21,6 +21,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const coverRef = useRef<HTMLImageElement>(null);
   const snapshotRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const edgeRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -194,10 +195,14 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   useLayoutEffect(() => {
     const host = surfaceRef.current;
     if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !dockDropped || !coverVisible) return;
-    return fadeCoverEntrance(host, () => completeCallback.current());
+    return fadeCoverEntrance(host, () => completeCallback.current(), edgeRef.current);
   }, [revealing, displayPercent, centered, requestPending, dockDropped, coverVisible]);
 
-  return (
+  return (<>
+    {/* Safari clips the animated surface at the content edge. Keep the browser
+        extension outside that composited layer, with the same color and fade. */}
+    <div ref={edgeRef} className="strip-entrance-edge" aria-hidden="true"
+      style={{ backgroundColor: initialBackground }} />
     <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
       style={{ "--entrance-a": ink, "--entrance-background": initialBackground,
         "--entrance-font": fontFamily, "--entrance-progress": displayPercent / 100 } as CSSProperties}
@@ -218,7 +223,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
           <span className="strip-entrance-percent-symbol">%</span>
         </span>
       </div>
-      {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
+      {initialDock && !dockDropped ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
         aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}
@@ -233,6 +238,6 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
           ) : null}
         </div>
       </div>
-    </div>
+    </div></>
   );
 }

@@ -7183,7 +7183,7 @@ export default function Home() {
 
           {/* Remove the fixed surface entirely: Safari retains its white
               edge paint even with visibility:hidden or an offscreen transform. */}
-          {!viewingPublicProfile && !openingCover ? <footer
+          {!viewingPublicProfile && !openingCover ? <PreviewDock preview={false} enterOnMount navigation><footer
             key="persistent-composer-dock"
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
           >
@@ -7242,7 +7242,7 @@ export default function Home() {
                 <span className="visually-hidden">Settings</span>
               </button>
             </nav></>}
-          </footer> : null}
+          </footer></PreviewDock> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal
               title="Delete this draft?"

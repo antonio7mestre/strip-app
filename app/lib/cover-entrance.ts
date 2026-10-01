@@ -153,7 +153,7 @@ export function fadeInCover(cover: HTMLElement, onComplete: () => void) {
 }
 
 /** Keep the existing 650ms crossfade and expose its phase for Safari edge tint. */
-export function fadeCoverEntrance(host: HTMLElement, onComplete: () => void) {
+export function fadeCoverEntrance(host: HTMLElement, onComplete: () => void, edge?: HTMLElement | null) {
   let frame = 0, started: number | null = null, disposed = false;
   host.dataset.inkPhase = "fading";
   const tick = (now: number) => {
@@ -161,6 +161,7 @@ export function fadeCoverEntrance(host: HTMLElement, onComplete: () => void) {
     started ??= now;
     const t = Math.max(0, Math.min(1, (now - started) / COVER_FADE_MS));
     host.style.opacity = String(1 - t * t * (3 - 2 * t));
+    if (edge) edge.style.opacity = host.style.opacity;
     if (t < 1) frame = requestAnimationFrame(tick);
     else onComplete();
   };
