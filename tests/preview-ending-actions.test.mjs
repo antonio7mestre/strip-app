@@ -20,7 +20,7 @@ const code = ts.transpileModule([
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText;
 
-function fixture({ view = "edit", inlinePreview = true, historyEntry = true } = {}) {
+function fixture({ view = "edit", inlinePreview = true, historyEntry = true, contentReady = true } = {}) {
   const calls = [];
   const scrollRef = { current: null };
   const lock = { current: null };
@@ -33,6 +33,8 @@ function fixture({ view = "edit", inlinePreview = true, historyEntry = true } = 
   const exports = {};
   runInNewContext(code, {
     exports, view, inlinePreview, hasContent: true,
+    blocks: [], stripCanvasRef: { current: {} }, hasScreenfulOfContent: () => contentReady,
+    showActionNotice: message => calls.push(["notice", message]),
     inlinePreviewScrollRef: scrollRef,
     inlinePreviewExitLockRef: lock,
     inlinePreviewHistoryEntryRef: { current: historyEntry },
@@ -61,12 +63,24 @@ function fixture({ view = "edit", inlinePreview = true, historyEntry = true } = 
 test("entering preview disables native restoration on the editor entry before pushing history", () => {
   const f = fixture({ inlinePreview: false, historyEntry: false });
   f.toggleInlinePreview();
-  assert.deepEqual(f.calls.slice(0, 3), [["push", "manual"], "prepare-layout", ["preview", true]]);
+  assert.deepEqual(f.calls.slice(0, 4), [["notice", ""], ["push", "manual"], "prepare-layout", ["preview", true]]);
   assert.equal(f.restoration.current, "auto", "original browser behavior is preserved for exit");
   assert.equal(f.history.scrollRestoration, "manual");
   assert.match(declaration("beginInlinePreviewExitLock"), /scrollRestoration: inlinePreviewRestorationRef.current \?\? history.scrollRestoration/);
   assert.match(declaration("releaseInlinePreviewExitLock"), /history.scrollRestoration = lock.scrollRestoration/);
   assert.match(declaration("releaseInlinePreviewExitLock"), /inlinePreviewRestorationRef.current = null/);
+});
+
+test("short Strips cannot enter preview or change scroll/history, but can always leave preview", () => {
+  const entering = fixture({ inlinePreview: false, historyEntry: false, contentReady: false });
+  entering.toggleInlinePreview();
+  entering.toggleInlinePreview();
+  assert.deepEqual(entering.calls, [["notice", "Add more content to preview your Strip"], ["notice", "Add more content to preview your Strip"]]);
+  assert.equal(entering.history.scrollRestoration, "auto");
+  assert.equal(entering.scrollRef.current, null);
+  const leaving = fixture({ inlinePreview: true, contentReady: false });
+  leaving.toggleInlinePreview();
+  assert.deepEqual(leaving.calls, [["lock", 1240], "back"]);
 });
 
 test("preview Edit consumes the same Back entry and preserves current scroll", () => {

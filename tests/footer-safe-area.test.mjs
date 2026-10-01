@@ -104,6 +104,7 @@ function fixture({ top = 900, reveal = true, view = "published", inlinePreview =
   const root = {
     clientHeight: 800,
     classList: {
+      contains: (name) => classes.has(name),
       toggle(name, active) { if (active) classes.add(name); else classes.delete(name); },
       remove(name) { classes.delete(name); },
     },

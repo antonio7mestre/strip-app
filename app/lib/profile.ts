@@ -43,7 +43,10 @@ export function profileInk(color: string) {
   return profileLuminance(color) > 0.179 ? "#000000" : "#FFFFFF";
 }
 
-export const PROFILE_COLOR_ERROR = "Change colors so text is readable";
+export const PROFILE_COLOR_ERROR = "Change colors so text is more readable";
+// A permissive save guard for personal themes, not an accessibility rating.
+// The same threshold drives preview ink, tap feedback and server validation.
+export const PROFILE_MIN_TEXT_CONTRAST = 3;
 
 export function profileContrast(background: string, text: string) {
   const a = profileLuminance(background), b = profileLuminance(text);
@@ -51,7 +54,7 @@ export function profileContrast(background: string, text: string) {
 }
 
 export function profileColorsReadable(profile: Pick<StripProfile, "background" | "accent">) {
-  return profileContrast(profile.background, profile.accent) >= 4.5;
+  return profileContrast(profile.background, profile.accent) >= PROFILE_MIN_TEXT_CONTRAST;
 }
 
 /** Older profiles used accent only on buttons, so they may need safe reading ink.

@@ -49,3 +49,32 @@ export function hasScreenfulOfContent(
   // Ignore only subpixel rounding at the exact full-screen boundary.
   return contentHeight + 1 >= minimumHeight;
 }
+
+/** Pre-arm native tap feedback as layout changes. Actions still measure again
+ * synchronously on tap, so a late media load can never block a valid Strip. */
+export function observeStripContent(
+  canvas: HTMLElement | null,
+  blocks: readonly ContentBlock[],
+  onReady: (ready: boolean) => void,
+) {
+  if (!canvas) { onReady(false); return; }
+  let disposed = false;
+  const update = () => { if (!disposed) onReady(hasScreenfulOfContent(canvas, blocks)); };
+  const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+  const observe = () => {
+    if (disposed) return;
+    resize?.disconnect();
+    resize?.observe(canvas);
+    canvas.querySelectorAll(".block-crop-viewport").forEach(element => resize?.observe(element));
+    update();
+  };
+  const mutations = new MutationObserver(observe);
+  mutations.observe(canvas, { childList: true, subtree: true });
+  window.addEventListener("resize", update);
+  observe();
+  return () => {
+    disposed = true;
+    resize?.disconnect(); mutations.disconnect();
+    window.removeEventListener("resize", update);
+  };
+}

@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
+import { HapticActionButton } from "./helpers/haptic-action.mjs";
 
 const require = createRequire(import.meta.url);
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -31,7 +32,7 @@ function render({ ready = false, owner = false, last = "image", username = "anto
   const calls = [];
   const icon = () => createElement("svg", { "aria-hidden": true });
   runInNewContext(compiled, {
-    require, exports, Pencil: icon, Plus: icon, Send: icon, StripEndingSheet,
+    require, exports, Pencil: icon, Plus: icon, Send: icon, StripEndingSheet, HapticActionButton,
     publishedContentCanReveal: ready,
     publishedEndsWithMedia: last !== "text",
     publishedEndsWithVideo: last === "video",

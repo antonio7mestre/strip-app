@@ -12,6 +12,8 @@ export function useStripProfile(userId: string | undefined) {
   const [pending, setPending] = useState(false);
   const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [error, setError] = useState("");
+  const [errorRevision, setErrorRevision] = useState(0);
+  const [errorRepeated, setErrorRepeated] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [reload, setReload] = useState(0);
   const currentUser = useRef(userId);
@@ -48,9 +50,13 @@ export function useStripProfile(userId: string | undefined) {
     if (saving.current) return;
     setDraft(null); setPhoto(undefined); setError("");
   }, []);
+  const showError = (message: string) => {
+    setErrorRepeated(error === message);
+    setError(message); setErrorRevision(value => value + 1);
+  };
   const save = async () => {
     if (!draft || saving.current || preparingPhoto || !userId) return;
-    if (!profileColorsReadable(draft)) { setError(PROFILE_COLOR_ERROR); return; }
+    if (!profileColorsReadable(draft)) { showError(PROFILE_COLOR_ERROR); return; }
     const savingUser = userId;
     saving.current = true;
     setPending(true); setError("");
@@ -83,8 +89,8 @@ export function useStripProfile(userId: string | undefined) {
     editing: owner === userId && draft !== null, dirty: owner === userId && dirty,
     loading: Boolean(userId && (owner !== userId || loading)),
     pending: pending || preparingPhoto, preparingPhoto, setPreparingPhoto,
-    error: owner === userId ? error : "", loadFailed: owner === userId && loadFailed,
-    begin, cancel, save, update, changePhoto,
+    error: owner === userId ? error : "", errorRevision, errorRepeated, loadFailed: owner === userId && loadFailed,
+    begin, cancel, save, update, changePhoto, showError,
     retry: () => { setLoading(true); setReload((value) => value + 1); },
   };
 }

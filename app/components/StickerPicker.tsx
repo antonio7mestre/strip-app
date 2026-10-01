@@ -130,6 +130,13 @@ function StickerPickerDialog({
     () => scrollRef.current,
     () => [categoriesRef.current, paletteScrollRef.current],
   ), [samplingPage]);
+  useLayoutEffect(() => {
+    const row = categoriesRef.current;
+    if (view !== "pack" || category !== "shapes" || !row) return;
+    // Move only the category rail, never the strip behind the tray. The color
+    // action has mounted now, so its full width is included in the destination.
+    row.scrollTo({ left: row.scrollWidth - row.clientWidth, behavior: "smooth" });
+  }, [category, view]);
   useLayoutEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useLayoutEffect(() => {
     samplePageColorRef.current = samplePageColor;
@@ -247,7 +254,8 @@ function StickerPickerDialog({
                 <X aria-hidden="true" />
               </button>
             </header>
-            <div ref={categoriesRef} className={styles.categories} role="tablist" aria-label="Sticker categories">
+            <div ref={categoriesRef} className={styles.categories}>
+              <div className={styles.categoryTabs} role="tablist" aria-label="Sticker categories">
               {categories.map(item => (
                 <button key={item} className={category === item ? styles.activeCategory : ""}
                   type="button" role="tab" aria-selected={category === item}
@@ -258,13 +266,14 @@ function StickerPickerDialog({
                     scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
                   }}>{labels[item]}</button>
               ))}
-            </div>
-            {category === "shapes" ? <div className={styles.shapeHeading}>
+              </div>
+              {category === "shapes" ?
               <button type="button" className={styles.shapeColorButton} onClick={() => setShapePaletteOpen(true)}
                 aria-label="Choose shape color" aria-expanded={shapePaletteOpen}>
                 <span style={{ backgroundColor: shapeColor }} aria-hidden="true" />Select a color
               </button>
-            </div> : null}
+              : null}
+            </div>
             <div ref={scrollRef} className={styles.scrollArea} role="tabpanel" tabIndex={0}
               aria-label={category === "shapes" ? "Shapes" : `${labels[category]} stickers`}>
               {category === "shapes" ? <div className={styles.masonry}>

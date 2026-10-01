@@ -163,8 +163,9 @@ test("profile tools reuse the dock on the profile and preserve the main editor",
   const page = read("app/page.tsx");
   assert.match(page, /composer-dock app-navigation-dock.*profile-editor-dock/);
   assert.match(page, /view === "library" && stripProfile.editing \? <ProfileTools/);
-  assert.match(page, /<p className="profile-editor-hint">Tap title to edit<\/p>/);
-  assert.match(page, /stripProfile.editing \|\| \(isDraft/);
+  assert.doesNotMatch(page, /profile-editor-hint|Tap title to edit/);
+  assert.match(page, /feedback=\{stripProfile.editing\}/);
+  assert.match(page, /if \(stripProfile.editing\) \{\s*stripProfile.showError\("Save changes to access Strips"\);\s*return;/);
   assert.match(page, /installKeyboardDockPosition/);
   const editor = read("app/components/ProfileEditor.tsx");
   assert.match(editor, /aria-label=\{editing \? "Profile title" : undefined\}/);
@@ -214,13 +215,31 @@ test("background changes only auto-flip pure black or white text", () => {
   assert.equal(profile.applyProfileChanges(profile.DEFAULT_PROFILE, { title: "hello" }).accent, "#FFFFFF");
 });
 
-test("readability uses full contrast precision and allows non-neutral readable text", () => {
+test("readability allows softer themes at 3:1 but still rejects low-contrast combinations", () => {
   assert.equal(profile.profileContrast("#000000", "#FFFFFF"), 21);
-  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#767676" }), true);
-  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#777777" }), false);
+  assert.equal(profile.PROFILE_MIN_TEXT_CONTRAST, 3);
+  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#777777" }), true);
+  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#949494" }), true);
+  assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#959595" }), false);
+  const orange = { background: "#FFFFFF", accent: "#FF4D00" };
+  assert(profile.profileContrast(orange.background, orange.accent) < 4.5);
+  assert.equal(profile.profileColorsReadable(orange), true);
+  assert.equal(profile.profileTextColor(orange), orange.accent, "accepted colors must not flip after Save");
+  assert.equal(profile.profileTextColor(orange, true), orange.accent);
   assert.equal(profile.profileColorsReadable({ background: "#FFFFFF", accent: "#3155FF" }), true);
   assert.equal(profile.profileColorsReadable({ background: "#3155FF", accent: "#3155FF" }), false);
   assert.ok(profile.profileColorsReadable(profile.DEFAULT_PROFILE));
+});
+
+test("server saves newly allowed 3:1 color combinations unchanged", async () => {
+  const api = fixture();
+  const softer = { ...profile.DEFAULT_PROFILE, background: "#FFFFFF", accent: "#FF4D00" };
+  const result = await api.PUT(request(softer));
+  assert.equal(result.status, 200);
+  const saved = (await result.json()).profile;
+  assert.equal(saved.background, softer.background);
+  assert.equal(saved.accent, softer.accent);
+  api.db.close();
 });
 
 test("unreadable combinations can be previewed but Save rejects them without writing", async () => {
@@ -229,7 +248,7 @@ test("unreadable combinations can be previewed but Save rejects them without wri
   assert.ok(profile.validateProfile(bad), "color controls permit any valid hex combination");
   const result = await api.PUT(request(bad));
   assert.equal(result.status, 400);
-  assert.equal((await result.json()).error, "Change colors so text is readable");
+  assert.equal((await result.json()).error, "Change colors so text is more readable");
   assert.equal(api.db.prepare("SELECT count(*) AS count FROM profiles").get().count, 0);
   assert.equal(api.objects.size, 0);
   assert.equal((await api.PUT(request({ ...bad, accent: "#3155FF" }))).status, 200);
@@ -238,11 +257,13 @@ test("unreadable combinations can be previewed but Save rejects them without wri
   assert.deepEqual(api.db.prepare("SELECT * FROM profiles").get(), saved);
   api.db.close();
   const hook = read("app/components/useStripProfile.ts");
-  assert.match(hook, /if \(!profileColorsReadable\(draft\)\) \{ setError\(PROFILE_COLOR_ERROR\); return; \}/);
+  assert.match(hook, /if \(!profileColorsReadable\(draft\)\) \{ showError\(PROFILE_COLOR_ERROR\); return; \}/);
+  assert.match(hook, /const showError = \(message: string\) => \{\s*setErrorRepeated\(error === message\);\s*setError\(message\); setErrorRevision\(value => value \+ 1\);/);
   assert.ok(hook.indexOf("!profileColorsReadable(draft)") < hook.indexOf('method: "PUT"'));
   const editor = read("app/components/ProfileEditor.tsx");
-  assert.doesNotMatch(editor, /profileColorsReadable/, "checkmark previews without validating");
-  assert.match(editor, /createPortal\(<p className="notice profile-save-notice" role="alert"/);
+  assert.match(editor, /feedback=\{!profileColorsReadable\(profile\)\}/, "only unreadable saves arm tap feedback");
+  assert.match(editor, /aria-label="Done choosing styles" onClick=\{leaveTool\}/, "checkmark still previews without validating");
+  assert.match(editor, /createPortal\(<p className=\{`notice profile-save-notice\$\{controller.errorRepeated \? " is-repeated" : ""\}`\} role="alert"/);
   assert.match(editor, /"--profile-ink": profileTextColor\(profile, controller.editing\)/);
   assert.match(editor, /aria-label="Text color"[^\n]*<Baseline/);
 });
@@ -251,17 +272,40 @@ test("editing preserves header and content geometry with readable, independent c
   const css = read("app/globals.css");
   assert.match(css, /\.profile-title-input:focus \{ outline: none; \}/);
   assert.match(css, /\.profile-title-input \{[^}]*overflow: visible;/);
-  assert.match(css, /\.profile-header\.is-editing :is\(\.profile-edit-button, \.profile-meta-divider\),\s*\.is-profile-editing \.profile-empty-state button \{ visibility: hidden; \}/);
+  assert.match(css, /\.profile-header\.is-editing \.profile-edit-button,\s*\.is-profile-editing \.profile-empty-state button \{ visibility: hidden; \}/);
   assert.doesNotMatch(css, /\.is-profile-editing \.library-grid\s*\{/);
-  assert.match(css, /\.profile-editor-hint \{[^}]*\+ 8px\)[^}]*var\(--profile-ui-ink\)[^}]*font-size: 14px/);
-  assert.match(css, /\.profile-mode \.library-add-button \{ background: #3155ff; color: #fff; \}/);
+  assert.match(css, /\.profile-save-notice\.notice \{[^}]*color: #fff;[^}]*\+ 8px\)/);
+  assert.match(css, /\.profile-mode \.library-add-button \{ background: #fff; color: #000; \}/);
+  assert.match(css, /\.profile-mode \.library-add-button svg \{ color: #000; \}/);
+});
+
+test("the title hint replaces Edit profile without moving the username divider", () => {
+  const editor = read("app/components/ProfileEditor.tsx");
+  const css = read("app/globals.css");
+  assert.match(editor, /username && !publicProfile \? <span className="profile-meta-divider"/);
+  assert.match(editor, /<span className="profile-edit-action">[\s\S]*?className="profile-edit-button"[\s\S]*?className="profile-edit-hint"/);
+  assert.match(editor, /className="profile-edit-hint" id="profile-title-edit-hint" aria-hidden=\{!editing\}/);
+  assert.match(editor, /<ChevronUp aria-hidden="true" \/>Tap title to edit/);
+  assert.match(editor, /aria-describedby=\{editing \? "profile-title-edit-hint" : undefined\}/);
+  assert.match(css, /\.profile-edit-action \{ display: grid; flex: 0 0 auto; \}/);
+  assert.match(css, /\.profile-edit-button,\s*\.profile-edit-hint \{\s*grid-area: 1 \/ 1;/);
+  assert.match(css, /\.profile-header\.is-editing \.profile-edit-hint \{ visibility: visible; \}/);
+  assert.doesNotMatch(css, /\.profile-editor-hint|\.is-editing[^{}]*profile-meta-divider/);
+});
+
+test("library page descriptions reuse the profile username treatment", () => {
+  const page = read("app/page.tsx");
+  const header = page.slice(page.indexOf('<header className="library-header">'), page.indexOf('</header>}', page.indexOf('<header className="library-header">')));
+  assert.match(header, /className="profile-name"/);
+  assert.match(header, /<\/h1>\s*<div className="profile-meta-row">\s*<p className="profile-handle">/);
+  assert.match(header, /isSettings\s*\? "Your account and app details\."\s*: isDraftLibrary\s*\? "Pick up where you left off\."\s*: "Revisit the Strips you’ve opened\."/);
 });
 
 test("legacy button accents stay readable outside editing without changing their saved color", () => {
-  const legacy = { background: "#000000", accent: "#3155FF" };
+  const legacy = { background: "#000000", accent: "#242424" };
   assert.equal(profile.profileTextColor(legacy), "#FFFFFF");
-  assert.equal(profile.profileTextColor(legacy, true), "#3155FF");
-  assert.equal(legacy.accent, "#3155FF");
+  assert.equal(profile.profileTextColor(legacy, true), "#242424");
+  assert.equal(legacy.accent, "#242424");
   const readable = { background: "#FFFFFF", accent: "#3155FF" };
   assert.equal(profile.profileTextColor(readable), "#3155FF");
   assert.equal(profile.profileTextColor(readable, true), "#3155FF");

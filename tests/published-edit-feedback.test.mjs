@@ -6,6 +6,7 @@ import { runInNewContext } from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { HapticActionButton } from "./helpers/haptic-action.mjs";
 
 const require = createRequire(import.meta.url);
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -27,7 +28,7 @@ function harness({ owner = true, signedIn = true } = {}) {
   let pending = false;
   const icon = () => createElement("svg", { "aria-hidden": true });
   runInNewContext(compiled, {
-    require, exports, Pencil: icon, Plus: icon, Send: icon,
+    require, exports, Pencil: icon, Plus: icon, Send: icon, HapticActionButton,
     authStatus: signedIn ? "signed-in" : "signed-out",
     openedPublishedStrip: { id: "published-123", viewerIsOwner: owner },
     pageTransitionInFlightRef: gate,

@@ -2,12 +2,14 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Baseline, Check, ChevronLeft, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
-import { PROFILE_COLORS, PROFILE_FONTS, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
+import { Baseline, Check, ChevronLeft, ChevronUp, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
+import { PROFILE_COLORS, PROFILE_FONTS, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { type useStripProfile } from "./useStripProfile";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleProfilePageColor } from "@/app/lib/page-color-sampler";
 import { GradientColorPicker } from "./GradientColorPicker";
+import { HapticActionButton } from "./HapticActionButton";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
 type Props = { controller: ProfileController; username: string | null; publicProfile?: StripProfile };
@@ -40,6 +42,7 @@ export function ProfileHeader({ controller, username, publicProfile }: Props) {
     <div className="profile-identity">
       <div className="profile-name">
         <h1 ref={titleInput} id="profile-title-input" className="profile-title-input" aria-label={editing ? "Profile title" : undefined}
+          aria-describedby={editing ? "profile-title-edit-hint" : undefined}
           contentEditable={editing && !pending ? "plaintext-only" : false} suppressContentEditableWarning
           role={editing ? "textbox" : undefined} aria-multiline={editing ? false : undefined}
           data-placeholder={username || "Your profile"} enterKeyHint="done" spellCheck={false}
@@ -56,8 +59,13 @@ export function ProfileHeader({ controller, username, publicProfile }: Props) {
         <div className="profile-meta-row">
           {username ? <p className="profile-handle">@{username}</p> : null}
           {username && !publicProfile ? <span className="profile-meta-divider" aria-hidden="true" /> : null}
-          {!publicProfile ? <button type="button" className="profile-edit-button" disabled={editing || controller.loading || controller.loadFailed}
-            onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button> : null}
+          {!publicProfile ? <span className="profile-edit-action">
+            <button type="button" className="profile-edit-button" disabled={editing || controller.loading || controller.loadFailed}
+              aria-hidden={editing} onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button>
+            <span className="profile-edit-hint" id="profile-title-edit-hint" aria-hidden={!editing}>
+              <ChevronUp aria-hidden="true" />Tap title to edit
+            </span>
+          </span> : null}
         </div>
       </div>
     </div>
@@ -120,7 +128,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
     changeColor(color);
   };
   return <div className={`profile-tools ${wheel ? "is-gradient-picker" : ""}`} aria-label="Edit your profile">
-    {controller.error && typeof document !== "undefined" ? createPortal(<p className="notice profile-save-notice" role="alert">{controller.error}</p>, document.body) : null}
+    {controller.error && typeof document !== "undefined" ? createPortal(<p className={`notice profile-save-notice${controller.errorRepeated ? " is-repeated" : ""}`} role="alert" key={controller.errorRevision}>{controller.error}</p>, document.body) : null}
     {tool ? <div className="profile-selector-row" id="profile-tools-panel" aria-label={tool === "font" ? "Typeface selector" : `${colorLabel} color selector`}>
       <div ref={selectorScrollRef} className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${colorLabel} color choices`}>
         {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id}
@@ -148,7 +156,8 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
       <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Background color" onClick={() => chooseTool("background")}><PaintBucket aria-hidden="true" /></button>
       <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Text color" onClick={() => chooseTool("accent")}><Baseline aria-hidden="true" /></button>
       <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><Type aria-hidden="true" /></button>
-      <button type="button" className="profile-save-button" disabled={pending} onClick={() => void controller.save()}>{pending ? "Saving…" : "Save"}</button>
+      <HapticActionButton className="profile-save-button" label={pending ? "Saving…" : "Save"} disabled={pending}
+        feedback={!profileColorsReadable(profile)} onClick={() => void controller.save()}>{pending ? "Saving…" : "Save"}</HapticActionButton>
     </div>}
     {pickingPage && pickerPoint && typeof document !== "undefined" ? createPortal(<button type="button" className={`page-color-picker-indicator ${pickerDragging ? "is-dragging" : ""}`}
       style={{ left: pickerPoint.x, top: pickerPoint.y, color: pickerPoint.color }} aria-label="Drag to sample a page color"
@@ -159,13 +168,10 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
         if (!dx && !dy) return;
         event.preventDefault(); updatePickerPoint(pickerPoint.x - window.scrollX + dx, pickerPoint.y - window.scrollY + dy);
       }}><span className="page-color-picker-indicator-core" /></button>, document.body) : null}
-    {confirmCancel && typeof document !== "undefined" ? createPortal(<div className="profile-discard-backdrop">
-      <button type="button" className="profile-discard-shade" aria-label="Keep editing" onClick={() => setConfirmCancel(false)} />
-      <div className="profile-discard-card" role="alertdialog" aria-modal="true" aria-labelledby="profile-discard-title">
-        <strong id="profile-discard-title">Discard profile changes?</strong>
-        <div><button ref={keepEditing} type="button" onClick={() => setConfirmCancel(false)}>Keep editing</button>
-          <button type="button" onClick={() => { setConfirmCancel(false); controller.cancel(); }}>Discard changes</button></div>
-      </div></div>, document.body) : null}
+    {confirmCancel && typeof document !== "undefined" ? createPortal(<ConfirmationDialog
+      id="profile-discard" title="Discard profile changes?" cancelLabel="Keep editing" confirmLabel="Discard changes"
+      cancelButtonRef={keepEditing} onCancel={() => setConfirmCancel(false)}
+      onConfirm={() => { setConfirmCancel(false); controller.cancel(); }} />, document.body) : null}
   </div>;
 }
 

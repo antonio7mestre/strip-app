@@ -4,6 +4,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import * as edge from "../app/lib/media-edge.ts";
+import { HapticActionButton } from "./helpers/haptic-action.mjs";
 
 const compiled = ts.transpileModule(
   readFileSync(new URL("../app/components/MediaEdgeExtension.tsx", import.meta.url), "utf8"),
@@ -188,17 +189,19 @@ test("preview Publish enters cover setup without selecting an editor block", () 
     const calls = [];
     const evaluated = evaluate(`export const ${handler.getText(pageTree)};\nexport ${actions.getText(pageTree)}`, {
       view: "edit", inlinePreview: true, continueToPublish: () => calls.push("publish"),
-      Pencil: "pencil", Plus: "plus", Send: "send",
+      Pencil: "pencil", Plus: "plus", Send: "send", HapticActionButton,
     });
     const tree = evaluated.StripEndActions({
       primaryAction: "edit", primaryLabel: "Edit Strip",
       onPrimary: () => assert.fail("Publish must not select a block"), onPublish: evaluated.handlePreviewEndingPublish,
     });
-    tree.props.children[buttonIndex].props.onClick({ stopPropagation: () => propagationStops++ });
+    const action = tree.props.children[buttonIndex];
+    const button = action.type(action.props);
+    button.props.onClick({ stopPropagation: () => propagationStops++ });
     assert.equal(propagationStops, 1);
     assert.deepEqual(calls, ["publish"]);
     assert.equal(tree.props.children[buttonIndex].props.children, "Publish");
-    assert.equal(tree.props.children[buttonIndex].props["aria-label"], undefined);
+    assert.equal(button.props["aria-label"], "Publish");
   }
 });
 

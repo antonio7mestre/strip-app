@@ -19,7 +19,8 @@ test("server renders the real Strip shell while the client checks sign-in", asyn
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Strip[^<]*<\/title>/i);
-  assert.match(html, /<main class="app-shell route-loading-mode" aria-busy="true"><\/main>/);
+  assert.match(html, /<main class="app-shell route-loading-mode profile-reload" aria-busy="true" aria-label="Loading profile"><\/main>/);
+  assert.match(html, /profile-reload-pending/);
   assert.match(html, /name="viewport" content="[^"]*viewport-fit=cover/);
   assert.match(html, /id="strip-theme-color" name="theme-color"/);
   assert.match(html, /<script type="module" src="\/_next\/static\/chunks\//);
@@ -31,7 +32,7 @@ test("the loading shell gives way to the real landing and sign-in flow", async (
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
-  const loading = page.indexOf('className="app-shell route-loading-mode"');
+  const loading = page.indexOf('return <ProfileReload />');
   const signIn = page.indexOf('if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in"))');
   assert.ok(loading > 0 && signIn > loading);
   assert.match(page, /<AuthLandingStrip \/>/);

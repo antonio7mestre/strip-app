@@ -90,7 +90,7 @@ function renderFixture(blocks, isEditing) {
     require: () => ({ jsx: (type, props) => type === StripEndingSheet ? type(props) : ({ type, props }), jsxs: (type, props) => type === StripEndingSheet ? type(props) : ({ type, props }) }),
     StripEndingSheet, authUser: { username: "antonio" },
     blocks, visibleEndingStyle: automaticStripEndingStyle(blocks),
-    view: "edit", inlinePreview: !isEditing,
+    view: "edit", inlinePreview: !isEditing, hasRequiredContent: true,
     stripCanvasRef: { current: null },
     mediaLoadStatus: Object.fromEntries(blocks.map(block => [block.id, "loaded"])),
     selectedBlockId: null, editingTextBlockId: null, heightCropSession: null,

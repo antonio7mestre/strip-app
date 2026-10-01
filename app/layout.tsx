@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { PROFILE_RELOAD_SCRIPT } from "./lib/profile-reload";
 
 const initialThemeColorScript = `
   (() => {
@@ -7,6 +8,7 @@ const initialThemeColorScript = `
       // A saved editor draft must not tint a public Strip before its loader mounts.
       const hostname = window.location.hostname.toLowerCase();
       const path = window.location.pathname;
+      if (["/", "/drafts", "/history", "/settings"].includes(path)) return;
       const segments = path.split("/").filter(Boolean);
       if (path.startsWith("/strip/") || path.startsWith("/share/") ||
           (/^[a-z0-9]+(?:-[a-z0-9]+)*\\.striiip\\.com$/.test(hostname) &&
@@ -66,9 +68,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <meta id="strip-theme-color" name="theme-color" content="#000000" />
+        <meta id="strip-theme-color" name="theme-color" content="#000000" suppressHydrationWarning />
+        <script dangerouslySetInnerHTML={{ __html: PROFILE_RELOAD_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>

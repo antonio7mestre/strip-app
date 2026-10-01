@@ -67,6 +67,8 @@ import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandi
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
+import { HapticActionButton } from "@/app/components/HapticActionButton";
+import { ConfirmationDialog } from "@/app/components/ConfirmationDialog";
 import AuthKeyboardButton from "@/app/components/AuthKeyboardButton";
 import { installAuthFormViewport } from "@/app/lib/auth-form-viewport";
 import { installPageZoomLock, shouldLockPageZoom } from "@/app/lib/page-zoom";
@@ -86,11 +88,13 @@ import {
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
-import { hasScreenfulOfContent } from "@/app/lib/strip-minimum-content";
+import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
+import { ProfileReload, useProfileReloadLayout } from "@/app/components/ProfileReload";
+import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
 
 type TextBlock = {
   id: string;
@@ -614,11 +618,13 @@ function StripEndActions({
   onPrimary,
   onShare,
   onPublish,
+  publishNeedsContent = false,
 }: {
   primaryAction: "edit" | "create";
   primaryLabel: string;
   primaryPending?: boolean;
   onPrimary: () => void;
+  publishNeedsContent?: boolean;
 } & ({ onShare: () => void; onPublish?: never } | { onPublish: () => void; onShare?: never })) {
   return (
     <div className={`strip-end-sheet-controls${onPublish ? " is-preview" : ""}`}>
@@ -642,19 +648,15 @@ function StripEndActions({
         )}
         <span aria-live="polite">{primaryPending ? "Opening editor…" : primaryLabel}</span>
       </button>
-      <button
+      <HapticActionButton
         className={onPublish ? "strip-end-sheet-primary strip-end-sheet-publish" : "strip-end-sheet-share"}
-        type="button"
         disabled={primaryPending}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          (onPublish ?? onShare)();
-        }}
-        aria-label={onPublish ? undefined : "Share this Strip"}
+        feedback={Boolean(onPublish) && publishNeedsContent}
+        onClick={() => (onPublish ?? onShare)()}
+        label={onPublish ? "Publish" : "Share this Strip"}
       >
         {onPublish ? "Publish" : <Send aria-hidden="true" />}
-      </button>
+      </HapticActionButton>
     </div>
   );
 }
@@ -686,7 +688,8 @@ function loadLibraryCoverAspectRatio(src: string) {
 async function prepareLibrarySummaries<
   T extends PublishedStripSummary | DraftStripSummary | ViewedStripSummary,
 >(items: T[]) {
-  const preparedItems = [...items];
+  const preparedItems = items.map(item => item.cover.kind === "image" && !item.cover.aspectRatio
+    ? { ...item, cover: { ...item.cover, aspectRatio: cachedCoverRatio(item.id) } } as T : item);
   await Promise.all(
     items.slice(0, 6).map(async (item, index) => {
       if (item.cover.kind !== "image") return;
@@ -2664,45 +2667,9 @@ function DeleteConfirmationModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  return (
-    <div
-      className="modal-backdrop"
-      onClick={() => {
-        if (!pending) onCancel();
-      }}
-    >
-      <section
-        className="delete-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-modal-title"
-        aria-describedby="delete-modal-description"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="delete-modal-title">{title}</h2>
-        <p id="delete-modal-description">This can&apos;t be undone.</p>
-        <div className="delete-modal-actions">
-          <button
-            ref={cancelButtonRef}
-            className="cancel-delete-button"
-            type="button"
-            onClick={onCancel}
-            disabled={pending}
-          >
-            Cancel
-          </button>
-          <button
-            className="confirm-delete-button"
-            type="button"
-            onClick={onConfirm}
-            disabled={pending}
-          >
-            {pending ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </section>
-    </div>
-  );
+  return <ConfirmationDialog id="delete-modal" title={title} description="This can't be undone."
+    cancelLabel="Cancel" confirmLabel={pending ? "Deleting…" : "Delete"} pending={pending}
+    cancelButtonRef={cancelButtonRef} onCancel={onCancel} onConfirm={onConfirm} />;
 }
 
 export default function Home() {
@@ -2792,6 +2759,13 @@ export default function Home() {
   const [editorDockEntering, setEditorDockEntering] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [noticeRevision, setNoticeRevision] = useState(0);
+  const [noticeShakeMessage, setNoticeShakeMessage] = useState("");
+  const showActionNotice = (message: string) => {
+    setNoticeShakeMessage(notice === message ? message : "");
+    setNotice(message);
+    setNoticeRevision(value => value + 1);
+  };
   const [inlinePreview, setInlinePreview] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack" | "page-color">("source");
@@ -3035,6 +3009,24 @@ export default function Home() {
 
   const homeIsVisible = initialRouteReady && (authStatus === "signed-in" || viewingPublicProfile) && !needsAuthUsername &&
     ["library", "drafts", "history", "settings"].includes(view);
+  const profilePageIsLoading = homeIsVisible && (viewingPublicProfile
+    ? publicProfile.status === "loading"
+    : stripProfile.loading || (view === "library" ? libraryLoading : view === "drafts" ? draftsLoading : view === "history" ? historyLoading : false));
+  useProfileReloadLayout({ ready: homeIsVisible && !profilePageIsLoading,
+    owner: viewingPublicProfile ? `public:${publicProfile.username}` : libraryOwnerId,
+    background: visibleProfile.background, view, editing: stripProfile.editing, opening: openingCover !== null });
+  useLayoutEffect(() => {
+    if (!initialRouteReady || profilePageIsLoading) return;
+    const root = document.documentElement;
+    const restoringTheme = root.classList.contains("profile-reload-pending");
+    root.classList.remove("profile-reload-pending");
+    if (restoringTheme) {
+      root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
+      root.style.backgroundColor = topSafeAreaColor;
+      document.getElementById("strip-theme-color")?.setAttribute("content", topSafeAreaColor);
+    }
+    if (!homeIsVisible) root.style.removeProperty("--profile-reload-background");
+  }, [initialRouteReady, homeIsVisible, profilePageIsLoading, topSafeAreaColor]);
   useEffect(() => {
     if (view !== "library") stripProfile.cancel();
   }, [view, stripProfile.cancel]);
@@ -3341,6 +3333,7 @@ export default function Home() {
     const root = document.documentElement;
     // The footer's layout effect already chose the visible edge. A later
     // passive top-color effect must not overwrite that decision on route load.
+    if (root.classList.contains("profile-reload-pending")) return;
     if (!root.matches(".published-bottom-canvas-active, .published-bottom-sheet-canvas-active, .published-bottom-pocket-active, .preview-bottom-canvas-active")) {
       document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
         "content",
@@ -3564,6 +3557,9 @@ export default function Home() {
       .then(async (response) => {
         if (!response.ok) throw new Error("Session request failed");
         const data = (await response.json()) as { user?: AuthUser | null };
+        const cached = readProfileReload();
+        const publicOwner = `public:${usernameFromHostname(window.location.hostname)}`;
+        if (cached && cached.owner !== data.user?.id && cached.owner !== publicOwner) clearProfileReload();
         if (data.user) {
           setAuthUser(data.user);
           setLibraryOwnerId(data.user.id);
@@ -3775,7 +3771,7 @@ export default function Home() {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(""), 2600);
     return () => window.clearTimeout(timeout);
-  }, [notice]);
+  }, [notice, noticeRevision]);
 
   useEffect(() => {
     if (!storyShareConfirmation || storyShareConfirmation.copied === null) return;
@@ -4097,6 +4093,11 @@ export default function Home() {
   };
 
   const hasContent = blocks.length > 0;
+  const [hasRequiredContent, setHasRequiredContent] = useState(false);
+  useLayoutEffect(() => {
+    if (view !== "edit" && view !== "preview") return;
+    return observeStripContent(stripCanvasRef.current, blocks, setHasRequiredContent);
+  }, [blocks, view, inlinePreview, loaded, initialRouteReady, authStatus]);
   const selectedBlockIndex = blocks.findIndex((block) => block.id === selectedBlockId);
   const selectedBlock = selectedBlockIndex >= 0 ? blocks[selectedBlockIndex] : undefined;
   const [overlappingStickerIds, setOverlappingStickerIds] = useState<string[]>([]);
@@ -4587,10 +4588,11 @@ export default function Home() {
   }, [inlinePreview]);
 
   const toggleInlinePreview = () => {
-    if (!inlinePreview && !hasContent) {
-      setNotice("Add something to preview.");
+    if (!inlinePreview && !hasScreenfulOfContent(stripCanvasRef.current, blocks)) {
+      showActionNotice("Add more content to preview your Strip");
       return;
     }
+    if (!inlinePreview) setNotice("");
 
     inlinePreviewScrollRef.current = window.scrollY;
     const consumesPreviewHistory =
@@ -4748,13 +4750,9 @@ export default function Home() {
   };
 
   const continueToPublish = () => {
-    if (!hasContent) {
-      setNotice("Add something before you continue.");
-      return;
-    }
     if (pageTransitionInFlightRef.current) return;
     if (!hasScreenfulOfContent(stripCanvasRef.current, blocks)) {
-      setNotice("Add more content to fill the screen");
+      showActionNotice("Add more content to publish your Strip");
       return;
     }
     setNotice("");
@@ -5089,6 +5087,7 @@ export default function Home() {
       // Keep the current number and the fixed form canvas throughout the move.
       const response = await fetch("/api/auth/signout", { method: "POST" });
       if (!response.ok) throw new Error("Couldn’t go back. Try again.");
+      clearProfileReload();
       flushSync(() => {
         setAuthUser(null);
         setLibraryOwnerId("");
@@ -5152,6 +5151,7 @@ export default function Home() {
     try {
       await fetch("/api/auth/signout", { method: "POST" });
     } finally {
+      clearProfileReload();
       setPublishedStrips([]);
       setDraftStrips([]);
       setViewedStrips([]);
@@ -5290,7 +5290,7 @@ export default function Home() {
   const openSettings = () => openLibrarySection("settings");
   const returnToLibrary = () => openLibrarySection("library");
 
-  const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLButtonElement) => {
+  const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLElement) => {
     if ((!libraryOwnerId && !publicProfile) || openingStripId || pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
     const cover = button.querySelector<HTMLElement>(".library-cover");
@@ -6655,6 +6655,7 @@ export default function Home() {
               primaryLabel="Edit Strip"
               onPrimary={handlePreviewEndingEdit}
               onPublish={handlePreviewEndingPublish}
+              publishNeedsContent={!hasRequiredContent}
             />
           </StripEndingSheet>
         ) : null}
@@ -6719,8 +6720,9 @@ export default function Home() {
       />, document.body, "strip-cover-entrance") : null;
 
   if (!initialRouteReady && !needsAuthUsername) {
-    return <main className="app-shell route-loading-mode" aria-busy="true" />;
+    return <ProfileReload />;
   }
+  if (profilePageIsLoading) return <ProfileReload />;
 
   if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")) {
     return (
@@ -6904,24 +6906,9 @@ export default function Home() {
     const libraryItemOrder = new Map(
       libraryItems.map((item, index) => [item.id, index]),
     );
-    const libraryIsLoading = isDraftLibrary
-      ? draftsLoading
-      : isHistory
-        ? historyLoading
-        : publicProfile ? publicProfile.status === "loading" : libraryLoading;
     const pendingDraftDelete = draftStrips.find(
       (draft) => draft.id === pendingDraftDeleteId,
     );
-    const librarySkeletonColumns = [
-      [
-        { order: 0, titleWidth: "68%" },
-        { order: 2, titleWidth: "48%" },
-      ],
-      [
-        { order: 1, titleWidth: "76%" },
-        { order: 3, titleWidth: "58%" },
-      ],
-    ];
 
     const renderLibraryCard = (
       strip:
@@ -6947,20 +6934,25 @@ export default function Home() {
         <div
           className={`library-card is-library-card-entering ${openingStripId === strip.id ? "is-opening-cover" : ""}`}
           key={strip.id}
+          data-library-id={strip.id}
           style={{ "--library-item-order": Math.min(itemOrder, 8) } as CSSProperties}
         >
-          <button
+          <HapticActionButton
             className="library-card-open-button"
-            type="button"
-            onClick={(event) =>
+            feedback={stripProfile.editing}
+            onClick={(target) => {
+              if (stripProfile.editing) {
+                stripProfile.showError("Save changes to access Strips");
+                return;
+              }
               isDraft
                 ? void openDraft(strip)
-                : void openPublishedStrip(strip, event.currentTarget)
-            }
+                : void openPublishedStrip(strip, target);
+            }}
             disabled={
-              stripProfile.editing || (isDraft ? openingDraftId === strip.id : openingStripId === strip.id)
+              isDraft ? openingDraftId === strip.id : openingStripId === strip.id
             }
-            aria-label={`Open ${cardTitle}`}
+            label={`Open ${cardTitle}`}
           >
             <div
               className={`library-cover library-cover-${strip.cover.kind} ${
@@ -6984,7 +6976,7 @@ export default function Home() {
               ) : null}
             </div>
             <h2>{cardTitle}</h2>
-          </button>
+          </HapticActionButton>
           {isDraft ? (
             <button
               className="library-card-delete-button"
@@ -7024,15 +7016,26 @@ export default function Home() {
             }
           >
             {view === "library" ? <ProfileHeader controller={stripProfile} username={publicProfile?.username ?? authUser?.username ?? null} publicProfile={publicProfile?.profile} /> : <header className="library-header">
-              <h1>
-                {isSettings
-                  ? "Settings"
-                  : isDraftLibrary
-                    ? "Drafts"
-                    : isHistory
-                      ? "History"
-                      : "STRIP"}
-              </h1>
+              <div className="profile-name">
+                <h1>
+                  {isSettings
+                    ? "Settings"
+                    : isDraftLibrary
+                      ? "Drafts"
+                      : isHistory
+                        ? "History"
+                        : "STRIP"}
+                </h1>
+                <div className="profile-meta-row">
+                  <p className="profile-handle">
+                    {isSettings
+                      ? "Your account and app details."
+                      : isDraftLibrary
+                        ? "Pick up where you left off."
+                        : "Revisit the Strips you’ve opened."}
+                  </p>
+                </div>
+              </div>
             </header>}
             {isSettings ? (
               <div className="settings-content">
@@ -7087,45 +7090,6 @@ export default function Home() {
                   <LogOut aria-hidden="true" />
                   {authPending ? "Signing out…" : "Sign out"}
                 </button>
-              </div>
-            ) : libraryIsLoading ? (
-              <div
-                className="library-grid library-skeleton-grid"
-                aria-label={
-                  isDraftLibrary
-                    ? "Loading your drafts"
-                    : isHistory
-                      ? "Loading your viewed Strips"
-                      : "Loading your Strips"
-                }
-                aria-busy="true"
-                role="status"
-              >
-                {librarySkeletonColumns.map((column, columnIndex) => (
-                  <div
-                    className="library-column"
-                    key={`${view}-skeleton-column-${columnIndex}`}
-                    aria-hidden="true"
-                  >
-                    {column.map((item, itemIndex) => (
-                      <div
-                        className="library-card library-card-skeleton"
-                        key={`${view}-skeleton-${columnIndex}-${itemIndex}`}
-                        style={{
-                          "--library-item-order": item.order,
-                        } as CSSProperties}
-                      >
-                        <div
-                          className="library-cover library-cover-square library-skeleton-surface"
-                        />
-                        <div
-                          className="library-skeleton-title library-skeleton-surface"
-                          style={{ width: item.titleWidth }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ))}
               </div>
             ) : viewingPublicProfile && publicProfile.status !== "ready" ? (
               <div className="profile-empty-state" role="status">
@@ -7183,8 +7147,6 @@ export default function Home() {
 
           {/* Remove the fixed surface entirely: Safari retains its white
               edge paint even with visibility:hidden or an offscreen transform. */}
-          {!viewingPublicProfile && view === "library" && stripProfile.editing && !stripProfile.error && !openingCover ?
-            <p className="profile-editor-hint">Tap title to edit</p> : null}
           {!viewingPublicProfile && !openingCover ? <footer
             key="persistent-composer-dock"
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
@@ -7920,19 +7882,19 @@ export default function Home() {
                   <Pencil className="dock-glyph" aria-hidden="true" />
                 </button>
                 <span className="dock-divider" aria-hidden="true" />
-                <button
+                <HapticActionButton
                   className="dock-icon-button publish-icon-button publish-strip-button"
-                  type="button"
                   onClick={continueToPublish}
-                  aria-label="Continue to cover"
+                  feedback={!hasRequiredContent}
+                  label="Continue to cover"
                 >
                   Continue
-                </button>
+                </HapticActionButton>
               </div>
             ) : null}
           </footer>
         ) : null}
-        {notice ? <div className="notice" role="status">{notice}</div> : null}
+        {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
         </main>
       </>
     );
@@ -8076,41 +8038,40 @@ export default function Home() {
             onChange={addMedia}
             aria-label="Choose photos or videos"
           />
-          <button
+          <HapticActionButton
             className="dock-icon-button dock-tool-button"
-            type="button"
+            feedback={!hasStickerAnchorBlock}
+            label="Add sticker"
             onClick={() => {
               if (!hasStickerAnchorBlock) {
-                setNotice("Add a text or image block before adding a sticker.");
+                showActionNotice("Add a text or image block before adding a sticker.");
                 return;
               }
               setStickerPickerView("source");
               stickerPlacementRef.current = captureStickerPlacement();
               setStickerPickerOpen(true);
             }}
-            aria-label="Add sticker"
           >
             <Sticker className="dock-glyph" aria-hidden="true" />
-          </button>
+          </HapticActionButton>
           <span className="dock-divider" aria-hidden="true" />
-          <button
+          <HapticActionButton
             className="dock-icon-button preview-toggle-button"
-            type="button"
-            aria-label="Preview Strip"
-            aria-pressed={false}
+            label="Preview Strip"
+            pressed={false}
+            feedback={!hasRequiredContent}
             onClick={toggleInlinePreview}
           >
             <Eye className="dock-glyph" aria-hidden="true" />
-          </button>
-          <button
+          </HapticActionButton>
+          <HapticActionButton
             className="dock-icon-button publish-icon-button publish-strip-button"
-            type="button"
             onClick={continueToPublish}
-            disabled={!hasContent}
-            aria-label="Continue to cover"
+            feedback={!hasRequiredContent}
+            label="Continue to cover"
           >
             Continue
-          </button>
+          </HapticActionButton>
         </div>
         )}
       </footer>
@@ -8137,7 +8098,7 @@ export default function Home() {
           }}
         />
       ) : null}
-      {notice ? <div className="notice" role="status">{notice}</div> : null}
+      {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
       </main>
     </>
   );

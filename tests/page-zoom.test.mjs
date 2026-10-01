@@ -91,7 +91,7 @@ test("signed-in home has no fixed safe-area cap or forced Safari tint", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const library = page.slice(page.indexOf("const isDraftLibrary ="), page.indexOf('if (view === "share" && openedPublishedStrip)'));
   assert.doesNotMatch(library, /top-safe-area-anchor/);
-  const effect = page.slice(page.indexOf("const homeIsVisible ="), page.indexOf("const homeIsVisible =") + 650);
+  const effect = page.slice(page.indexOf("const homeIsVisible ="), page.indexOf('setPublishedMinimumReadyKey(null)'));
   assert.match(effect, /if \(!homeIsVisible\) return/);
   assert.match(effect, /theme\?\.removeAttribute\("name"\)/);
   assert.match(effect, /theme\?\.setAttribute\("name", name\)/);

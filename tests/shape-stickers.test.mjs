@@ -76,14 +76,24 @@ test("shape color controls stay visible while page sampling drops only the stick
   assert.match(css, /\.main-composer-dock\.is-sticker-picker-page-color\s*\{[^}]*transform: translateY/);
 });
 
-test("shapes keep the pack heading and masonry, with the color choice on the left", () => {
+test("shapes keep the pack heading and masonry, with color alongside the category tabs", () => {
   assert.match(picker, /<h2 id="sticker-picker-title">Sticker pack<\/h2>/);
   assert.match(picker, /category === "shapes" \? <div className=\{styles.masonry\}/);
   assert.match(picker, /styles.stickerButton\} \$\{styles.shapeButton\} \$\{stickerSizeClasses\[index % stickerSizeClasses.length\]/);
   assert.doesNotMatch(picker, /Pick a shape|Pick a sticker/);
   assert.match(picker, /aria-hidden="true" \/>Select a color/);
-  assert.match(pickerCss, /\.shapeHeading\s*\{[^}]*justify-content: flex-start/);
+  assert.doesNotMatch(picker + pickerCss, /shapeHeading/);
+  const row = picker.slice(picker.indexOf('<div ref={categoriesRef}'), picker.indexOf('<div ref={scrollRef}'));
+  assert.match(row, /styles.categoryTabs[\s\S]*role="tablist"[\s\S]*<\/div>\s*\{category === "shapes" \?[\s\S]*styles.shapeColorButton/);
+  assert.match(pickerCss, /\.categoryTabs\s*\{[^}]*display: flex;[^}]*flex: 0 0 auto/);
+  assert.match(pickerCss, /\.categories \.shapeColorButton\s*\{[^}]*min-height: 36px/);
   assert.doesNotMatch(pickerCss, /\.shapeGrid|\.shapeButton\s*\{[^}]*background:/);
+});
+
+test("selecting Shapes reveals its color pill by scrolling only the category rail", () => {
+  assert.match(picker, /const row = categoriesRef.current;\s*if \(view !== "pack" \|\| category !== "shapes" \|\| !row\) return;/);
+  assert.match(picker, /row.scrollTo\(\{ left: row.scrollWidth - row.clientWidth, behavior: "smooth" \}\);\s*\}, \[category, view\]\)/);
+  assert.doesNotMatch(picker, /scrollIntoView/);
 });
 
 test("placed editor stickers have no selection outline or shadow but retain drag controls", () => {

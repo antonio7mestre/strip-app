@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
-import { hasScreenfulOfContent, minimumStripHeight } from "../app/lib/strip-minimum-content.ts";
+import { hasScreenfulOfContent, minimumStripHeight, observeStripContent } from "../app/lib/strip-minimum-content.ts";
 
 function fixture(heights, types = heights.map(() => "text"), screenHeight = 760, insets = { dock: 64, top: 0, bottom: 0 }) {
   const probes = new Set();
@@ -132,13 +132,14 @@ test("Continue gives a gentle notice without losing the draft, selection or scro
       pageTransitionInFlightRef: lock, publishFlowStartScrollRef: scroll, view,
       window: { scrollY: 720 }, coverChoices: [{ kind: "color", key: "blue" }], selectedCover: null,
       setNotice: value => { state.notice = value; },
+      showActionNotice: value => { state.notice = value; },
       setSelectedCover: value => { state.cover = value; }, setActiveCoverKey() {}, setCoverStackStarted() {}, setCoverColorPickerOpen() {},
       setEditingTextBlockId: value => { state.editing = value; }, setActiveTextTool: value => { state.tool = value; },
       setInlinePreview() {}, setPublishSetupReturnView: value => { state.returnView = value; },
       setViewInstantly: value => { state.view = value; },
     });
     exports.continueToPublish();
-    assert.deepEqual(state, { notice: "Add more content to fill the screen", view, selected: "text", editing: "text", tool: "font" });
+    assert.deepEqual(state, { notice: "Add more content to publish your Strip", view, selected: "text", editing: "text", tool: "font" });
     assert.equal(lock.current, false); assert.equal(scroll.current, null);
     f.canvas.children[0].querySelector = () => ({ getBoundingClientRect: () => ({ height: 900 }) });
     exports.continueToPublish();
@@ -148,7 +149,39 @@ test("Continue gives a gentle notice without losing the draft, selection or scro
   }
 });
 
-test("the live canvas ref and shared guard are used by both Continue entry points", () => {
+test("the live canvas ref and shared guard are used by Preview and both Continue entry points", () => {
   assert.match(source, /ref=\{stripCanvasRef\}\s+className=\{`strip-canvas/);
   assert.equal((source.match(/onClick=\{continueToPublish\}/g) ?? []).length, 2);
+  assert.match(find("toggleInlinePreview").getText(tree), /!inlinePreview && !hasScreenfulOfContent\(stripCanvasRef.current, blocks\)/);
+  assert.match(find("continueToPublish").getText(tree), /!hasScreenfulOfContent\(stripCanvasRef.current, blocks\)/);
+  assert.doesNotMatch(source, /disabled=\{!hasContent\}/, "empty Strips can tap Continue to see the explanation");
+});
+
+test("content feedback readiness follows crop resizing and removes all observers on close", () => {
+  const f = fixture([140]), values = [], listeners = new Map(), observers = [];
+  class Observer {
+    targets = [];
+    constructor(callback) { this.callback = callback; observers.push(this); }
+    observe(target) { this.targets.push(target); }
+    disconnect() { this.targets = []; }
+  }
+  f.canvas.querySelectorAll = () => f.canvas.children.map(child => child.querySelector(".block-crop-viewport"));
+  globalThis.ResizeObserver = globalThis.MutationObserver = Observer;
+  globalThis.window = { addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
+  try {
+    const dispose = observeStripContent(f.canvas, f.blocks, ready => values.push(ready));
+    assert.deepEqual(values, [false]);
+    f.canvas.children[0].querySelector = () => ({ getBoundingClientRect: () => ({ height: 900 }) });
+    observers[0].callback(); assert.equal(values.at(-1), true);
+    f.blocks.pop(); observers[1].callback(); assert.equal(values.at(-1), false);
+    assert.equal(listeners.size, 1); assert(listeners.has("resize"));
+    dispose(); const before = values.length;
+    observers.forEach(observer => observer.callback());
+    assert.equal(values.length, before);
+    assert(observers.every(observer => !observer.targets.length));
+    assert.equal(listeners.size, 0);
+    observeStripContent(null, [], ready => assert.equal(ready, false));
+  } finally {
+    delete globalThis.ResizeObserver; delete globalThis.MutationObserver; delete globalThis.window;
+  }
 });

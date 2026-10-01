@@ -30,6 +30,7 @@
 .sourceChoice:active { transform: scale(.965); }
 .categories { display: flex; flex-wrap: nowrap; flex: none; gap: 5px; padding: 8px 0 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .categories::-webkit-scrollbar { display: none; }
+.categoryTabs { display: flex; flex: 0 0 auto; gap: inherit; }
 .categories button { flex: 0 0 auto; min-width: 0; min-height: 36px; padding: 0 14px; border: 1.5px solid #d5d5cf; border-radius: 99px; background: transparent; color: #393936; font-size: 13px; font-weight: 750; white-space: nowrap; }
 .categories button.activeCategory { border-color: #000000; background: #000000; color: #ffffff; }
 .scrollArea { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
@@ -47,8 +48,7 @@
 .stickerButton img { display: block; width: 100%; height: auto; filter: brightness(1.06); transition: transform 120ms ease; }
 .stickerButton:active img { transform: scale(.94); }
 .stickerButton.isPicking img { animation: stickerPickZoom 150ms cubic-bezier(.2,.85,.25,1) both; }
-.shapeHeading { display: flex; flex: none; align-items: center; justify-content: flex-start; padding: 2px 2px 12px; font-size: 14px; font-weight: 750; }
-.shapeColorButton { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 4px 10px; border: 1px solid #d5d5cf; border-radius: 999px; background: #fff; color: #111; font-size: 12px; font-weight: 750; }
+.categories .shapeColorButton { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 10px; border: 1.5px solid #d5d5cf; border-radius: 999px; background: #fff; color: #111; font-size: 13px; font-weight: 750; }
 .shapeColorButton span { display: block; width: 20px; height: 20px; border: 1px solid #0003; border-radius: 50%; }
 .shapeButton svg { display: block; width: 100%; height: auto; filter: none; }
 .shapeButton:active { transform: scale(.94); }
