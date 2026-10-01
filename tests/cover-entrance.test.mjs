@@ -56,18 +56,14 @@ test("reload and direct-link covers use the same image and color proportions as 
   assert.match(component, /cover.shape === "portrait" \? 4 \/ 5 : cover.shape === "landscape" \? 3 \/ 2 : 1/);
 });
 
-test("the tray drops immediately while zero blinks independently behind the traveling cover", () => {
+test("the tray is removed on click while zero blinks behind the traveling cover", () => {
   const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(component, /holdCoverDock/);
-  assert.match(component, /return dropCoverDock\([^;]+setDockDropped\(true\)/);
-  const dockEffect = component.slice(component.indexOf("if (!surfaceRef.current || !dockRef.current"), component.indexOf("const stage = stageRef.current"));
-  assert.doesNotMatch(dockEffect, /centered/);
-  assert.match(dockEffect, /\[initialDock\]/);
+  assert.doesNotMatch(component, /holdCoverDock|dropCoverDock|initialDock|dockDropped|strip-entrance-dock/);
   assert.match(component, /setTarget\(centered && coverVisible \? loadPercent : 0\)/);
   assert.match(component, /\[coverVisible, setCoverVisible\] = useState\(Boolean\(origin\)\)/);
   assert.match(component, /if \(initialOrigin \|\| !coverReadyToAppear \|\| !visualRef.current\) return/);
   assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
-  assert.match(component, /requestPending \|\| !dockDropped/);
+  assert.match(component, /requestPending \|\| !coverVisible/);
   assert.match(component, /aspectRatio, initialOrigin\)/);
   assert.doesNotMatch(component, /scale\(/);
   assert.match(component, /const animation = stage.animate/);
@@ -192,7 +188,7 @@ test("Safari's bottom paint is separate from the clipped loader and is released 
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(component, /className="strip-entrance-edge"[^>]*[\s\S]*backgroundColor: initialBackground/);
   assert.match(component, /fadeCoverEntrance\(host, \(\) => completeCallback.current\(\), edgeRef.current\)/);
-  assert.match(component, /initialDock && !dockDropped/);
+  assert.doesNotMatch(component, /composer-dock|app-navigation-dock/);
   assert.match(css, /\.strip-entrance-edge \{[^}]*position: fixed;[^}]*z-index: 49;[^}]*height: calc\(380px/s);
 });
 test("same-origin home click preserves a single portal and cannot race a Back gesture", () => {
@@ -214,8 +210,8 @@ test("same-origin home click preserves a single portal and cannot race a Back ge
   assert.match(css, /\.library-card.is-opening-cover \.library-cover\s*\{\s*visibility: hidden/);
   assert.match(page, /\{!viewingPublicProfile && !openingCover \? <PreviewDock[^>]+><footer\s*key="persistent-composer-dock"/);
   assert.doesNotMatch(css, /\.library-mode.is-opening-strip \.composer-dock/);
-  assert.match(css, /\.strip-entrance \.strip-entrance-dock\s*\{[^}]*position: absolute;[^}]*transform: none;[^}]*transition: none/);
-  assert.ok(open.indexOf("captureCoverDock(") < open.indexOf("flushSync("));
+  assert.doesNotMatch(open, /captureCoverDock|\bdock\b/);
+  assert.doesNotMatch(page, /dock=\{openingCover/);
 });
 
 test("the clicked cover's already-visible pixels are captured synchronously with bounded memory", () => {

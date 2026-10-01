@@ -79,7 +79,7 @@ const compiledHelper = ts.transpileModule(helperSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText;
 
-function fixture({ top = 900, reveal = true, view = "published", inlinePreview = false, bottomColor = "#66ff8a", hasSheet = true, hasVisualViewport = true, largeHeight = 800 } = {}) {
+function fixture({ top = 900, reveal = true, loading = !reveal, view = "published", inlinePreview = false, bottomColor = "#66ff8a", hasSheet = true, hasVisualViewport = true, largeHeight = 800 } = {}) {
   class Target {
     listeners = new Map();
     addEventListener(name, callback) { this.listeners.set(name, callback); }
@@ -130,7 +130,7 @@ function fixture({ top = 900, reveal = true, view = "published", inlinePreview =
     document: { documentElement: root, body: { append() {} }, createElement: () => probe,
       querySelector: (selector) => { selectors.push(selector); return selector === "#strip-theme-color" ? theme : hasSheet ? sheet : null; } },
     IntersectionObserver: Observer, ResizeObserver: Observer,
-    view, inlinePreview, publishedContentCanReveal: reveal,
+    view, inlinePreview, publishedContentCanReveal: reveal, publishedLoaderIsVisible: loading,
     visibleEndingStyle: { backgroundColor: bottomColor },
     endingSurfaceColor: "#FFFFFF",
     DEFAULT_BACKGROUND: "#000000", topSafeAreaColor: "#3333ff",
@@ -157,6 +157,22 @@ function fixture({ top = 900, reveal = true, view = "published", inlinePreview =
     cleanup,
   };
 }
+
+test("the white footer paint cannot activate while the loader is still visible", () => {
+  for (const reveal of [false, true]) {
+    const f = fixture({ top: 500, reveal, loading: true });
+    assert.equal(f.active(), false);
+    assert.equal(f.writes.at(-1), "#3333ff");
+    f.window.emit("scroll");
+    f.visual.emit("resize");
+    assert.equal(f.active(), false);
+    f.cleanup();
+  }
+  const finished = fixture({ top: 500, reveal: true, loading: false });
+  assert.equal(finished.active(), true);
+  assert.equal(finished.writes.at(-1), "#FFFFFF");
+  finished.cleanup();
+});
 
 test("the actual footer effect switches at its bounds, not a page percentage", () => {
   const f = fixture();

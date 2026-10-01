@@ -80,7 +80,7 @@ import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { StoryShareConfirmation } from "@/app/components/StoryShareConfirmation";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
-import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverOrigin, type CoverOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
 import {
   installLeadingMediaTop,
@@ -2687,7 +2687,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingCover, setOpeningCover] = useState<{
-    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string; theme: ProfileTheme;
+    strip: PublishedStripSummary; origin?: CoverOrigin; background: string; theme: ProfileTheme;
   } | null>(null);
   const openingCoverRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
@@ -3320,7 +3320,7 @@ export default function Home() {
 
 
   useLayoutEffect(() => installFooterSafeAreaColor({
-    enabled: (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
+    enabled: (view === "published" && publishedContentCanReveal && !publishedLoaderIsVisible) || cleanViewBottomSurfaceColor !== null,
     sheet: document.querySelector<HTMLElement>(cleanViewBottomSurfaceColor !== null
       ? ".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"
       : ".published-mode .published-bottom-sheet"),
@@ -3330,7 +3330,7 @@ export default function Home() {
     activeClassName: cleanViewBottomSurfaceColor !== null
       ? "preview-bottom-canvas-active"
       : "published-bottom-sheet-canvas-active",
-  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, endingSurfaceColor]);
+  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, publishedLoaderIsVisible, topSafeAreaColor, view, endingSurfaceColor]);
 
 
   useLayoutEffect(installKeyboardDockPosition, []);
@@ -5309,14 +5309,15 @@ export default function Home() {
     const origin = captureCoverOrigin(cover ?? null);
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
-    const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
     const publishedPath = destination.pathname;
     // Safari snapshots the outgoing entry here. Save the untouched library,
     // before its cover becomes the loading poster, so Back never replays it.
     setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
-      setOpeningCover({ strip, origin, dock, background: visibleProfile.background, theme: visibleProfile });
+      // Unmount the entire navigation, including its Safari safe-area extension,
+      // on this click. Do not carry a white outgoing copy into the loader.
+      setOpeningCover({ strip, origin, background: visibleProfile.background, theme: visibleProfile });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -6739,7 +6740,6 @@ export default function Home() {
         title={entranceStrip.title}
         theme={openingCover?.theme ?? openedPublishedStrip?.profileTheme ?? DEFAULT_PROFILE}
         origin={openingCover?.origin}
-        dock={openingCover?.dock}
         backgroundColor={openingCover?.background}
         requestPending={view !== "published"}
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +

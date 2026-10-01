@@ -6,15 +6,15 @@ import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entra
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { suspendThemeColor } from "@/app/lib/theme-color";
 import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, profileTextColor, type ProfileTheme } from "@/app/lib/profile";
-import { COVER_MOVE_MS, coverEntranceLayout, coverLineLayout, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, coverEntranceLayout, coverLineLayout, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
 export function StripEntrance({ cover, settledAssets, totalAssets,
-  revealing, requestPending = false, origin, dock, backgroundColor = "#000000", title = "", theme, onCoverSettled, onExitComplete,
+  revealing, requestPending = false, origin, backgroundColor = "#000000", title = "", theme, onCoverSettled, onExitComplete,
 }: {
   cover: Cover; settledAssets: number; totalAssets: number; revealing: boolean;
-  requestPending?: boolean; origin?: CoverOrigin; dock?: CoverDockOrigin; backgroundColor?: string;
+  requestPending?: boolean; origin?: CoverOrigin; backgroundColor?: string;
   title?: string; theme?: ProfileTheme;
   onCoverSettled: () => void; onExitComplete: () => void;
 }) {
@@ -24,16 +24,13 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const edgeRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
-  const dockRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [initialOrigin] = useState(origin);
-  const [initialDock] = useState(dock);
   const [initialBackground] = useState(theme?.background ?? backgroundColor);
   const [ink] = useState(() => theme ? profileTextColor(theme) : profileInk(initialBackground));
   const [font] = useState(theme?.font ?? DEFAULT_PROFILE.font);
   const fontFamily = (PROFILE_FONTS.find(item => item.id === font) ?? PROFILE_FONTS[0]).family;
   const [centered, setCentered] = useState(!origin);
-  const [dockDropped, setDockDropped] = useState(!dock);
   const [coverReady, setCoverReady] = useState(cover.kind === "color" || Boolean(origin?.snapshot));
   const [coverVisible, setCoverVisible] = useState(Boolean(origin));
   const [coverFailed, setCoverFailed] = useState(false);
@@ -115,11 +112,6 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   }, [initialOrigin]);
 
   useLayoutEffect(() => {
-    if (!surfaceRef.current || !dockRef.current || !initialDock) return;
-    return dropCoverDock(surfaceRef.current, dockRef.current, initialDock, () => setDockDropped(true));
-  }, [initialDock]);
-
-  useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const sync = () => {
@@ -194,9 +186,9 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
 
   useLayoutEffect(() => {
     const host = surfaceRef.current;
-    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !dockDropped || !coverVisible) return;
+    if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !coverVisible) return;
     return fadeCoverEntrance(host, () => completeCallback.current(), edgeRef.current);
-  }, [revealing, displayPercent, centered, requestPending, dockDropped, coverVisible]);
+  }, [revealing, displayPercent, centered, requestPending, coverVisible]);
 
   return (<>
     {/* Safari clips the animated surface at the content edge. Keep the browser
@@ -223,8 +215,6 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
           <span className="strip-entrance-percent-symbol">%</span>
         </span>
       </div>
-      {initialDock && !dockDropped ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
-        aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}
           style={{ boxShadow: initialOrigin?.boxShadow,

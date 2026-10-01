@@ -2469,17 +2469,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.strip-entrance .strip-entrance-dock {
-  position: absolute;
-  z-index: 2;
-  right: auto;
-  bottom: auto;
-  min-height: 0;
-  transform: none;
-  transition: none;
-  will-change: auto;
-  pointer-events: none;
-}
 .strip-entrance-stage {
   position: fixed;
   left: 13%;
