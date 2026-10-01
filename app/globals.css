@@ -2568,15 +2568,25 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: absolute;
   left: 50%;
   bottom: calc(var(--entrance-line-height) + 10px);
-  display: inline-flex;
-  align-items: baseline;
-  justify-content: center;
-  width: 5ch;
+  display: block;
+  width: 2ch;
+  height: 1em;
   transform: translateX(-50%);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   transition: bottom 32ms linear;
+}
+.strip-entrance-percent-value {
+  position: absolute;
+  right: 0;
+  width: max-content;
+  /* Keep the two-digit anchor. The hundreds digit extends left, never into %. */
+  text-align: right;
+}
+.strip-entrance-percent-symbol {
+  position: absolute;
+  left: calc(100% + 0.5ch);
 }
 html.published-content-loading,
 html.published-content-loading body,

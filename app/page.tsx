@@ -87,6 +87,7 @@ import {
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
+import { suspendThemeColor } from "@/app/lib/theme-color";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
@@ -2992,12 +2993,7 @@ export default function Home() {
   }, [view, stripProfile.cancel]);
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
-    const theme = document.getElementById("strip-theme-color");
-    const name = theme?.getAttribute("name");
-    theme?.removeAttribute("name");
-    return () => {
-      if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
-    };
+    return suspendThemeColor();
   }, [homeIsVisible]);
 
   useEffect(() => {

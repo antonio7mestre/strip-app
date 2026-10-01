@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
+import { suspendThemeColor } from "@/app/lib/theme-color";
 import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, profileTextColor, type ProfileTheme } from "@/app/lib/profile";
 import { COVER_MOVE_MS, coverEntranceLayout, coverLineLayout, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
@@ -56,9 +57,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
     const host = surfaceRef.current;
     if (!host) return;
     const removeSurface = installScribbleSurface(host);
-    const theme = document.getElementById("strip-theme-color");
-    const name = theme?.getAttribute("name");
-    if (name) theme?.removeAttribute("name");
+    const restoreTheme = suspendThemeColor();
     const root = document.documentElement;
     const previousBackground = root.style.getPropertyValue("--cover-entrance-background");
     const previousPriority = root.style.getPropertyPriority("--cover-entrance-background");
@@ -69,7 +68,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
       root.classList.remove("cover-entrance-active");
       if (previousBackground) root.style.setProperty("--cover-entrance-background", previousBackground, previousPriority);
       else root.style.removeProperty("--cover-entrance-background");
-      if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
+      restoreTheme();
     };
   }, [initialBackground]);
 
@@ -215,7 +214,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
         <div className="strip-entrance-line" aria-hidden="true" />
         <span className={`strip-entrance-percent${displayPercent === 0 ? " is-waiting" : ""}`} aria-hidden="true">
-          <span className="strip-entrance-percent-value">{displayPercent}</span>%
+          <span className="strip-entrance-percent-value">{displayPercent}</span>
+          <span className="strip-entrance-percent-symbol">%</span>
         </span>
       </div>
       {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"

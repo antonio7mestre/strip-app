@@ -10,6 +10,7 @@ import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, palet
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
 import * as profile from "../app/lib/profile.ts";
+import * as themeColor from "../app/lib/theme-color.ts";
 const { profileInk } = profile;
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
@@ -67,7 +68,7 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
-      : name === "@/app/lib/profile" ? profile : require(name) });
+      : name === "@/app/lib/profile" ? profile : name === "@/app/lib/theme-color" ? themeColor : require(name) });
 test("renders a vertical line behind the cover with only the waiting zero blinking", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
@@ -94,7 +95,7 @@ test("renders a vertical line behind the cover with only the waiting zero blinki
   assert.ok(html.indexOf('class="strip-entrance-progress"') < html.indexOf('class="strip-entrance-stage"'));
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
-  assert.match(html, /class="strip-entrance-percent-value">0<\/span>%/);
+  assert.match(html, /class="strip-entrance-percent-value">0<\/span><span class="strip-entrance-percent-symbol">%<\/span>/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
 test("the first render uses contrasting monochrome ink and the originating profile background", () => {
@@ -165,7 +166,9 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(readoutCss,/bottom: 0;/);
   assert.match(readoutCss,/width: 2px;/);
   assert.match(css,/\.strip-entrance-percent\s*\{[^}]*bottom: calc\(var\(--entrance-line-height\) \+ 10px\)/);
-  assert.match(css,/\.strip-entrance-percent\s*\{[^}]*width: 5ch;/);
+  assert.match(css,/\.strip-entrance-percent\s*\{[^}]*width: 2ch;/);
+  assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*position: absolute;[^}]*right: 0;[^}]*width: max-content;/);
+  assert.match(css,/\.strip-entrance-percent-symbol\s*\{[^}]*position: absolute;[^}]*left: calc\(100% \+ 0.5ch\)/);
   assert.match(css,/\.strip-entrance-stage\s*\{[^}]*z-index: 3;/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
   assert.match(componentSource,/!revealing \|\| displayPercent !== 100 \|\| !centered \|\| requestPending/);
