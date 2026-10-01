@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import { PUBLIC_DOMAIN, usernameFromHostname } from "../app/lib/username.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -11,23 +12,27 @@ function find(predicate, node = tree) {
   return ts.forEachChild(node, child => find(predicate, child));
 }
 const open = find(n => ts.isVariableDeclaration(n) && n.name.getText(tree) === "openPublishedStrip");
+const returnToLibrary = find(n => ts.isVariableDeclaration(n) && n.name.getText(tree) === "returnToLibraryFromPublished");
+const publicUrl = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "publicStripUrl");
+const mainOrigin = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "mainAppOrigin");
 const reset = find(n => ts.isVariableDeclaration(n) && n.name.getText(tree) === "resetTransientNavigationState");
 const routeEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect"
   && n.arguments[0]?.getText(tree).includes("const applyRoute ="));
 const compiled = ts.transpileModule(
-  `export const ${open.getText(tree)};\nexport const ${reset.getText(tree)};\nexport const installRoutes = ${routeEffect.arguments[0].getText(tree)};`,
+  `${publicUrl.getText(tree)}\n${mainOrigin.getText(tree)}\nexport const ${open.getText(tree)};\nexport const ${returnToLibrary.getText(tree)};\nexport const ${reset.getText(tree)};\nexport const installRoutes = ${routeEffect.arguments[0].getText(tree)};`,
   { compilerOptions: { module: ts.ModuleKind.CommonJS } },
 ).outputText;
 
-function harness(needsAuthUsername = false) {
-  const events = [], requests = [], notices = [], scrolls = [], exports = {}, listeners = {};
+function harness(needsAuthUsername = false, options = {}) {
+  const events = [], requests = [], notices = [], scrolls = [], navigations = [], exports = {}, listeners = {};
   const gate = { current: false }, opening = { current: null };
   const state = { view: "library", cover: null, strip: null, path: "/", initialReady: false };
   const timers = [];
   let backs = 0;
   const noop = () => {};
+  const hostname = options.hostname ?? "localhost";
   const window = {
-    location: { pathname: "/", hostname: "localhost" },
+    location: { pathname: "/", hostname, origin: `https://${hostname}`, assign: url => navigations.push(url) },
     history: { back: () => { backs++; } },
     setTimeout: (callback, ms) => { timers.push({ callback, ms }); return timers.length; },
     clearTimeout: noop, scrollTo: options => scrolls.push(options),
@@ -37,9 +42,9 @@ function harness(needsAuthUsername = false) {
   const route = path => path.startsWith("/strip/")
     ? { kind: "published", id: path.slice(7) } : { kind: "library" };
   const context = {
-    exports, AbortController, window,
+    exports, AbortController, window, PUBLIC_DOMAIN,
     document: { querySelector: () => null, documentElement: { classList: { remove: noop }, style: { removeProperty: noop } } },
-    libraryOwnerId: "owner", authStatus: "signed-in", needsAuthUsername, openingStripId: null,
+    libraryOwnerId: "owner", authStatus: options.authStatus ?? "signed-in", authUser: { username: "antonio" }, needsAuthUsername, openingStripId: null,
     pageTransitionInFlightRef: gate, openingCoverRequestRef: opening,
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen: noop, setStoryShareConfirmation: noop,
     initialRouteHandledRef: { current: false },
@@ -49,7 +54,7 @@ function harness(needsAuthUsername = false) {
     captureCoverOrigin: cover => ({ ...cover.getBoundingClientRect(), snapshot: "existing pixels" }),
     stripProfile: { profile: { background: "#FF8CCC" } },
     publicProfile: null, visibleProfile: { background: "#FF8CCC" },
-    usernameFromHostname: () => null, setPublicProfile: noop,
+    usernameFromHostname, setPublicProfile: noop,
     flushSync: fn => fn(),
     setBrowserPath: path => {
       events.push({ type: "push", cover: state.cover, view: state.view });
@@ -58,6 +63,7 @@ function harness(needsAuthUsername = false) {
     setOpeningCover: value => { state.cover = value; events.push({ type: "cover", value }); },
     setOpenedPublishedStrip: value => { state.strip = value; },
     setView: value => { state.view = value; },
+    transitionToViewStandard: async value => { state.view = value; },
     setOpeningStripId: noop, setPublishedCoverSettledKey: noop,
     setPublishedLoaderDismissedKey: noop, setMediaLoadStatus: noop, setViewedStrips: noop,
     setAuthenticationRequired: noop, setInitialRouteReady: value => { state.initialReady = value; },
@@ -70,7 +76,7 @@ function harness(needsAuthUsername = false) {
   };
   runInNewContext(compiled, context);
   return {
-    ...exports, state, gate, opening, events, requests, notices, scrolls,
+    ...exports, state, gate, opening, events, requests, notices, scrolls, navigations,
     get backs() { return backs; },
     moveComplete() { for (const timer of timers.splice(0)) if (timer.ms === 660) timer.callback(); },
     pop(path) { window.location.pathname = state.path = path; listeners.popstate({ state: null }); },
@@ -80,6 +86,62 @@ const button = { querySelector: () => ({ getBoundingClientRect: () => ({ left: 0
 const strip = { id: "strip-12345" };
 const success = { ok: true, json: async () => ({ strip }) };
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
+test("owners open their published Strips on their personal domain and keep a clean profile history entry", async () => {
+  for (const hostname of ["striiip.com", "www.striiip.com"]) {
+    const h = harness(false, { hostname });
+    await h.openPublishedStrip({ ...strip, username: "antonio" }, button);
+    assert.deepEqual(h.navigations, ["https://antonio.striiip.com/strip-12345"]);
+    assert.equal(h.state.path, "/");
+    assert.equal(h.state.cover, null);
+    assert.equal(h.requests.length, 0);
+    assert.equal(h.events.length, 0, "do not snapshot a hidden cover or reserve an intermediate /strip entry");
+    await h.openPublishedStrip({ ...strip, username: "antonio" }, button);
+    assert.equal(h.navigations.length, 1, "ignore repeated taps while leaving");
+    h.resetTransientNavigationState();
+    await h.openPublishedStrip({ ...strip, username: "antonio" }, button);
+    assert.equal(h.navigations.length, 2, "the existing pageshow reset unlocks the restored profile");
+  }
+});
+
+test("public profile clicks, other users' Strips and local previews retain their in-page cover transition", async () => {
+  for (const [hostname, username, authStatus, expectedPath] of [
+    ["antonio.striiip.com", "antonio", "signed-out", "/strip-12345"],
+    ["friend.striiip.com", "friend", "signed-in", "/strip-12345"],
+    ["striiip.com", "friend", "signed-in", "/strip/strip-12345"],
+    ["striiip.com", undefined, "signed-in", "/strip/strip-12345"],
+    ["localhost", "antonio", "signed-in", "/strip/strip-12345"],
+    ["127.0.0.1", "antonio", "signed-in", "/strip/strip-12345"],
+    ["preview.workers.dev", "antonio", "signed-in", "/strip/strip-12345"],
+  ]) {
+    const h = harness(false, { hostname, authStatus });
+    const request = h.openPublishedStrip({ ...strip, username }, button);
+    assert.deepEqual(h.navigations, [], hostname);
+    assert.equal(h.state.path, expectedPath, hostname);
+    assert.ok(h.state.cover);
+    h.requests[0].resolve(success); h.moveComplete(); await request;
+    assert.equal(h.state.view, "published");
+  }
+});
+
+test("returning from your personal Strip uses the main profile, without redirecting visitors", async () => {
+  const owner = harness(false, { hostname: "antonio.striiip.com" });
+  await owner.returnToLibraryFromPublished();
+  assert.deepEqual(owner.navigations, ["https://striiip.com/"]);
+  assert.equal(owner.events.length, 0, "never render the private library on the public origin first");
+  for (const options of [
+    { hostname: "antonio.striiip.com", authStatus: "signed-out" },
+    { hostname: "friend.striiip.com" },
+    { hostname: "striiip.com" },
+    { hostname: "localhost" },
+  ]) {
+    const h = harness(false, options);
+    await h.returnToLibraryFromPublished();
+    assert.deepEqual(h.navigations, []);
+    assert.equal(h.state.path, "/");
+    assert.equal(h.gate.current, false);
+  }
+});
 
 test("username onboarding does not apply a route or reset the focused sign-in canvas", () => {
   const h = harness(true);

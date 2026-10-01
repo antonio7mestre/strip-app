@@ -126,7 +126,7 @@ test("the final crossfade keeps its previous timing, is monotonic, and cleans up
     cancel(); assert.equal(pending, null);
   } finally { cancel(); delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
 });
-test("home click preserves a single portal and cannot navigate away or race a Back gesture", () => {
+test("same-origin home click preserves a single portal and cannot race a Back gesture", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const open = page.slice(page.indexOf("const openPublishedStrip ="), page.indexOf("const returnToLibraryFromPublished ="));
   assert.match(open, /captureCoverOrigin/);
@@ -135,7 +135,9 @@ test("home click preserves a single portal and cannot navigate away or race a Ba
   assert.match(open, /Promise.all/);
   assert.match(open, /openingCoverRequestRef.current !== controller/);
   assert.match(open, /signal: controller.signal/);
-  assert.doesNotMatch(open, /location.assign|transitionToView/);
+  // The owner-only cross-origin route leaves before creating any loader or
+  // history entry. All same-origin openings keep the continuous cover portal.
+  assert.doesNotMatch(open.slice(open.indexOf("const cover =")), /location.assign|transitionToView/);
   assert.equal((page.match(/\{coverEntranceLayer\}/g) ?? []).length, 2);
   assert.equal((page.match(/<StripEntrance /g) ?? []).length, 1);
   assert.match(page, /openingCoverRequestRef.current\?\.abort\(\)/);

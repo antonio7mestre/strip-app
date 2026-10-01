@@ -5293,6 +5293,18 @@ export default function Home() {
   const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLElement) => {
     if ((!libraryOwnerId && !publicProfile) || openingStripId || pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
+    const hostname = window.location.hostname.toLowerCase();
+    if (
+      authStatus === "signed-in" &&
+      strip.username && strip.username === authUser?.username &&
+      (hostname === PUBLIC_DOMAIN || hostname === `www.${PUBLIC_DOMAIN}`)
+    ) {
+      // Published Strips belong at the owner's public URL, even when opened
+      // from their private profile. Leave this history entry visually intact
+      // so returning from the other origin restores the original profile.
+      window.location.assign(publicStripUrl(strip));
+      return;
+    }
     const cover = button.querySelector<HTMLElement>(".library-cover");
     const origin = captureCoverOrigin(cover ?? null);
     const controller = new AbortController();
@@ -5351,6 +5363,11 @@ export default function Home() {
   const returnToLibraryFromPublished = async () => {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
+    const hostUsername = usernameFromHostname(window.location.hostname);
+    if (authStatus === "signed-in" && hostUsername && hostUsername === authUser?.username) {
+      window.location.assign(`${mainAppOrigin()}/`);
+      return;
+    }
     try {
       setBrowserPath("/");
       await transitionToViewStandard("library");
