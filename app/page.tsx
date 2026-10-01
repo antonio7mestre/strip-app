@@ -80,20 +80,19 @@ import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { StoryShareConfirmation } from "@/app/components/StoryShareConfirmation";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
-import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverOrigin, type CoverOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
-import { suspendThemeColor } from "@/app/lib/theme-color";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
-import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, type StripProfile, type ProfileTheme } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout } from "@/app/components/ProfileReload";
 import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
@@ -184,7 +183,6 @@ type PublishedStripDetail = {
   blocks: StripBlock[];
   endingStyle: StripEndingStyle;
   viewerIsOwner: boolean;
-  profileTheme?: ProfileTheme;
 };
 type DraftStripSummary = {
   id: string;
@@ -2687,7 +2685,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingCover, setOpeningCover] = useState<{
-    strip: PublishedStripSummary; origin?: CoverOrigin; background: string; theme: ProfileTheme;
+    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string;
   } | null>(null);
   const openingCoverRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
@@ -2993,7 +2991,12 @@ export default function Home() {
   }, [view, stripProfile.cancel]);
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
-    return suspendThemeColor();
+    const theme = document.getElementById("strip-theme-color");
+    const name = theme?.getAttribute("name");
+    theme?.removeAttribute("name");
+    return () => {
+      if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
+    };
   }, [homeIsVisible]);
 
   useEffect(() => {
@@ -3320,7 +3323,7 @@ export default function Home() {
 
 
   useLayoutEffect(() => installFooterSafeAreaColor({
-    enabled: (view === "published" && publishedContentCanReveal && !publishedLoaderIsVisible) || cleanViewBottomSurfaceColor !== null,
+    enabled: (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
     sheet: document.querySelector<HTMLElement>(cleanViewBottomSurfaceColor !== null
       ? ".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"
       : ".published-mode .published-bottom-sheet"),
@@ -3330,7 +3333,7 @@ export default function Home() {
     activeClassName: cleanViewBottomSurfaceColor !== null
       ? "preview-bottom-canvas-active"
       : "published-bottom-sheet-canvas-active",
-  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, publishedLoaderIsVisible, topSafeAreaColor, view, endingSurfaceColor]);
+  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, endingSurfaceColor]);
 
 
   useLayoutEffect(installKeyboardDockPosition, []);
@@ -5309,15 +5312,14 @@ export default function Home() {
     const origin = captureCoverOrigin(cover ?? null);
     const controller = new AbortController();
     openingCoverRequestRef.current = controller;
+    const dock = captureCoverDock(document.querySelector<HTMLElement>(".library-mode .app-navigation-dock"));
     const publishedPath = destination.pathname;
     // Safari snapshots the outgoing entry here. Save the untouched library,
     // before its cover becomes the loading poster, so Back never replays it.
     setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
-      // Unmount the entire navigation, including its Safari safe-area extension,
-      // on this click. Do not carry a white outgoing copy into the loader.
-      setOpeningCover({ strip, origin, background: visibleProfile.background, theme: visibleProfile });
+      setOpeningCover({ strip, origin, dock, background: visibleProfile.background });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -6737,9 +6739,8 @@ export default function Home() {
     ? createPortal(
       <StripEntrance key={entranceStrip.id}
         cover={entranceStrip.cover}
-        title={entranceStrip.title}
-        theme={openingCover?.theme ?? openedPublishedStrip?.profileTheme ?? DEFAULT_PROFILE}
         origin={openingCover?.origin}
+        dock={openingCover?.dock}
         backgroundColor={openingCover?.background}
         requestPending={view !== "published"}
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
@@ -7183,7 +7184,7 @@ export default function Home() {
 
           {/* Remove the fixed surface entirely: Safari retains its white
               edge paint even with visibility:hidden or an offscreen transform. */}
-          {!viewingPublicProfile && !openingCover ? <PreviewDock preview={false} enterOnMount navigation><footer
+          {!viewingPublicProfile && !openingCover ? <footer
             key="persistent-composer-dock"
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
           >
@@ -7242,7 +7243,7 @@ export default function Home() {
                 <span className="visually-hidden">Settings</span>
               </button>
             </nav></>}
-          </footer></PreviewDock> : null}
+          </footer> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal
               title="Delete this draft?"

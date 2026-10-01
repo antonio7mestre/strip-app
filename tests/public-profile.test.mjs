@@ -258,7 +258,7 @@ test("public header reuses title styling but has no edit controls, divider or pr
   assert.match(html, /<h1[^>]*>Our world<\/h1>/);
   assert.match(html, /@antonio/);
   assert.doesNotMatch(html, /button|textarea|Private failure|divider/);
-  assert.match(page, /!viewingPublicProfile && !openingCover \? <PreviewDock[^>]+><footer/);
+  assert.match(page, /!viewingPublicProfile && !openingCover \? <footer/);
   assert.match(page, /!viewingPublicProfile && !isSettings && !stripProfile.editing/);
   assert.match(page, /profilePageStyle\(\{ profile: visibleProfile, editing: !viewingPublicProfile && stripProfile.editing \}\)/);
 });

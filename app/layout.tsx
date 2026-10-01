@@ -1,9 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import type { CSSProperties } from "react";
-import { headers } from "next/headers";
 import "./globals.css";
 import { PROFILE_RELOAD_SCRIPT } from "./lib/profile-reload";
-import { initialPageBackground } from "./server/initial-background";
 
 const initialThemeColorScript = `
   (() => {
@@ -69,15 +66,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const background = await initialPageBackground(await headers());
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-initial-background={background ?? undefined}
-      className={background ? "profile-reload-pending" : undefined}
-      style={background ? { backgroundColor: background, "--profile-reload-background": background,
-        "--top-safe-area-color": background, "--bottom-safe-area-color": background } as CSSProperties : undefined}>
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <meta id="strip-theme-color" name="theme-color" content={background ?? "#000000"} suppressHydrationWarning />
+        <meta id="strip-theme-color" name="theme-color" content="#000000" suppressHydrationWarning />
         <script dangerouslySetInnerHTML={{ __html: PROFILE_RELOAD_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />

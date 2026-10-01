@@ -80,6 +80,5 @@ test("loading never fabricates four covers and unsaved layouts are not cached", 
   assert.match(page, /if \(profilePageIsLoading\) return <ProfileReload/);
   assert.match(component, /if \(!ready \|\| !owner \|\| editing \|\| opening\) return/);
   assert.match(component, /rect.top \+ window.scrollY/);
-  assert.match(component, /layout\?\.frames.filter\(frame => frame.coverId\).map/);
-  assert.doesNotMatch(component, /\.library-card h2|\.profile-name h1|\.profile-meta-row|\.settings-card/);
+  assert.match(component, /layout\?\.frames.map/);
 });

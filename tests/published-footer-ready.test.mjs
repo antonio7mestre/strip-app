@@ -170,6 +170,6 @@ test("the cover entrance owns the opaque loading backdrop and crossfade", () => 
   assert.match(backdrop, /background: var\(--entrance-background, #000\)/);
   assert.match(entrance, /className="strip-entrance-backdrop"/);
   assert.match(entrance, /!revealing \|\| displayPercent !== 100/);
-  assert.match(entrance, /return fadeCoverEntrance\(host, \(\) => completeCallback.current\(\), edgeRef.current\)/);
+  assert.match(entrance, /return fadeCoverEntrance\(host, \(\) => completeCallback.current\(\)\)/);
   assert.match(page, /publishedContentCanReveal\s*=\s*publishedAssetsReady && publishedMinimumElapsed/);
 });

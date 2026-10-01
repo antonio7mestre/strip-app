@@ -13,7 +13,7 @@ export function ProfileReload() {
   }, []);
   return <main className="app-shell route-loading-mode profile-reload" aria-busy="true" aria-label="Loading profile"
     style={layout ? { minHeight: layout.height } : undefined}>
-    {layout?.frames.filter(frame => frame.coverId).map((frame, index) => <span key={index} className="profile-reload-frame" aria-hidden="true"
+    {layout?.frames.map((frame, index) => <span key={index} className="profile-reload-frame" aria-hidden="true"
       style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }} />)}
   </main>;
 }
@@ -33,12 +33,12 @@ export function useProfileReloadLayout({ ready, owner, background, view, editing
     let timer = 0;
     const capture = () => {
       const frames = Array.from(page.querySelectorAll<HTMLElement>(
-        ".library-cover",
+        ".library-cover, .library-card h2, .profile-name h1, .profile-meta-row, .settings-card",
       )).map(element => {
         const rect = element.getBoundingClientRect();
         return { x: rect.left + window.scrollX, y: rect.top + window.scrollY,
           width: rect.width, height: rect.height,
-          coverId: element.closest<HTMLElement>(".library-card")?.dataset.libraryId,
+          ...(element.classList.contains("library-cover") ? { coverId: element.closest<HTMLElement>(".library-card")?.dataset.libraryId } : {}),
         };
       }).filter(frame => frame.width > 0 && frame.height > 0 && frame.x >= 0 && frame.y >= 0);
       saveProfileLayout(owner, background, location.pathname, {
