@@ -102,16 +102,16 @@ test("Safari back-cache restoration clears the pending state and request gate", 
 
 test("pending feedback keeps the same footer structure with disabled accessible buttons", () => {
   const h = harness();
-  const props = { primaryAction: "edit", primaryLabel: "Edit this Strip", onPrimary() {}, onShare() {} };
+  const props = { primaryAction: "edit", primaryLabel: "Edit Strip", onPrimary() {}, onShare() {} };
   const idle = h.StripEndActions(props);
   const busy = h.StripEndActions({ ...props, primaryPending: true });
   assert.equal(idle.props.children.length, busy.props.children.length);
   for (const button of busy.props.children) assert.equal(button.props.disabled, true);
-  assert.equal(busy.props.children[0].props["aria-busy"], true);
+  assert.equal(busy.props.children[1].props["aria-busy"], true);
   const html = renderToStaticMarkup(busy);
   assert.match(html, /Opening editor…/); assert.match(html, /strip-end-sheet-spinner/);
   assert.match(html, /aria-live="polite"/);
-  assert.match(renderToStaticMarkup(idle), /Edit this Strip/);
+  assert.match(renderToStaticMarkup(idle), /Edit Strip/);
   assert.doesNotMatch(renderToStaticMarkup(idle), /disabled|aria-busy|strip-end-sheet-spinner/);
   assert.match(page, /primaryPending=\{publishedViewerCanEdit && openingPublishedEditor\}/);
   assert.match(css, /\.strip-end-sheet-spinner\s*\{[^}]*width: 18px;\s*height: 18px;/);
