@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { installEndingContact } from "@/app/lib/ending-contact";
+import { PUBLIC_DOMAIN, validateUsername } from "@/app/lib/username";
 
 /** One reader ending for preview and publication. Corner backing is below the
  * raised white surface, never painted over its curved shadow. */
@@ -11,6 +12,10 @@ export function StripEndingSheet({ username, cornerColor, preview = false, child
   preview?: boolean;
   children: ReactNode;
 }) {
+  const author = validateUsername(username);
+  const profileHref = !preview && author.ok
+    ? `https://${author.username}.${PUBLIC_DOMAIN}/`
+    : null;
   return (
     <footer
       ref={installEndingContact}
@@ -28,7 +33,9 @@ export function StripEndingSheet({ username, cornerColor, preview = false, child
       <span className="strip-end-sheet-surface" aria-hidden="true" />
       <div className="strip-ending-card-inner">
         <h2 className="published-bottom-sheet-title">
-          {username ? <>A Strip by <span>@{username}</span></> : "Made with Strip"}
+          {username ? <>A Strip by {profileHref
+            ? <a href={profileHref} aria-label={`View @${username}’s profile`}>@{username}</a>
+            : <span>@{username}</span>}</> : "Made with Strip"}
         </h2>
         {children}
       </div>

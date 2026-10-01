@@ -11,11 +11,29 @@ test("preview and published endings have identical surfaces, caption and spacing
       const children = createElement("div", { className: "strip-end-sheet-controls" },
         createElement("button", null, "Edit this Strip"), createElement("button", null, "Share"));
       const render = preview => renderToStaticMarkup(createElement(StripEndingSheet, { username, cornerColor, preview, children }));
-      assert.equal(render(true).replace('aria-label="Strip actions preview"', 'aria-label="Strip actions"'), render(false));
+      assert.equal(render(true).replace('aria-label="Strip actions preview"', 'aria-label="Strip actions"'),
+        render(false).replace(/<a[^>]*>([^<]*)<\/a>/g, "<span>$1</span>"));
       assert.match(render(false), /strip-end-sheet-corner-fill[^]*strip-end-sheet-surface[^]*strip-ending-card-inner[^]*published-bottom-sheet-title/);
       assert.match(render(false), /--ending-background:#FFFFFF/);
       assert.match(render(false), /--ending-button:#000000/);
     }
+  }
+});
+
+test("published attribution links to the author's personal profile without changing the preview", () => {
+  for (const username of ["antonio", "softweekend-demo", "ANTONIO"]) {
+    const html = renderToStaticMarkup(createElement(StripEndingSheet, { username }));
+    assert.ok(html.includes(`href="https://${username.toLowerCase()}.striiip.com/"`));
+    assert.ok(html.includes(`aria-label="View @${username}’s profile"`));
+    assert.ok(html.includes(`>@${username}</a>`));
+    assert.doesNotMatch(html, /target=/, "open in the same tab so browser Back returns to the Strip");
+    const preview = renderToStaticMarkup(createElement(StripEndingSheet, { username, preview: true }));
+    assert.ok(preview.includes(`<span>@${username}</span>`));
+    assert.doesNotMatch(preview, /<a /);
+  }
+  for (const username of [null, "", "api", "someone_else", "a@evil.test", "bad/name"]) {
+    const html = renderToStaticMarkup(createElement(StripEndingSheet, { username }));
+    assert.doesNotMatch(html, /<a /, "missing or invalid usernames must not produce a broken or unsafe link");
   }
 });
 

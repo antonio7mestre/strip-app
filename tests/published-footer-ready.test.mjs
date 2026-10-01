@@ -70,14 +70,14 @@ test("owner and visitor footers are complete from first render for every last-bl
       assert.ok(loading.html.includes(owner ? "Edit this Strip" : "Make your own Strip"));
       assert.match(loading.html, /Last block<\/div><footer/);
       assert.equal(loading.element.props.children[1].type, StripEndingSheet, "always the shared in-flow footer");
-      assert.match(footer(loading.html), /A Strip by <span>@antonio<\/span>/);
+      assert.match(footer(loading.html), /A Strip by <a href="https:\/\/antonio\.striiip\.com\/"[^>]*>@antonio<\/a>/);
     }
   }
 });
 
 test("the footer credits the author for every viewer and handles legacy Strips without a username", () => {
   for (const owner of [false, true]) {
-    assert.match(render({owner, username: "someone_else"}).html, /A Strip by <span>@someone_else<\/span>/);
+    assert.match(render({owner, username: "someone-else"}).html, /A Strip by <a href="https:\/\/someone-else\.striiip\.com\/"[^>]*>@someone-else<\/a>/);
     const legacy = render({owner, username: null}).html;
     assert.match(legacy, /Made with Strip/);
     assert.doesNotMatch(legacy, /@null|@undefined|Keep the story going/);
