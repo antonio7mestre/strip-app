@@ -7,6 +7,7 @@ import ts from "typescript";
 import * as username from "../app/lib/username.ts";
 import * as ending from "../app/lib/strip-ending.ts";
 import * as stickerOrigin from "../app/lib/sticker-origin.ts";
+import * as profile from "../app/lib/profile.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function compile(path, imports) {
@@ -23,12 +24,12 @@ function fixture() {
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT, phone_e164 TEXT, last_seen_at INTEGER);
-    CREATE TABLE profiles (user_id TEXT, background TEXT);
+    CREATE TABLE profiles (user_id TEXT, background TEXT, font TEXT, accent TEXT);
     CREATE TABLE auth_sessions (token_hash TEXT PRIMARY KEY, user_id TEXT, created_at INTEGER, last_seen_at INTEGER, expires_at INTEGER);
     CREATE TABLE drafts (id TEXT, owner_id TEXT, title TEXT, content_json TEXT, created_at INTEGER, updated_at INTEGER);
     CREATE TABLE strips (id TEXT, owner_id TEXT, title TEXT, cover_kind TEXT, cover_color TEXT, cover_shape TEXT, cover_alt TEXT, content_json TEXT, published_at INTEGER);
     INSERT INTO users VALUES ('owner-antonio', 'antonio', '+12025550100', 0), ('owner-friend', 'friend', '+12025550101', 0);
-    INSERT INTO profiles VALUES ('owner-antonio', '#3155FF'), ('owner-friend', '#FF8CCC');
+    INSERT INTO profiles VALUES ('owner-antonio', '#3155FF', 'sans', '#FFFFFF'), ('owner-friend', '#FF8CCC', 'serif', '#350015');
     INSERT INTO drafts VALUES ('draft-12345', 'owner-antonio', 'Private', '[]', 1, 1);
     INSERT INTO strips VALUES ('strip-12345', 'owner-friend', 'Public', 'color', '#3155FF', 'square', NULL, '[]', 1);
   `);
@@ -45,6 +46,7 @@ function fixture() {
   const imports = { "cloudflare:workers": { env }, "@/app/lib/username": username };
   const auth = compile("app/server/auth.ts", imports);
   Object.assign(imports, { "@/app/server/auth": auth, "@/app/lib/strip-ending": ending,
+    "@/app/lib/profile": profile,
     "@/app/lib/sticker-origin": stickerOrigin, "@/app/server/view-history": { recordStripView: async () => {} },
     "@/app/server/media-security": { isAllowedStoredMediaContentType: () => true } });
   return { db, auth, api: path => compile(path, imports) };
@@ -111,6 +113,7 @@ test("other authors' published content supports workspace history/posters withou
   assert.equal(strip.username, "friend");
   assert.equal(strip.viewerIsOwner, false);
   assert.equal(strip.profileBackground, "#FF8CCC", "reload uses the author color, not the viewer color");
+  assert.deepEqual(strip.profileTheme, { background: "#FF8CCC", font: "serif", accent: "#350015" });
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   const clone = await f.api("app/api/strips/[id]/draft/route.ts").POST(request("antonio.striiip.com", cookie, "/api/strips/strip-12345/draft", { method: "POST", headers: { origin: "https://antonio.striiip.com" } }), context);
   assert.equal(clone.status, 404);
@@ -125,9 +128,15 @@ test("Strip reload backgrounds validate old or missing profile colors", async ()
     f.db.prepare("UPDATE profiles SET background = ? WHERE user_id = 'owner-friend'").run(background);
     const { strip } = await (await api.GET(request("striiip.com", ""), context)).json();
     assert.equal(strip.profileBackground, /^#[\da-f]{6}$/i.test(background ?? "") ? background : "#000000");
+    assert.equal(strip.profileTheme.background, strip.profileBackground);
   }
+  f.db.exec("UPDATE profiles SET font = 'invalid', accent = 'url(unsafe)' WHERE user_id = 'owner-friend'");
+  const invalidTheme = (await (await api.GET(request("striiip.com", ""), context)).json()).strip.profileTheme;
+  assert.equal(invalidTheme.font, profile.DEFAULT_PROFILE.font);
+  assert.equal(invalidTheme.accent, profile.DEFAULT_PROFILE.accent);
   f.db.exec("DELETE FROM profiles");
   const { strip } = await (await api.GET(request("striiip.com", ""), context)).json();
   assert.equal(strip.profileBackground, "#000000");
+  assert.deepEqual(strip.profileTheme, { font: profile.DEFAULT_PROFILE.font, background: "#000000", accent: "#FFFFFF" });
   f.db.close();
 });

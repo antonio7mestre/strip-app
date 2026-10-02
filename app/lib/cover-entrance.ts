@@ -87,12 +87,14 @@ export function moveCoverDock(host: HTMLElement, dock: HTMLElement, origin: Cove
   return () => { disposed = true; cancelAnimationFrame(frame); };
 }
 
-/** One shared poster width for every shape, with portrait-safe room on short screens. */
-export function coverEntranceLayout(width: number, height: number, offsetTop: number, aspectRatio: number) {
+/** Match the profile's two columns, 12px side padding and 12px gutter even
+ * without a clicked cover. Keep captured subpixel dimensions when available. */
+export function coverEntranceLayout(width: number, height: number, offsetTop: number, aspectRatio: number,
+  origin?: Pick<CoverOrigin, "width" | "height">) {
   const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
   const w = Math.max(1, width), h = Math.max(1, height);
-  const coverWidth = Math.min(320, w * 0.74, h * 0.42);
-  const coverHeight = coverWidth / ratio;
+  const coverWidth = origin?.width ?? Math.max(1, (w - 36) / 2);
+  const coverHeight = origin?.height ?? coverWidth / ratio;
   return { left: (w - coverWidth) / 2, top: offsetTop + (h - coverHeight) / 2,
     width: coverWidth, height: coverHeight };
 }
@@ -100,6 +102,18 @@ export function coverEntranceLayout(width: number, height: number, offsetTop: nu
 export function coverProgressCells(percent: number) {
   const progress = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
   return progress === 100 ? COVER_PROGRESS_CELLS : Math.floor(progress / 100 * COVER_PROGRESS_CELLS);
+}
+
+/** The line is document paint all the way to the physical bottom edge. Its
+ * starting label stays above browser chrome and its final tip clears the title. */
+export function coverLineLayout(surfaceTop: number, surfaceHeight: number,
+  viewportTop: number, viewportHeight: number, titleBottom: number) {
+  const bottom = surfaceTop + surfaceHeight;
+  const visibleBottom = viewportTop + viewportHeight;
+  const endTip = Math.min(titleBottom + 52, visibleBottom - 96);
+  const startTip = Math.max(endTip, visibleBottom - 64);
+  const startHeight = Math.max(0, bottom - startTip);
+  return { startHeight, travel: Math.max(0, startTip - endTip) };
 }
 
 /** Also handle cached images whose load event happened before hydration. */
