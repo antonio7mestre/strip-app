@@ -1,6 +1,6 @@
 export const COVER_MOVE_MS = 620;
 export const COVER_FADE_MS = 650;
-export const COVER_PROGRESS_CELLS = 7;
+export const COVER_PROGRESS_CELLS = 9;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
 export type CoverOrigin = { left: number; top: number; width: number; height: number;

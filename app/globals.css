@@ -2499,7 +2499,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 .strip-entrance-progress {
   position: absolute;
-  top: calc(100% + 18px);
+  top: calc(100% + 10px);
   right: 0;
   left: 0;
   display: flex;
@@ -2515,22 +2515,39 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   display: grid;
   flex: 1;
   min-width: 0;
-  grid-template-columns: repeat(var(--entrance-cells, 7), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--entrance-cells, 9), minmax(0, 1fr));
   gap: 4px;
 }
 .strip-entrance-squares span {
+  position: relative;
   aspect-ratio: 1;
-  background: var(--entrance-a);
-  opacity: 0.16;
 }
-.strip-entrance-squares span.is-filled { opacity: 1; }
-.strip-entrance-squares span.is-waiting {
-  opacity: 1;
-  animation: cover-first-square-blink 700ms ease-in-out infinite alternate;
+.strip-entrance-squares span::before,
+.strip-entrance-squares span:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--entrance-a);
+}
+.strip-entrance-squares span::before {
+  opacity: 0.16;
+  transition: opacity 200ms ease-in-out;
+}
+.strip-entrance-squares span.is-filled::before { opacity: 1; }
+/* Keep the pulse running on its own layer. The solid fill blends with it
+ * without cancelling the pulse mid-cycle or jumping back to full brightness. */
+.strip-entrance-squares span:first-child::after {
+  opacity: 0;
+  animation: cover-first-square-blink 1400ms ease-in-out infinite;
+  animation-play-state: paused;
+}
+.strip-entrance.is-from-library .strip-entrance-squares span:first-child::after,
+.strip-entrance.is-centered.is-cover-visible .strip-entrance-squares span:first-child::after {
+  animation-play-state: running;
 }
 @keyframes cover-first-square-blink {
-  from { opacity: 1; }
-  to { opacity: 0.25; }
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 html.published-content-loading,
 html.published-content-loading body,

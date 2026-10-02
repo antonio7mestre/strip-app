@@ -63,8 +63,23 @@ test("the tray drops immediately and the blinking loading bar travels with the c
   assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
   assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-progress \{ opacity: 1; \}/);
   assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-progress \{ opacity: 1; transition: none; \}/);
-  assert.match(css, /span.is-waiting\s*\{\s*opacity: 1;\s*animation: cover-first-square-blink 700ms ease-in-out infinite alternate;/);
+  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-squares span:first-child::after,[\s\S]*?animation-play-state: running;/);
   assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-cover \{ opacity: 0; \}/);
+});
+
+test("the first block eases in from dim and blends into progress without resetting its pulse", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const pulse = [...css.matchAll(/^\.strip-entrance-squares span:first-child::after \{[^}]+\}/gm)]
+    .map(match => match[0]).find(rule => rule.includes("animation:"));
+  assert.match(pulse, /opacity: 0;/);
+  assert.match(pulse, /animation: cover-first-square-blink 1400ms ease-in-out infinite;/);
+  assert.match(pulse, /animation-play-state: paused;/);
+  assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-squares span:first-child::after \{\s*animation-play-state: running;/);
+  assert.match(css, /@keyframes cover-first-square-blink \{\s*0%, 100% \{ opacity: 0; \}\s*50% \{ opacity: 1; \}/);
+  assert.match(css, /\.strip-entrance-squares span::before \{\s*opacity: 0\.16;\s*transition: opacity 200ms ease-in-out;/);
+  assert.match(css, /\.strip-entrance-squares span.is-filled::before \{ opacity: 1; \}/);
+  assert.doesNotMatch(css, /\.strip-entrance-squares span.is-waiting\s*\{/,
+    "changing from waiting to filled must not cancel the animation mid-cycle");
 });
 
 test("a raw-load cover finishes its quick fade before releasing progress", () => {
@@ -118,9 +133,9 @@ test("failed covers recover and late decoding cannot mutate an exited loader", a
 
 test("the square bar is deterministic, monotonic and never full before real completion", () => {
   assert.equal(coverProgressCells(0), 0);
-  assert.equal(coverProgressCells(50), 3);
-  assert.equal(coverProgressCells(99), 6);
-  assert.equal(coverProgressCells(100), 7);
+  assert.equal(coverProgressCells(50), 4);
+  assert.equal(coverProgressCells(99), 8);
+  assert.equal(coverProgressCells(100), 9);
   assert.equal(coverProgressCells(NaN), 0);
   assert.equal(coverProgressCells(-5), 0);
   for (let p = 1; p <= 100; p++) assert.ok(coverProgressCells(p) >= coverProgressCells(p - 1));

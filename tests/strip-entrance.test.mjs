@@ -67,7 +67,7 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
       : name === "@/app/lib/profile" ? { profileInk } : require(name) });
-test("renders a centered cover and seven chunky progress cells, without a visible percentage", () => {
+test("renders a centered cover and nine chunky progress cells, without a visible percentage", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
@@ -81,19 +81,19 @@ test("renders a centered cover and seven chunky progress cells, without a visibl
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
   assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 6);
+  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 8);
   assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
   assert.doesNotMatch(html, /strip-entrance-percent|>\d+%?</);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
-test("seven blocks fill the loading row with no percentage or new full-screen layers", () => {
+test("nine blocks fill the close-set loading row with no percentage or new full-screen layers", () => {
   const row = css.match(/^\.strip-entrance-progress \{[^}]+\}/m)[0];
   assert.match(row, /right: 0/);
   assert.match(row, /left: 0/);
-  assert.match(row, /top: calc\(100% \+ 18px\)/);
-  assert.match(css, /repeat\(var\(--entrance-cells, 7\), minmax\(0, 1fr\)\)/);
+  assert.match(row, /top: calc\(100% \+ 10px\)/);
+  assert.match(css, /repeat\(var\(--entrance-cells, 9\), minmax\(0, 1fr\)\)/);
   assert.match(componentSource, /"--entrance-cells": COVER_PROGRESS_CELLS/);
   assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents|strip-entrance-percent/);
 });
@@ -157,7 +157,7 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('html.published-content-loading,'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
-  assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
+  assert.match(readoutCss,/top: calc\(100% \+ 10px\)/);
   assert.match(readoutCss,/right: 0;/);
   assert.match(readoutCss,/gap: 4px;/);
   assert.doesNotMatch(readoutCss,/strip-entrance-percent/);
