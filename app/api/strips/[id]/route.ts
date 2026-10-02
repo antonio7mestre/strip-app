@@ -3,6 +3,7 @@ import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-or
 import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
 import { recordStripView } from "@/app/server/view-history";
+import { profileInk, profileTextColor } from "@/app/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export async function GET(
   const row = await env.DB.prepare(
       `SELECT s.id, s.owner_id, s.title, s.cover_kind, s.cover_color,
         s.cover_shape, s.cover_alt, s.content_json, s.published_at, u.username,
-        p.background AS profile_background
+        p.background AS profile_background, p.accent AS profile_accent
        FROM strips s
        LEFT JOIN users u ON u.id = s.owner_id
        LEFT JOIN profiles p ON p.user_id = s.owner_id
@@ -96,6 +97,7 @@ export async function GET(
           published_at: number;
           username: string | null;
           profile_background: string | null;
+          profile_accent: string | null;
       }>();
   if (!row) return new Response("Not found", { status: 404 });
   // Published content is public by ID on every app host. The reader and its
@@ -184,14 +186,18 @@ export async function GET(
           ];
   }
 
+  const background = typeof row.profile_background === "string" && /^#[\da-f]{6}$/i.test(row.profile_background)
+    ? row.profile_background : "#000000";
+  const accent = typeof row.profile_accent === "string" && /^#[\da-f]{6}$/i.test(row.profile_accent)
+    ? row.profile_accent : profileInk(background);
   return Response.json({
     strip: {
       id: row.id,
       username: row.username,
       viewerIsOwner: viewer?.id === row.owner_id,
       title: row.title,
-      profileBackground: typeof row.profile_background === "string" && /^#[\da-f]{6}$/i.test(row.profile_background)
-        ? row.profile_background : "#000000",
+      profileBackground: background,
+      profileTextColor: profileTextColor({ background, accent }),
       cover:
         row.cover_kind === "image"
           ? {

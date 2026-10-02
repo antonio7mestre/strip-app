@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 import { PUBLIC_DOMAIN, usernameFromHostname } from "../app/lib/username.ts";
+import { profileTextColor } from "../app/lib/profile.ts";
 import { publishedStripUrl, routeFromLocation, workspaceRedirect } from "./helpers/app-routing.mjs";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -41,7 +42,7 @@ function harness(needsAuthUsername = false, options = {}) {
     dispatchEvent: event => listeners[event.type]?.(event),
   };
   const context = {
-    exports, AbortController, window, PUBLIC_DOMAIN, URL, publishedStripUrl, workspaceRedirect,
+    exports, AbortController, window, PUBLIC_DOMAIN, URL, publishedStripUrl, workspaceRedirect, profileTextColor,
     PopStateEvent: class { constructor(type) { this.type = type; this.state = null; } },
     migrateLegacyDraft: async () => true,
     document: { querySelector: () => null, documentElement: { classList: { remove: noop }, style: { removeProperty: noop } } },
@@ -54,7 +55,7 @@ function harness(needsAuthUsername = false, options = {}) {
     captureCoverDock: () => null,
     captureCoverOrigin: cover => ({ ...cover.getBoundingClientRect(), snapshot: "existing pixels" }),
     stripProfile: { profile: { background: "#FF8CCC" } },
-    publicProfile: null, visibleProfile: { background: "#FF8CCC" },
+    publicProfile: null, visibleProfile: { background: "#FF8CCC", accent: "#330011" },
     usernameFromHostname, setPublicProfile: noop,
     flushSync: fn => fn(),
     setBrowserPath: path => {
@@ -158,6 +159,7 @@ test("save clean home in history before showing the cover, with just one strip e
   assert.equal(h.state.path, "/strip/strip-12345");
   assert.equal(h.state.cover.strip.id, strip.id);
   assert.equal(h.state.cover.background, "#FF8CCC");
+  assert.equal(h.state.cover.ink, "#330011");
   assert.equal(h.state.cover.origin.snapshot, "existing pixels");
   h.requests[0].resolve(success); h.moveComplete(); await request;
   assert.equal(h.state.cover.background, "#FF8CCC", "keep profile color through the reader handoff");

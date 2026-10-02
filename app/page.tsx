@@ -92,7 +92,7 @@ import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
-import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, type StripProfile } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, profileTextColor, type StripProfile } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout } from "@/app/components/ProfileReload";
 import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
@@ -184,6 +184,7 @@ type PublishedStripDetail = {
   endingStyle: StripEndingStyle;
   viewerIsOwner: boolean;
   profileBackground?: string;
+  profileTextColor?: string;
 };
 type DraftStripSummary = {
   id: string;
@@ -2686,7 +2687,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingCover, setOpeningCover] = useState<{
-    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string;
+    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string; ink: string;
   } | null>(null);
   const openingCoverRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
@@ -5320,7 +5321,7 @@ export default function Home() {
     setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
-      setOpeningCover({ strip, origin, dock, background: visibleProfile.background });
+      setOpeningCover({ strip, origin, dock, background: visibleProfile.background, ink: profileTextColor(visibleProfile) });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -6743,6 +6744,7 @@ export default function Home() {
         origin={openingCover?.origin}
         dock={openingCover?.dock}
         backgroundColor={openingCover?.background ?? openedPublishedStrip?.profileBackground}
+        inkColor={openingCover?.ink ?? openedPublishedStrip?.profileTextColor}
         requestPending={view !== "published"}
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
           (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}

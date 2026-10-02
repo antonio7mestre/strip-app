@@ -67,7 +67,7 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
       : name === "@/app/lib/profile" ? { profileInk } : require(name) });
-test("renders a centered cover and 24 square progress cells, without a full-screen drawing", () => {
+test("renders a centered cover and six chunky progress cells, without a full-screen drawing", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
@@ -81,12 +81,34 @@ test("renders a centered cover and 24 square progress cells, without a full-scre
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
   assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 23);
+  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 5);
   assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
   assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
+});
+test("the compact loading row has larger blocks and a bold blocky percentage, with no new full-screen layers", () => {
+  const row = css.match(/^\.strip-entrance-progress \{[^}]+\}/m)[0];
+  assert.match(row, /font-family: "Arial Black"/);
+  assert.match(row, /font-size: 24px/);
+  assert.match(row, /font-weight: 900/);
+  assert.match(row, /top: calc\(100% \+ 18px\)/);
+  assert.match(css, /repeat\(var\(--entrance-cells, 6\), minmax\(0, 1fr\)\)/);
+  assert.match(componentSource, /"--entrance-cells": COVER_PROGRESS_CELLS/);
+  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents/);
+});
+test("the loading row uses saved profile ink and rejects invalid CSS colors", () => {
+  for (const [inkColor, expected] of [["#D7FF00", "#D7FF00"], ["#FF4FA3", "#FF4FA3"], ["url(unsafe)", "#FFFFFF"], [undefined, "#FFFFFF"]]) {
+    const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
+      cover: { kind: "color", color: "#3155FF" }, backgroundColor: "#330011", inkColor,
+      settledAssets: 0, totalAssets: 1, revealing: false, onCoverSettled() {}, onExitComplete() {},
+    }));
+    assert.ok(html.includes(`--entrance-a:${expected}`));
+    assert.ok(html.includes("--entrance-background:#330011"));
+  }
+  assert.match(page, /ink: profileTextColor\(visibleProfile\)/);
+  assert.match(page, /inkColor=\{openingCover\?\.ink \?\? openedPublishedStrip\?\.profileTextColor\}/);
 });
 test("the first render uses contrasting monochrome ink and the originating profile background", () => {
   for (const backgroundColor of ["#FFFFFF", "#000000", "#FF8CCC", "#3155FF"]) {
@@ -139,7 +161,7 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
   assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
   assert.match(readoutCss,/right: 0;/);
-  assert.match(readoutCss,/gap: 14px;/);
+  assert.match(readoutCss,/gap: 10px;/);
   assert.match(readoutCss,/white-space: nowrap;/);
   assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*width: 3ch;\s*text-align: right;/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);

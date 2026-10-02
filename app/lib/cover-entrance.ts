@@ -1,6 +1,6 @@
 export const COVER_MOVE_MS = 620;
 export const COVER_FADE_MS = 650;
-export const COVER_PROGRESS_CELLS = 24;
+export const COVER_PROGRESS_CELLS = 6;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
 export type CoverOrigin = { left: number; top: number; width: number; height: number;
@@ -87,12 +87,14 @@ export function moveCoverDock(host: HTMLElement, dock: HTMLElement, origin: Cove
   return () => { disposed = true; cancelAnimationFrame(frame); };
 }
 
-/** One shared poster width for every shape, with portrait-safe room on short screens. */
-export function coverEntranceLayout(width: number, height: number, offsetTop: number, aspectRatio: number) {
+/** Keep clicked covers pixel-for-pixel; direct loads use the profile's two
+ * columns with the same 12px side padding and 12px gutter. */
+export function coverEntranceLayout(width: number, height: number, offsetTop: number, aspectRatio: number,
+  origin?: Pick<CoverOrigin, "width" | "height">) {
   const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
   const w = Math.max(1, width), h = Math.max(1, height);
-  const coverWidth = Math.min(320, w * 0.74, h * 0.42);
-  const coverHeight = coverWidth / ratio;
+  const coverWidth = origin?.width ?? Math.max(1, (w - 36) / 2);
+  const coverHeight = origin?.height ?? coverWidth / ratio;
   return { left: (w - coverWidth) / 2, top: offsetTop + (h - coverHeight) / 2,
     width: coverWidth, height: coverHeight };
 }

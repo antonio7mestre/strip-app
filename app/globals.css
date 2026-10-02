@@ -2504,11 +2504,12 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   left: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   white-space: nowrap;
   color: var(--entrance-a);
-  font-size: 12px;
-  font-weight: 500;
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 900;
   line-height: 1;
   opacity: 0;
   transition: opacity 180ms ease;
@@ -2520,8 +2521,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   display: grid;
   flex: 1;
   min-width: 0;
-  grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 3px;
+  grid-template-columns: repeat(var(--entrance-cells, 6), minmax(0, 1fr));
+  gap: 4px;
 }
 .strip-entrance-squares span {
   aspect-ratio: 1;

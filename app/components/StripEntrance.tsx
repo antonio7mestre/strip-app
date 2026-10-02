@@ -10,10 +10,11 @@ import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgress
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
 export function StripEntrance({ cover, settledAssets, totalAssets,
-  revealing, requestPending = false, origin, dock, backgroundColor = "#000000", onCoverSettled, onExitComplete,
+  revealing, requestPending = false, origin, dock, backgroundColor = "#000000", inkColor, onCoverSettled, onExitComplete,
 }: {
   cover: Cover; settledAssets: number; totalAssets: number; revealing: boolean;
   requestPending?: boolean; origin?: CoverOrigin; dock?: CoverDockOrigin; backgroundColor?: string;
+  inkColor?: string;
   onCoverSettled: () => void; onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
@@ -25,7 +26,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
   const [initialBackground] = useState(backgroundColor);
-  const ink = profileInk(initialBackground);
+  const [ink] = useState(() => inkColor && /^#[\da-f]{6}$/i.test(inkColor) ? inkColor : profileInk(initialBackground));
   const [centered, setCentered] = useState(!origin);
   const [dockDropped, setDockDropped] = useState(!dock);
   const [coverReady, setCoverReady] = useState(cover.kind === "color" || Boolean(origin?.snapshot));
@@ -33,7 +34,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const [coverFailed, setCoverFailed] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(() => origin ? origin.width / origin.height
     : cover.kind === "image" ? cover.aspectRatio ?? 1
-      : cover.shape === "portrait" ? 3 / 4 : cover.shape === "landscape" ? 4 / 3 : 1);
+      : cover.shape === "portrait" ? 4 / 5 : cover.shape === "landscape" ? 3 / 2 : 1);
   const [displayPercent, setDisplayPercent] = useState(0);
   const mounted = useRef(false);
   const settledCallback = useRef(onCoverSettled);
@@ -90,7 +91,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
     const sync = () => {
       const viewport = window.visualViewport;
       const layout = coverEntranceLayout(window.innerWidth, viewport?.height ?? window.innerHeight,
-        viewport?.offsetTop ?? 0, aspectRatio);
+        viewport?.offsetTop ?? 0, aspectRatio, initialOrigin);
       Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
         width: layout.width + "px", height: layout.height + "px" });
     };
@@ -103,7 +104,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
       window.visualViewport?.removeEventListener("resize", sync);
       window.visualViewport?.removeEventListener("scroll", sync);
     };
-  }, [aspectRatio]);
+  }, [aspectRatio, initialOrigin]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -111,8 +112,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
     const target = stage.getBoundingClientRect();
     if (!stage.animate || !target.width || !target.height) { setCentered(true); return; }
     const animation = stage.animate([
-      { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})` },
-      { transform: "translate3d(0, 0, 0) scale(1, 1)" },
+      { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0)` },
+      { transform: "translate3d(0, 0, 0)" },
     ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "both" });
     animation.onfinish = () => {
       // The waiting square travels with the cover; count real progress on arrival.
@@ -166,7 +167,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const filled = coverProgressCells(displayPercent);
   return (
     <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
-      style={{ "--entrance-a": ink, "--entrance-background": initialBackground } as CSSProperties}
+      style={{ "--entrance-a": ink, "--entrance-background": initialBackground,
+        "--entrance-cells": COVER_PROGRESS_CELLS } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
       {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"

@@ -3,20 +3,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
 
-test("portrait, landscape and square covers stay centered, uncropped, with room for the bar", () => {
+test("direct covers use the profile grid size and stay centered without cropping", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
     for (const ratio of [0.75, 0.8, 1, 1.5, 5, NaN, 0]) {
       const box = coverEntranceLayout(w, h, offset, ratio);
       assert.ok(Math.abs(box.left + box.width / 2 - w / 2) < 0.01);
       assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.01);
-      assert.ok(box.top >= offset && box.left > 0);
-      assert.ok(box.top + box.height + 36 < offset + h);
-      assert.ok(box.width <= 320 && box.width < w);
+      assert.ok(box.left > 0);
+      assert.equal(box.width, (w - 36) / 2);
       assert.ok(Math.abs(box.width / box.height - (ratio > 0 ? ratio : 1)) < 0.01);
     }
   }
 });
-test("all poster shapes enlarge to the same shared width and retain their proportions", () => {
+test("all poster shapes use the same profile-column width and retain their proportions", () => {
   for (const [w, h, offset] of [[393, 714, 0], [393, 842, 0], [1440, 900, 15]]) {
     const expectedWidth = coverEntranceLayout(w, h, offset, 1).width;
     for (const ratio of [0.2, 0.75, 0.8, 1, 1.5, 5]) {
@@ -27,6 +26,23 @@ test("all poster shapes enlarge to the same shared width and retain their propor
       assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.001);
     }
   }
+});
+
+test("clicked covers retain exact subpixel dimensions at every viewport height", () => {
+  for (const [w, h, offset] of [[320, 640, 0], [393, 714, 0], [393, 842, 22], [1440, 900, 15]]) {
+    for (const origin of [{ width: 178.5, height: 267.75 }, { width: 179, height: 179 }, { width: 178.5, height: 119 }]) {
+      const box = coverEntranceLayout(w, h, offset, origin.width / origin.height, origin);
+      assert.equal(box.width, origin.width);
+      assert.equal(box.height, origin.height);
+      assert.equal(box.left + box.width / 2, w / 2);
+      assert.ok(Math.abs(box.top + box.height / 2 - offset - h / 2) < 0.001);
+    }
+  }
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const grid = css.match(/^\.library-grid \{[^}]+\}/m)[0];
+  assert.match(grid, /repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(grid, /gap: 12px/);
+  assert.match(grid, /padding: 0 12px/);
 });
 
 test("the tray drops immediately and the blinking loading bar travels with the cover", () => {
@@ -41,7 +57,9 @@ test("the tray drops immediately and the blinking loading bar travels with the c
   assert.match(component, /if \(initialOrigin \|\| !coverReadyToAppear \|\| !visualRef.current\) return/);
   assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
   assert.match(component, /requestPending \|\| !dockDropped/);
-  assert.match(component, /scale\(\$\{initialOrigin.width \/ target.width\}/);
+  assert.doesNotMatch(component, /scale\(/);
+  assert.match(component, /aspectRatio, initialOrigin\)/);
+  assert.match(component, /cover.shape === "portrait" \? 4 \/ 5 : cover.shape === "landscape" \? 3 \/ 2 : 1/);
   assert.match(component, /const animation = stage.animate/);
   assert.match(component, /index === 0 && filled === 0 \? "is-waiting"/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -104,9 +122,9 @@ test("failed covers recover and late decoding cannot mutate an exited loader", a
 
 test("the square bar is deterministic, monotonic and never full before real completion", () => {
   assert.equal(coverProgressCells(0), 0);
-  assert.equal(coverProgressCells(50), 12);
-  assert.equal(coverProgressCells(99), 23);
-  assert.equal(coverProgressCells(100), 24);
+  assert.equal(coverProgressCells(50), 3);
+  assert.equal(coverProgressCells(99), 5);
+  assert.equal(coverProgressCells(100), 6);
   assert.equal(coverProgressCells(NaN), 0);
   assert.equal(coverProgressCells(-5), 0);
   for (let p = 1; p <= 100; p++) assert.ok(coverProgressCells(p) >= coverProgressCells(p - 1));
