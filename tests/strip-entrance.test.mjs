@@ -67,7 +67,7 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
       : name === "@/app/lib/profile" ? { profileInk } : require(name) });
-test("renders a centered cover and six chunky progress cells, without a full-screen drawing", () => {
+test("renders a centered cover and seven chunky progress cells, without a visible percentage", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
@@ -81,22 +81,21 @@ test("renders a centered cover and six chunky progress cells, without a full-scr
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
   assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 5);
+  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 6);
   assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
-  assert.match(html, /class="strip-entrance-percent-value">0<\/span>%<\/span>/);
+  assert.doesNotMatch(html, /strip-entrance-percent|>\d+%?</);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
-test("the compact loading row has larger blocks and a bold blocky percentage, with no new full-screen layers", () => {
+test("seven blocks fill the loading row with no percentage or new full-screen layers", () => {
   const row = css.match(/^\.strip-entrance-progress \{[^}]+\}/m)[0];
-  assert.match(row, /font-family: "Arial Black"/);
-  assert.match(row, /font-size: 24px/);
-  assert.match(row, /font-weight: 900/);
+  assert.match(row, /right: 0/);
+  assert.match(row, /left: 0/);
   assert.match(row, /top: calc\(100% \+ 18px\)/);
-  assert.match(css, /repeat\(var\(--entrance-cells, 6\), minmax\(0, 1fr\)\)/);
+  assert.match(css, /repeat\(var\(--entrance-cells, 7\), minmax\(0, 1fr\)\)/);
   assert.match(componentSource, /"--entrance-cells": COVER_PROGRESS_CELLS/);
-  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents/);
+  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents|strip-entrance-percent/);
 });
 test("the loading row uses saved profile ink and rejects invalid CSS colors", () => {
   for (const [inkColor, expected] of [["#D7FF00", "#D7FF00"], ["#FF4FA3", "#FF4FA3"], ["url(unsafe)", "#FFFFFF"], [undefined, "#FFFFFF"]]) {
@@ -156,14 +155,12 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(page,/entranceStrip.cover.kind === "image" && publishedCoverReady/);
   assert.match(componentSource,/entranceLoadPercent\(settledAssets, totalAssets\)/);
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
-  assert.match(css,/font-variant-numeric: tabular-nums/);
-  const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('.strip-entrance-percent {'));
+  const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('html.published-content-loading,'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
   assert.match(readoutCss,/top: calc\(100% \+ 18px\)/);
   assert.match(readoutCss,/right: 0;/);
-  assert.match(readoutCss,/gap: 10px;/);
-  assert.match(readoutCss,/white-space: nowrap;/);
-  assert.match(css,/\.strip-entrance-percent-value\s*\{[^}]*width: 3ch;\s*text-align: right;/);
+  assert.match(readoutCss,/gap: 4px;/);
+  assert.doesNotMatch(readoutCss,/strip-entrance-percent/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
   assert.match(componentSource,/!revealing \|\| displayPercent !== 100 \|\| !centered \|\| requestPending/);
 });

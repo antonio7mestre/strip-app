@@ -91,7 +91,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
     const sync = () => {
       const viewport = window.visualViewport;
       const layout = coverEntranceLayout(window.innerWidth, viewport?.height ?? window.innerHeight,
-        viewport?.offsetTop ?? 0, aspectRatio, initialOrigin);
+        viewport?.offsetTop ?? 0, aspectRatio);
       Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
         width: layout.width + "px", height: layout.height + "px" });
     };
@@ -104,7 +104,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
       window.visualViewport?.removeEventListener("resize", sync);
       window.visualViewport?.removeEventListener("scroll", sync);
     };
-  }, [aspectRatio, initialOrigin]);
+  }, [aspectRatio]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -112,8 +112,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
     const target = stage.getBoundingClientRect();
     if (!stage.animate || !target.width || !target.height) { setCentered(true); return; }
     const animation = stage.animate([
-      { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0)` },
-      { transform: "translate3d(0, 0, 0)" },
+      { transform: `translate3d(${initialOrigin.left - target.left}px, ${initialOrigin.top - target.top}px, 0) scale(${initialOrigin.width / target.width}, ${initialOrigin.height / target.height})` },
+      { transform: "translate3d(0, 0, 0) scale(1, 1)" },
     ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "both" });
     animation.onfinish = () => {
       // The waiting square travels with the cover; count real progress on arrival.
@@ -191,7 +191,6 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
             {Array.from({ length: COVER_PROGRESS_CELLS }, (_, index) => <span key={index}
               className={index < filled ? "is-filled" : index === 0 && filled === 0 ? "is-waiting" : ""} />)}
           </div>
-          <span className="strip-entrance-percent" aria-hidden="true"><span className="strip-entrance-percent-value">{displayPercent}</span>%</span>
         </div>
       </div>
     </div>

@@ -2504,13 +2504,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   left: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  white-space: nowrap;
   color: var(--entrance-a);
-  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
-  font-size: 24px;
-  font-weight: 900;
-  line-height: 1;
   opacity: 0;
   transition: opacity 180ms ease;
   pointer-events: none;
@@ -2521,7 +2515,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   display: grid;
   flex: 1;
   min-width: 0;
-  grid-template-columns: repeat(var(--entrance-cells, 6), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--entrance-cells, 7), minmax(0, 1fr));
   gap: 4px;
 }
 .strip-entrance-squares span {
@@ -2537,18 +2531,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 @keyframes cover-first-square-blink {
   from { opacity: 1; }
   to { opacity: 0.25; }
-}
-.strip-entrance-percent {
-  display: inline-flex;
-  align-items: baseline;
-  flex: none;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-}
-.strip-entrance-percent-value {
-  /* Reserve all three digits so the label and percent sign never shift. */
-  width: 3ch;
-  text-align: right;
 }
 html.published-content-loading,
 html.published-content-loading body,
