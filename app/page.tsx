@@ -183,6 +183,7 @@ type PublishedStripDetail = {
   blocks: StripBlock[];
   endingStyle: StripEndingStyle;
   viewerIsOwner: boolean;
+  profileBackground?: string;
 };
 type DraftStripSummary = {
   id: string;
@@ -6741,7 +6742,7 @@ export default function Home() {
         cover={entranceStrip.cover}
         origin={openingCover?.origin}
         dock={openingCover?.dock}
-        backgroundColor={openingCover?.background}
+        backgroundColor={openingCover?.background ?? openedPublishedStrip?.profileBackground}
         requestPending={view !== "published"}
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
           (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}

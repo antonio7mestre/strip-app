@@ -76,9 +76,11 @@ export async function GET(
 
   const row = await env.DB.prepare(
       `SELECT s.id, s.owner_id, s.title, s.cover_kind, s.cover_color,
-        s.cover_shape, s.cover_alt, s.content_json, s.published_at, u.username
+        s.cover_shape, s.cover_alt, s.content_json, s.published_at, u.username,
+        p.background AS profile_background
        FROM strips s
        LEFT JOIN users u ON u.id = s.owner_id
+       LEFT JOIN profiles p ON p.user_id = s.owner_id
        WHERE s.id = ?`,
     )
       .bind(id)
@@ -93,6 +95,7 @@ export async function GET(
           content_json: string;
           published_at: number;
           username: string | null;
+          profile_background: string | null;
       }>();
   if (!row) return new Response("Not found", { status: 404 });
   // Published content is public by ID on every app host. The reader and its
@@ -187,6 +190,8 @@ export async function GET(
       username: row.username,
       viewerIsOwner: viewer?.id === row.owner_id,
       title: row.title,
+      profileBackground: typeof row.profile_background === "string" && /^#[\da-f]{6}$/i.test(row.profile_background)
+        ? row.profile_background : "#000000",
       cover:
         row.cover_kind === "image"
           ? {
