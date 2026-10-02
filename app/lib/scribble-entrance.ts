@@ -18,7 +18,7 @@ export function scribbleSurfaceBounds({
   return { top: scrollY - inset, height: Math.ceil(Math.max(viewportHeight + inset, isPhone ? phoneHeight : 0)) + 8 };
 }
 
-export function installScribbleSurface(host: HTMLElement) {
+export function installScribbleSurface(host: HTMLElement, onSync?: () => void) {
   let disposed = false;
   // Text pages normally ask Safari for a solid edge tint. Suspend that hint
   // while real ink is painting there; preserve ongoing content/color updates.
@@ -45,6 +45,7 @@ export function installScribbleSurface(host: HTMLElement) {
     if (host.style.getPropertyValue("--entrance-label-bottom") !== labelBottom) {
       host.style.setProperty("--entrance-label-bottom", labelBottom);
     }
+    onSync?.();
   };
   sync();
   // The parent's existing leading-media anchor runs in the same layout commit.
@@ -54,6 +55,15 @@ export function installScribbleSurface(host: HTMLElement) {
   window.addEventListener("resize", sync, { passive: true });
   window.visualViewport?.addEventListener("resize", sync);
   window.visualViewport?.addEventListener("scroll", sync);
+  // The loader handoff can change the document's scroll origin in a layout
+  // effect. Reposition before paint, not only after Safari's scroll event.
+  // Other consumers, including the share-sheet backdrop, stay unchanged.
+  const resizeObserver = onSync && typeof ResizeObserver !== "undefined" ? new ResizeObserver(sync) : null;
+  if (document.documentElement) resizeObserver?.observe(document.documentElement);
+  if (document.body) resizeObserver?.observe(document.body);
+  const rootObserver = onSync && typeof MutationObserver !== "undefined" ? new MutationObserver(sync) : null;
+  if (document.documentElement) rootObserver?.observe(document.documentElement,
+    { attributes: true, attributeFilter: ["class", "style"] });
   return () => {
     if (disposed) return;
     disposed = true;
@@ -62,6 +72,8 @@ export function installScribbleSurface(host: HTMLElement) {
     window.removeEventListener("resize", sync);
     window.visualViewport?.removeEventListener("resize", sync);
     window.visualViewport?.removeEventListener("scroll", sync);
+    resizeObserver?.disconnect();
+    rootObserver?.disconnect();
     if (themeName && !theme?.hasAttribute("name")) theme?.setAttribute("name", themeName);
   };
 }

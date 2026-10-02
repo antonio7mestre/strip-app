@@ -90,11 +90,11 @@ test("renders the title, centered cover and loading number, with no squares or p
 });
 test("the number aligns with the cover's right edge at the same vertical midpoint", () => {
   const row = [...css.matchAll(/^\.strip-entrance-progress \{[^}]+\}/gm)]
-    .map(match => match[0]).find(rule => rule.includes("position: fixed"));
+    .map(match => match[0]).find(rule => rule.includes("position: absolute"));
   const type = css.match(/\.strip-entrance-title,\s*\.strip-entrance-progress \{[^}]+\}/)[0];
-  assert.match(row, /position: fixed;/);
-  assert.match(row, /top: calc\(\(var\(--entrance-cover-bottom, 75dvh\) \+ var\(--entrance-viewport-bottom, 100dvh\) - env\(safe-area-inset-bottom\)\) \/ 2\)/);
-  assert.match(row, /right: calc\(\(100% - var\(--entrance-cover-width, min\(320px, 74vw, 42dvh\)\)\) \/ 2\)/);
+  assert.match(row, /position: absolute;/);
+  assert.match(row, /top: calc\(\(var\(--entrance-cover-bottom, 75dvh\) \+ var\(--entrance-viewport-bottom, 100dvh\) - env\(safe-area-inset-bottom\)\) \/ 2 - var\(--entrance-surface-top, 0px\)\)/);
+  assert.match(row, /right: calc\(\(100vw - var\(--entrance-cover-width, min\(320px, 74vw, 42dvh\)\)\) \/ 2 \+ var\(--entrance-surface-right, 0px\)\)/);
   assert.match(row, /transform: translateY\(-50%\)/);
   assert.doesNotMatch(row, /left:/);
   assert.match(componentSource, /setProperty\("--entrance-cover-bottom", \(layout.top \+ layout.height\) \+ "px"\)/);
@@ -119,7 +119,7 @@ test("the title uses the actual Strip name and sits halfway between the safe top
   assert.match(componentSource, /setProperty\("--entrance-cover-top", layout.top \+ "px"\)/);
   assert.match(componentSource, /setProperty\("--entrance-viewport-top", \(viewport\?\.offsetTop \?\? 0\) \+ "px"\)/);
   const title = css.match(/^\.strip-entrance-title \{[^}]+\}/m)[0];
-  assert.match(title, /top: calc\(\(var\(--entrance-viewport-top, 0px\) \+ env\(safe-area-inset-top\) \+ var\(--entrance-cover-top, 25dvh\)\) \/ 2\)/);
+  assert.match(title, /top: calc\(\(var\(--entrance-viewport-top, 0px\) \+ env\(safe-area-inset-top\) \+ var\(--entrance-cover-top, 25dvh\)\) \/ 2 - var\(--entrance-surface-top, 0px\)\)/);
   assert.match(title, /transform: translate\(-50%, -50%\)/);
   assert.match(title, /text-align: center/);
   assert.match(title, /text-wrap: balance/);
@@ -216,7 +216,7 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('html.published-content-loading,'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
   assert.match(readoutCss,/var\(--entrance-cover-bottom, 75dvh\)/);
-  assert.match(readoutCss,/right: calc\(\(100% - var\(--entrance-cover-width/);
+  assert.match(readoutCss,/right: calc\(\(100vw - var\(--entrance-cover-width/);
   assert.match(componentSource,/className="strip-entrance-percent-value">\{displayPercent\}<\/span>/);
   assert.doesNotMatch(readoutCss,/strip-entrance-squares/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
@@ -254,7 +254,10 @@ test("the reveal only animates the overlay, never the actual strip or footer", (
   assert.match(componentSource, /fadeCoverEntrance\(host/);
   assert.match(entranceCss, /--entrance-safe-top: env\(safe-area-inset-top\)/);
   assert.doesNotMatch(entranceCss, /html.published-content-loading[^}]*background:/);
-  assert.match(componentSource, /installScribbleSurface\(host\)/);
+  assert.match(componentSource, /installScribbleSurface\(host, \(\) => syncStageRef.current\(\)\)/);
+  assert.doesNotMatch(entranceCss, /position: fixed;/,
+    "the loader cannot mix fixed descendants with its document-painted surface");
+  assert.match(componentSource, /left: \(layout.left - surfaceLeft\) \+ "px", top: \(layout.top - surfaceTop\) \+ "px"/);
 });
 
 test("text-first reader reveals the real edge underneath its opaque cover surface before fading", () => {

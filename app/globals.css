@@ -2477,7 +2477,9 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   pointer-events: none;
 }
 .strip-entrance-stage {
-  position: fixed;
+  /* Keep cover and labels inside the same document-painted surface. Fixed
+     descendants can be composited a frame apart when Safari moves the page. */
+  position: absolute;
   left: 13%;
   top: 25dvh;
   width: 74%;
@@ -2515,10 +2517,10 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   letter-spacing: 0;
 }
 .strip-entrance-title {
-  position: fixed;
+  position: absolute;
   z-index: 3;
-  top: calc((var(--entrance-viewport-top, 0px) + env(safe-area-inset-top) + var(--entrance-cover-top, 25dvh)) / 2);
-  left: 50%;
+  top: calc((var(--entrance-viewport-top, 0px) + env(safe-area-inset-top) + var(--entrance-cover-top, 25dvh)) / 2 - var(--entrance-surface-top, 0px));
+  left: calc(50vw - var(--entrance-surface-left, 0px));
   width: var(--entrance-cover-width, min(320px, 74vw, 42dvh));
   max-width: var(--entrance-cover-width, min(320px, 74vw, 42dvh));
   margin: 0;
@@ -2533,10 +2535,10 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 }
 .strip-entrance.is-centered.is-cover-visible .strip-entrance-title { opacity: 1; }
 .strip-entrance-progress {
-  position: fixed;
+  position: absolute;
   z-index: 3;
-  top: calc((var(--entrance-cover-bottom, 75dvh) + var(--entrance-viewport-bottom, 100dvh) - env(safe-area-inset-bottom)) / 2);
-  right: calc((100% - var(--entrance-cover-width, min(320px, 74vw, 42dvh))) / 2);
+  top: calc((var(--entrance-cover-bottom, 75dvh) + var(--entrance-viewport-bottom, 100dvh) - env(safe-area-inset-bottom)) / 2 - var(--entrance-surface-top, 0px));
+  right: calc((100vw - var(--entrance-cover-width, min(320px, 74vw, 42dvh))) / 2 + var(--entrance-surface-right, 0px));
   transform: translateY(-50%);
   opacity: 0;
   transition: opacity 180ms ease;

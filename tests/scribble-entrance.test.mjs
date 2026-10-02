@@ -5,6 +5,18 @@ import { createSquareGrid, chooseScribbleColor, startScribble, scribbleSurfaceBo
 test("the paint surface follows the existing anchor without scrolling or retaining listeners", () => {
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   const events = new Map(), viewportEvents = new Map();
+  const observedResize = [], observedRoot = [];
+  let resizeSync, rootSync, resizeDisconnected = false, rootDisconnected = false;
+  globalThis.ResizeObserver = class {
+    constructor(callback) { resizeSync = callback; }
+    observe(target) { observedResize.push(target); }
+    disconnect() { resizeDisconnected = true; }
+  };
+  globalThis.MutationObserver = class {
+    constructor(callback) { rootSync = callback; }
+    observe(target, options) { observedRoot.push({ target, options }); }
+    disconnect() { rootDisconnected = true; }
+  };
   let nextFrame, cancelled = false;
   globalThis.window = {
     innerWidth:414,innerHeight:714,screen:{width:414,height:896},scrollY:0,
@@ -23,15 +35,26 @@ test("the paint surface follows the existing anchor without scrolling or retaini
     removeAttribute: name => attributes.delete(name),
     setAttribute: (name, value) => attributes.set(name, value),
   };
-  globalThis.document = {getElementById: () => theme};
+  const root = {}, body = {};
+  globalThis.document = {getElementById: () => theme, documentElement: root, body};
   const properties = new Map();
   const host={style:{top:"",height:"",getPropertyValue:name=>properties.get(name),setProperty:(name,value)=>properties.set(name,value)},closest:()=>({})};
-  const dispose=installScribbleSurface(host);
+  const synchronizedTops = [];
+  const dispose=installScribbleSurface(host, () => synchronizedTops.push(host.style.top));
   try {
     assert.equal(attributes.has("name"), false);
     theme.setAttribute("content", "#FF00FF");
     assert.deepEqual([host.style.top,host.style.height],["-62px","904px"]);
     assert.equal(properties.get("--entrance-label-bottom"),"140px");
+    assert.deepEqual(observedResize, [root, body]);
+    assert.deepEqual(observedRoot, [{ target: root, options: { attributes: true, attributeFilter: ["class", "style"] } }]);
+    // The reader's layout effect moves the page before any native scroll event.
+    // Updating root styles must synchronize the whole loader before paint.
+    window.scrollY=120; rootSync();
+    assert.equal(host.style.top,"58px");
+    assert.equal(synchronizedTops.at(-1),"58px");
+    window.scrollY=0; resizeSync();
+    assert.equal(host.style.top,"-62px");
     window.scrollY=62; nextFrame();
     assert.deepEqual([host.style.top,host.style.height],["0px","904px"]);
     window.innerHeight=754;viewportEvents.get("resize")();
@@ -42,14 +65,19 @@ test("the paint surface follows the existing anchor without scrolling or retaini
     assert.equal(properties.get("--entrance-label-bottom"),"170px");
     const lateScroll=events.get("scroll");
     dispose();window.scrollY=500;lateScroll();
+    const syncCount = synchronizedTops.length;
+    rootSync(); resizeSync();
+    assert.equal(synchronizedTops.length, syncCount);
     assert.equal(host.style.top,"0px");
     assert.equal(events.size,0);assert.equal(viewportEvents.size,0);assert.ok(cancelled);
     assert.equal(attributes.get("name"), "theme-color");
     assert.equal(attributes.get("content"), "#FF00FF");
+    assert.ok(resizeDisconnected && rootDisconnected);
   } finally {
     dispose();
     delete globalThis.window;delete globalThis.getComputedStyle;delete globalThis.document;
     delete globalThis.requestAnimationFrame;delete globalThis.cancelAnimationFrame;
+    delete globalThis.ResizeObserver;delete globalThis.MutationObserver;
     if(originalNavigator)Object.defineProperty(globalThis,"navigator",originalNavigator);
     else delete globalThis.navigator;
   }

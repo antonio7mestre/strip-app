@@ -26,6 +26,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
   const titleRef = useRef<HTMLHeadingElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  const syncStageRef = useRef<() => void>(() => {});
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
   const [initialBackground] = useState(backgroundColor);
@@ -57,7 +58,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
   useLayoutEffect(() => {
     const host = surfaceRef.current;
     if (!host) return;
-    const removeSurface = installScribbleSurface(host);
+    const removeSurface = installScribbleSurface(host, () => syncStageRef.current());
     const theme = document.getElementById("strip-theme-color");
     const name = theme?.getAttribute("name");
     if (name) theme?.removeAttribute("name");
@@ -99,8 +100,13 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
       const viewport = window.visualViewport;
       const layout = coverEntranceLayout(window.innerWidth, viewport?.height ?? window.innerHeight,
         viewport?.offsetTop ?? 0, aspectRatio);
-      Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
+      const surface = surfaceRef.current?.getBoundingClientRect();
+      const surfaceLeft = surface?.left ?? 0, surfaceTop = surface?.top ?? 0;
+      Object.assign(stage.style, { left: (layout.left - surfaceLeft) + "px", top: (layout.top - surfaceTop) + "px",
         width: layout.width + "px", height: layout.height + "px" });
+      surfaceRef.current?.style.setProperty("--entrance-surface-left", surfaceLeft + "px");
+      surfaceRef.current?.style.setProperty("--entrance-surface-top", surfaceTop + "px");
+      surfaceRef.current?.style.setProperty("--entrance-surface-right", ((surface?.right ?? window.innerWidth) - window.innerWidth) + "px");
       surfaceRef.current?.style.setProperty("--entrance-cover-width", layout.width + "px");
       surfaceRef.current?.style.setProperty("--entrance-cover-top", layout.top + "px");
       surfaceRef.current?.style.setProperty("--entrance-cover-bottom", (layout.top + layout.height) + "px");
@@ -112,6 +118,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
         fittedWidth = layout.width;
       }
     };
+    syncStageRef.current = sync;
     const fontsReady = () => { fittedWidth = -1; sync(); };
     sync();
     void document.fonts?.ready.then(fontsReady);
@@ -121,6 +128,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
     window.visualViewport?.addEventListener("scroll", sync);
     return () => {
       active = false;
+      syncStageRef.current = () => {};
       document.fonts?.removeEventListener("loadingdone", fontsReady);
       window.removeEventListener("resize", sync);
       window.visualViewport?.removeEventListener("resize", sync);
