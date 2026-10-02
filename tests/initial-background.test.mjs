@@ -111,5 +111,5 @@ test("reload metadata only sets the existing loader background and retains click
   const loader = read("app/components/StripEntrance.tsx");
   assert.match(loader, /useState\(backgroundColor\)/);
   assert.match(loader, /dropCoverDock/);
-  assert.doesNotMatch(loader, /strip-entrance-line|strip-entrance-title|strip-entrance-edge/);
+  assert.doesNotMatch(loader, /strip-entrance-line|strip-entrance-edge/);
 });

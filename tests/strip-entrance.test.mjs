@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
-import { profileInk } from "../app/lib/profile.ts";
+import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk } from "../app/lib/profile.ts";
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -66,10 +66,10 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
-      : name === "@/app/lib/profile" ? { profileInk } : require(name) });
-test("renders a centered cover and just the loading number, with no squares or percent sign", () => {
+      : name === "@/app/lib/profile" ? { DEFAULT_PROFILE, PROFILE_FONTS, profileInk } : require(name) });
+test("renders the title, centered cover and loading number, with no squares or percent sign", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
-    cover: { kind: "color", color: "#FF3366" }, blocks: [],
+    cover: { kind: "color", color: "#FF3366" }, title: "Slow Sunday", blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
     mediaReady: true, revealing: false, onCoverSettled() {}, onExitComplete() {},
     settledAssets:97,totalAssets:100,
@@ -80,6 +80,7 @@ test("renders a centered cover and just the loading number, with no squares or p
   assert.ok(html.includes("--entrance-background:#000000"));
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
+  assert.match(html, /<h1 class="strip-entrance-title">Slow Sunday<\/h1>/);
   assert.match(html, /class="strip-entrance-percent-value">0<\/span>/);
   assert.match(html, /data-value="0" data-waiting="true" aria-hidden="true"/);
   assert.match(html, /data-load-progress="97"/);
@@ -87,18 +88,35 @@ test("renders a centered cover and just the loading number, with no squares or p
   assert.doesNotMatch(html, /strip-entrance-squares|%|is-filled/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
-test("the bold number stays in the screen's lower-right corner outside the moving photo", () => {
-  const row = css.match(/^\.strip-entrance-progress \{[^}]+\}/m)[0];
+test("the bold number is centered below the photo using the same type as the title", () => {
+  const row = [...css.matchAll(/^\.strip-entrance-progress \{[^}]+\}/gm)]
+    .map(match => match[0]).find(rule => rule.includes("position: fixed"));
+  const type = css.match(/\.strip-entrance-title,\s*\.strip-entrance-progress \{[^}]+\}/)[0];
   assert.match(row, /position: fixed;/);
-  assert.match(row, /right: calc\(24px \+ env\(safe-area-inset-right\)\)/);
-  assert.match(row, /bottom: calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.match(row, /font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif/);
-  assert.match(row, /font-size: 24px/);
-  assert.match(row, /font-weight: 900/);
-  assert.match(row, /font-variant-numeric: tabular-nums/);
-  assert.match(css, /\.strip-entrance-percent \{[^}]*width: 3ch;[^}]*text-align: right;/);
-  assert.match(componentSource, /<\/div>\s*<\/div>\s*<div className="strip-entrance-progress"/);
-  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents|strip-entrance-squares|COVER_PROGRESS_CELLS|cover-first-square-blink/);
+  assert.match(row, /top: calc\(\(var\(--entrance-cover-bottom, 75dvh\) \+ var\(--entrance-viewport-bottom, 100dvh\) - env\(safe-area-inset-bottom\)\) \/ 2\)/);
+  assert.match(row, /left: 50%/);
+  assert.match(row, /transform: translate\(-50%, -50%\)/);
+  assert.match(componentSource, /setProperty\("--entrance-cover-bottom", \(layout.top \+ layout.height\) \+ "px"\)/);
+  assert.match(componentSource, /setProperty\("--entrance-viewport-bottom",\s*\(\(viewport\?\.offsetTop \?\? 0\) \+ \(viewport\?\.height \?\? window.innerHeight\)\) \+ "px"\)/);
+  assert.match(type, /font-family: var\(--entrance-font, "Arial Black", "Helvetica Neue", Arial, sans-serif\)/);
+  assert.match(type, /font-size: 24px/);
+  assert.match(type, /font-weight: 700/);
+  assert.match(type, /font-variant-numeric: tabular-nums/);
+  assert.match(css, /\.strip-entrance-percent \{[^}]*width: 3ch;[^}]*text-align: center;/);
+  assert.match(componentSource, /<\/div>\s*<\/div>\s*<div ref=\{progressRef\} className="strip-entrance-progress"/);
+  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-accents|strip-entrance-squares|COVER_PROGRESS_CELLS|cover-first-square-blink/);
+});
+test("the title uses the actual Strip name and sits halfway between the safe top and cover", () => {
+  assert.match(page, /title=\{entranceStrip.title\}/);
+  assert.match(componentSource, /setProperty\("--entrance-cover-top", layout.top \+ "px"\)/);
+  assert.match(componentSource, /setProperty\("--entrance-viewport-top", \(viewport\?\.offsetTop \?\? 0\) \+ "px"\)/);
+  const title = css.match(/^\.strip-entrance-title \{[^}]+\}/m)[0];
+  assert.match(title, /top: calc\(\(var\(--entrance-viewport-top, 0px\) \+ env\(safe-area-inset-top\) \+ var\(--entrance-cover-top, 25dvh\)\) \/ 2\)/);
+  assert.match(title, /transform: translateY\(-50%\)/);
+  assert.match(title, /text-align: center/);
+  assert.match(title, /text-wrap: balance/);
+  assert.match(title, /overflow-wrap: anywhere/);
+  assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-title \{ opacity: 1; \}/);
 });
 test("the loading row uses saved profile ink and rejects invalid CSS colors", () => {
   for (const [inkColor, expected] of [["#D7FF00", "#D7FF00"], ["#FF4FA3", "#FF4FA3"], ["url(unsafe)", "#FFFFFF"], [undefined, "#FFFFFF"]]) {
@@ -111,6 +129,19 @@ test("the loading row uses saved profile ink and rejects invalid CSS colors", ()
   }
   assert.match(page, /ink: profileTextColor\(visibleProfile\)/);
   assert.match(page, /inkColor=\{openingCover\?\.ink \?\? openedPublishedStrip\?\.profileTextColor\}/);
+});
+test("both loader labels use the author's selected profile font on clicks and direct loads", () => {
+  for (const profileFont of [...PROFILE_FONTS.map(({ id }) => id), undefined, "url(unsafe)"]) {
+    const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
+      cover: { kind: "color", color: "#3155FF" }, profileFont,
+      settledAssets: 0, totalAssets: 1, revealing: false, onCoverSettled() {}, onExitComplete() {},
+    }));
+    const font = PROFILE_FONTS.find(({ id }) => id === profileFont)
+      ?? PROFILE_FONTS.find(({ id }) => id === DEFAULT_PROFILE.font);
+    assert.ok(html.includes(`--entrance-font:${font.family.replaceAll('"', '&quot;')}`));
+  }
+  assert.match(page, /font: visibleProfile.font/);
+  assert.match(page, /profileFont=\{openingCover\?\.font \?\? openedPublishedStrip\?\.profileFont\}/);
 });
 test("the first render uses contrasting monochrome ink and the originating profile background", () => {
   for (const backgroundColor of ["#FFFFFF", "#000000", "#FF8CCC", "#3155FF"]) {
@@ -142,6 +173,10 @@ test("readiness and timeout preserve the loading contract", () => {
   assert.doesNotMatch(componentSource, /sampleEntranceMedia|chooseScribbleColor|setInk/);
   assert.doesNotMatch(componentSource, /scrollTo|scrollBy|new Image|fetch\(/);
 });
+test("raw reload reveals the decoded photo, title and number together, without delayed CSS fades", () => {
+  assert.match(componentSource, /fadeInCover\(visualRef.current, \(\) => setCoverVisible\(true\), \[titleRef.current, progressRef.current\]\)/);
+  assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-title,\s*\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-progress \{ transition: none; \}/);
+});
 
 test("the percentage follows completed assets and never rounds unfinished loading to 100", () => {
   assert.equal(entranceLoadPercent(0,10),0);
@@ -160,8 +195,8 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('html.published-content-loading,'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
-  assert.match(readoutCss,/bottom: calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.match(readoutCss,/right: calc\(24px \+ env\(safe-area-inset-right\)\)/);
+  assert.match(readoutCss,/var\(--entrance-cover-bottom, 75dvh\)/);
+  assert.match(readoutCss,/left: 50%/);
   assert.match(componentSource,/className="strip-entrance-percent-value">\{displayPercent\}<\/span>/);
   assert.doesNotMatch(readoutCss,/strip-entrance-squares/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);

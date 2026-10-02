@@ -185,6 +185,7 @@ type PublishedStripDetail = {
   viewerIsOwner: boolean;
   profileBackground?: string;
   profileTextColor?: string;
+  profileFont?: StripProfile["font"];
 };
 type DraftStripSummary = {
   id: string;
@@ -2687,7 +2688,7 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [openingStripId, setOpeningStripId] = useState<string | null>(null);
   const [openingCover, setOpeningCover] = useState<{
-    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string; ink: string;
+    strip: PublishedStripSummary; origin?: CoverOrigin; dock?: CoverDockOrigin; background: string; ink: string; font: StripProfile["font"];
   } | null>(null);
   const openingCoverRequestRef = useRef<AbortController | null>(null);
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
@@ -5321,7 +5322,7 @@ export default function Home() {
     setBrowserPath(publishedPath);
     flushSync(() => {
       setOpeningStripId(strip.id);
-      setOpeningCover({ strip, origin, dock, background: visibleProfile.background, ink: profileTextColor(visibleProfile) });
+      setOpeningCover({ strip, origin, dock, background: visibleProfile.background, ink: profileTextColor(visibleProfile), font: visibleProfile.font });
       setOpenedPublishedStrip(null);
       setPublishedCoverSettledKey(null);
       setPublishedLoaderDismissedKey(null);
@@ -6741,10 +6742,12 @@ export default function Home() {
     ? createPortal(
       <StripEntrance key={entranceStrip.id}
         cover={entranceStrip.cover}
+        title={entranceStrip.title}
         origin={openingCover?.origin}
         dock={openingCover?.dock}
         backgroundColor={openingCover?.background ?? openedPublishedStrip?.profileBackground}
         inkColor={openingCover?.ink ?? openedPublishedStrip?.profileTextColor}
+        profileFont={openingCover?.font ?? openedPublishedStrip?.profileFont}
         requestPending={view !== "published"}
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
           (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}

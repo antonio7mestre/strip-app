@@ -4,17 +4,18 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { profileInk } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, type ProfileFont } from "@/app/lib/profile";
 import { COVER_MOVE_MS, coverEntranceLayout, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
-export function StripEntrance({ cover, settledAssets, totalAssets,
-  revealing, requestPending = false, origin, dock, backgroundColor = "#000000", inkColor, onCoverSettled, onExitComplete,
+export function StripEntrance({ cover, title = "Untitled", settledAssets, totalAssets,
+  revealing, requestPending = false, origin, dock, backgroundColor = "#000000", inkColor, profileFont, onCoverSettled, onExitComplete,
 }: {
-  cover: Cover; settledAssets: number; totalAssets: number; revealing: boolean;
+  cover: Cover; title?: string; settledAssets: number; totalAssets: number; revealing: boolean;
   requestPending?: boolean; origin?: CoverOrigin; dock?: CoverDockOrigin; backgroundColor?: string;
   inkColor?: string;
+  profileFont?: ProfileFont;
   onCoverSettled: () => void; onExitComplete: () => void;
 }) {
   const coverRef = useRef<HTMLImageElement>(null);
@@ -22,11 +23,15 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const surfaceRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const [initialOrigin] = useState(origin);
   const [initialDock] = useState(dock);
   const [initialBackground] = useState(backgroundColor);
   const [ink] = useState(() => inkColor && /^#[\da-f]{6}$/i.test(inkColor) ? inkColor : profileInk(initialBackground));
+  const [font] = useState(() => (PROFILE_FONTS.find(({ id }) => id === profileFont)
+    ?? PROFILE_FONTS.find(({ id }) => id === DEFAULT_PROFILE.font)!).family);
   const [centered, setCentered] = useState(!origin);
   const [dockDropped, setDockDropped] = useState(!dock);
   const [coverReady, setCoverReady] = useState(cover.kind === "color" || Boolean(origin?.snapshot));
@@ -94,6 +99,11 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
         viewport?.offsetTop ?? 0, aspectRatio);
       Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
         width: layout.width + "px", height: layout.height + "px" });
+      surfaceRef.current?.style.setProperty("--entrance-cover-top", layout.top + "px");
+      surfaceRef.current?.style.setProperty("--entrance-cover-bottom", (layout.top + layout.height) + "px");
+      surfaceRef.current?.style.setProperty("--entrance-viewport-top", (viewport?.offsetTop ?? 0) + "px");
+      surfaceRef.current?.style.setProperty("--entrance-viewport-bottom",
+        ((viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)) + "px");
     };
     sync();
     window.addEventListener("resize", sync);
@@ -144,8 +154,8 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
   const coverReadyToAppear = coverReady || coverUnavailable;
 
   useLayoutEffect(() => {
-    if (initialOrigin || !coverReadyToAppear || !visualRef.current) return;
-    return fadeInCover(visualRef.current, () => setCoverVisible(true));
+    if (initialOrigin || !coverReadyToAppear || !visualRef.current || !titleRef.current || !progressRef.current) return;
+    return fadeInCover(visualRef.current, () => setCoverVisible(true), [titleRef.current, progressRef.current]);
   }, [initialOrigin, coverReadyToAppear]);
 
   const counterRef = useRef<ReturnType<typeof startEntranceCounter> | null>(null);
@@ -166,11 +176,12 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
 
   return (
     <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
-      style={{ "--entrance-a": ink, "--entrance-background": initialBackground } as CSSProperties}
+      style={{ "--entrance-a": ink, "--entrance-background": initialBackground, "--entrance-font": font } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
       {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
         aria-hidden="true" inert dangerouslySetInnerHTML={{ __html: initialDock.markup }} /> : null}
+      <h1 ref={titleRef} className="strip-entrance-title">{title.trim() || "Untitled"}</h1>
       <div className="strip-entrance-stage" ref={stageRef}>
         <div className="strip-entrance-cover" ref={visualRef}
           style={{ boxShadow: initialOrigin?.boxShadow,
@@ -184,7 +195,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
           ) : null}
         </div>
       </div>
-      <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
+      <div ref={progressRef} className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
         <span className="strip-entrance-percent" data-value={displayPercent} data-waiting={displayPercent === 0} aria-hidden="true">
           <span className="strip-entrance-percent-value">{displayPercent}</span>

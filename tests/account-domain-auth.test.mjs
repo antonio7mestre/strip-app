@@ -24,12 +24,12 @@ function fixture() {
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT, phone_e164 TEXT, last_seen_at INTEGER);
-    CREATE TABLE profiles (user_id TEXT, background TEXT, accent TEXT);
+    CREATE TABLE profiles (user_id TEXT, background TEXT, accent TEXT, font TEXT);
     CREATE TABLE auth_sessions (token_hash TEXT PRIMARY KEY, user_id TEXT, created_at INTEGER, last_seen_at INTEGER, expires_at INTEGER);
     CREATE TABLE drafts (id TEXT, owner_id TEXT, title TEXT, content_json TEXT, created_at INTEGER, updated_at INTEGER);
     CREATE TABLE strips (id TEXT, owner_id TEXT, title TEXT, cover_kind TEXT, cover_color TEXT, cover_shape TEXT, cover_alt TEXT, content_json TEXT, published_at INTEGER);
     INSERT INTO users VALUES ('owner-antonio', 'antonio', '+12025550100', 0), ('owner-friend', 'friend', '+12025550101', 0);
-    INSERT INTO profiles VALUES ('owner-antonio', '#3155FF', '#FFFFFF'), ('owner-friend', '#FF8CCC', '#330011');
+    INSERT INTO profiles VALUES ('owner-antonio', '#3155FF', '#FFFFFF', 'sans'), ('owner-friend', '#FF8CCC', '#330011', 'serif');
     INSERT INTO drafts VALUES ('draft-12345', 'owner-antonio', 'Private', '[]', 1, 1);
     INSERT INTO strips VALUES ('strip-12345', 'owner-friend', 'Public', 'color', '#3155FF', 'square', NULL, '[]', 1);
   `);
@@ -114,6 +114,7 @@ test("other authors' published content supports workspace history/posters withou
   assert.equal(strip.viewerIsOwner, false);
   assert.equal(strip.profileBackground, "#FF8CCC", "reload uses the author color, not the viewer color");
   assert.equal(strip.profileTextColor, "#330011", "loading blocks use the author ink, not the viewer ink");
+  assert.equal(strip.profileFont, "serif", "loading type uses the author font, not the viewer font");
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   const clone = await f.api("app/api/strips/[id]/draft/route.ts").POST(request("antonio.striiip.com", cookie, "/api/strips/strip-12345/draft", { method: "POST", headers: { origin: "https://antonio.striiip.com" } }), context);
   assert.equal(clone.status, 404);
@@ -133,6 +134,7 @@ test("Strip reload backgrounds validate old or missing profile colors", async ()
   const { strip } = await (await api.GET(request("striiip.com", ""), context)).json();
   assert.equal(strip.profileBackground, "#000000");
   assert.equal(strip.profileTextColor, "#FFFFFF");
+  assert.equal(strip.profileFont, "letter");
   f.db.close();
 });
 
@@ -145,6 +147,18 @@ test("reload ink follows the profile's readable accent and safely handles legacy
     const { strip } = await (await api.GET(request("striiip.com", ""), context)).json();
     const valid = /^#[\da-f]{6}$/i.test(accent ?? "") ? accent : "#000000";
     assert.equal(strip.profileTextColor, profile.profileTextColor({ background: "#FF8CCC", accent: valid }));
+  }
+  f.db.close();
+});
+
+test("direct Strip loading accepts every profile font and falls back for invalid or absent fonts", async () => {
+  const f = fixture();
+  const api = f.api("app/api/strips/[id]/route.ts");
+  const context = { params: Promise.resolve({ id: "strip-12345" }) };
+  for (const font of [...profile.PROFILE_FONTS.map(({ id }) => id), "invalid", null]) {
+    f.db.prepare("UPDATE profiles SET font = ? WHERE user_id = 'owner-friend'").run(font);
+    const { strip } = await (await api.GET(request("striiip.com", ""), context)).json();
+    assert.equal(strip.profileFont, profile.PROFILE_FONTS.some(({ id }) => id === font) ? font : profile.DEFAULT_PROFILE.font);
   }
   f.db.close();
 });

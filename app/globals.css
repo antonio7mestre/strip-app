@@ -2497,29 +2497,53 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   object-fit: cover;
   pointer-events: none;
 }
+.strip-entrance-title,
 .strip-entrance-progress {
-  position: fixed;
-  z-index: 3;
-  right: calc(24px + env(safe-area-inset-right));
-  bottom: calc(24px + env(safe-area-inset-bottom));
   color: var(--entrance-a);
-  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--entrance-font, "Arial Black", "Helvetica Neue", Arial, sans-serif);
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: 0;
+}
+.strip-entrance-title {
+  position: fixed;
+  z-index: 3;
+  top: calc((var(--entrance-viewport-top, 0px) + env(safe-area-inset-top) + var(--entrance-cover-top, 25dvh)) / 2);
+  right: calc(24px + env(safe-area-inset-right));
+  left: calc(24px + env(safe-area-inset-left));
+  margin: 0;
+  transform: translateY(-50%);
+  line-height: 1.15;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+.strip-entrance.is-centered.is-cover-visible .strip-entrance-title { opacity: 1; }
+.strip-entrance-progress {
+  position: fixed;
+  z-index: 3;
+  top: calc((var(--entrance-cover-bottom, 75dvh) + var(--entrance-viewport-bottom, 100dvh) - env(safe-area-inset-bottom)) / 2);
+  left: 50%;
+  transform: translate(-50%, -50%);
   opacity: 0;
   transition: opacity 180ms ease;
   pointer-events: none;
 }
 .strip-entrance.is-centered.is-cover-visible .strip-entrance-progress { opacity: 1; }
 .strip-entrance.is-from-library .strip-entrance-progress { opacity: 1; transition: none; }
+/* Raw reloads use one shared reveal clock for decoded cover and both labels. */
+.strip-entrance:not(.is-from-library) .strip-entrance-title,
+.strip-entrance:not(.is-from-library) .strip-entrance-progress { transition: none; }
 .strip-entrance-percent {
   position: relative;
   display: block;
   width: 3ch;
-  text-align: right;
+  text-align: center;
 }
 .strip-entrance-percent-value {
   opacity: 0.25;

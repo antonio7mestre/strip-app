@@ -116,15 +116,17 @@ export function watchCoverImage(image: HTMLImageElement, onReady: () => void, on
   };
 }
 
-/** Direct loads only: show decoded pixels before releasing the progress bar. */
-export function fadeInCover(cover: HTMLElement, onComplete: () => void) {
+/** Direct loads only: reveal decoded cover pixels and labels on one clock. */
+export function fadeInCover(cover: HTMLElement, onComplete: () => void, labels: HTMLElement[] = []) {
   let frame = 0, started: number | null = null, disposed = false;
-  cover.style.opacity = "0";
+  const elements = [cover, ...labels];
+  const paint = (opacity: string) => { elements.forEach(element => { element.style.opacity = opacity; }); };
+  paint("0");
   const tick = (now: number) => {
     if (disposed) return;
     started ??= now;
     const t = Math.max(0, Math.min(1, (now - started) / COVER_APPEAR_MS));
-    cover.style.opacity = String(1 - Math.pow(1 - t, 3));
+    paint(String(1 - Math.pow(1 - t, 3)));
     if (t < 1) frame = requestAnimationFrame(tick);
     else onComplete();
   };

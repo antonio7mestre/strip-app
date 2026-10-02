@@ -50,7 +50,7 @@ test("the tray and cover keep their existing motion while the number stays separ
   assert.match(dockEffect, /\[initialDock\]/);
   assert.match(component, /setTarget\(centered && coverVisible \? loadPercent : 0\)/);
   assert.match(component, /\[coverVisible, setCoverVisible\] = useState\(Boolean\(origin\)\)/);
-  assert.match(component, /if \(initialOrigin \|\| !coverReadyToAppear \|\| !visualRef.current\) return/);
+  assert.match(component, /if \(initialOrigin \|\| !coverReadyToAppear \|\| !visualRef.current \|\| !titleRef.current \|\| !progressRef.current\) return/);
   assert.match(component, /if \(mounted.current\) flushSync\(\(\) => setCentered\(true\)\)/);
   assert.match(component, /requestPending \|\| !dockDropped/);
   assert.match(component, /scale\(\$\{initialOrigin.width \/ target.width\}, \$\{initialOrigin.height \/ target.height\}\)/);
@@ -81,19 +81,26 @@ test("the waiting zero eases in and blends into counting without resetting its p
     "starting the counter must not cancel the animation mid-cycle");
 });
 
-test("a raw-load cover finishes its quick fade before releasing progress", () => {
+test("a raw-load cover and labels share every fade frame before releasing progress", () => {
   let pending, done = 0;
   globalThis.requestAnimationFrame = fn => { pending = fn; return 1; };
   globalThis.cancelAnimationFrame = () => {};
   const cover = { style: {} };
-  const cancel = fadeInCover(cover, () => { assert.equal(cover.style.opacity, "1"); done++; });
+  const title = { style: {} }, number = { style: {} };
+  const cancel = fadeInCover(cover, () => { assert.equal(cover.style.opacity, "1"); done++; }, [title, number]);
   try {
     assert.equal(COVER_APPEAR_MS, 180);
     assert.equal(cover.style.opacity, "0");
+    assert.equal(title.style.opacity, "0");
+    assert.equal(number.style.opacity, "0");
     pending(0); pending(90);
     assert.ok(Number(cover.style.opacity) > 0 && Number(cover.style.opacity) < 1);
+    assert.equal(title.style.opacity, cover.style.opacity);
+    assert.equal(number.style.opacity, cover.style.opacity);
     assert.equal(done, 0);
     pending(180); assert.equal(done, 1);
+    assert.equal(title.style.opacity, "1");
+    assert.equal(number.style.opacity, "1");
     const late = pending;
     cancel(); late(1000); assert.equal(done, 1);
   } finally { cancel(); delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
