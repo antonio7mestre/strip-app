@@ -2529,8 +2529,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: fixed;
   z-index: 3;
   top: calc((var(--entrance-cover-bottom, 75dvh) + var(--entrance-viewport-bottom, 100dvh) - env(safe-area-inset-bottom)) / 2);
-  left: 50%;
-  transform: translate(-50%, -50%);
+  right: calc((100% - var(--entrance-cover-width, min(320px, 74vw, 42dvh))) / 2);
+  transform: translateY(-50%);
   opacity: 0;
   transition: opacity 180ms ease;
   pointer-events: none;
@@ -2544,7 +2544,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: relative;
   display: block;
   width: 3ch;
-  text-align: center;
+  text-align: right;
 }
 .strip-entrance-percent-value {
   opacity: 0.25;

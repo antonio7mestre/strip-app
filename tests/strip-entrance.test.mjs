@@ -88,21 +88,29 @@ test("renders the title, centered cover and loading number, with no squares or p
   assert.doesNotMatch(html, /strip-entrance-squares|%|is-filled/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
-test("the bold number is centered below the photo using the same type as the title", () => {
+test("the number aligns with the cover's right edge at the same vertical midpoint", () => {
   const row = [...css.matchAll(/^\.strip-entrance-progress \{[^}]+\}/gm)]
     .map(match => match[0]).find(rule => rule.includes("position: fixed"));
   const type = css.match(/\.strip-entrance-title,\s*\.strip-entrance-progress \{[^}]+\}/)[0];
   assert.match(row, /position: fixed;/);
   assert.match(row, /top: calc\(\(var\(--entrance-cover-bottom, 75dvh\) \+ var\(--entrance-viewport-bottom, 100dvh\) - env\(safe-area-inset-bottom\)\) \/ 2\)/);
-  assert.match(row, /left: 50%/);
-  assert.match(row, /transform: translate\(-50%, -50%\)/);
+  assert.match(row, /right: calc\(\(100% - var\(--entrance-cover-width, min\(320px, 74vw, 42dvh\)\)\) \/ 2\)/);
+  assert.match(row, /transform: translateY\(-50%\)/);
+  assert.doesNotMatch(row, /left:/);
   assert.match(componentSource, /setProperty\("--entrance-cover-bottom", \(layout.top \+ layout.height\) \+ "px"\)/);
   assert.match(componentSource, /setProperty\("--entrance-viewport-bottom",\s*\(\(viewport\?\.offsetTop \?\? 0\) \+ \(viewport\?\.height \?\? window.innerHeight\)\) \+ "px"\)/);
   assert.match(type, /font-family: var\(--entrance-font, "Arial Black", "Helvetica Neue", Arial, sans-serif\)/);
   assert.match(type, /font-size: 24px/);
   assert.match(type, /font-weight: 700/);
   assert.match(type, /font-variant-numeric: tabular-nums/);
-  assert.match(css, /\.strip-entrance-percent \{[^}]*width: 3ch;[^}]*text-align: center;/);
+  assert.match(css, /\.strip-entrance-percent \{[^}]*width: 3ch;[^}]*text-align: right;/);
+  for (const [width, height] of [[320, 640], [393, 714], [852, 393], [1440, 900]]) {
+    for (const ratio of [0.75, 1, 1.5]) {
+      const cover = coverEntrance.coverEntranceLayout(width, height, 0, ratio);
+      const numberRightInset = (width - cover.width) / 2;
+      assert.ok(Math.abs(width - numberRightInset - (cover.left + cover.width)) < 0.001);
+    }
+  }
   assert.match(componentSource, /<\/div>\s*<\/div>\s*<div ref=\{progressRef\} className="strip-entrance-progress"/);
   assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-accents|strip-entrance-squares|COVER_PROGRESS_CELLS|cover-first-square-blink/);
 });
@@ -208,7 +216,7 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('html.published-content-loading,'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
   assert.match(readoutCss,/var\(--entrance-cover-bottom, 75dvh\)/);
-  assert.match(readoutCss,/left: 50%/);
+  assert.match(readoutCss,/right: calc\(\(100% - var\(--entrance-cover-width/);
   assert.match(componentSource,/className="strip-entrance-percent-value">\{displayPercent\}<\/span>/);
   assert.doesNotMatch(readoutCss,/strip-entrance-squares/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
