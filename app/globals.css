@@ -1462,11 +1462,14 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   cursor: wait;
 }
 
-.library-mode .strip-library,
 .library-mode .library-add-button {
   transition: opacity 620ms ease;
 }
-.library-mode.is-opening-strip .strip-library,
+.library-mode.is-opening-strip .strip-library {
+  /* The loader backdrop owns this fade. Keep the image grid fully painted
+     underneath it so Safari never crossfades two large compositor surfaces. */
+  pointer-events: none;
+}
 .library-mode.is-opening-strip .library-add-button {
   opacity: 0;
   pointer-events: none;
