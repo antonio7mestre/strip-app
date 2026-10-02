@@ -2454,8 +2454,12 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   inset: 0;
   background: var(--entrance-background, #000);
 }
-.strip-entrance.is-from-library .strip-entrance-backdrop {
+.strip-entrance.is-from-library .strip-entrance-backdrop,
+.strip-entrance.is-from-library .strip-entrance-title,
+.strip-entrance.is-from-library .strip-entrance-progress {
+  /* Labels arrive on the same clock as the backdrop hides the profile. */
   animation: cover-backdrop-in 620ms ease both;
+  transition: none;
 }
 @keyframes cover-backdrop-in {
   from { opacity: 0; }
@@ -2539,7 +2543,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   pointer-events: none;
 }
 .strip-entrance.is-centered.is-cover-visible .strip-entrance-progress { opacity: 1; }
-.strip-entrance.is-from-library .strip-entrance-progress { opacity: 1; transition: none; }
 /* Raw reloads use one shared reveal clock for decoded cover and both labels. */
 .strip-entrance:not(.is-from-library) .strip-entrance-title,
 .strip-entrance:not(.is-from-library) .strip-entrance-progress { transition: none; }

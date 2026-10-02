@@ -98,7 +98,8 @@ test("the tray and cover keep their existing motion while the number stays separ
   assert.match(css, new RegExp(`animation: cover-backdrop-in ${COVER_MOVE_MS}ms`));
   assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
   assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-progress \{ opacity: 1; \}/);
-  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-progress \{ opacity: 1; transition: none; \}/);
+  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-backdrop,\s*\.strip-entrance.is-from-library \.strip-entrance-title,\s*\.strip-entrance.is-from-library \.strip-entrance-progress \{[^}]*animation: cover-backdrop-in 620ms ease both;[^}]*transition: none;/);
+  assert.doesNotMatch(css, /\.strip-entrance.is-from-library \.strip-entrance-progress \{ opacity: 1;/);
   assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-percent::after,[\s\S]*?animation-play-state: running;/);
   assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-cover \{ opacity: 0; \}/);
 });
