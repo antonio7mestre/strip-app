@@ -1287,11 +1287,11 @@ html.profile-page-active body {
 .profile-theme-mode,
 .profile-theme-mode .strip-library { background: var(--profile-background); color: var(--profile-ink); }
 .profile-theme-mode .library-header h1 {
-  color: var(--profile-ink); font-family: var(--profile-font); font-weight: 700;
+  color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 700);
   letter-spacing: -0.04em; -webkit-text-stroke: 0;
 }
-.profile-theme-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); }
-.profile-theme-mode .library-empty-state strong { color: var(--profile-ink); font-family: var(--profile-font); }
+.profile-theme-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 480); }
+.profile-theme-mode .library-empty-state strong { color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 760); }
 .profile-theme-mode .library-empty-state span { color: var(--profile-ink); }
 .profile-theme-mode .library-skeleton-surface { background: color-mix(in srgb, var(--profile-background) 82%, var(--profile-ink) 18%); }
 .profile-theme-mode .settings-section > h2 { color: var(--profile-ink); text-transform: none; }
@@ -1318,7 +1318,7 @@ html.profile-page-active body {
 .profile-title-input {
   margin: 0; padding: 0; width: 100%; font-family: var(--profile-font);
   font-size: clamp(30px, 8.2vw, 36px); line-height: 0.92; letter-spacing: -0.04em;
-  font-weight: 700; color: inherit; overflow-wrap: anywhere;
+  font-weight: var(--profile-font-weight, 700); color: inherit; overflow-wrap: anywhere;
 }
 .profile-title-input {
   display: block; min-height: 0.92em; border: 0; border-radius: 0; background: transparent;

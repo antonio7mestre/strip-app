@@ -184,5 +184,6 @@ export function profilePageStyle(controller: Pick<ProfileController, "profile"> 
     "--profile-accent": profile.accent,
     "--profile-accent-ink": profileInk(profile.accent),
     "--profile-font": PROFILE_FONTS.find(({ id }) => id === profile.font)?.family,
+    "--profile-font-weight": profile.font === "letter" ? 900 : undefined,
   } as CSSProperties;
 }
