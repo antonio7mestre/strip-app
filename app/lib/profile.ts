@@ -18,7 +18,6 @@ export type StripProfile = {
   photoUrl: string | null;
   revision: number;
 };
-export type ProfileTheme = Pick<StripProfile, "font" | "background" | "accent">;
 export const DEFAULT_PROFILE: StripProfile = {
   title: "", font: "letter", background: "#000000", accent: "#FFFFFF",
   photoUrl: null, revision: 0,

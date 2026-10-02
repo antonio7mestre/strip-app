@@ -2497,96 +2497,57 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   object-fit: cover;
   pointer-events: none;
 }
-.strip-entrance-title {
-  position: fixed;
-  z-index: 2;
-  top: 24px;
-  left: 50%;
-  width: min(calc(100% - 48px), 560px);
-  margin: 0;
-  transform: translateX(-50%);
-  color: var(--entrance-a);
-  font-family: var(--entrance-font);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-}
-.strip-entrance-accents {
-  position: fixed;
-  z-index: 1;
-  top: var(--entrance-viewport-top, 0px);
-  left: 0;
-  width: 100%;
-  height: var(--entrance-viewport-height, 100dvh);
-  pointer-events: none;
-}
-.strip-entrance-accent {
-  position: absolute;
-  width: clamp(14px, 4vw, 18px);
-  aspect-ratio: 1;
-  border-radius: 0;
-  background: var(--entrance-a);
-  transform: translate(-50%, -50%);
-}
-.strip-entrance-accent.is-upper-left { top: 18%; left: 23%; }
-.strip-entrance-accent.is-upper-right { top: 31%; left: 87%; }
-.strip-entrance-accent.is-lower-left { top: 70%; left: 12%; }
-.strip-entrance-accent.is-lower-right { top: 82%; left: 77%; }
 .strip-entrance-progress {
-  --entrance-line-height: calc(var(--entrance-line-start, 64px) + var(--entrance-line-travel, 0px) * var(--entrance-progress, 0));
   position: absolute;
-  z-index: 1;
-  inset: 0;
+  top: calc(100% + 18px);
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
   color: var(--entrance-a);
-  font-family: var(--entrance-font);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
+  opacity: 0;
+  transition: opacity 180ms ease;
   pointer-events: none;
 }
-.strip-entrance-line {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 2px;
-  height: var(--entrance-line-height);
-  transform: translateX(-50%);
+.strip-entrance.is-centered.is-cover-visible .strip-entrance-progress { opacity: 1; }
+.strip-entrance.is-from-library .strip-entrance-progress { opacity: 1; transition: none; }
+.strip-entrance-squares {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 3px;
+}
+.strip-entrance-squares span {
+  aspect-ratio: 1;
   background: var(--entrance-a);
-  transition: height 32ms linear;
+  opacity: 0.16;
 }
-.strip-entrance-percent.is-waiting {
-  animation: cover-zero-blink 700ms ease-in-out infinite alternate;
+.strip-entrance-squares span.is-filled { opacity: 1; }
+.strip-entrance-squares span.is-waiting {
+  opacity: 1;
+  animation: cover-first-square-blink 700ms ease-in-out infinite alternate;
 }
-@keyframes cover-zero-blink {
+@keyframes cover-first-square-blink {
   from { opacity: 1; }
   to { opacity: 0.25; }
 }
 .strip-entrance-percent {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--entrance-line-height) + 10px);
-  display: block;
-  width: 2ch;
-  height: 1em;
-  transform: translateX(-50%);
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+  flex: none;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
-  transition: bottom 32ms linear;
 }
 .strip-entrance-percent-value {
-  position: absolute;
-  right: 0;
-  width: max-content;
-  /* Keep the two-digit anchor. The hundreds digit extends left, never into %. */
+  /* Reserve all three digits so the label and percent sign never shift. */
+  width: 3ch;
   text-align: right;
-}
-.strip-entrance-percent-symbol {
-  position: absolute;
-  left: calc(100% + 0.5ch);
 }
 html.published-content-loading,
 html.published-content-loading body,

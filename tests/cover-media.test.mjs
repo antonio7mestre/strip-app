@@ -6,7 +6,6 @@ import ts from "typescript";
 import { STICKER_PACK } from "../app/lib/sticker-pack.ts";
 import { SHAPE_STICKERS } from "../app/lib/shape-stickers.ts";
 import * as origin from "../app/lib/sticker-origin.ts";
-import * as profile from "../app/lib/profile.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function compile(path, imports = {}) {
@@ -56,7 +55,6 @@ test("draft and published reads retain the sticker's origin after storage URLs r
   const imports = {
     "cloudflare:workers": { env: { DB: { prepare: () => ({ bind: () => ({ first: async () => row }) }) } } },
     "@/app/lib/sticker-origin": origin,
-    "@/app/lib/profile": profile,
     "@/app/lib/strip-ending": { readStripContent: () => ({ blocks }) },
     "@/app/server/auth": { requireAuthUser: async () => ({ user: { id: "owner-qa" } }), getAuthUser: async () => null },
     "@/app/lib/username": { usernameFromHostname: () => null },
