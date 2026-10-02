@@ -2511,10 +2511,11 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: fixed;
   z-index: 3;
   top: calc((var(--entrance-viewport-top, 0px) + env(safe-area-inset-top) + var(--entrance-cover-top, 25dvh)) / 2);
-  right: calc(24px + env(safe-area-inset-right));
-  left: calc(24px + env(safe-area-inset-left));
+  left: 50%;
+  width: var(--entrance-cover-width, min(320px, 74vw, 42dvh));
+  max-width: var(--entrance-cover-width, min(320px, 74vw, 42dvh));
   margin: 0;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   line-height: 1.15;
   text-align: center;
   text-wrap: balance;

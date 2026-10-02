@@ -1,7 +1,43 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
+import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, fitCoverTitle, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
+
+test("title fitting keeps short titles full-size and finds the largest size that fits two lines", () => {
+  const previous = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = element => ({ fontSize: element.style.fontSize,
+    lineHeight: String(parseFloat(element.style.fontSize) * 1.15) });
+  try {
+    for (const width of [120, 178, 290, 320]) {
+      for (const advance of [0.45, 0.6, 0.85, 1.1]) {
+        for (const text of ["Sunday", "The kind of weekend you wish could last a little longer", "W".repeat(80)]) {
+          const title = { textContent: text, style: {}, clientWidth: width, scrollWidth: width,
+            getBoundingClientRect() {
+              const size = parseFloat(this.style.fontSize);
+              const lines = Math.ceil(text.length * size * advance / this.clientWidth);
+              return { height: lines * size * 1.15 };
+            } };
+          const size = fitCoverTitle(title);
+          assert.ok(size > 0 && size <= 24);
+          assert.ok(title.getBoundingClientRect().height <= size * 1.15 * 2 + 0.5);
+          assert.equal(title.textContent, text, "never replace or shorten the title");
+          if (size < 24) {
+            title.style.fontSize = `${size + 0.25}px`;
+            assert.ok(title.getBoundingClientRect().height > (size + 0.25) * 1.15 * 2 + 0.5,
+              "use the largest fitting size, not an arbitrary smaller font");
+          }
+          title.clientWidth = 2000;
+          assert.equal(fitCoverTitle(title), 24, "recover the original size when more room is available");
+        }
+      }
+    }
+    const hidden = { style: {}, clientWidth: 0 };
+    assert.equal(fitCoverTitle(hidden), 24);
+  } finally {
+    if (previous) globalThis.getComputedStyle = previous;
+    else delete globalThis.getComputedStyle;
+  }
+});
 
 test("direct covers use the enlarged poster size and stay centered without cropping", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {

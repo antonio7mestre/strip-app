@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, type ProfileFont } from "@/app/lib/profile";
-import { COVER_MOVE_MS, coverEntranceLayout, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, coverEntranceLayout, fitCoverTitle, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
@@ -93,28 +93,40 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
+    let active = true, fittedWidth = -1;
     const sync = () => {
+      if (!active) return;
       const viewport = window.visualViewport;
       const layout = coverEntranceLayout(window.innerWidth, viewport?.height ?? window.innerHeight,
         viewport?.offsetTop ?? 0, aspectRatio);
       Object.assign(stage.style, { left: layout.left + "px", top: layout.top + "px",
         width: layout.width + "px", height: layout.height + "px" });
+      surfaceRef.current?.style.setProperty("--entrance-cover-width", layout.width + "px");
       surfaceRef.current?.style.setProperty("--entrance-cover-top", layout.top + "px");
       surfaceRef.current?.style.setProperty("--entrance-cover-bottom", (layout.top + layout.height) + "px");
       surfaceRef.current?.style.setProperty("--entrance-viewport-top", (viewport?.offsetTop ?? 0) + "px");
       surfaceRef.current?.style.setProperty("--entrance-viewport-bottom",
         ((viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)) + "px");
+      if (titleRef.current && fittedWidth !== layout.width) {
+        fitCoverTitle(titleRef.current);
+        fittedWidth = layout.width;
+      }
     };
+    const fontsReady = () => { fittedWidth = -1; sync(); };
     sync();
+    void document.fonts?.ready.then(fontsReady);
+    document.fonts?.addEventListener("loadingdone", fontsReady);
     window.addEventListener("resize", sync);
     window.visualViewport?.addEventListener("resize", sync);
     window.visualViewport?.addEventListener("scroll", sync);
     return () => {
+      active = false;
+      document.fonts?.removeEventListener("loadingdone", fontsReady);
       window.removeEventListener("resize", sync);
       window.visualViewport?.removeEventListener("resize", sync);
       window.visualViewport?.removeEventListener("scroll", sync);
     };
-  }, [aspectRatio]);
+  }, [aspectRatio, title, font]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;

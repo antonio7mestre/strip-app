@@ -107,16 +107,28 @@ test("the bold number is centered below the photo using the same type as the tit
   assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-accents|strip-entrance-squares|COVER_PROGRESS_CELLS|cover-first-square-blink/);
 });
 test("the title uses the actual Strip name and sits halfway between the safe top and cover", () => {
-  assert.match(page, /title=\{entranceStrip.title\}/);
+  assert.match(page, /title=\{(?:[^\n]+ : )?entranceStrip.title\}/);
   assert.match(componentSource, /setProperty\("--entrance-cover-top", layout.top \+ "px"\)/);
   assert.match(componentSource, /setProperty\("--entrance-viewport-top", \(viewport\?\.offsetTop \?\? 0\) \+ "px"\)/);
   const title = css.match(/^\.strip-entrance-title \{[^}]+\}/m)[0];
   assert.match(title, /top: calc\(\(var\(--entrance-viewport-top, 0px\) \+ env\(safe-area-inset-top\) \+ var\(--entrance-cover-top, 25dvh\)\) \/ 2\)/);
-  assert.match(title, /transform: translateY\(-50%\)/);
+  assert.match(title, /transform: translate\(-50%, -50%\)/);
   assert.match(title, /text-align: center/);
   assert.match(title, /text-wrap: balance/);
   assert.match(title, /overflow-wrap: anywhere/);
   assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-title \{ opacity: 1; \}/);
+});
+test("loader titles use the cover width and fit before the shared reveal, including font and viewport changes", () => {
+  const title = css.match(/^\.strip-entrance-title \{[^}]+\}/m)[0];
+  assert.match(title, /width: var\(--entrance-cover-width, min\(320px, 74vw, 42dvh\)\)/);
+  assert.match(title, /max-width: var\(--entrance-cover-width, min\(320px, 74vw, 42dvh\)\)/);
+  assert.match(componentSource, /setProperty\("--entrance-cover-width", layout.width \+ "px"\)/);
+  assert.match(componentSource, /fitCoverTitle\(titleRef.current\)/);
+  assert.match(componentSource, /\[aspectRatio, title, font\]/);
+  assert.match(componentSource, /document.fonts\?\.ready.then\(fontsReady\)/);
+  assert.match(componentSource, /removeEventListener\("loadingdone", fontsReady\)/);
+  assert.ok(componentSource.indexOf("fitCoverTitle(titleRef.current)") < componentSource.indexOf("return fadeInCover("));
+  assert.doesNotMatch(title, /line-clamp|text-overflow|overflow: hidden/);
 });
 test("the loading row uses saved profile ink and rejects invalid CSS colors", () => {
   for (const [inkColor, expected] of [["#D7FF00", "#D7FF00"], ["#FF4FA3", "#FF4FA3"], ["url(unsafe)", "#FFFFFF"], [undefined, "#FFFFFF"]]) {

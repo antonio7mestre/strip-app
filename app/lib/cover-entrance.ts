@@ -96,6 +96,33 @@ export function coverEntranceLayout(width: number, height: number, offsetTop: nu
     width: coverWidth, height: coverHeight };
 }
 
+/** Fit the full title in two actual rendered lines, never truncate its text.
+ * Quarter-pixel steps find the largest fitting size without a visible resize. */
+export function fitCoverTitle(title: HTMLElement) {
+  const maximum = 24;
+  title.style.fontSize = `${maximum}px`;
+  if (title.clientWidth <= 0) return maximum;
+  const computed = getComputedStyle(title);
+  const lineHeight = Number.parseFloat(computed.lineHeight) / Number.parseFloat(computed.fontSize);
+  const ratio = Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 1.15;
+  const fits = (quarters: number) => {
+    const size = quarters / 4;
+    title.style.fontSize = `${size}px`;
+    return title.getBoundingClientRect().height <= size * ratio * 2 + 0.5
+      && title.scrollWidth <= title.clientWidth + 1;
+  };
+  if (fits(maximum * 4)) return maximum;
+  let low = 1, high = maximum * 4 - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (fits(middle)) low = middle;
+    else high = middle - 1;
+  }
+  const size = low / 4;
+  title.style.fontSize = `${size}px`;
+  return size;
+}
+
 /** Also handle cached images whose load event happened before hydration. */
 export function watchCoverImage(image: HTMLImageElement, onReady: () => void, onError: () => void) {
   let disposed = false, settling = false;
