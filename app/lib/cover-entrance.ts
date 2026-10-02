@@ -1,6 +1,5 @@
 export const COVER_MOVE_MS = 620;
 export const COVER_FADE_MS = 650;
-export const COVER_PROGRESS_CELLS = 9;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
 export type CoverOrigin = { left: number; top: number; width: number; height: number;
@@ -95,11 +94,6 @@ export function coverEntranceLayout(width: number, height: number, offsetTop: nu
   const coverHeight = coverWidth / ratio;
   return { left: (w - coverWidth) / 2, top: offsetTop + (h - coverHeight) / 2,
     width: coverWidth, height: coverHeight };
-}
-
-export function coverProgressCells(percent: number) {
-  const progress = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
-  return progress === 100 ? COVER_PROGRESS_CELLS : Math.floor(progress / 100 * COVER_PROGRESS_CELLS);
 }
 
 /** Also handle cached images whose load event happened before hydration. */

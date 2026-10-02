@@ -67,7 +67,7 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
       : name === "@/app/lib/profile" ? { profileInk } : require(name) });
-test("renders a centered cover and nine chunky progress cells, without a visible percentage", () => {
+test("renders a centered cover and just the loading number, with no squares or percent sign", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, blocks: [],
     endingStyle: { backgroundColor: "#FFFFFF", buttonColor: "#000000" },
@@ -80,22 +80,25 @@ test("renders a centered cover and nine chunky progress cells, without a visible
   assert.ok(html.includes("--entrance-background:#000000"));
   assert.match(html, /aria-label="Loading Strip"/);
   assert.match(html, /strip-entrance-cover/);
-  assert.match(html, /strip-entrance-squares/);
-  assert.equal((html.match(/<span class=""><\/span>/g) ?? []).length, 8);
-  assert.equal((html.match(/<span class="is-waiting"><\/span>/g) ?? []).length, 1);
+  assert.match(html, /class="strip-entrance-percent-value">0<\/span>/);
+  assert.match(html, /data-value="0" data-waiting="true" aria-hidden="true"/);
   assert.match(html, /data-load-progress="97"/);
   assert.match(html, /aria-valuenow="0"/);
-  assert.doesNotMatch(html, /strip-entrance-percent|>\d+%?</);
+  assert.doesNotMatch(html, /strip-entrance-squares|%|is-filled/);
   assert.doesNotMatch(html, /<video|orb|ribbon|wordmark/);
 });
-test("nine blocks fill the close-set loading row with no percentage or new full-screen layers", () => {
+test("the bold number stays in the screen's lower-right corner outside the moving photo", () => {
   const row = css.match(/^\.strip-entrance-progress \{[^}]+\}/m)[0];
-  assert.match(row, /right: 0/);
-  assert.match(row, /left: 0/);
-  assert.match(row, /top: calc\(100% \+ 10px\)/);
-  assert.match(css, /repeat\(var\(--entrance-cells, 9\), minmax\(0, 1fr\)\)/);
-  assert.match(componentSource, /"--entrance-cells": COVER_PROGRESS_CELLS/);
-  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents|strip-entrance-percent/);
+  assert.match(row, /position: fixed;/);
+  assert.match(row, /right: calc\(24px \+ env\(safe-area-inset-right\)\)/);
+  assert.match(row, /bottom: calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(row, /font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif/);
+  assert.match(row, /font-size: 24px/);
+  assert.match(row, /font-weight: 900/);
+  assert.match(row, /font-variant-numeric: tabular-nums/);
+  assert.match(css, /\.strip-entrance-percent \{[^}]*width: 3ch;[^}]*text-align: right;/);
+  assert.match(componentSource, /<\/div>\s*<\/div>\s*<div className="strip-entrance-progress"/);
+  assert.doesNotMatch(componentSource + css, /strip-entrance-line|strip-entrance-title|strip-entrance-accents|strip-entrance-squares|COVER_PROGRESS_CELLS|cover-first-square-blink/);
 });
 test("the loading row uses saved profile ink and rejects invalid CSS colors", () => {
   for (const [inkColor, expected] of [["#D7FF00", "#D7FF00"], ["#FF4FA3", "#FF4FA3"], ["url(unsafe)", "#FFFFFF"], [undefined, "#FFFFFF"]]) {
@@ -121,7 +124,7 @@ test("the first render uses contrasting monochrome ink and the originating profi
     assert.ok(html.includes(`--entrance-background:${backgroundColor}`));
     assert.match(html, /is-from-library.*is-cover-visible/);
     assert.match(html, /strip-entrance-snapshot/);
-    assert.match(html, /is-waiting/);
+    assert.match(html, /data-waiting="true"/);
     assert.doesNotMatch(html, /<img/, "reuse captured pixels, never mount a second image");
   }
   assert.match(componentSource, /const \[initialBackground\] = useState\(backgroundColor\)/);
@@ -157,10 +160,10 @@ test("the percentage follows completed assets and never rounds unfinished loadin
   assert.match(css,/height: calc\(100lvh \+ env\(safe-area-inset-top\) \+ env\(safe-area-inset-bottom\) \+ 8px\)/);
   const readoutCss=css.slice(css.indexOf('.strip-entrance-progress {'),css.indexOf('html.published-content-loading,'));
   assert.match(readoutCss,/color: var\(--entrance-a\);/);
-  assert.match(readoutCss,/top: calc\(100% \+ 10px\)/);
-  assert.match(readoutCss,/right: 0;/);
-  assert.match(readoutCss,/gap: 4px;/);
-  assert.doesNotMatch(readoutCss,/strip-entrance-percent/);
+  assert.match(readoutCss,/bottom: calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(readoutCss,/right: calc\(24px \+ env\(safe-area-inset-right\)\)/);
+  assert.match(componentSource,/className="strip-entrance-percent-value">\{displayPercent\}<\/span>/);
+  assert.doesNotMatch(readoutCss,/strip-entrance-squares/);
   assert.doesNotMatch(readoutCss,/mix-blend-mode/);
   assert.match(componentSource,/!revealing \|\| displayPercent !== 100 \|\| !centered \|\| requestPending/);
 });

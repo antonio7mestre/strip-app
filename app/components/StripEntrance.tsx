@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { profileInk } from "@/app/lib/profile";
-import { COVER_MOVE_MS, COVER_PROGRESS_CELLS, coverEntranceLayout, coverProgressCells, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_MOVE_MS, coverEntranceLayout, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
   | { kind: "color"; color: string; shape?: "portrait" | "square" | "landscape" };
@@ -116,7 +116,7 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
       { transform: "translate3d(0, 0, 0) scale(1, 1)" },
     ], { duration: COVER_MOVE_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "both" });
     animation.onfinish = () => {
-      // The waiting square travels with the cover; count real progress on arrival.
+      // Count real progress once the cover reaches its resting position.
       if (mounted.current) flushSync(() => setCentered(true));
       animation.cancel();
     };
@@ -164,11 +164,9 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
     return fadeCoverEntrance(host, () => completeCallback.current());
   }, [revealing, displayPercent, centered, requestPending, dockDropped, coverVisible]);
 
-  const filled = coverProgressCells(displayPercent);
   return (
     <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
-      style={{ "--entrance-a": ink, "--entrance-background": initialBackground,
-        "--entrance-cells": COVER_PROGRESS_CELLS } as CSSProperties}
+      style={{ "--entrance-a": ink, "--entrance-background": initialBackground } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
       {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"
@@ -185,13 +183,12 @@ export function StripEntrance({ cover, settledAssets, totalAssets,
             <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
           ) : null}
         </div>
-        <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
-          aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
-          <div className="strip-entrance-squares" aria-hidden="true">
-            {Array.from({ length: COVER_PROGRESS_CELLS }, (_, index) => <span key={index}
-              className={index < filled ? "is-filled" : index === 0 && filled === 0 ? "is-waiting" : ""} />)}
-          </div>
-        </div>
+      </div>
+      <div className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
+        <span className="strip-entrance-percent" data-value={displayPercent} data-waiting={displayPercent === 0} aria-hidden="true">
+          <span className="strip-entrance-percent-value">{displayPercent}</span>
+        </span>
       </div>
     </div>
   );

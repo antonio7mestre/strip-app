@@ -2498,54 +2498,49 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   pointer-events: none;
 }
 .strip-entrance-progress {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
+  position: fixed;
+  z-index: 3;
+  right: calc(24px + env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
   color: var(--entrance-a);
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0;
   opacity: 0;
   transition: opacity 180ms ease;
   pointer-events: none;
 }
 .strip-entrance.is-centered.is-cover-visible .strip-entrance-progress { opacity: 1; }
 .strip-entrance.is-from-library .strip-entrance-progress { opacity: 1; transition: none; }
-.strip-entrance-squares {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-  grid-template-columns: repeat(var(--entrance-cells, 9), minmax(0, 1fr));
-  gap: 4px;
-}
-.strip-entrance-squares span {
+.strip-entrance-percent {
   position: relative;
-  aspect-ratio: 1;
+  display: block;
+  width: 3ch;
+  text-align: right;
 }
-.strip-entrance-squares span::before,
-.strip-entrance-squares span:first-child::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--entrance-a);
-}
-.strip-entrance-squares span::before {
-  opacity: 0.16;
+.strip-entrance-percent-value {
+  opacity: 0.25;
   transition: opacity 200ms ease-in-out;
 }
-.strip-entrance-squares span.is-filled::before { opacity: 1; }
-/* Keep the pulse running on its own layer. The solid fill blends with it
- * without cancelling the pulse mid-cycle or jumping back to full brightness. */
-.strip-entrance-squares span:first-child::after {
+.strip-entrance-percent[data-waiting="false"] .strip-entrance-percent-value { opacity: 1; }
+/* The waiting zero gently brightens. Its solid text blends in when counting
+ * starts, so the pulse never snaps off mid-cycle. */
+.strip-entrance-percent::after {
+  content: attr(data-value);
+  position: absolute;
+  inset: 0;
   opacity: 0;
-  animation: cover-first-square-blink 1400ms ease-in-out infinite;
+  animation: cover-number-pulse 1400ms ease-in-out infinite;
   animation-play-state: paused;
 }
-.strip-entrance.is-from-library .strip-entrance-squares span:first-child::after,
-.strip-entrance.is-centered.is-cover-visible .strip-entrance-squares span:first-child::after {
+.strip-entrance.is-from-library .strip-entrance-percent::after,
+.strip-entrance.is-centered.is-cover-visible .strip-entrance-percent::after {
   animation-play-state: running;
 }
-@keyframes cover-first-square-blink {
+@keyframes cover-number-pulse {
   0%, 100% { opacity: 0; }
   50% { opacity: 1; }
 }

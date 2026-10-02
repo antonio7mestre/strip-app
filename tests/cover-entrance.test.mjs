@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, coverProgressCells, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
+import { COVER_MOVE_MS, COVER_FADE_MS, COVER_DOCK_DROP_MS, COVER_APPEAR_MS, captureCoverOrigin, captureCoverDock, dropCoverDock, coverEntranceLayout, fadeCoverEntrance, fadeInCover, watchCoverImage } from "../app/lib/cover-entrance.ts";
 
 test("direct covers use the enlarged poster size and stay centered without cropping", () => {
   for (const [w, h, offset] of [[393, 714, 0], [402, 842, 0], [852, 393, 15], [1440, 900, 0]]) {
@@ -41,7 +41,7 @@ test("mobile profile covers grow into the shared centered poster without changin
   }
 });
 
-test("the tray drops immediately and the blinking loading bar travels with the cover", () => {
+test("the tray and cover keep their existing motion while the number stays separate", () => {
   const component = readFileSync(new URL("../app/components/StripEntrance.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /holdCoverDock/);
   assert.match(component, /return dropCoverDock\([^;]+setDockDropped\(true\)/);
@@ -57,29 +57,28 @@ test("the tray drops immediately and the blinking loading bar travels with the c
   assert.match(component, /translate3d\(0, 0, 0\) scale\(1, 1\)/);
   assert.match(component, /cover.shape === "portrait" \? 4 \/ 5 : cover.shape === "landscape" \? 3 \/ 2 : 1/);
   assert.match(component, /const animation = stage.animate/);
-  assert.match(component, /index === 0 && filled === 0 \? "is-waiting"/);
+  assert.match(component, /data-waiting=\{displayPercent === 0\}/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, new RegExp(`animation: cover-backdrop-in ${COVER_MOVE_MS}ms`));
   assert.match(css, new RegExp(`transition: opacity ${COVER_MOVE_MS}ms ease`));
   assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-progress \{ opacity: 1; \}/);
   assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-progress \{ opacity: 1; transition: none; \}/);
-  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-squares span:first-child::after,[\s\S]*?animation-play-state: running;/);
+  assert.match(css, /\.strip-entrance.is-from-library \.strip-entrance-percent::after,[\s\S]*?animation-play-state: running;/);
   assert.match(css, /\.strip-entrance:not\(\.is-from-library\) \.strip-entrance-cover \{ opacity: 0; \}/);
 });
 
-test("the first block eases in from dim and blends into progress without resetting its pulse", () => {
+test("the waiting zero eases in and blends into counting without resetting its pulse", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  const pulse = [...css.matchAll(/^\.strip-entrance-squares span:first-child::after \{[^}]+\}/gm)]
-    .map(match => match[0]).find(rule => rule.includes("animation:"));
+  const pulse = css.match(/^\.strip-entrance-percent::after \{[^}]+\}/m)[0];
   assert.match(pulse, /opacity: 0;/);
-  assert.match(pulse, /animation: cover-first-square-blink 1400ms ease-in-out infinite;/);
+  assert.match(pulse, /animation: cover-number-pulse 1400ms ease-in-out infinite;/);
   assert.match(pulse, /animation-play-state: paused;/);
-  assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-squares span:first-child::after \{\s*animation-play-state: running;/);
-  assert.match(css, /@keyframes cover-first-square-blink \{\s*0%, 100% \{ opacity: 0; \}\s*50% \{ opacity: 1; \}/);
-  assert.match(css, /\.strip-entrance-squares span::before \{\s*opacity: 0\.16;\s*transition: opacity 200ms ease-in-out;/);
-  assert.match(css, /\.strip-entrance-squares span.is-filled::before \{ opacity: 1; \}/);
-  assert.doesNotMatch(css, /\.strip-entrance-squares span.is-waiting\s*\{/,
-    "changing from waiting to filled must not cancel the animation mid-cycle");
+  assert.match(css, /\.strip-entrance.is-centered.is-cover-visible \.strip-entrance-percent::after \{\s*animation-play-state: running;/);
+  assert.match(css, /@keyframes cover-number-pulse \{\s*0%, 100% \{ opacity: 0; \}\s*50% \{ opacity: 1; \}/);
+  assert.match(css, /\.strip-entrance-percent-value \{\s*opacity: 0\.25;\s*transition: opacity 200ms ease-in-out;/);
+  assert.match(css, /\.strip-entrance-percent\[data-waiting="false"\] \.strip-entrance-percent-value \{ opacity: 1; \}/);
+  assert.doesNotMatch(pulse, /data-waiting/,
+    "starting the counter must not cancel the animation mid-cycle");
 });
 
 test("a raw-load cover finishes its quick fade before releasing progress", () => {
@@ -131,15 +130,6 @@ test("failed covers recover and late decoding cannot mutate an exited loader", a
   assert.equal(ready, 0); assert.equal(errors, 1);
 });
 
-test("the square bar is deterministic, monotonic and never full before real completion", () => {
-  assert.equal(coverProgressCells(0), 0);
-  assert.equal(coverProgressCells(50), 4);
-  assert.equal(coverProgressCells(99), 8);
-  assert.equal(coverProgressCells(100), 9);
-  assert.equal(coverProgressCells(NaN), 0);
-  assert.equal(coverProgressCells(-5), 0);
-  for (let p = 1; p <= 100; p++) assert.ok(coverProgressCells(p) >= coverProgressCells(p - 1));
-});
 test("the final crossfade keeps its previous timing, is monotonic, and cleans up", () => {
   assert.equal(COVER_MOVE_MS, 620); assert.equal(COVER_FADE_MS, 650);
   let pending, done = 0;
