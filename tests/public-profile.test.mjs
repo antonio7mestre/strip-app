@@ -112,7 +112,7 @@ function routeHarness(user, fetch, options = {}) {
     migrateLegacyDraft: options.migrateLegacyDraft ?? (async () => true),
     publicStripUrl: strip => publishedStripUrl(window.location, strip),
     ...username, DEFAULT_PROFILE: profile.DEFAULT_PROFILE,
-    authStatus: options.authStatus ?? (user ? "signed-in" : "signed-out"), authUser: user, libraryOwnerId: user?.id ?? "", needsAuthUsername: options.needsAuthUsername ?? false,
+    authStatus: options.authStatus ?? (user ? "signed-in" : "signed-out"), authUser: user, libraryOwnerId: user?.id ?? "", needsAuthUsername: options.needsAuthUsername ?? false, needsAuthBackground: false,
     initialRouteHandledRef: { current: false }, prepareLibrarySummaries: async items => items,
     setPublicProfile: value => { state.publicProfile = typeof value === "function" ? value(state.publicProfile) : value; },
     setAuthenticationRequired: value => { state.authRequired = value; },

@@ -67,7 +67,7 @@ test("username uses the same fixed, keyboard-sized layout and inline Continue as
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const username = page.slice(page.indexOf('if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in"))'), page.indexOf('const isDraftLibrary ='));
   assert.match(page, /const authFormIsVisible = needsAuthUsername \|\|/);
-  assert.match(page, /const topSafeAreaColor =\s*needsAuthUsername \|\|/);
+  assert.match(page, /const topSafeAreaColor =\s*needsAuthBackground \? authBackground : needsAuthUsername \|\|/);
   assert.match(username, /app-shell auth-mode/);
   assert.match(username, /auth-signin-mode/);
   assert.doesNotMatch(username, /top-safe-area-anchor/);

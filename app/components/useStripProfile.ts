@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { DEFAULT_PROFILE, applyProfileChanges, profileColorsReadable, PROFILE_COLOR_ERROR, type StripProfile } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, applyProfileChanges, profileColorsReadable, profileInk, PROFILE_COLOR_ERROR, type StripProfile } from "@/app/lib/profile";
 
 export function useStripProfile(userId: string | undefined) {
   const [owner, setOwner] = useState<string>();
@@ -78,6 +78,27 @@ export function useStripProfile(userId: string | undefined) {
     setError("");
     setDraft((value) => value ? applyProfileChanges(value, changes) : value);
   };
+  const saveBackground = async (background: string) => {
+    if (!userId || owner !== userId || loading || loadFailed || saving.current) return false;
+    const savingUser = userId;
+    saving.current = true;
+    setPending(true); setError("");
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...saved, background, accent: profileInk(background) }),
+      });
+      const data = await response.json() as { profile?: StripProfile; error?: string };
+      if (!response.ok || !data.profile) throw new Error(data.error || "Could not save your background. Try again.");
+      if (currentUser.current !== savingUser) return false;
+      setSaved(data.profile);
+      return true;
+    } catch (cause) {
+      if (currentUser.current === savingUser) setError(cause instanceof Error ? cause.message : "Could not save your background. Try again.");
+      return false;
+    } finally { saving.current = false; setPending(false); }
+  };
   const changePhoto = (value: string | null) => { setPhoto(value); update({ photoUrl: value }); };
   const dirty = draft !== null && (
     draft.title !== saved.title || draft.font !== saved.font ||
@@ -90,7 +111,7 @@ export function useStripProfile(userId: string | undefined) {
     loading: Boolean(userId && (owner !== userId || loading)),
     pending: pending || preparingPhoto, preparingPhoto, setPreparingPhoto,
     error: owner === userId ? error : "", errorRevision, errorRepeated, loadFailed: owner === userId && loadFailed,
-    begin, cancel, save, update, changePhoto, showError,
+    begin, cancel, save, saveBackground, update, changePhoto, showError,
     retry: () => { setLoading(true); setReload((value) => value + 1); },
   };
 }

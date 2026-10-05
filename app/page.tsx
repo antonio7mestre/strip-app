@@ -66,6 +66,8 @@ import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
+import { OnboardingBackground } from "@/app/components/OnboardingBackground";
+import { ONBOARDING_BACKGROUND, backgroundOnboardingPending, rememberBackgroundOnboarding } from "@/app/lib/onboarding-background";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
 import { HapticActionButton } from "@/app/components/HapticActionButton";
@@ -211,7 +213,7 @@ type PublicProfileState = {
   strips: PublishedStripSummary[];
   status: "loading" | "ready" | "missing" | "error";
 };
-type AuthStep = "landing" | "phone" | "code";
+type AuthStep = "landing" | "phone" | "code" | "background";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -2667,6 +2669,7 @@ export default function Home() {
   const [publicProfile, setPublicProfile] = useState<PublicProfileState | null>(null);
   const visibleProfile = publicProfile?.profile ?? stripProfile.profile;
   const [authStep, setAuthStep] = useState<AuthStep>("landing");
+  const [authBackground, setAuthBackground] = useState(ONBOARDING_BACKGROUND);
   const [authStickerRevealed, setAuthStickerRevealed] = useState(false);
   const authStickerExitRef = useRef<(() => void) | null>(null);
   useEffect(() => () => { authStickerExitRef.current?.(); }, []);
@@ -2884,6 +2887,7 @@ export default function Home() {
     (block) => block.type !== "sticker",
   );
   const needsAuthUsername = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser && !authUser.username);
+  const needsAuthBackground = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser?.username) && authStep === "background";
   const authFlowStep = needsAuthUsername ? "username" : authStep;
   const authActiveInputRef = authFlowStep === "code" ? authCodeInputRef : authPhoneInputRef;
   useLayoutEffect(() => {
@@ -2892,7 +2896,7 @@ export default function Home() {
     }
   }, [needsAuthUsername]);
   const topSafeAreaColor =
-    needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")
+    needsAuthBackground ? authBackground : needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")
       ? AUTH_LANDING_COLOR
       : view === "library" ||
     view === "drafts" ||
@@ -2969,7 +2973,7 @@ export default function Home() {
     return installAuthFormViewport();
   }, [authFormIsVisible]);
 
-  const homeIsVisible = initialRouteReady && (authStatus === "signed-in" || viewingPublicProfile) && !needsAuthUsername &&
+  const homeIsVisible = initialRouteReady && (authStatus === "signed-in" || viewingPublicProfile) && !needsAuthUsername && !needsAuthBackground &&
     ["library", "drafts", "history", "settings"].includes(view);
   const profilePageIsLoading = homeIsVisible && (viewingPublicProfile
     ? publicProfile.status === "loading"
@@ -3173,7 +3177,7 @@ export default function Home() {
     view,
     authenticationRequired,
     authStatus,
-    needsUsername: needsAuthUsername,
+    needsUsername: needsAuthUsername || needsAuthBackground,
   });
   useLayoutEffect(() => {
     if (!pageZoomLocked) return;
@@ -3527,6 +3531,7 @@ export default function Home() {
           const publicOwner = `public:${usernameFromHostname(window.location.hostname)}`;
           if (cached && cached.owner !== data.user?.id && cached.owner !== publicOwner) clearProfileReload();
           if (data.user) {
+            if (backgroundOnboardingPending(data.user.id)) setAuthStep("background");
             setAuthUser(data.user);
             setLibraryOwnerId(data.user.id);
             setAuthStatus("signed-in");
@@ -5053,6 +5058,11 @@ export default function Home() {
         throw new Error(data.error || "Couldn’t save that username.");
       }
       const claimedUser = data.user;
+      // Stay on the base origin until the new profile's color is saved.
+      rememberBackgroundOnboarding(claimedUser.id);
+      setAuthBackground(ONBOARDING_BACKGROUND);
+      setAuthStep("background");
+      authPhoneInputRef.current?.blur();
       setAuthUser(claimedUser);
       setAuthUsername(claimedUser.username ?? username);
       setPublishedStrips((current) =>
@@ -5065,6 +5075,14 @@ export default function Home() {
     } finally {
       setAuthPending(false);
     }
+  };
+
+  const finishBackgroundOnboarding = async () => {
+    if (!await stripProfile.saveBackground(authBackground)) return;
+    rememberBackgroundOnboarding(null);
+    setAuthStep("landing");
+    initialRouteHandledRef.current = false;
+    setInitialRouteReady(false);
   };
 
   const editSignInPhone = () => {
@@ -5154,6 +5172,7 @@ export default function Home() {
       const response = await fetch("/api/auth/signout", { method: "POST" });
       if (!response.ok) throw new Error("Couldn’t sign out. Try again.");
       clearProfileReload();
+      rememberBackgroundOnboarding(null);
       setPublishedStrips([]);
       setDraftStrips([]);
       setViewedStrips([]);
@@ -5380,6 +5399,7 @@ export default function Home() {
   useEffect(() => {
     // Username is still part of the focused sign-in flow. Applying the route
     // here resets scroll under the keyboard before onboarding is complete.
+    if (needsAuthBackground) return;
     if (authStatus === "loading" || needsAuthUsername || initialRouteHandledRef.current) return;
     initialRouteHandledRef.current = true;
     let cancelled = false;
@@ -5651,7 +5671,7 @@ export default function Home() {
       initialRouteHandledRef.current = false;
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [authStatus, libraryOwnerId, needsAuthUsername, authUser?.username]);
+  }, [authStatus, libraryOwnerId, needsAuthUsername, needsAuthBackground, authUser?.username]);
 
   const publish = async () => {
     if (!hasContent) {
@@ -6761,6 +6781,11 @@ export default function Home() {
           pageTransitionInFlightRef.current = false;
         }}
       />, document.body, "strip-cover-entrance") : null;
+
+  if (needsAuthBackground) return <OnboardingBackground color={authBackground}
+    onChange={setAuthBackground} onContinue={() => void finishBackgroundOnboarding()}
+    pending={stripProfile.pending} loading={stripProfile.loading || stripProfile.loadFailed}
+    error={stripProfile.error} onRetry={stripProfile.retry} />;
 
   if (!initialRouteReady && !needsAuthUsername) {
     return <ProfileReload />;

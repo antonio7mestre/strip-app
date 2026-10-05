@@ -46,7 +46,7 @@ function harness(needsAuthUsername = false, options = {}) {
     PopStateEvent: class { constructor(type) { this.type = type; this.state = null; } },
     migrateLegacyDraft: async () => true,
     document: { querySelector: () => null, documentElement: { classList: { remove: noop }, style: { removeProperty: noop } } },
-    libraryOwnerId: "owner", authStatus: options.authStatus ?? "signed-in", authUser: { username: "antonio" }, needsAuthUsername, openingStripId: null,
+    libraryOwnerId: "owner", authStatus: options.authStatus ?? "signed-in", authUser: { username: "antonio" }, needsAuthUsername, needsAuthBackground: false, openingStripId: null,
     pageTransitionInFlightRef: gate, openingCoverRequestRef: opening,
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen: noop, setStoryShareConfirmation: noop,
     initialRouteHandledRef: { current: false },

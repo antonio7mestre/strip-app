@@ -9,7 +9,7 @@ import { usernameFromHostname } from "../app/lib/username.ts";
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const find = (predicate, node = tree) => predicate(node) ? node : ts.forEachChild(node, child => find(predicate, child));
-const functions = ["verifySignInCode", "claimUsername", "signOut", "makeOwnStripFromReader", "migrateLegacyDraft"];
+const functions = ["verifySignInCode", "claimUsername", "finishBackgroundOnboarding", "signOut", "makeOwnStripFromReader", "migrateLegacyDraft"];
 const routeEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect" && n.arguments[0]?.getText(tree).includes("const applyRoute ="));
 const sessionEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect" && n.arguments[0]?.getText(tree).includes("const refreshSession ="));
 const source = functions.map(name => `export const ${find(n => ts.isVariableDeclaration(n) && n.name.getText(tree) === name).getText(tree)};`).join("\n")
@@ -26,7 +26,12 @@ function harness(url = "https://striiip.com/") {
     window: { location, localStorage: { getItem: () => null, removeItem: key => cleared.push(key) }, scrollTo() {},
       addEventListener: (name, callback) => { listeners[name] = callback; }, removeEventListener() {} },
     authPending: false, authSendingCode: false, authCode: "000000", AUTH_CODE_LENGTH: 6, authPhone: "+12025550100",
-    authUsername: "new-person", authUser: null, authStatus: "signed-out", libraryOwnerId: "", needsAuthUsername: false,
+    authUsername: "new-person", authUser: null, authStatus: "signed-out", libraryOwnerId: "", needsAuthUsername: false, needsAuthBackground: false,
+    ONBOARDING_BACKGROUND: "#304DFF", authBackground: "#304DFF", authStep: "landing",
+    authPhoneInputRef: { current: { blur() {} } },
+    rememberBackgroundOnboarding: value => { context.backgroundPending = value; },
+    backgroundOnboardingPending: id => context.backgroundPending === id,
+    stripProfile: { saveBackground: async () => true },
     visitingProfileHost: false, legacyOwnerIdRef: { current: "" }, initialRouteHandledRef: { current: false },
     legacyDraftBlocksRef: { current: null }, legacyDraftMigrationRef: { current: null },
     STORAGE_KEY: "draft", OWNER_STORAGE_KEY: "owner", DEFAULT_STRIP_ENDING_STYLE: {},
@@ -41,7 +46,12 @@ function harness(url = "https://striiip.com/") {
     context[name] = value => { context[key] = typeof value === "function" ? value(context[key] ?? []) : value; };
   }
   const setUser = context.setAuthUser;
-  context.setAuthUser = user => { setUser(user); context.needsAuthUsername = !!user && !user.username; };
+  context.setAuthUser = user => {
+    setUser(user); context.needsAuthUsername = !!user && !user.username;
+    context.needsAuthBackground = !!user?.username && context.authStep === "background";
+  };
+  const setStep = context.setAuthStep;
+  context.setAuthStep = value => { setStep(value); context.needsAuthBackground = !!context.authUser?.username && value === "background"; };
   runInNewContext(compiled, context);
   return { ...exports, context, redirects, requests, cleared, listeners };
 }
@@ -62,7 +72,7 @@ test("successful code verification forwards returning users to their personal wo
   }
 });
 
-test("signup keeps the username step in place and redirects only after a successful claim", async () => {
+test("signup keeps username and background onboarding in place, then redirects only after the color is saved", async () => {
   const h = harness();
   const verify = h.verifySignInCode(event);
   h.requests[0].resolve(Response.json({ user: { ...user, username: null } }));
@@ -79,7 +89,30 @@ test("signup keeps the username step in place and redirects only after a success
   h.requests[2].resolve(Response.json({ user: { ...user, username: "new-person" } }));
   await success;
   h.installRoutes(); await settle();
+  assert.equal(h.context.needsAuthBackground, true);
+  assert.equal(h.context.backgroundPending, user.id);
+  assert.equal(h.context.authBackground, "#304DFF");
+  assert.deepEqual(h.redirects, []);
+  h.context.stripProfile.saveBackground = async () => false;
+  await h.finishBackgroundOnboarding();
+  assert.equal(h.context.needsAuthBackground, true);
+  assert.equal(h.context.backgroundPending, user.id);
+  h.context.authBackground = "#FF8CCC";
+  h.context.stripProfile.saveBackground = async color => { assert.equal(color, "#FF8CCC"); return true; };
+  await h.finishBackgroundOnboarding();
+  assert.equal(h.context.backgroundPending, null);
+  h.installRoutes(); await settle();
   assert.deepEqual(h.redirects, ["https://new-person.striiip.com/"]);
+});
+
+test("a reload resumes the unfinished background step for only the matching account", async () => {
+  const h = harness();
+  h.context.backgroundPending = user.id;
+  h.installSession();
+  h.requests[0].resolve(Response.json({ user })); await settle();
+  assert.equal(h.context.needsAuthBackground, true);
+  h.installRoutes(); await settle();
+  assert.deepEqual(h.redirects, []);
 });
 
 test("Make your own Strip opens the viewer's editor, or a preserved base-site sign-in destination", () => {
