@@ -67,7 +67,7 @@ import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { OnboardingBackground } from "@/app/components/OnboardingBackground";
-import { ONBOARDING_BACKGROUND, backgroundOnboardingPending, rememberBackgroundOnboarding } from "@/app/lib/onboarding-background";
+import { ONBOARDING_BACKGROUND, backgroundOnboardingPending, rememberBackgroundOnboarding, syncOnboardingBackground } from "@/app/lib/onboarding-background";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
 import { HapticActionButton } from "@/app/components/HapticActionButton";
@@ -3342,6 +3342,11 @@ export default function Home() {
       : "published-bottom-sheet-canvas-active",
   }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, endingSurfaceColor]);
 
+  // The onboarding canvas owns both Safari edges, after inactive footer cleanup.
+  // Keep this scoped to signup so published and editor dock behavior is unchanged.
+  useLayoutEffect(() => {
+    if (needsAuthBackground) syncOnboardingBackground(authBackground);
+  }, [needsAuthBackground, authBackground]);
 
   useLayoutEffect(installKeyboardDockPosition, []);
 

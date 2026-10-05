@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { STICKER_PACK } from "../app/lib/sticker-pack.ts";
 import * as stickerOrigin from "../app/lib/sticker-origin.ts";
+import * as stickerRotation from "../app/lib/sticker-rotation.ts";
 
 const root = new URL("../", import.meta.url);
 function compile(source, globals = {}) {
@@ -17,7 +18,7 @@ function compile(source, globals = {}) {
 const security = compile(readFileSync(new URL("app/server/media-security.ts", root), "utf8"));
 function validator(route, name) {
   return compile(readFileSync(new URL(`app/api/${route}/route.ts`, root), "utf8") + `\nexports.validate = ${name};`, {
-    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : {},
+    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : id.endsWith("sticker-rotation") ? stickerRotation : {},
   }).validate;
 }
 const draft = validator("drafts", "prepareDraftBlocks");
@@ -30,6 +31,7 @@ function client(fetch) {
 const sticker = (asset, index = 0) => ({
   id: `sticker-${index}`, type: "sticker", src: asset.src, alt: asset.name,
   mediaType: "image", stickerOrigin: "pack", x: 50, y: 520, width: 32,
+  rotation: index % 2 ? -23.5 : 17.25,
 });
 const file = (src) => readFileSync(new URL(`public${src}`, root));
 const imageResponse = (src) => new Response(file(src), { headers: { "Content-Type": "image/webp" } });
@@ -53,12 +55,16 @@ test("all pack cutouts save and publish through the real server validators", asy
       assert.equal(saved.storedBlocks[i].width, original[i].width);
       assert.equal(saved.storedBlocks[i].stickerOrigin, "pack");
       assert.equal(published.storedBlocks[i].stickerOrigin, "pack");
+      assert.equal(saved.storedBlocks[i].rotation, original[i].rotation);
+      assert.equal(published.storedBlocks[i].rotation, original[i].rotation);
     }
     const restored = original.map((block) => ({ ...block, src: `/api/drafts/draft-qa/media/${block.id}` }));
     const resaved = draft("owner-qa", "draft-qa", await prepare(restored));
     const republished = publish("owner-qa", "strip-qa", "draft-qa", await prepare(restored));
     assert.equal(resaved.uploads.length, 0);
     assert.equal(republished.copies.length, original.length);
+    assert.deepEqual(Array.from(resaved.storedBlocks, block => block.rotation), original.map(block => block.rotation));
+    assert.deepEqual(Array.from(republished.storedBlocks, block => block.rotation), original.map(block => block.rotation));
   }
 });
 

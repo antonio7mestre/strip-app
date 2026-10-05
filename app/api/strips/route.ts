@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
+import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import {
   readStripContent,
   writeStripContent,
@@ -72,6 +73,7 @@ type PublishBlock =
       x: number;
       y: number;
       width: number;
+      rotation?: number;
     };
 
 type StoredContentBlock =
@@ -97,6 +99,7 @@ type StoredContentBlock =
       x: number;
       y: number;
       width: number;
+      rotation?: number;
     };
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
@@ -252,6 +255,7 @@ function prepareContentBlocks(
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
         width: Math.min(80, Math.max(8, finiteNumber(block.width, 30))),
+        rotation: normalizeStickerRotation(block.rotation),
       });
     } else {
       storedBlocks.push({

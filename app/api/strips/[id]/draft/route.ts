@@ -40,6 +40,7 @@ type StoredBlock =
       x: number;
       y: number;
       width: number;
+      rotation?: number;
     };
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;

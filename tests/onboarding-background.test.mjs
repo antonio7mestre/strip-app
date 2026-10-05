@@ -67,6 +67,41 @@ test("background step can resume only for its account, including blocked storage
   } finally { delete globalThis.window; }
 });
 
+test("every swatch and custom color replaces stale reload paint at both Safari edges", () => {
+  const classes = new Set(["profile-reload-pending", "onboarding-background-active"]);
+  const values = new Map([["--profile-reload-background", colors.ONBOARDING_BACKGROUND]]);
+  const meta = new Map([["content", colors.ONBOARDING_BACKGROUND]]);
+  const page = {
+    documentElement: {
+      classList: { remove: name => classes.delete(name) },
+      style: { setProperty: (name, value) => values.set(name, value), removeProperty: name => values.delete(name) },
+    },
+    getElementById: name => name === "strip-theme-color" ? { setAttribute: (name, value) => meta.set(name, value) } : null,
+  };
+  for (const color of [...colors.ONBOARDING_COLORS.map(({ value }) => value), "#EF72A1", "#113F87"]) {
+    colors.syncOnboardingBackground(color, page);
+    assert.equal(page.documentElement.style.backgroundColor, color);
+    for (const property of ["--onboarding-background", "--top-safe-area-color", "--bottom-safe-area-color"]) {
+      assert.equal(values.get(property), color);
+    }
+    assert.equal(meta.get("content"), color);
+    assert.equal(meta.get("name"), "theme-color", "Restore Safari tint after the preceding keyboard form");
+    assert.equal(classes.has("profile-reload-pending"), false);
+    assert.equal(values.has("--profile-reload-background"), false);
+    assert.deepEqual([...classes], ["onboarding-background-active"], "Do not change any footer or tool classes");
+  }
+  assert.doesNotThrow(() => colors.syncOnboardingBackground("#BFFF00", { ...page, getElementById: () => null }));
+  assert.match(read("app/components/OnboardingBackground.module.css"), /background: var\(--onboarding-background\) !important/);
+});
+
+test("onboarding takes edge ownership before paint and only after inactive footer cleanup", () => {
+  const source = read("app/page.tsx");
+  const footer = source.indexOf("useLayoutEffect(() => installFooterSafeAreaColor(");
+  const sync = source.indexOf("if (needsAuthBackground) syncOnboardingBackground(authBackground)");
+  assert.ok(footer >= 0 && sync > footer);
+  assert.match(source.slice(footer, sync + 160), /useLayoutEffect\(\(\) => \{\s*if \(needsAuthBackground\) syncOnboardingBackground\(authBackground\);\s*\}, \[needsAuthBackground, authBackground\]\)/);
+});
+
 test("color screen renders selected ring, contrast changes and the shared picker control", () => {
   const component = compile(read("app/components/OnboardingBackground.tsx"), {
     require: name => ({

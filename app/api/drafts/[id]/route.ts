@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
+import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 
@@ -40,6 +41,7 @@ type StoredDraftBlock =
       x: number;
       y: number;
       width: number;
+      rotation?: number;
     };
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
@@ -124,6 +126,7 @@ export async function GET(
             x: block.x,
             y: block.y,
             width: block.width,
+            rotation: normalizeStickerRotation(block.rotation),
           }
         : {}),
     });

@@ -1,5 +1,19 @@
 export const ONBOARDING_BACKGROUND = "#304DFF";
 
+/** The ready color step replaces any SSR reload paint before Safari samples it. */
+export function syncOnboardingBackground(color: string, page: Document = document) {
+  const root = page.documentElement;
+  root.classList.remove("profile-reload-pending");
+  root.style.removeProperty("--profile-reload-background");
+  root.style.backgroundColor = color;
+  root.style.setProperty("--onboarding-background", color);
+  root.style.setProperty("--top-safe-area-color", color);
+  root.style.setProperty("--bottom-safe-area-color", color);
+  const theme = page.getElementById("strip-theme-color");
+  theme?.setAttribute("name", "theme-color");
+  theme?.setAttribute("content", color);
+}
+
 // Cobalt belongs in the top-left slot. The grid adds whole rows as space allows.
 export const ONBOARDING_COLORS = [
   { name: "Cobalt", value: ONBOARDING_BACKGROUND },
