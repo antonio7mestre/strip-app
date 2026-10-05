@@ -1,14 +1,15 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Check, Palette } from "lucide-react";
+import { ArrowLeft, Check, Palette } from "lucide-react";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { ONBOARDING_COLORS, onboardingGrid } from "@/app/lib/onboarding-background";
 import { profileInk } from "@/app/lib/profile";
 import styles from "./OnboardingBackground.module.css";
 
-export function OnboardingBackground({ color, onChange, onContinue, pending, loading, error, onRetry }: {
+export function OnboardingBackground({ color, onChange, onContinue, onBack, pending, loading, error, onRetry }: {
   color: string; onChange: (color: string) => void; onContinue: () => void;
+  onBack: () => void;
   pending: boolean; loading: boolean; error: string; onRetry: () => void;
 }) {
   const space = useRef<HTMLDivElement>(null);
@@ -38,10 +39,14 @@ export function OnboardingBackground({ color, onChange, onContinue, pending, loa
   return <section className={styles.screen} aria-labelledby="background-heading"
     style={{ backgroundColor: color, color: ink, "--onboarding-ink": ink, "--onboarding-background": color,
       "--swatch-size": `${grid.size}px` } as CSSProperties}>
-    <header className={styles.heading}>
-      <h1 id="background-heading">Pick your background.</h1>
-      <p>Make yourself at home. You can change it later.</p>
+    <header className={`auth-flow-header ${styles.navigation}`}>
+      <button type="button" className={`auth-back-button ${styles.back}`} aria-label="Back to username"
+        disabled={pending} onClick={onBack}><ArrowLeft aria-hidden="true" strokeWidth={2.8} /></button>
     </header>
+    <div className={`auth-flow-copy ${styles.heading}`}>
+      <h1 id="background-heading">Background</h1>
+      <p>Pick a color. You can change it later.</p>
+    </div>
     <div ref={space} className={styles.space}>
       <div className={styles.grid} role="group" aria-label="Background colors">
         {ONBOARDING_COLORS.slice(0, grid.count).map((swatch) => <button

@@ -213,7 +213,7 @@ type PublicProfileState = {
   strips: PublishedStripSummary[];
   status: "loading" | "ready" | "missing" | "error";
 };
-type AuthStep = "landing" | "phone" | "code" | "background";
+type AuthStep = "landing" | "phone" | "code" | "username" | "background";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -2886,7 +2886,7 @@ export default function Home() {
   const hasStickerAnchorBlock = blocks.some(
     (block) => block.type !== "sticker",
   );
-  const needsAuthUsername = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser && !authUser.username);
+  const needsAuthUsername = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser && (!authUser.username || authStep === "username"));
   const needsAuthBackground = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser?.username) && authStep === "background";
   const authFlowStep = needsAuthUsername ? "username" : authStep;
   const authActiveInputRef = authFlowStep === "code" ? authCodeInputRef : authPhoneInputRef;
@@ -5028,7 +5028,7 @@ export default function Home() {
       setLibraryOwnerId(data.user.id);
       setAuthStatus("signed-in");
       setAuthenticationRequired(false);
-      setAuthStep("landing");
+      setAuthStep(data.user.username && backgroundOnboardingPending(data.user.id) ? "background" : "landing");
       setAuthCode("");
       setAuthResendSeconds(0);
       setAuthDevelopmentCode("");
@@ -5044,6 +5044,13 @@ export default function Home() {
   const claimUsername = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (authPending) return;
+    // Back from Background reviews the already-reserved address. Do not try
+    // claiming it twice, and preserve the color they have just chosen.
+    if (authUser?.username) {
+      setAuthStep("background");
+      authPhoneInputRef.current?.blur();
+      return;
+    }
     const username = authUsername.trim().toLowerCase();
     setAuthPending(true);
     setAuthUsernameError("");
@@ -5083,6 +5090,14 @@ export default function Home() {
     setAuthStep("landing");
     initialRouteHandledRef.current = false;
     setInitialRouteReady(false);
+  };
+
+  const returnBackgroundToUsername = () => {
+    if (stripProfile.pending) return;
+    setAuthTransitionDirection("backward");
+    setAuthUsername(authUser?.username ?? "");
+    setAuthUsernameError("");
+    setAuthStep("username");
   };
 
   const editSignInPhone = () => {
@@ -6784,6 +6799,7 @@ export default function Home() {
 
   if (needsAuthBackground) return <OnboardingBackground color={authBackground}
     onChange={setAuthBackground} onContinue={() => void finishBackgroundOnboarding()}
+    onBack={returnBackgroundToUsername}
     pending={stripProfile.pending} loading={stripProfile.loading || stripProfile.loadFailed}
     error={stripProfile.error} onRetry={stripProfile.retry} />;
 
@@ -6862,6 +6878,7 @@ export default function Home() {
                         tabIndex={authFlowStep === "code" ? -1 : 0}
                         type="text"
                         inputMode={needsAuthUsername ? "text" : "tel"}
+                        readOnly={needsAuthUsername && Boolean(authUser?.username)}
                         autoComplete={needsAuthUsername ? "username" : "tel"}
                         autoCapitalize="none"
                         autoCorrect="off"

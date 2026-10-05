@@ -18,12 +18,20 @@ const compile = (source, globals) => {
   return exports;
 };
 
-test("cobalt is selected in the top-right, with readable ink for every color", () => {
-  assert.equal(colors.ONBOARDING_COLORS[3].value, colors.ONBOARDING_BACKGROUND);
+test("cobalt is selected in the top-left, with distinct colors and readable ink for every color", () => {
+  assert.equal(colors.ONBOARDING_COLORS[0].value, colors.ONBOARDING_BACKGROUND);
   assert.equal(profile.profileInk(colors.ONBOARDING_BACKGROUND), "#FFFFFF");
   assert.equal(new Set(colors.ONBOARDING_COLORS.map(color => color.value)).size, colors.ONBOARDING_COLORS.length);
   for (const { value } of colors.ONBOARDING_COLORS) {
     assert.ok(profile.profileContrast(value, profile.profileInk(value)) >= 4.5);
+  }
+  const rgb = hex => hex.slice(1).match(/../g).map(part => parseInt(part, 16));
+  for (let i = 0; i < colors.ONBOARDING_COLORS.length; i++) {
+    for (const other of colors.ONBOARDING_COLORS.slice(i + 1)) {
+      const a = colors.ONBOARDING_COLORS[i], b = other;
+      const distance = Math.hypot(...rgb(a.value).map((value, index) => value - rgb(b.value)[index]));
+      assert.ok(distance > 65, `${a.name} and ${b.name} must not be near-duplicates`);
+    }
   }
 });
 
@@ -63,7 +71,7 @@ test("color screen renders selected ring, contrast changes and the shared picker
   const component = compile(read("app/components/OnboardingBackground.tsx"), {
     require: name => ({
       react: React, "react/jsx-runtime": jsx,
-      "lucide-react": { Check: () => null, Palette: () => null },
+      "lucide-react": { ArrowLeft: () => null, Check: () => null, Palette: () => null },
       "@/app/lib/onboarding-background": colors, "@/app/lib/profile": profile,
       "@/app/components/GradientColorPicker": { GradientColorPicker: () => null },
       "./OnboardingBackground.module.css": { default: new Proxy({}, { get: (_, key) => key }) },
@@ -76,6 +84,9 @@ test("color screen renders selected ring, contrast changes and the shared picker
   assert.equal((html.match(/class="swatch"/g) || []).length, 4);
   assert.match(html, /--onboarding-ink:#FFFFFF/);
   assert.match(html, /Choose a custom color/);
+  assert.match(html, /Back to username/);
+  assert.match(html, /auth-flow-header/);
+  assert.match(html, /auth-flow-copy/);
   const source = read("app/components/OnboardingBackground.tsx");
   assert.match(source, /ResizeObserver\(measure\)/);
   assert.match(source, /<GradientColorPicker color=\{color\}/);
@@ -85,6 +96,13 @@ test("color screen renders selected ring, contrast changes and the shared picker
   assert.match(css, /\.swatch\[aria-pressed="true"\] \{ border: 3px solid var\(--onboarding-ink\)/);
   assert.match(css, /height: 100dvh/);
   assert.match(css, /overflow: hidden/);
+  assert.match(css, /\.picker :global\(\.full-gradient-picker\) \{[^}]*border-radius: 0/,
+    "Only the outer picker clips the rainbow, so it fills all four corners");
+  assert.match(css, /\.picker \{[^}]*position: fixed;[^}]*left: 0; right: 0;[^}]*border-radius: 0/,
+    "The onboarding rainbow reaches both edges of the screen with no inset or cut-out top-left corner");
+  assert.match(read("app/globals.css"), /\.auth-signin-mode \.auth-flow-copy h1 \{ color: #ffffff; \}/);
+  assert.doesNotMatch(css, /font-weight: 800|letter-spacing: -0.04em/,
+    "The color step inherits the same header typography as the preceding steps");
 });
 
 function saveHarness() {

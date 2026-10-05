@@ -1174,7 +1174,7 @@ html.auth-form-anchored .auth-signin-mode {
 .auth-signin-mode .auth-flow-stage { animation: none; }
 .auth-signin-mode .auth-flow-stage { padding-top: clamp(24px, 5vh, 46px); }
 .auth-signin-mode .auth-back-button { background: rgb(255 255 255 / 16%); }
-.auth-signin-mode .auth-flow-copy h1 { color: #d4ff00; }
+.auth-signin-mode .auth-flow-copy h1 { color: #ffffff; }
 .auth-signin-mode .auth-flow-copy p { color: #ffffff; min-height: 1.35em; }
 .auth-signin-mode .auth-entry-field { position: relative; height: 62px; flex: none; }
 .auth-signin-mode .auth-code-cells { height: 100%; }

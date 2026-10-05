@@ -89,7 +89,9 @@ test("phone and OTP keep stable native inputs in the same fixed field slot", () 
   const input=auth.match(/<input\s+id="auth-entry"[\s\S]*?\/>/)[0];
   assert.equal((auth.match(/id="auth-entry"/g)||[]).length,1);
   assert.match(input,/type="text"\s+inputMode=\{needsAuthUsername \? "text" : "tel"\}/);
-  assert.doesNotMatch(input,/disabled=|readOnly=|key=/);
+  assert.doesNotMatch(input,/disabled=|key=/);
+  assert.match(input,/readOnly=\{needsAuthUsername && Boolean\(authUser\?\.username\)\}/,
+    "Only the already-reserved username review is read-only; phone and OTP retain their native input sessions");
   assert.match(input,/autoComplete=\{needsAuthUsername \? "username" : "tel"\}/);
   const code=auth.match(/<input\s+id="auth-code"[\s\S]*?\/>/)[0];
   assert.match(code,/autoComplete="one-time-code"/);

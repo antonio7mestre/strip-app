@@ -9,7 +9,7 @@ import { usernameFromHostname } from "../app/lib/username.ts";
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const find = (predicate, node = tree) => predicate(node) ? node : ts.forEachChild(node, child => find(predicate, child));
-const functions = ["verifySignInCode", "claimUsername", "finishBackgroundOnboarding", "signOut", "makeOwnStripFromReader", "migrateLegacyDraft"];
+const functions = ["verifySignInCode", "claimUsername", "finishBackgroundOnboarding", "returnBackgroundToUsername", "signOut", "makeOwnStripFromReader", "migrateLegacyDraft"];
 const routeEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect" && n.arguments[0]?.getText(tree).includes("const applyRoute ="));
 const sessionEffect = find(n => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect" && n.arguments[0]?.getText(tree).includes("const refreshSession ="));
 const source = functions.map(name => `export const ${find(n => ts.isVariableDeclaration(n) && n.name.getText(tree) === name).getText(tree)};`).join("\n")
@@ -47,11 +47,14 @@ function harness(url = "https://striiip.com/") {
   }
   const setUser = context.setAuthUser;
   context.setAuthUser = user => {
-    setUser(user); context.needsAuthUsername = !!user && !user.username;
+    setUser(user); context.needsAuthUsername = !!user && (!user.username || context.authStep === "username");
     context.needsAuthBackground = !!user?.username && context.authStep === "background";
   };
   const setStep = context.setAuthStep;
-  context.setAuthStep = value => { setStep(value); context.needsAuthBackground = !!context.authUser?.username && value === "background"; };
+  context.setAuthStep = value => {
+    setStep(value); context.needsAuthBackground = !!context.authUser?.username && value === "background";
+    context.needsAuthUsername = !!context.authUser && (!context.authUser.username || value === "username");
+  };
   runInNewContext(compiled, context);
   return { ...exports, context, redirects, requests, cleared, listeners };
 }
@@ -110,6 +113,34 @@ test("a reload resumes the unfinished background step for only the matching acco
   h.context.backgroundPending = user.id;
   h.installSession();
   h.requests[0].resolve(Response.json({ user })); await settle();
+  assert.equal(h.context.needsAuthBackground, true);
+  h.installRoutes(); await settle();
+  assert.deepEqual(h.redirects, []);
+});
+
+test("Background Back reviews the reserved username and Continue returns without a second claim or a route change", async () => {
+  const h = harness();
+  h.context.setAuthUser(user);
+  h.context.setAuthStep("background");
+  h.context.authBackground = "#FF8CCC";
+  h.returnBackgroundToUsername();
+  assert.equal(h.context.authStep, "username");
+  assert.equal(h.context.authUsername, "antonio");
+  assert.equal(h.context.needsAuthUsername, true);
+  h.installRoutes(); await settle();
+  assert.deepEqual(h.redirects, []);
+  await h.claimUsername(event);
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.context.authStep, "background");
+  assert.equal(h.context.authBackground, "#FF8CCC");
+});
+
+test("signing back into an unfinished signup still resumes Background after reviewing the phone number", async () => {
+  const h = harness();
+  h.context.backgroundPending = user.id;
+  const verify = h.verifySignInCode(event);
+  h.requests[0].resolve(Response.json({ user }));
+  await verify;
   assert.equal(h.context.needsAuthBackground, true);
   h.installRoutes(); await settle();
   assert.deepEqual(h.redirects, []);
