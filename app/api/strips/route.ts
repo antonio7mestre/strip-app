@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
+import { normalizeStickerWidth } from "@/app/lib/sticker-sizing";
 import {
   readStripContent,
   writeStripContent,
@@ -254,7 +255,7 @@ function prepareContentBlocks(
         stickerOrigin: normalizeStickerOrigin(block.stickerOrigin),
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
-        width: Math.min(80, Math.max(8, finiteNumber(block.width, 30))),
+        width: normalizeStickerWidth(block.width),
         rotation: normalizeStickerRotation(block.rotation),
       });
     } else {

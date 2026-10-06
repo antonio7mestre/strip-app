@@ -8,6 +8,7 @@ import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
+import { normalizeStickerWidth } from "@/app/lib/sticker-sizing";
 
 export const dynamic = "force-dynamic";
 
@@ -230,7 +231,7 @@ function prepareDraftBlocks(
         stickerOrigin: normalizeStickerOrigin(block.stickerOrigin),
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
-        width: Math.min(80, Math.max(8, finiteNumber(block.width, 30))),
+        width: normalizeStickerWidth(block.width),
         rotation: normalizeStickerRotation(block.rotation),
       });
     } else {

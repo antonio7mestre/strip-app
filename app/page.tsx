@@ -65,6 +65,7 @@ import { prepareStickerUploads } from "@/app/lib/sticker-upload";
 import { prepareMediaFiles, type MediaImportProgress, type MediaSize } from "@/app/lib/media-import";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
+import { resizeStickerWidth } from "@/app/lib/sticker-sizing";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { OnboardingBackground } from "@/app/components/OnboardingBackground";
@@ -2167,10 +2168,7 @@ function StripStickerBlock({
         );
         const midpointX = (first.clientX + second.clientX) / 2;
         const midpointY = (first.clientY + second.clientY) / 2;
-        const width = Math.min(
-          92,
-          Math.max(10, transform.width * (distance / transform.distance)),
-        );
+        const width = resizeStickerWidth(transform.width * (distance / transform.distance));
         const rawRotation =
           transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
         const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;
@@ -2504,10 +2502,7 @@ function StripStickerBlock({
           );
           const midpointX = (first.clientX + second.clientX) / 2;
           const midpointY = (first.clientY + second.clientY) / 2;
-          const width = Math.min(
-            92,
-            Math.max(10, transform.width * (distance / transform.distance)),
-          );
+          const width = resizeStickerWidth(transform.width * (distance / transform.distance));
           const rawRotation =
             transform.rotation + ((angle - transform.angle) * 180) / Math.PI;
           const rotation = ((rawRotation + 180) % 360 + 360) % 360 - 180;

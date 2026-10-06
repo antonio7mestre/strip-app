@@ -8,6 +8,7 @@ import * as username from "../app/lib/username.ts";
 import * as ending from "../app/lib/strip-ending.ts";
 import * as stickerOrigin from "../app/lib/sticker-origin.ts";
 import * as stickerRotation from "../app/lib/sticker-rotation.ts";
+import * as stickerSizing from "../app/lib/sticker-sizing.ts";
 import * as profile from "../app/lib/profile.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -49,6 +50,7 @@ function fixture() {
   Object.assign(imports, { "@/app/server/auth": auth, "@/app/lib/strip-ending": ending,
     "@/app/lib/profile": profile,
     "@/app/lib/sticker-rotation": stickerRotation,
+    "@/app/lib/sticker-sizing": stickerSizing,
     "@/app/lib/sticker-origin": stickerOrigin, "@/app/server/view-history": { recordStripView: async () => {} },
     "@/app/server/media-security": { isAllowedStoredMediaContentType: () => true } });
   return { db, auth, api: path => compile(path, imports) };

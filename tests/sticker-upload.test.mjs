@@ -6,6 +6,7 @@ import ts from "typescript";
 import { STICKER_PACK } from "../app/lib/sticker-pack.ts";
 import * as stickerOrigin from "../app/lib/sticker-origin.ts";
 import * as stickerRotation from "../app/lib/sticker-rotation.ts";
+import * as stickerSizing from "../app/lib/sticker-sizing.ts";
 
 const root = new URL("../", import.meta.url);
 function compile(source, globals = {}) {
@@ -18,7 +19,7 @@ function compile(source, globals = {}) {
 const security = compile(readFileSync(new URL("app/server/media-security.ts", root), "utf8"));
 function validator(route, name) {
   return compile(readFileSync(new URL(`app/api/${route}/route.ts`, root), "utf8") + `\nexports.validate = ${name};`, {
-    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : id.endsWith("sticker-rotation") ? stickerRotation : {},
+    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : id.endsWith("sticker-rotation") ? stickerRotation : id.endsWith("sticker-sizing") ? stickerSizing : {},
   }).validate;
 }
 const draft = validator("drafts", "prepareDraftBlocks");
@@ -80,6 +81,21 @@ test("repeated saves and duplicate stickers reuse the same small upload without 
   assert.equal(result[0], photo);
   assert.equal(result[1], video);
   assert.equal(result[2].src, result[3].src);
+});
+
+test("enlarged frame stickers keep their exact editor width on both saving and publishing", async () => {
+  const frame = STICKER_PACK.find(asset => asset.id === "instant-frame");
+  assert.ok(frame);
+  const prepare = client(async src => imageResponse(src));
+  for (const width of [80.001, 86.625, 90, 92]) {
+    const original = { ...sticker(frame), width };
+    const uploaded = await prepare([original]);
+    const saved = draft("owner-qa", "draft-qa", uploaded);
+    const published = publish("owner-qa", "strip-qa", "draft-qa", uploaded);
+    assert.equal(saved.storedBlocks[0].width, width, "autosave must not shrink a frame");
+    assert.equal(published.storedBlocks[0].width, width, "publishing must not shrink a frame");
+    assert.equal(Buffer.compare(Buffer.from(published.uploads[0].bytes), file(frame.src)), 0, "the cutout pixels and aspect ratio are unchanged");
+  }
 });
 
 test("failed downloads can retry, invalid responses are rejected and arbitrary URLs are never fetched", async () => {

@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 import * as rotation from "../app/lib/sticker-rotation.ts";
+import * as sizing from "../app/lib/sticker-sizing.ts";
 import * as origin from "../app/lib/sticker-origin.ts";
 import * as ending from "../app/lib/strip-ending.ts";
 import * as profile from "../app/lib/profile.ts";
@@ -62,6 +63,7 @@ function fixture() {
   const imports = {
     "cloudflare:workers": { env },
     "@/app/lib/sticker-origin": origin, "@/app/lib/sticker-rotation": rotation,
+    "@/app/lib/sticker-sizing": sizing,
     "@/app/lib/strip-ending": ending, "@/app/lib/profile": profile,
     "@/app/server/auth": {
       isSameOrigin: () => true,
@@ -88,7 +90,7 @@ test("real save, reload, publish, public reload, editable clone and republish pr
       id: `sticker-${index}`, type: "sticker", stickerOrigin,
       src: index === 3 ? "data:video/mp4;base64,AA==" : "data:image/png;base64,AA==",
       mediaType: index === 3 ? "video" : "image", alt: `Sticker ${index}`,
-      x: 24 + index * 13, y: 180 + index * 225, width: 26 + index,
+      x: 24 + index * 13, y: 180 + index * 225, width: [10, 92, 86.625, 8][index],
       rotation: [17.25, -23.5, 112, -178][index],
     }));
     const expected = transforms(blocks);
