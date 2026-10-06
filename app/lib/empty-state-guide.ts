@@ -1,6 +1,22 @@
 export type EmptyStateKind = "profile" | "editor";
 type Bounds = { left: number; top: number; width: number; height: number };
 
+/** The guide points to the resting control, not its temporary slide-in offset. */
+export function emptyStateControlBounds(target: HTMLElement): Bounds {
+  const bounds = target.getBoundingClientRect();
+  let left = bounds.left, top = bounds.top;
+  for (const selector of [".composer-dock", ".dock-controls-current"]) {
+    const surface = target.closest?.(selector);
+    if (!surface) continue;
+    const transform = getComputedStyle(surface).transform;
+    if (!transform || transform === "none") continue;
+    const matrix = new DOMMatrixReadOnly(transform);
+    left -= matrix.m41;
+    top -= matrix.m42;
+  }
+  return { left, top, width: bounds.width, height: bounds.height };
+}
+
 /** Aim at the real control, not an assumed phone size or browser toolbar height. */
 export function emptyStateGuidePosition(origin: Bounds, target: Bounds, kind: EmptyStateKind) {
   // The homepage's raster arrow points down/right; the editor mirrors it left.
@@ -17,7 +33,7 @@ export function installEmptyStateGuide(origin: HTMLElement, arrow: HTMLElement, 
   const target = page?.querySelector<HTMLElement>(selector);
   if (!target) return;
   const sync = () => {
-    const bounds = target.getBoundingClientRect();
+    const bounds = emptyStateControlBounds(target);
     if (!bounds.width || !bounds.height) {
       arrow.removeAttribute("data-positioned");
       return;
@@ -38,6 +54,7 @@ export function installEmptyStateGuide(origin: HTMLElement, arrow: HTMLElement, 
   window.visualViewport?.addEventListener("resize", sync);
   window.visualViewport?.addEventListener("scroll", sync);
   page?.addEventListener("transitionend", sync);
+  page?.addEventListener("animationend", sync);
   return () => {
     resize?.disconnect();
     window.removeEventListener("resize", sync);
@@ -45,6 +62,7 @@ export function installEmptyStateGuide(origin: HTMLElement, arrow: HTMLElement, 
     window.visualViewport?.removeEventListener("resize", sync);
     window.visualViewport?.removeEventListener("scroll", sync);
     page?.removeEventListener("transitionend", sync);
+    page?.removeEventListener("animationend", sync);
     origin.style.removeProperty("--empty-guide-left");
     origin.style.removeProperty("--empty-guide-top");
   };

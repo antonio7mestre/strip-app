@@ -21,6 +21,7 @@ const component = compile(read("app/components/EmptyStripState.tsx"), {
   require: name => ({
     react: React, "react/jsx-runtime": jsx,
     "@/app/lib/empty-state-guide": guide,
+    "@/app/lib/empty-state-artwork": { watchEmptyStateArtwork() {} },
     "./EmptyStripState.module.css": { default: new Proxy({}, { get: (_, key) => key }) },
   })[name],
 }).EmptyStripState;
@@ -81,12 +82,15 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
   assert.match(css, /\.editor \.lettering \{[^}]*left: 112px; top: -46px/);
   assert.match(css, /\.subtitle \{[^}]*margin: 8px auto 0/);
   assert.match(css, /\.guide \{[^}]*position: absolute;[^}]*pointer-events: none/s);
-  assert.doesNotMatch(css, /box-shadow|drop-shadow|100[lsd]?vh|position: fixed|animation:|transition:/);
+  assert.doesNotMatch(css, /box-shadow|drop-shadow|100[lsd]?vh|position: fixed|animation:/);
+  assert.match(css, /transition: opacity 240ms/);
+  assert.match(css, /\.guide\[data-positioned="true"\]\[data-artwork-ready="true"\]/);
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*\.guide \{ transition: none; \}/);
   assert.match(css, /max-height: 650px/);
   assert.match(css, /background: currentColor;[\s\S]*mask: var\(--empty-state-lettering\)/,
     "Generated handwriting keeps its alpha and follows readable theme ink");
   const source = read("app/components/EmptyStripState.tsx");
-  assert.doesNotMatch(source, /StickerImage|artwork|decorations/);
+  assert.doesNotMatch(source, /StickerImage|styles\.artwork|decorations/);
   for (const kind of ["profile", "editor"]) {
     assert.doesNotMatch(render({ kind }), /jelly-bow.webp|silver-heart.webp|red-cherries.webp|pearl-star.webp|notebook-scrap.webp|textGlyph/);
   }

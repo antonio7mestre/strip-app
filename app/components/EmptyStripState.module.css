@@ -33,11 +33,13 @@
   width: 160px;
   height: 112px;
   visibility: hidden;
+  opacity: 0;
+  transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
   user-select: none;
   text-align: center;
 }
-.guide[data-positioned="true"] { visibility: visible; }
+.guide[data-positioned="true"][data-artwork-ready="true"] { visibility: visible; opacity: 1; }
 .lettering {
   display: block;
   width: 148px;
@@ -63,6 +65,9 @@
 .profile .arrowGraphic { left: 104px; top: 0; }
 .profile .lettering { position: absolute; left: -58px; top: -32px; margin: 0; }
 .profile .guide { transform: translateX(-8px); }
+@media (prefers-reduced-motion: reduce) {
+  .guide { transition: none; }
+}
 @media (max-height: 650px) {
   .profile { padding-top: 0; padding-bottom: calc(154px + env(safe-area-inset-bottom)); }
   .collage { height: 218px; width: min(100%, 282px); }

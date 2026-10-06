@@ -574,7 +574,6 @@ function contrastColor(color: string) {
 function StripEndActions({
   primaryAction,
   primaryLabel,
-  primaryPending = false,
   onPrimary,
   onShare,
   onPublish,
@@ -582,33 +581,27 @@ function StripEndActions({
 }: {
   primaryAction: "edit" | "create";
   primaryLabel: string;
-  primaryPending?: boolean;
   onPrimary: () => void;
   publishNeedsContent?: boolean;
 } & ({ onShare: () => void; onPublish?: never } | { onPublish: () => void; onShare?: never })) {
   return (
     <div className={`strip-end-sheet-controls${onPublish ? " is-preview" : ""}`}>
       <button
-        className={`strip-end-sheet-primary${primaryPending ? " is-opening" : ""}`}
+        className="strip-end-sheet-primary"
         type="button"
-        disabled={primaryPending}
-        aria-busy={primaryPending || undefined}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
           onPrimary();
         }}
       >
-        {primaryPending ? (
-          <span className="strip-end-sheet-spinner" aria-hidden="true" />
-        ) : onPublish ? null : (
+        {onPublish ? null : (
           <Pencil className={`strip-end-sheet-solid-pencil is-${primaryAction}`} aria-hidden="true" />
         )}
-        <span aria-live="polite">{primaryPending ? "Opening editor…" : primaryLabel}</span>
+        <span>{primaryLabel}</span>
       </button>
       <HapticActionButton
         className={onPublish ? "strip-end-sheet-primary strip-end-sheet-publish" : "strip-end-sheet-share"}
-        disabled={primaryPending}
         feedback={Boolean(onPublish) && publishNeedsContent}
         onClick={() => (onPublish ?? onShare)()}
         label={onPublish ? "Publish" : "Share this Strip"}
@@ -2698,6 +2691,8 @@ export default function Home() {
   useEffect(() => () => { openingCoverRequestRef.current?.abort(); }, []);
   const [openingDraftId, setOpeningDraftId] = useState<string | null>(null);
   const [openingPublishedEditor, setOpeningPublishedEditor] = useState(false);
+  const publishedEditorRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { publishedEditorRequestRef.current?.abort(); }, []);
   const [openedPublishedStrip, setOpenedPublishedStrip] =
     useState<PublishedStripDetail | null>(null);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
@@ -4485,6 +4480,8 @@ export default function Home() {
     pageTransitionInFlightRef.current = false;
     openingCoverRequestRef.current?.abort();
     openingCoverRequestRef.current = null;
+    publishedEditorRequestRef.current?.abort();
+    publishedEditorRequestRef.current = null;
     setOpeningCover(null);
     cancelDockTransitionSchedule();
     setOpeningStripId(null);
@@ -5849,22 +5846,80 @@ export default function Home() {
       return;
     }
     pageTransitionInFlightRef.current = true;
+    const strip = openedPublishedStrip;
+    const readerScrollTop = window.scrollY;
+    const controller = new AbortController();
+    publishedEditorRequestRef.current = controller;
+    // Show the already-loaded content immediately. Keep it read-only until
+    // the draft is ready, so autosave cannot overwrite an existing draft.
+    flushSync(() => {
+      setOpeningPublishedEditor(true);
+      setCurrentDraftId(null);
+      setCurrentDraftCreatedAt(0);
+      setEditingPublishedStripId(strip.id);
+      setBlocks(strip.blocks);
+      setEndingStyle(strip.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE);
+      setStripTitle(strip.title);
+      setSelectedBlockId(null);
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
+      setHeightCropSession(null);
+      setStickerPickerOpen(false);
+      setSelectedCover("");
+      setActiveCoverKey("");
+      setCustomCoverSrc(null);
+      setCustomCoverColors([]);
+      setCoverColorShape("square");
+    });
+    showEditorDockEntry();
+    setViewInstantly("edit", 0, false);
     try {
-      // Commit feedback in the click itself, before waiting for the draft copy.
-      flushSync(() => setOpeningPublishedEditor(true));
       const response = await fetch(
-        `/api/strips/${encodeURIComponent(openedPublishedStrip.id)}/draft`,
-        { method: "POST" },
+        `/api/strips/${encodeURIComponent(strip.id)}/draft`,
+        { method: "POST", signal: controller.signal },
       );
       if (!response.ok) throw new Error("Published draft request failed");
       const data = (await response.json()) as { draft: { id: string } };
-      window.location.assign(
-        `${accountAppOrigin(window.location, authUser?.username)}/edit/${encodeURIComponent(data.draft.id)}`,
-      );
+      if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
+      const draftResponse = await fetch(`/api/drafts/${encodeURIComponent(data.draft.id)}`, {
+        cache: "no-store", signal: controller.signal,
+      });
+      if (!draftResponse.ok) throw new Error("Draft request failed");
+      const { draft } = (await draftResponse.json()) as { draft: DraftStripDetail };
+      if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
+      const workspaceOrigin = accountAppOrigin(window.location, authUser?.username);
+      const editorPath = `/edit/${encodeURIComponent(draft.id)}`;
+      if (workspaceOrigin !== window.location.origin) {
+        window.location.assign(`${workspaceOrigin}${editorPath}`);
+        return;
+      }
+      // Reuse any unsaved draft rather than replacing it with the public copy.
+      // Only change the URL once a reload can safely restore that draft.
+      setBrowserPath(editorPath);
+      flushSync(() => {
+        setCurrentDraftId(draft.id);
+        setCurrentDraftCreatedAt(draft.createdAt);
+        setEditingPublishedStripId(draft.publishedStripId ?? strip.id);
+        setBlocks(draft.blocks);
+        setEndingStyle(draft.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE);
+        setStripTitle(draft.title);
+        setOpenedPublishedStrip(null);
+        setOpeningPublishedEditor(false);
+      });
     } catch {
-      pageTransitionInFlightRef.current = false;
+      if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
+      setCurrentDraftId(null);
+      setEditingPublishedStripId(null);
+      setBlocks([]);
+      setOpenedPublishedStrip(strip);
       setOpeningPublishedEditor(false);
+      setViewInstantly("published", readerScrollTop, false);
       setNotice("Couldn’t open this Strip for editing. Try again.");
+    } finally {
+      if (publishedEditorRequestRef.current === controller) {
+        publishedEditorRequestRef.current = null;
+        pageTransitionInFlightRef.current = false;
+      }
     }
   };
 
@@ -7880,7 +7935,6 @@ export default function Home() {
               >
                 <StripEndActions
                   primaryAction={publishedViewerCanEdit ? "edit" : "create"}
-                  primaryPending={publishedViewerCanEdit && openingPublishedEditor}
                   primaryLabel={
                     publishedViewerCanEdit
                       ? "Edit Strip"
@@ -7990,6 +8044,8 @@ export default function Home() {
     <>
       {legacyTransitionLayer}
       <main
+        inert={openingPublishedEditor}
+        aria-busy={openingPublishedEditor || undefined}
         className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview" : ""} ${
           selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
