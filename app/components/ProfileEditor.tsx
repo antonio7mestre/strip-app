@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from "react-dom";
 import { Baseline, Check, ChevronLeft, ChevronUp, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
 import { PROFILE_FONTS, profileFontInfo, profileFontWeight, profileColorChoices, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
+import { fontVisualScale, normalizedFontSize } from "@/app/lib/font-sizing";
 import { type useStripProfile } from "./useStripProfile";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleProfilePageColor } from "@/app/lib/page-color-sampler";
@@ -134,7 +135,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
       <div ref={selectorScrollRef} className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${colorLabel} color choices`}>
         {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id}
           className={`selector-option font-selector-option ${profile.font === font.id ? "is-selected" : ""}`}
-          style={{ fontFamily: font.family, fontWeight: profileFontWeight(font.id) }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
+          style={{ fontFamily: font.family, fontWeight: profileFontWeight(font.id), fontSize: normalizedFontSize(font.id, 16) }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
           disabled={pending} onClick={() => update({ font: font.id })}>Aa</button>) : wheel ? <GradientColorPicker
           color={activeColor} onChange={changeColor} label={`Choose any ${colorLabel} color`} /> : <>{colorChoices.map((color) => {
           const selected = activeColor === color.value;
@@ -186,5 +187,7 @@ export function profilePageStyle(controller: Pick<ProfileController, "profile"> 
     "--profile-accent-ink": profileInk(profile.accent),
     "--profile-font": profileFontInfo(profile.font).family,
     "--profile-font-weight": profileFontWeight(profile.font),
+    "--profile-font-scale": fontVisualScale(profile.font, "title"),
+    "--profile-text-font-scale": fontVisualScale(profile.font),
   } as CSSProperties;
 }

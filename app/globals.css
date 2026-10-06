@@ -1302,9 +1302,11 @@ html.profile-page-active body {
 .profile-theme-mode .strip-library { background: var(--profile-background); color: var(--profile-ink); }
 .profile-theme-mode .library-header h1 {
   color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 700);
+  font-size: calc(clamp(30px, 8.2vw, 36px) * var(--profile-font-scale, 1));
+  line-height: calc(clamp(30px, 8.2vw, 36px) * 0.92);
   letter-spacing: -0.04em; -webkit-text-stroke: 0;
 }
-.profile-theme-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 480); }
+.profile-theme-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 480); font-size: calc(13px * var(--profile-text-font-scale, 1)); line-height: 16.25px; }
 .profile-theme-mode .library-empty-state strong { color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 760); }
 .profile-theme-mode .library-empty-state span { color: var(--profile-ink); }
 .profile-theme-mode .library-skeleton-surface { background: color-mix(in srgb, var(--profile-background) 82%, var(--profile-ink) 18%); }
@@ -1331,11 +1333,12 @@ html.profile-page-active body {
 .profile-name h1,
 .profile-title-input {
   margin: 0; padding: 0; width: 100%; font-family: var(--profile-font);
-  font-size: clamp(30px, 8.2vw, 36px); line-height: 0.92; letter-spacing: -0.04em;
+  font-size: calc(clamp(30px, 8.2vw, 36px) * var(--profile-font-scale, 1));
+  line-height: calc(clamp(30px, 8.2vw, 36px) * 0.92); letter-spacing: -0.04em;
   font-weight: var(--profile-font-weight, 700); color: inherit; overflow-wrap: anywhere;
 }
 .profile-title-input {
-  display: block; min-height: 0.92em; border: 0; border-radius: 0; background: transparent;
+  display: block; min-height: calc(clamp(30px, 8.2vw, 36px) * 0.92); border: 0; border-radius: 0; background: transparent;
   outline: none; overflow: visible; white-space: pre-wrap;
 }
 .profile-title-input:focus { outline: none; }
@@ -1361,7 +1364,7 @@ html.profile-page-active body {
 .profile-edit-hint svg { width: 12px; height: 12px; stroke-width: 2; }
 .profile-edit-hint svg { transform: translateY(-2px); }
 .profile-edit-button:disabled { opacity: 0.5; }
-.profile-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); }
+.profile-mode .library-card h2 { color: var(--profile-ink); font-family: var(--profile-font); font-weight: var(--profile-font-weight, 480); font-size: calc(13px * var(--profile-text-font-scale, 1)); line-height: 16.25px; }
 .profile-mode .library-add-button { background: #fff; color: #000; }
 .profile-mode .library-add-button svg { color: #000; }
 .profile-empty-state svg { color: #fff; }
@@ -2322,7 +2325,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .text-block textarea,
 .text-block p {
   width: 100%;
-  min-height: 1.22em;
+  min-height: calc(var(--text-base-size, 18px) * 1.22);
   margin: 0;
   padding: 0;
   border: 0;
@@ -2330,7 +2333,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   color: inherit;
   font-family: inherit;
   font-weight: var(--text-font-weight, 450);
-  line-height: 1.22;
+  line-height: calc(var(--text-base-size, 18px) * 1.22);
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -2338,7 +2341,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 
 .text-block textarea {
   display: block;
-  min-height: 1.22em;
+  min-height: calc(var(--text-base-size, 18px) * 1.22);
   resize: none;
   overflow: hidden;
   outline: 0;
@@ -2422,6 +2425,29 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 @keyframes media-import-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .editor-mode .strip-block.is-import-revealing { animation: none; }
+}
+
+/* A loading batch occupies its insertion spot, never a floating notice. */
+.media-import-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 240px;
+  padding: 32px;
+  background: #d9d9d9;
+  color: #000000;
+  pointer-events: none;
+  overflow-anchor: none;
+}
+.media-import-block h2 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.15; letter-spacing: -0.035em; }
+.media-import-block-bottom { display: flex; flex-direction: column; gap: 14px; }
+.media-import-block-count { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1; }
+.media-import-block-count > span { opacity: 0.45; }
+.media-import-block-track { display: block; height: 4px; overflow: hidden; background: rgba(0, 0, 0, 0.12); }
+.media-import-block-fill { display: block; width: var(--media-import-progress, 0%); height: 100%; background: #000000; transition: width 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .media-import-block-fill { transition: none; }
 }
 
 .strip-block.is-height-cropped .block-crop-viewport {
@@ -4413,12 +4439,10 @@ html:has(.story-share-boundary) body {
 
 .font-selector-option[data-font="serif"] {
   font-family: "Iowan Old Style", Baskerville, Georgia, serif;
-  font-size: 19px;
 }
 
 .font-selector-option[data-font="mono"] {
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
-  font-size: 13px;
 }
 
 .font-selector-option[data-font="rounded"] {
@@ -4432,12 +4456,10 @@ html:has(.story-share-boundary) body {
 
 .font-selector-option[data-font="display"] {
   font-family: Didot, "Bodoni 72", serif;
-  font-size: 20px;
 }
 
 .font-selector-option[data-font="hand"] {
   font-family: Noteworthy, "Bradley Hand", cursive;
-  font-size: 18px;
 }
 
 .font-size-stepper {
@@ -4686,7 +4708,6 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
 }
 
 .notice.is-repeated { animation: notice-shake 240ms ease-out; }
-.media-import-notice { color: #FFFFFF; font-variant-numeric: tabular-nums; }
 @keyframes notice-shake {
   0%, 100% { transform: translateX(50%); }
   20% { transform: translateX(calc(50% - 3px)); }

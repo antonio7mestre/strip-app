@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { mediaImportInsertionIndex, withMediaImportBlock } from "../app/lib/media-import.ts";
 
 const root = new URL("../", import.meta.url);
 const source = readFileSync(new URL("app/lib/media-import.ts", root), "utf8");
@@ -140,7 +141,7 @@ function editor({ selected = "anchor" } = {}) {
     stripCanvasRef: { current: { getBoundingClientRect: () => ({ width: 390 }) } },
     mediaBatchRevealTimerRef: { current: null },
     window: { innerWidth: 390, clearTimeout() {}, setTimeout: callback => { timers.push(callback); return 1; } },
-    makeId: () => `new-${++id}`, flushSync: callback => { commits++; callback(); },
+    makeId: () => `new-${++id}`, mediaImportInsertionIndex, flushSync: callback => { commits++; callback(); },
     prepareMediaFiles: (files, options) => new Promise((resolve, reject) => {
       options.onProgress({ completed: 0, total: files.length }); requests.push({ files, options, resolve, reject });
     }),
@@ -161,7 +162,7 @@ const prepared = Array.from({ length: 6 }, (_, index) => ({ type: "image", src: 
 test("the editor inserts six ready photos in one commit, after the captured block, with stable sizes and one selection", async () => {
   const h = editor(), pending = h.addMedia(h.event);
   assert.equal(h.event.currentTarget.value, ""); assert.equal(h.state.blocks.length, 2);
-  assert.deepEqual(h.state.progress, { completed: 0, total: 6 });
+  assert.deepEqual({ ...h.state.progress }, { completed: 0, total: 6, afterId: "anchor" });
   await h.addMedia(h.event); assert.equal(h.requests.length, 1, "overlapping batches are blocked");
   h.requests[0].resolve({ media: prepared, failed: 0 }); await pending;
   assert.equal(h.commits(), 1); assert.equal(h.state.blocks.length, 8);
@@ -200,8 +201,36 @@ test("prepared images bypass sequential loading, reserve aspect ratios and canno
   assert.match(declaration("shouldLoadMedia"), /if \(importedMediaSizes\[blockId\]\) return true/);
   assert.match(page, /width=\{importedMediaSizes\[block.id\]\?\.width\}/);
   assert.match(page, /height=\{importedMediaSizes\[block.id\]\?\.height\}/);
-  assert.match(page, /Adding media \{mediaImportProgress.completed\} \/ \{mediaImportProgress.total\}/);
+  assert.match(page, /withMediaImportBlock\(sourceBlocks, sourceBlocks\.map/);
+  assert.match(page, /isEditing && mediaImportProgress \? <MediaImportBlock key="pending-media-import" progress=\{mediaImportProgress\}/);
+  assert.doesNotMatch(page, /notice media-import-notice/);
   const css = readFileSync(new URL("app/globals.css", root), "utf8");
   assert.match(css, /@keyframes media-import-in \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.editor-mode \.strip-block.is-import-revealing \{ animation: none; \}/);
+});
+
+test("the temporary block and ready batch share the captured insertion spot without mutating draft content", () => {
+  const blocks = [{ id: "first" }, { id: "second" }, { id: "sticker" }];
+  const nodes = ["first-node", "second-node", "sticker-node"];
+  for (const [afterId, expected] of [["first", 1], ["second", 2], ["sticker", 3], [null, 3], ["removed", 3]]) {
+    assert.equal(mediaImportInsertionIndex(blocks, afterId), expected);
+    const rendered = withMediaImportBlock(blocks, nodes, "pending", afterId);
+    assert.equal(rendered.indexOf("pending"), expected);
+    assert.deepEqual(rendered.filter(node => node !== "pending"), nodes);
+    assert.equal(nodes.length, 3);
+    assert.equal(blocks.length, 3);
+  }
+  assert.deepEqual(withMediaImportBlock([], [], "pending", null), ["pending"]);
+  assert.equal(withMediaImportBlock(blocks, nodes, null, "first"), nodes);
+});
+
+test("progress updates do not insert partial media or move the captured insertion anchor", async () => {
+  const h = editor(), pending = h.addMedia(h.event);
+  h.requests[0].options.onProgress({ completed: 3, total: 6 });
+  assert.equal(h.state.progress.afterId, "anchor");
+  assert.equal(h.state.progress.completed, 3);
+  assert.equal(h.state.blocks.length, 2, "the loading block never becomes saved draft content");
+  h.requests[0].resolve({ media: prepared, failed: 0 }); await pending;
+  assert.equal(h.state.progress, null, "the real batch replaces its placeholder in the same commit");
+  assert.equal(h.state.blocks[1].id, "new-1");
 });

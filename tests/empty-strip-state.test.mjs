@@ -64,7 +64,7 @@ test("Drafts and History share one empty treatment; public profiles do not point
   const publicEmpty = page.indexOf('viewingPublicProfile && libraryItems.length === 0');
   const ownerEmpty = page.indexOf('<EmptyStripState kind="profile"');
   assert.ok(publicEmpty > 0 && publicEmpty < ownerEmpty);
-  assert.match(page, /sourceBlocks\.length === 0 && isEditing \? \(\s*<div className="empty-strip">\s*<EmptyStripState kind="editor" \/>/);
+  assert.match(page, /sourceBlocks\.length === 0 && isEditing && !mediaImportProgress \? \(\s*<div className="empty-strip">\s*<EmptyStripState kind="editor" \/>/);
   assert.match(page, /<EmptyStripState kind="profile" editing=\{stripProfile\.editing\} \/>/);
   assert.doesNotMatch(page, /Make your first Strip<\/button>/);
 });

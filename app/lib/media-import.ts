@@ -6,6 +6,20 @@ export type PreparedMedia = MediaSize & {
   alt: string;
 };
 
+/** The pending block and decoded batch use the same captured insertion spot. */
+export function mediaImportInsertionIndex(blocks: readonly { id: string }[], afterId: string | null | undefined) {
+  const index = blocks.findIndex(block => block.id === afterId);
+  return index >= 0 ? index + 1 : blocks.length;
+}
+
+/** Render-only placeholder. Never add it to draft state or serialized content. */
+export function withMediaImportBlock<Node>(blocks: readonly { id: string }[], nodes: readonly Node[], pending: Node | null, afterId: string | null | undefined) {
+  if (pending === null) return nodes;
+  const rendered = [...nodes];
+  rendered.splice(mediaImportInsertionIndex(blocks, afterId), 0, pending);
+  return rendered;
+}
+
 const IMPORT_CONCURRENCY = 2;
 const DECODE_TIMEOUT_MS = 20_000;
 const MAX_MEDIA_BYTES = 80 * 1024 * 1024;

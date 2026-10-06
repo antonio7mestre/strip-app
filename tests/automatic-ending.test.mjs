@@ -6,6 +6,8 @@ import ts from "typescript";
 import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { automaticStripEndingStyle, readStripContent, writeStripContent } from "../app/lib/strip-ending.ts";
 import { profileFontWeight } from "../app/lib/profile.ts";
+import { withMediaImportBlock } from "../app/lib/media-import.ts";
+import { normalizedFontSize } from "../app/lib/font-sizing.ts";
 
 const black = { backgroundColor: "#000000", buttonColor: "#FFFFFF" };
 const white = { backgroundColor: "#FFFFFF", buttonColor: "#000000" };
@@ -94,12 +96,12 @@ function renderFixture(blocks, isEditing) {
     view: "edit", inlinePreview: !isEditing, hasRequiredContent: true,
     stripCanvasRef: { current: null },
     mediaLoadStatus: Object.fromEntries(blocks.map(block => [block.id, "loaded"])),
-    importedMediaSizes: {}, mediaBatchRevealIds: [],
+    importedMediaSizes: {}, mediaBatchRevealIds: [], mediaImportProgress: null, withMediaImportBlock,
     selectedBlockId: null, editingTextBlockId: null, heightCropSession: null,
     resolveBlockHeightCrop: () => null,
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,
     renderBlockControls: stub, recordBlockHeight: stub, BlockHeightReporter: stub,
-    DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" }, profileFontWeight,
+    DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" }, profileFontWeight, normalizedFontSize,
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
     installEndingContact: stub, StripEndActions: stub,
     handlePreviewEndingEdit: stub, handlePreviewEndingPublish: stub,

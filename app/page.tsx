@@ -62,7 +62,8 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
-import { prepareMediaFiles, type MediaImportProgress, type MediaSize } from "@/app/lib/media-import";
+import { prepareMediaFiles, mediaImportInsertionIndex, withMediaImportBlock, type MediaImportProgress, type MediaSize } from "@/app/lib/media-import";
+import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { resizeStickerWidth } from "@/app/lib/sticker-sizing";
@@ -98,6 +99,7 @@ import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-mini
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { DEFAULT_PROFILE, PROFILE_FONTS, PROFILE_FONT_CATALOG, profileFontWeight, profileCoverOutline, profileTitle, profileTextColor, type ProfileFont, type StripProfile } from "@/app/lib/profile";
+import { normalizedFontSize } from "@/app/lib/font-sizing";
 import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout } from "@/app/components/ProfileReload";
 import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
@@ -1429,7 +1431,7 @@ function TextStyleSelector({
                   key={option.value}
                   type="button"
                   data-font={option.value}
-                  style={{ fontFamily: option.family, fontWeight: option.weight }}
+                  style={{ fontFamily: option.family, fontWeight: option.weight, fontSize: normalizedFontSize(option.value, 16) }}
                   className={`selector-option font-selector-option ${
                     fontStyle === option.value ? "is-selected" : ""
                   }`}
@@ -2636,7 +2638,7 @@ export default function Home() {
   const [mediaLoadStatus, setMediaLoadStatus] = useState<
     Record<string, "loaded" | "error">
   >({});
-  const [mediaImportProgress, setMediaImportProgress] = useState<MediaImportProgress | null>(null);
+  const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportProgress & { afterId: string | null }) | null>(null);
   const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
   const mediaImportRequestRef = useRef<AbortController | null>(null);
@@ -3874,7 +3876,7 @@ export default function Home() {
       const { media, failed } = await prepareMediaFiles(files, {
         signal: controller.signal,
         onProgress: progress => {
-          if (!controller.signal.aborted && mediaImportRequestRef.current === controller) setMediaImportProgress(progress);
+          if (!controller.signal.aborted && mediaImportRequestRef.current === controller) setMediaImportProgress({ ...progress, afterId: insertionAfterId });
         },
       });
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
@@ -3901,8 +3903,7 @@ export default function Home() {
         }));
         setBlocks(current => {
           const next = [...current];
-          const selectedIndex = current.findIndex(block => block.id === insertionAfterId);
-          next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, ...mediaBlocks);
+          next.splice(mediaImportInsertionIndex(current, insertionAfterId), 0, ...mediaBlocks);
           return next;
         });
         setMediaBatchRevealIds(mediaBlocks.map(block => block.id));
@@ -6410,13 +6411,13 @@ export default function Home() {
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
-        {sourceBlocks.length === 0 && isEditing ? (
+        {sourceBlocks.length === 0 && isEditing && !mediaImportProgress ? (
           <div className="empty-strip">
             <EmptyStripState kind="editor" />
           </div>
         ) : null}
 
-        {sourceBlocks.map((block, index) => {
+        {withMediaImportBlock(sourceBlocks, sourceBlocks.map((block, index) => {
         const heightCrop =
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, heightCropSession)
@@ -6469,6 +6470,7 @@ export default function Home() {
                 color: textColor,
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
                 "--text-font-weight": block.fontStyle ? profileFontWeight(block.fontStyle) : undefined,
+                "--text-base-size": `${block.fontSize ?? DEFAULT_FONT_SIZE}px`,
               } as CSSProperties}
             >
               {isEditing ? renderBlockControls(block, index) : null}
@@ -6483,7 +6485,7 @@ export default function Home() {
                         element.style.height = `${element.scrollHeight}px`;
                       }}
                       value={block.content}
-                      style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
+                      style={{ fontSize: normalizedFontSize(block.fontStyle ?? "sans", block.fontSize ?? DEFAULT_FONT_SIZE) }}
                       onChange={(event) => updateText(block.id, event.target.value)}
                       onFocus={() => {
                         setSelectedBlockId(block.id);
@@ -6513,7 +6515,7 @@ export default function Home() {
                             ? "is-blank"
                             : undefined
                       }
-                      style={{ fontSize: `${block.fontSize ?? DEFAULT_FONT_SIZE}px` }}
+                      style={{ fontSize: normalizedFontSize(block.fontStyle ?? "sans", block.fontSize ?? DEFAULT_FONT_SIZE) }}
                       aria-hidden={textIsVisuallyBlank || undefined}
                     >
                       {textIsEmpty
@@ -6804,7 +6806,7 @@ export default function Home() {
             }
           />
         );
-        })}
+        }), isEditing && mediaImportProgress ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} /> : null, mediaImportProgress?.afterId)}
         {showsEndingCard ? (
           <StripEndingSheet
             preview
@@ -8268,11 +8270,7 @@ export default function Home() {
           }}
         />
       ) : null}
-      {mediaImportProgress ? (
-        <div className="notice media-import-notice" role="status" aria-live="polite" aria-atomic="true">
-          Adding media {mediaImportProgress.completed} / {mediaImportProgress.total}
-        </div>
-      ) : notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
+      {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
       </main>
     </>
   );
