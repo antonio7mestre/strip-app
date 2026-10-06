@@ -3853,6 +3853,18 @@ html:has(.story-share-boundary) body {
 
 /* Match the editor's explicit dock geometry, independent of the title form's
    intrinsic height and Safari's changing viewport. */
+.title-dock-canvas {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100dvh;
+  contain: layout paint;
+  overflow: clip;
+  pointer-events: none;
+}
+
 .title-setup-dock {
   height: calc(
     var(--dock-visible-height) + 180px + env(safe-area-inset-bottom) +
@@ -3862,7 +3874,9 @@ html:has(.story-share-boundary) body {
   /* Retain the entire surface, not only the button children, behind Safari's
      native keyboard. This layer exists before focus and never animates back in. */
   transform: translate3d(0, 0, 0);
+  translate: 0 calc(var(--keyboard-dock-pan, 0px) + var(--publish-document-pan, 0px));
   will-change: transform;
+  pointer-events: auto;
 }
 
 .publish-flow-dock .dock-controls-current {

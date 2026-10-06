@@ -23,7 +23,8 @@ const main = findElement("main");
 
 test("publish title tools remain mounted outside the clipped typing screen", () => {
   assert.ok(footer && main);
-  assert.equal(footer.parent, main.parent, "The form and fixed dock must be siblings, not a clipped parent/child");
+  assert.equal(footer.parent.parent, main.parent, "The retained dock canvas and form must be siblings");
+  assert.match(footer.parent.getText(tree), /className="title-dock-canvas"/);
   const markup = footer.getText(tree);
   assert.match(markup, /key="persistent-composer-dock"/);
   assert.match(markup, /className="composer-dock title-setup-dock publish-flow-dock"/);
@@ -42,6 +43,8 @@ test("publish uses the same fixed dock sizing and immediate pan compensation as 
   assert.match(rule, /min-height: 0/);
   assert.match(rule, /transform: translate3d\(0, 0, 0\)/);
   assert.match(rule, /will-change: transform/);
+  assert.match(rule, /translate: 0 calc\(var\(--keyboard-dock-pan, 0px\) \+ var\(--publish-document-pan, 0px\)\)/);
+  assert.match(css, /\.title-dock-canvas \{[^}]*position: absolute;[^}]*height: 100dvh;[^}]*contain: layout paint;[^}]*overflow: clip/);
   assert.doesNotMatch(rule, /opacity|display|visibility|transition:/);
   assert.match(css, /\.composer-dock \{[^}]*position: fixed;[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\)/);
   assert.match(page, /useLayoutEffect\(installKeyboardDockPosition, \[\]\)/);
@@ -82,7 +85,16 @@ function fixture(initialProperties = []) {
     addEventListener: (name, handler) => add(viewportListeners, name, handler),
     removeEventListener: (name, handler) => remove(viewportListeners, name, handler) };
   const input = { matches: () => true };
+  const canvasProperties = new Map();
   const dock = {
+    parentElement: {
+      style: {
+        getPropertyValue: name => canvasProperties.get(name) ?? "",
+        setProperty: (name, value) => canvasProperties.set(name, value),
+        removeProperty: name => canvasProperties.delete(name),
+      },
+      getBoundingClientRect: () => ({ height: Number.parseFloat(canvasProperties.get("height")) || viewport.height }),
+    },
     style: {
       getPropertyValue: name => dockProperties.get(name) ?? "",
       getPropertyPriority: name => priorities.get(name) ?? "",
@@ -91,14 +103,16 @@ function fixture(initialProperties = []) {
     },
     getBoundingClientRect: () => ({
       top: (Number.parseFloat(dockProperties.get("top")) || defaultTop)
-        + (Number.parseFloat(rootProperties.get("--keyboard-dock-pan")) || 0),
+        + (Number.parseFloat(rootProperties.get("--keyboard-dock-pan")) || 0)
+        + (Number.parseFloat(dockProperties.get("--publish-document-pan")) || 0)
+        - (window.scrollY || 0),
       height: Number.parseFloat(dockProperties.get("height")) || 278,
     }),
   };
   globalThis.document = { activeElement: null, documentElement: { style: {
     setProperty: (name, value) => rootProperties.set(name, value), removeProperty: name => rootProperties.delete(name),
   } } };
-  globalThis.window = { visualViewport: viewport, innerWidth: 402,
+  globalThis.window = { visualViewport: viewport, innerWidth: 402, scrollY: 0,
     addEventListener: (name, handler) => add(listeners, name, handler),
     removeEventListener: (name, handler) => remove(listeners, name, handler),
     requestAnimationFrame: callback => { frames.set(++frameId, callback); return frameId; },
@@ -107,12 +121,13 @@ function fixture(initialProperties = []) {
   const disposeShared = installKeyboardDockPosition();
   const disposeTitle = installPublishKeyboardDock(dock, input);
   return {
-    dock, input, viewport, dockProperties, rootProperties, frames, priorities,
+    dock, input, viewport, dockProperties, rootProperties, frames, priorities, canvasProperties,
     focus(active = true) { document.activeElement = active ? input : null; emit(listeners, active ? "focusin" : "focusout"); },
     resize(height, pan = 0, drift = 0) {
       viewport.height = height; viewport.offsetTop = pan; defaultTop = 650 + drift;
       emit(viewportListeners, "resize"); emit(viewportListeners, "scroll");
     },
+    scroll(y) { window.scrollY = y; emit(listeners, "scroll"); },
     frame() { const pending = [...frames]; frames.clear(); for (const [, callback] of pending) callback(); },
     screenTop: () => dock.getBoundingClientRect().top - viewport.offsetTop,
     mutationCount: () => mutations,
@@ -137,6 +152,8 @@ test("title tools are anchored before focus or Safari's first chrome resize", ()
       assert.equal(f.dockProperties.get("height"), "278px");
       assert.equal(f.dockProperties.get("padding-bottom"), "210px");
       assert.equal(f.dockProperties.get("bottom"), "auto");
+      assert.equal(f.dockProperties.get("position"), "absolute", "do not use Safari's covered fixed layer");
+      assert.equal(f.canvasProperties.get("height"), "744px", "the keyboard cannot shrink the canvas's paint clip");
     }
   } finally { f.cleanup(); }
 });
@@ -184,6 +201,8 @@ test("leaving the title view restores inline styles, priorities, frames and list
     assert.equal(f.dockProperties.get("height"), "278px");
     assert.equal(f.priorities.get("height"), "important");
     assert.equal(f.dockProperties.has("top"), false);
+    assert.equal(f.dockProperties.has("position"), false);
+    assert.equal(f.canvasProperties.size, 0);
     assert.equal(f.frames.size, 0);
     assert.equal(f.listenerCount(), 5, "only the unchanged shared pan listeners remain");
   } finally { f.cleanup(); }
@@ -233,4 +252,16 @@ test("twenty keyboard cycles never mutate the resting layer or accumulate an off
 
 test("title input does not queue the editor's delayed smooth scroll on blur", () => {
   assert.match(page, /activeElement\?\.closest\("\.auth-shell, \.title-setup-mode"\)/);
+});
+
+test("native document scrolling cannot move the retained title canvas tools", () => {
+  const f = fixture();
+  try {
+    f.focus(); f.resize(400, 90, 320);
+    for (const y of [40, 90, 200, 40, 0]) {
+      f.scroll(y);
+      assert.equal(f.screenTop(), 650);
+      assert.equal(f.dockProperties.get("top"), "650px");
+    }
+  } finally { f.cleanup(); }
 });

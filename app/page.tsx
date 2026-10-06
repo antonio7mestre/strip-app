@@ -7535,8 +7535,9 @@ export default function Home() {
         {notice ? <div className="notice">{notice}</div> : null}
         </main>
 
-        {/* Keep the fixed tools outside the form's clipped viewport so Safari
-            can retain their layer behind the keyboard and during dismissal. */}
+        {/* A retained document canvas avoids Safari's covered fixed-layer
+            repaint delay. The existing toolbar stays behind the keyboard. */}
+        <div className="title-dock-canvas">
         <footer
           key="persistent-composer-dock"
           className="composer-dock title-setup-dock publish-flow-dock"
@@ -7562,6 +7563,7 @@ export default function Home() {
             </button>
           </div>
         </footer>
+        </div>
       </>
     );
   }
