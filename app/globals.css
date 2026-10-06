@@ -3864,7 +3864,9 @@ html:has(.story-share-boundary) body {
   overflow: clip;
   pointer-events: none;
   transform: translate3d(0, 0, 0);
-  translate: 0 var(--keyboard-dock-pan, 0px);
+  /* Safari already holds this top-anchored full-screen layer in place. The
+     small-dock pan offset would move it below the screen until dismissal ends. */
+  translate: none;
   will-change: transform;
 }
 

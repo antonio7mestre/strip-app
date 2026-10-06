@@ -35,7 +35,7 @@ test("publish title tools remain mounted outside the clipped typing screen", () 
   assert.match(main.getText(tree), /aria-label="Strip title"/);
 });
 
-test("publish uses the same fixed dock sizing and immediate pan compensation as editor", () => {
+test("publish uses shared dock sizing but does not pan its already anchored screen layer", () => {
   const rule = [...css.matchAll(/\n\.title-setup-dock \{([^}]+)\}/g)]
     .map(match => match[1]).find(body => body.includes("height: calc("));
   assert.ok(rule);
@@ -44,7 +44,7 @@ test("publish uses the same fixed dock sizing and immediate pan compensation as 
   assert.match(rule, /transform: none/);
   assert.match(rule, /translate: none/);
   assert.match(rule, /will-change: auto/);
-  assert.match(css, /\.title-dock-canvas \{[^}]*position: fixed;[^}]*height: 100dvh;[^}]*contain: layout paint;[^}]*overflow: clip;[^}]*transform: translate3d\(0, 0, 0\);[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\);[^}]*will-change: transform/);
+  assert.match(css, /\.title-dock-canvas \{[^}]*position: fixed;[^}]*height: 100dvh;[^}]*contain: layout paint;[^}]*overflow: clip;[^}]*transform: translate3d\(0, 0, 0\);[^}]*translate: none;[^}]*will-change: transform/);
   assert.match(css, /\.title-dock-canvas \.dock-controls \{[^}]*will-change: auto;[^}]*backface-visibility: visible/);
   assert.doesNotMatch(rule, /opacity|display|visibility|transition:/);
   assert.match(css, /\.composer-dock \{[^}]*position: fixed;[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\)/);
@@ -103,8 +103,7 @@ function fixture(initialProperties = []) {
       removeProperty: name => { mutations++; dockProperties.delete(name); priorities.delete(name); },
     },
     getBoundingClientRect: () => ({
-      top: (Number.parseFloat(dockProperties.get("top")) || defaultTop)
-        + (Number.parseFloat(rootProperties.get("--keyboard-dock-pan")) || 0),
+      top: Number.parseFloat(dockProperties.get("top")) || defaultTop,
       height: Number.parseFloat(dockProperties.get("height")) || 278,
     }),
   };
@@ -128,7 +127,7 @@ function fixture(initialProperties = []) {
     },
     scroll(y) { window.scrollY = y; emit(listeners, "scroll"); },
     frame() { const pending = [...frames]; frames.clear(); for (const [, callback] of pending) callback(); },
-    screenTop: () => dock.getBoundingClientRect().top - viewport.offsetTop,
+    anchorTop: () => Number.parseFloat(dockProperties.get("top")) || defaultTop,
     mutationCount: () => mutations,
     listenerCount: () => [...listeners.values(), ...viewportListeners.values()].reduce((total, set) => total + set.size, 0),
     disposeTitle,
@@ -147,7 +146,7 @@ test("title tools are anchored before focus or Safari's first chrome resize", ()
     f.focus();
     for (const [height, pan, drift] of [[400, 0, 340], [340, 60, 400], [400, 280, 320], [400, 0, -300]]) {
       f.resize(height, pan, drift); f.frame();
-      assert.equal(f.screenTop(), 650, "a changing fixed bottom must not displace the buttons");
+      assert.equal(f.anchorTop(), 650, "a changing fixed bottom must not replace the resting anchor");
       assert.equal(f.dockProperties.get("height"), "278px");
       assert.equal(f.dockProperties.get("padding-bottom"), "210px");
       assert.equal(f.dockProperties.get("bottom"), "auto");
@@ -163,17 +162,17 @@ test("blur and dismissal never release or rewrite the covered toolbar layer", ()
     const mutations = f.mutationCount();
     f.focus(); f.resize(400, 280, 320);
     f.focus(false); f.frame(); f.frame();
-    assert.equal(f.screenTop(), 650);
+    assert.equal(f.anchorTop(), 650);
     f.resize(744, 100, 320); f.frame(); f.frame();
-    assert.equal(f.screenTop(), 650, "positive residual pan follows the existing compensation");
+    assert.equal(f.anchorTop(), 650, "positive residual pan cannot translate the already anchored canvas");
     f.resize(744, 0, 320); f.frame(); f.frame();
-    assert.equal(f.screenTop(), 650, "old bottom anchoring would leave the buttons at 970px, offscreen");
+    assert.equal(f.anchorTop(), 650, "old bottom anchoring would leave the buttons at 970px, offscreen");
     assert.equal(f.dockProperties.get("top"), "650px");
     f.resize(744, 0, 0); f.frame();
     assert.equal(f.dockProperties.get("top"), "650px");
     f.frame();
     assert.equal(f.dockProperties.get("top"), "650px", "keep the same anchor after full recovery too");
-    assert.equal(f.screenTop(), 650);
+    assert.equal(f.anchorTop(), 650);
     assert.equal(f.mutationCount(), mutations, "zero anchor/style changes throughout dismissal");
   } finally { f.cleanup(); }
 });
@@ -182,10 +181,10 @@ test("keyboard dismissal while the title stays focused and rapid refocus retain 
   const f = fixture();
   try {
     f.focus(); f.resize(400, 200, 300); f.resize(744, 0, 300); f.frame(); f.frame();
-    assert.equal(f.screenTop(), 650);
+    assert.equal(f.anchorTop(), 650);
     f.focus(false); f.resize(744, 0, 0); f.frame();
     f.focus(); f.resize(400, 100, 350); f.frame(); f.frame();
-    assert.equal(f.screenTop(), 650);
+    assert.equal(f.anchorTop(), 650);
     assert.equal(f.dockProperties.get("top"), "650px");
   } finally { f.cleanup(); }
 });
@@ -212,11 +211,11 @@ test("real width changes replace the anchor without keeping portrait geometry", 
   try {
     document.activeElement = { matches: () => true };
     f.resize(744);
-    assert.equal(f.screenTop(), 650);
+    assert.equal(f.anchorTop(), 650);
     f.focus(); f.resize(400, 0, 320); f.focus(false);
     window.innerWidth = 852; f.resize(360, 0, -300);
     assert.equal(f.dockProperties.get("top"), "350px");
-    assert.equal(f.screenTop(), 350);
+    assert.equal(f.anchorTop(), 350);
   } finally { f.cleanup(); }
 });
 
@@ -235,14 +234,14 @@ test("twenty keyboard cycles never mutate the resting layer or accumulate an off
     for (let cycle = 0; cycle < 20; cycle++) {
       f.focus();
       f.resize(400, 180, 280); f.frame();
-      assert.equal(f.screenTop(), 650);
+      assert.equal(f.anchorTop(), 650);
       f.focus(false); f.resize(744, 60, 280); f.frame(); f.frame();
-      assert.equal(f.screenTop(), 650);
+      assert.equal(f.anchorTop(), 650);
       f.resize(744, 0, 280); f.frame(); f.frame();
-      assert.equal(f.screenTop(), 650);
+      assert.equal(f.anchorTop(), 650);
       f.resize(744, 0, 0); f.frame(); f.frame();
       assert.equal(f.dockProperties.get("top"), "650px");
-      assert.equal(f.screenTop(), 650);
+      assert.equal(f.anchorTop(), 650);
       assert.equal(f.frames.size, 0);
       assert.equal(f.mutationCount(), mutations);
     }
@@ -259,7 +258,7 @@ test("document scrolling does not move the full-screen fixed canvas or double-co
     f.focus(); f.resize(400, 90, 320);
     for (const y of [40, 90, 200, 40, 0]) {
       f.scroll(y);
-      assert.equal(f.screenTop(), 650);
+      assert.equal(f.anchorTop(), 650);
       assert.equal(f.dockProperties.get("top"), "650px");
       assert.equal(f.dockProperties.has("--publish-document-pan"), false);
     }
