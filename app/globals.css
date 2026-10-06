@@ -3859,6 +3859,10 @@ html:has(.story-share-boundary) body {
       var(--dock-browser-extension)
   );
   min-height: 0;
+  /* Retain the entire surface, not only the button children, behind Safari's
+     native keyboard. This layer exists before focus and never animates back in. */
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .publish-flow-dock .dock-controls-current {

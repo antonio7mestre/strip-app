@@ -40,7 +40,9 @@ test("publish uses the same fixed dock sizing and immediate pan compensation as 
   assert.ok(rule);
   assert.match(rule, /height: calc\(\s*var\(--dock-visible-height\) \+ 180px \+ env\(safe-area-inset-bottom\) \+\s*var\(--dock-browser-extension\)\s*\)/);
   assert.match(rule, /min-height: 0/);
-  assert.doesNotMatch(rule, /transform|translate|opacity|display|visibility|transition/);
+  assert.match(rule, /transform: translate3d\(0, 0, 0\)/);
+  assert.match(rule, /will-change: transform/);
+  assert.doesNotMatch(rule, /opacity|display|visibility|transition:/);
   assert.match(css, /\.composer-dock \{[^}]*position: fixed;[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\)/);
   assert.match(page, /useLayoutEffect\(installKeyboardDockPosition, \[\]\)/);
   assert.match(page, /if \(view !== "title-setup"\) return;\s*return installPublishKeyboardDock\(/);
@@ -62,10 +64,14 @@ test("typing and dismissal do not change the dock's resting position or button s
   }
 });
 
-function fixture() {
+function fixture(initialProperties = []) {
   const listeners = new Map(), viewportListeners = new Map(), frames = new Map();
   const rootProperties = new Map(), dockProperties = new Map(), priorities = new Map();
   let frameId = 0, defaultTop = 650;
+  let mutations = 0;
+  for (const [name, value, priority = ""] of initialProperties) {
+    dockProperties.set(name, value); priorities.set(name, priority);
+  }
   const add = (map, name, handler) => {
     if (!map.has(name)) map.set(name, new Set());
     map.get(name).add(handler);
@@ -80,8 +86,8 @@ function fixture() {
     style: {
       getPropertyValue: name => dockProperties.get(name) ?? "",
       getPropertyPriority: name => priorities.get(name) ?? "",
-      setProperty: (name, value, priority = "") => { dockProperties.set(name, value); priorities.set(name, priority); },
-      removeProperty: name => { dockProperties.delete(name); priorities.delete(name); },
+      setProperty: (name, value, priority = "") => { mutations++; dockProperties.set(name, value); priorities.set(name, priority); },
+      removeProperty: name => { mutations++; dockProperties.delete(name); priorities.delete(name); },
     },
     getBoundingClientRect: () => ({
       top: (Number.parseFloat(dockProperties.get("top")) || defaultTop)
@@ -109,6 +115,7 @@ function fixture() {
     },
     frame() { const pending = [...frames]; frames.clear(); for (const [, callback] of pending) callback(); },
     screenTop: () => dock.getBoundingClientRect().top - viewport.offsetTop,
+    mutationCount: () => mutations,
     listenerCount: () => [...listeners.values(), ...viewportListeners.values()].reduce((total, set) => total + set.size, 0),
     disposeTitle,
     cleanup() {
@@ -118,9 +125,11 @@ function fixture() {
   };
 }
 
-test("title tools keep their captured screen position when Safari's fixed viewport changes", () => {
+test("title tools are anchored before focus or Safari's first chrome resize", () => {
   const f = fixture();
   try {
+    assert.equal(f.dockProperties.get("top"), "650px", "already anchored when the title screen opens");
+    f.resize(744, 0, 40);
     f.focus();
     for (const [height, pan, drift] of [[400, 0, 340], [340, 60, 400], [400, 280, 320], [400, 0, -300]]) {
       f.resize(height, pan, drift); f.frame();
@@ -132,9 +141,10 @@ test("title tools keep their captured screen position when Safari's fixed viewpo
   } finally { f.cleanup(); }
 });
 
-test("blur and a recovered visual viewport cannot release into Safari's stale fixed bottom", () => {
+test("blur and dismissal never release or rewrite the covered toolbar layer", () => {
   const f = fixture();
   try {
+    const mutations = f.mutationCount();
     f.focus(); f.resize(400, 280, 320);
     f.focus(false); f.frame(); f.frame();
     assert.equal(f.screenTop(), 650);
@@ -142,12 +152,13 @@ test("blur and a recovered visual viewport cannot release into Safari's stale fi
     assert.equal(f.screenTop(), 650, "positive residual pan follows the existing compensation");
     f.resize(744, 0, 320); f.frame(); f.frame();
     assert.equal(f.screenTop(), 650, "old bottom anchoring would leave the buttons at 970px, offscreen");
-    assert.equal(f.dockProperties.get("top"), "650px", "do not release until normal CSS has actually recovered");
+    assert.equal(f.dockProperties.get("top"), "650px");
     f.resize(744, 0, 0); f.frame();
     assert.equal(f.dockProperties.get("top"), "650px");
     f.frame();
-    assert.equal(f.dockProperties.size, 0);
+    assert.equal(f.dockProperties.get("top"), "650px", "keep the same anchor after full recovery too");
     assert.equal(f.screenTop(), 650);
+    assert.equal(f.mutationCount(), mutations, "zero anchor/style changes throughout dismissal");
   } finally { f.cleanup(); }
 });
 
@@ -164,9 +175,8 @@ test("keyboard dismissal while the title stays focused and rapid refocus retain 
 });
 
 test("leaving the title view restores inline styles, priorities, frames and listeners", () => {
-  const f = fixture();
+  const f = fixture([["height", "278px", "important"]]);
   try {
-    f.dock.style.setProperty("height", "278px", "important");
     f.focus(); f.resize(400, 150, 320); f.focus(false);
     f.resize(744, 0, 0); f.frame();
     f.disposeTitle();
@@ -179,15 +189,15 @@ test("leaving the title view restores inline styles, priorities, frames and list
   } finally { f.cleanup(); }
 });
 
-test("only the title input can pin this dock, and real width changes release its old geometry", () => {
+test("real width changes replace the anchor without keeping portrait geometry", () => {
   const f = fixture();
   try {
     document.activeElement = { matches: () => true };
     f.resize(744);
-    assert.equal(f.dockProperties.size, 0);
+    assert.equal(f.screenTop(), 650);
     f.focus(); f.resize(400, 0, 320); f.focus(false);
     window.innerWidth = 852; f.resize(360, 0, -300);
-    assert.equal(f.dockProperties.size, 0);
+    assert.equal(f.dockProperties.get("top"), "350px");
     assert.equal(f.screenTop(), 350);
   } finally { f.cleanup(); }
 });
@@ -200,9 +210,10 @@ test("missing elements and browsers without VisualViewport keep ordinary toolbar
   } finally { delete globalThis.window; }
 });
 
-test("twenty keyboard cycles never accumulate an offset or leave the buttons offscreen", () => {
+test("twenty keyboard cycles never mutate the resting layer or accumulate an offset", () => {
   const f = fixture();
   try {
+    const mutations = f.mutationCount();
     for (let cycle = 0; cycle < 20; cycle++) {
       f.focus();
       f.resize(400, 180, 280); f.frame();
@@ -212,9 +223,14 @@ test("twenty keyboard cycles never accumulate an offset or leave the buttons off
       f.resize(744, 0, 280); f.frame(); f.frame();
       assert.equal(f.screenTop(), 650);
       f.resize(744, 0, 0); f.frame(); f.frame();
-      assert.equal(f.dockProperties.size, 0);
+      assert.equal(f.dockProperties.get("top"), "650px");
       assert.equal(f.screenTop(), 650);
       assert.equal(f.frames.size, 0);
+      assert.equal(f.mutationCount(), mutations);
     }
   } finally { f.cleanup(); }
+});
+
+test("title input does not queue the editor's delayed smooth scroll on blur", () => {
+  assert.match(page, /activeElement\?\.closest\("\.auth-shell, \.title-setup-mode"\)/);
 });
