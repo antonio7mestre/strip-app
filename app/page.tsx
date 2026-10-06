@@ -7500,7 +7500,7 @@ export default function Home() {
     return (
       <>
         {legacyTransitionLayer}
-        <main className="app-shell title-setup-mode">
+        <main className="app-shell title-setup-mode title-dock-canvas">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
           style={{ backgroundColor: topSafeAreaColor }}
@@ -7533,11 +7533,7 @@ export default function Home() {
           </div>
         </section>
         {notice ? <div className="notice">{notice}</div> : null}
-        </main>
-
-        {/* A retained document canvas avoids Safari's covered fixed-layer
-            repaint delay. The existing toolbar stays behind the keyboard. */}
-        <div className="title-dock-canvas">
+        {/* Keep the form and its covered tools in the same opaque canvas. */}
         <footer
           key="persistent-composer-dock"
           className="composer-dock title-setup-dock publish-flow-dock"
@@ -7563,7 +7559,7 @@ export default function Home() {
             </button>
           </div>
         </footer>
-        </div>
+        </main>
       </>
     );
   }

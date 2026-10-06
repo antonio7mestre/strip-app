@@ -3110,8 +3110,18 @@ html.sticker-tray-open body {
   background: var(--black);
 }
 
+html.publish-title-active,
+html.publish-title-active body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.publish-title-active body { position: fixed; width: 100%; }
+
 .title-setup-mode {
   height: 100dvh;
+  min-height: 0;
   overflow: hidden;
   background: var(--black);
   color: var(--white);
@@ -3122,8 +3132,8 @@ html.sticker-tray-open body {
   z-index: 1;
   display: grid;
   height: 100dvh;
-  align-items: center;
-  padding: calc(env(safe-area-inset-top) + 40px)
+  align-items: start;
+  padding: calc(env(safe-area-inset-top) + clamp(24px, 15svh, 112px))
     max(28px, env(safe-area-inset-right))
     calc(108px + env(safe-area-inset-bottom))
     max(28px, env(safe-area-inset-left));
@@ -3133,7 +3143,7 @@ html.sticker-tray-open body {
 .title-question {
   width: min(100%, 680px);
   margin: 0 auto;
-  transform: translateY(-3dvh);
+  transform: none;
 }
 
 .title-question h1 {
@@ -3851,23 +3861,21 @@ html:has(.story-share-boundary) body {
   justify-content: center;
 }
 
-/* Match the editor's explicit dock geometry, independent of the title form's
-   intrinsic height and Safari's changing viewport. */
+/* A non-scrolling title form avoids Safari's automatic focus pan. */
 .title-dock-canvas {
-  position: fixed;
+  position: relative;
   z-index: 30;
   top: 0;
   left: 0;
   width: 100%;
   height: 100dvh;
-  contain: layout paint;
-  overflow: clip;
-  pointer-events: none;
-  transform: translate3d(0, 0, 0);
-  /* Safari already holds this top-anchored full-screen layer in place. The
-     small-dock pan offset would move it below the screen until dismissal ends. */
+  contain: none;
+  overflow: visible;
+  pointer-events: auto;
+  transform: none;
+  /* The input is high enough not to trigger Safari's focus pan. */
   translate: none;
-  will-change: transform;
+  will-change: auto;
 }
 
 .title-setup-dock {
@@ -3876,9 +3884,7 @@ html:has(.story-share-boundary) body {
       var(--dock-browser-extension)
   );
   min-height: 0;
-  /* Retain the entire surface, not only the button children, behind Safari's
-     native keyboard. This layer exists before focus and never animates back in. */
-  /* Pan the retained full-screen canvas once, not each covered child layer. */
+  /* Preserve the captured geometry through the whole native keyboard cycle. */
   transform: none;
   translate: none;
   will-change: auto;
@@ -3886,8 +3892,7 @@ html:has(.story-share-boundary) body {
 }
 
 .title-dock-canvas .dock-controls {
-  /* Paint the buttons into the retained canvas, rather than separate layers
-     that Safari may cull outside the keyboard's visible viewport. */
+  /* Paint the buttons with their surface, not independently covered layers. */
   will-change: auto;
   backface-visibility: visible;
 }

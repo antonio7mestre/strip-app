@@ -21,10 +21,10 @@ function findElement(tag, node = step) {
 const footer = findElement("footer");
 const main = findElement("main");
 
-test("publish title tools remain mounted outside the clipped typing screen", () => {
+test("publish title form and tools share one retained opaque canvas", () => {
   assert.ok(footer && main);
-  assert.equal(footer.parent.parent, main.parent, "The retained dock canvas and form must be siblings");
-  assert.match(footer.parent.getText(tree), /className="title-dock-canvas"/);
+  assert.equal(footer.parent, main, "The form and tools must paint into the same canvas");
+  assert.match(main.openingElement.getText(tree), /className="app-shell title-setup-mode title-dock-canvas"/);
   const markup = footer.getText(tree);
   assert.match(markup, /key="persistent-composer-dock"/);
   assert.match(markup, /className="composer-dock title-setup-dock publish-flow-dock"/);
@@ -35,7 +35,7 @@ test("publish title tools remain mounted outside the clipped typing screen", () 
   assert.match(main.getText(tree), /aria-label="Strip title"/);
 });
 
-test("publish uses shared dock sizing but does not pan its already anchored screen layer", () => {
+test("publish uses shared dock sizing in a locked, untransformed document", () => {
   const rule = [...css.matchAll(/\n\.title-setup-dock \{([^}]+)\}/g)]
     .map(match => match[1]).find(body => body.includes("height: calc("));
   assert.ok(rule);
@@ -44,7 +44,10 @@ test("publish uses shared dock sizing but does not pan its already anchored scre
   assert.match(rule, /transform: none/);
   assert.match(rule, /translate: none/);
   assert.match(rule, /will-change: auto/);
-  assert.match(css, /\.title-dock-canvas \{[^}]*position: fixed;[^}]*height: 100dvh;[^}]*contain: layout paint;[^}]*overflow: clip;[^}]*transform: translate3d\(0, 0, 0\);[^}]*translate: none;[^}]*will-change: transform/);
+  assert.match(css, /\.title-dock-canvas \{[^}]*position: relative;[^}]*height: 100dvh;[^}]*contain: none;[^}]*overflow: visible;[^}]*transform: none;[^}]*translate: none;[^}]*will-change: auto/);
+  assert.match(css, /html\.publish-title-active,[\s\S]*?min-height: 0;[\s\S]*?overflow: hidden;/);
+  assert.match(css, /html\.publish-title-active body \{ position: fixed; width: 100%; \}/);
+  assert.match(css, /\.title-setup-shell \{[^}]*align-items: start;[^}]*padding: calc\(env\(safe-area-inset-top\) \+ clamp\(24px, 15svh, 112px\)\)/);
   assert.match(css, /\.title-dock-canvas \.dock-controls \{[^}]*will-change: auto;[^}]*backface-visibility: visible/);
   assert.doesNotMatch(rule, /opacity|display|visibility|transition:/);
   assert.match(css, /\.composer-dock \{[^}]*position: fixed;[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\)/);
@@ -70,7 +73,7 @@ test("typing and dismissal do not change the dock's resting position or button s
 
 function fixture(initialProperties = []) {
   const listeners = new Map(), viewportListeners = new Map(), frames = new Map();
-  const rootProperties = new Map(), dockProperties = new Map(), priorities = new Map();
+  const rootProperties = new Map(), dockProperties = new Map(), priorities = new Map(), classes = new Set();
   let frameId = 0, defaultTop = 650;
   let mutations = 0;
   for (const [name, value, priority = ""] of initialProperties) {
@@ -107,7 +110,9 @@ function fixture(initialProperties = []) {
       height: Number.parseFloat(dockProperties.get("height")) || 278,
     }),
   };
-  globalThis.document = { activeElement: null, documentElement: { style: {
+  globalThis.document = { activeElement: null, documentElement: { classList: {
+    add: name => classes.add(name), remove: name => classes.delete(name),
+  }, style: {
     setProperty: (name, value) => rootProperties.set(name, value), removeProperty: name => rootProperties.delete(name),
   } } };
   globalThis.window = { visualViewport: viewport, innerWidth: 402, scrollY: 0,
@@ -119,7 +124,7 @@ function fixture(initialProperties = []) {
   const disposeShared = installKeyboardDockPosition();
   const disposeTitle = installPublishKeyboardDock(dock, input);
   return {
-    dock, input, viewport, dockProperties, rootProperties, frames, priorities, canvasProperties,
+    dock, input, viewport, dockProperties, rootProperties, frames, priorities, canvasProperties, classes,
     focus(active = true) { document.activeElement = active ? input : null; emit(listeners, active ? "focusin" : "focusout"); },
     resize(height, pan = 0, drift = 0) {
       viewport.height = height; viewport.offsetTop = pan; defaultTop = 650 + drift;
@@ -142,6 +147,7 @@ test("title tools are anchored before focus or Safari's first chrome resize", ()
   const f = fixture();
   try {
     assert.equal(f.dockProperties.get("top"), "650px", "already anchored when the title screen opens");
+    assert.ok(f.classes.has("publish-title-active"));
     f.resize(744, 0, 40);
     f.focus();
     for (const [height, pan, drift] of [[400, 0, 340], [340, 60, 400], [400, 280, 320], [400, 0, -300]]) {
@@ -150,7 +156,7 @@ test("title tools are anchored before focus or Safari's first chrome resize", ()
       assert.equal(f.dockProperties.get("height"), "278px");
       assert.equal(f.dockProperties.get("padding-bottom"), "210px");
       assert.equal(f.dockProperties.get("bottom"), "auto");
-      assert.equal(f.dockProperties.get("position"), "absolute", "do not use Safari's covered fixed layer");
+      assert.equal(f.dockProperties.get("position"), "fixed", "retain the same captured top throughout this fixed form");
       assert.equal(f.canvasProperties.get("height"), "744px", "the keyboard cannot shrink the canvas's paint clip");
     }
   } finally { f.cleanup(); }
@@ -201,6 +207,7 @@ test("leaving the title view restores inline styles, priorities, frames and list
     assert.equal(f.dockProperties.has("top"), false);
     assert.equal(f.dockProperties.has("position"), false);
     assert.equal(f.canvasProperties.size, 0);
+    assert.equal(f.classes.size, 0, "the title-only document lock is removed on Back");
     assert.equal(f.frames.size, 0);
     assert.equal(f.listenerCount(), 5, "only the unchanged shared pan listeners remain");
   } finally { f.cleanup(); }
@@ -252,7 +259,7 @@ test("title input does not queue the editor's delayed smooth scroll on blur", ()
   assert.match(page, /activeElement\?\.closest\("\.auth-shell, \.title-setup-mode"\)/);
 });
 
-test("document scrolling does not move the full-screen fixed canvas or double-compensate its children", () => {
+test("no keyboard event applies extra document pan compensation to the title tools", () => {
   const f = fixture();
   try {
     f.focus(); f.resize(400, 90, 320);

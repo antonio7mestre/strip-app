@@ -1,11 +1,13 @@
-/** Keep one painted title toolbar at its resting position for the whole step.
- * Retain a full-screen drawing layer with ordinary absolute-positioned tools.
- * Safari can withhold a small covered fixed layer until dismissal completes. */
+/** Keep the title form and tools in one non-scrolling document for this step.
+ * The high input avoids Safari's focus pan. Tools retain one captured top
+ * position, without waiting for the late keyboard/viewport dismissal event. */
 export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTMLInputElement | null) {
   const viewport = window.visualViewport;
   if (!dock || !input || !viewport) return;
   const canvas = dock.parentElement;
   const canvasHeight = canvas?.style.getPropertyValue("height") ?? "";
+  const root = document.documentElement;
+  root.classList.add("publish-title-active");
 
   const properties = ["position", "top", "bottom", "height", "padding-bottom"] as const;
   let saved: Array<{ name: string; value: string; priority: string }> | null = null;
@@ -30,7 +32,7 @@ export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTML
   };
   const pin = () => {
     if (!anchor) return;
-    dock.style.setProperty("position", "absolute");
+    dock.style.setProperty("position", "fixed");
     dock.style.setProperty("top", `${anchor.top}px`);
     dock.style.setProperty("bottom", "auto");
     dock.style.setProperty("height", `${anchor.height}px`);
@@ -45,8 +47,7 @@ export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTML
     restingWidth = window.innerWidth;
     saved = properties.map(name => ({ name, value: dock.style.getPropertyValue(name),
       priority: dock.style.getPropertyPriority(name) }));
-    // The containing canvas must stay full-sized while Safari shrinks the
-    // visible viewport. Otherwise its paint clip would hide the covered tools.
+    // Keep the document full-sized while Safari's visible viewport shrinks.
     if (canvas) canvas.style.setProperty("height", `${canvas.getBoundingClientRect().height}px`);
     // Capture before any tap starts Safari's chrome/keyboard transition, not
     // on focusin (which can arrive after the fixed viewport has already moved).
@@ -68,6 +69,7 @@ export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTML
   return () => {
     window.removeEventListener("resize", sync);
     viewport.removeEventListener("resize", sync);
+    root.classList.remove("publish-title-active");
     restore();
   };
 }
