@@ -62,7 +62,8 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
-import { prepareMediaFiles, mediaImportInsertionIndex, withMediaImportBlock, type MediaImportProgress, type MediaSize } from "@/app/lib/media-import";
+import { prepareMediaFiles, mediaImportInsertionIndex, withMediaImportBlock, type MediaSize } from "@/app/lib/media-import";
+import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
@@ -2638,7 +2639,7 @@ export default function Home() {
   const [mediaLoadStatus, setMediaLoadStatus] = useState<
     Record<string, "loaded" | "error">
   >({});
-  const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportProgress & { afterId: string | null }) | null>(null);
+  const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportFeedback & { afterId: string | null }) | null>(null);
   const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
   const mediaImportRequestRef = useRef<AbortController | null>(null);
@@ -3871,14 +3872,19 @@ export default function Home() {
     const controller = new AbortController();
     mediaImportRequestRef.current = controller;
     const insertionAfterId = selectedBlockId;
+    const feedback = createMediaImportFeedback({
+      signal: controller.signal,
+      onProgress: progress => {
+        if (!controller.signal.aborted && mediaImportRequestRef.current === controller) setMediaImportProgress({ ...progress, afterId: insertionAfterId });
+      },
+    });
     setNotice("");
     try {
       const { media, failed } = await prepareMediaFiles(files, {
         signal: controller.signal,
-        onProgress: progress => {
-          if (!controller.signal.aborted && mediaImportRequestRef.current === controller) setMediaImportProgress({ ...progress, afterId: insertionAfterId });
-        },
+        onProgress: feedback.report,
       });
+      await feedback.finish();
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
       if (media.length === 0) {
         setNotice("Couldn’t add these files. Try different photos or videos.");
@@ -3922,6 +3928,7 @@ export default function Home() {
         setNotice("Couldn’t add these files. Try again.");
       }
     } finally {
+      feedback.dispose();
       if (mediaImportRequestRef.current === controller) {
         mediaImportRequestRef.current = null;
         setMediaImportProgress(null);
@@ -6411,7 +6418,7 @@ export default function Home() {
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
-        {sourceBlocks.length === 0 && isEditing && !mediaImportProgress ? (
+        {sourceBlocks.length === 0 && isEditing && !mediaImportProgress?.visible ? (
           <div className="empty-strip">
             <EmptyStripState kind="editor" />
           </div>
@@ -6806,7 +6813,7 @@ export default function Home() {
             }
           />
         );
-        }), isEditing && mediaImportProgress ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} /> : null, mediaImportProgress?.afterId)}
+        }), isEditing && mediaImportProgress?.visible ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} /> : null, mediaImportProgress?.afterId)}
         {showsEndingCard ? (
           <StripEndingSheet
             preview

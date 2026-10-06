@@ -4,6 +4,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import { mediaImportInsertionIndex, withMediaImportBlock } from "../app/lib/media-import.ts";
+import { mediaFeedbackClock } from "./helpers/media-import-feedback-fixture.mjs";
 
 const root = new URL("../", import.meta.url);
 const source = readFileSync(new URL("app/lib/media-import.ts", root), "utf8");
@@ -132,12 +133,14 @@ const handlerCode = ts.transpileModule(`export const ${declaration("addMedia")};
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 function editor({ selected = "anchor" } = {}) {
+  const feedbackClock = mediaFeedbackClock();
   const state = { blocks: [{ id: "anchor", type: "text", content: "Existing" }, { id: "after", type: "text" }],
     sizes: {}, status: {}, progress: null, reveal: [], selected }, request = { current: null }, requests = [], notices = [], timers = [];
   let id = 0, commits = 0;
   const exports = {};
   runInNewContext(handlerCode, {
     exports, AbortController, selectedBlockId: selected, mediaImportRequestRef: request, pageTransitionInFlightRef: { current: false },
+    createMediaImportFeedback: feedbackClock.createMediaImportFeedback,
     stripCanvasRef: { current: { getBoundingClientRect: () => ({ width: 390 }) } },
     mediaBatchRevealTimerRef: { current: null },
     window: { innerWidth: 390, clearTimeout() {}, setTimeout: callback => { timers.push(callback); return 1; } },
@@ -154,7 +157,7 @@ function editor({ selected = "anchor" } = {}) {
     setMediaImportProgress: value => { state.progress = value; },
     setNotice: value => notices.push(value),
   });
-  return { ...exports, state, request, requests, notices, timers, commits: () => commits,
+  return { ...exports, state, request, requests, notices, timers, feedbackClock, commits: () => commits,
     event: { currentTarget: { files: files(6), value: "selected files" } } };
 }
 const prepared = Array.from({ length: 6 }, (_, index) => ({ type: "image", src: `original-${index}`, alt: `Photo ${index}`, width: 1200, height: 1800 }));
@@ -162,7 +165,7 @@ const prepared = Array.from({ length: 6 }, (_, index) => ({ type: "image", src: 
 test("the editor inserts six ready photos in one commit, after the captured block, with stable sizes and one selection", async () => {
   const h = editor(), pending = h.addMedia(h.event);
   assert.equal(h.event.currentTarget.value, ""); assert.equal(h.state.blocks.length, 2);
-  assert.deepEqual({ ...h.state.progress }, { completed: 0, total: 6, afterId: "anchor" });
+  assert.deepEqual({ ...h.state.progress }, { completed: 0, total: 6, visible: false, afterId: "anchor" });
   await h.addMedia(h.event); assert.equal(h.requests.length, 1, "overlapping batches are blocked");
   h.requests[0].resolve({ media: prepared, failed: 0 }); await pending;
   assert.equal(h.commits(), 1); assert.equal(h.state.blocks.length, 8);
@@ -185,6 +188,45 @@ test("cancelled imports cannot append to a different draft or move its selection
   assert.match(page, /mediaImportRequestRef\.current\?\.abort\(\); \}, \[currentDraftId, view, inlinePreview, authStatus\]/);
 });
 
+test("a quick completed batch holds a shown placeholder, then replaces it in one commit", async () => {
+  const h = editor(), pending = h.addMedia(h.event);
+  h.feedbackClock.advance(180);
+  assert.equal(h.state.progress.visible, true);
+  h.requests[0].options.onProgress({ completed: 6, total: 6 });
+  h.requests[0].resolve({ media: prepared, failed: 0 }); await tick();
+  assert.equal(h.state.blocks.length, 2);
+  assert.equal(h.state.progress.completed, 6);
+  assert.equal(h.request.current.signal.aborted, false, "the import gate stays active during the short handoff");
+  h.feedbackClock.advance(319); await tick();
+  assert.equal(h.commits(), 0);
+  h.feedbackClock.advance(1); await pending;
+  assert.equal(h.commits(), 1);
+  assert.equal(h.state.blocks.length, 8);
+  assert.equal(h.state.progress, null);
+  assert.equal(h.feedbackClock.timers.size, 0);
+});
+
+test("leaving the editor during the minimum display beat cannot commit ready photos later", async () => {
+  const h = editor(), pending = h.addMedia(h.event);
+  h.feedbackClock.advance(180);
+  h.requests[0].resolve({ media: prepared, failed: 0 }); await tick();
+  h.request.current.abort(); await pending;
+  h.feedbackClock.advance(1000);
+  assert.equal(h.commits(), 0);
+  assert.equal(h.state.blocks.length, 2);
+  assert.equal(h.state.selected, "anchor");
+  assert.equal(h.state.progress, null);
+  assert.equal(h.request.current, null);
+  assert.equal(h.feedbackClock.timers.size, 0);
+});
+
+test("delay keeps the empty editor present, while progress immediately disables another import", () => {
+  assert.match(page, /sourceBlocks\.length === 0 && isEditing && !mediaImportProgress\?\.visible/);
+  assert.match(page, /disabled=\{mediaImportProgress !== null\}/);
+  assert.match(page, /aria-busy=\{mediaImportProgress !== null \|\| undefined\}/);
+  assert.match(handlerCode, /await feedback\.finish\(\);\s*if \(controller\.signal\.aborted/);
+});
+
 test("partial and complete failures show a helpful message and release the import gate", async () => {
   for (const media of [[], prepared.slice(0, 2)]) {
     const h = editor(), pending = h.addMedia(h.event);
@@ -202,7 +244,7 @@ test("prepared images bypass sequential loading, reserve aspect ratios and canno
   assert.match(page, /width=\{importedMediaSizes\[block.id\]\?\.width\}/);
   assert.match(page, /height=\{importedMediaSizes\[block.id\]\?\.height\}/);
   assert.match(page, /withMediaImportBlock\(sourceBlocks, sourceBlocks\.map/);
-  assert.match(page, /isEditing && mediaImportProgress \? <MediaImportBlock key="pending-media-import" progress=\{mediaImportProgress\}/);
+  assert.match(page, /isEditing && mediaImportProgress\?\.visible \? <MediaImportBlock key="pending-media-import" progress=\{mediaImportProgress\}/);
   assert.doesNotMatch(page, /notice media-import-notice/);
   const css = readFileSync(new URL("app/globals.css", root), "utf8");
   assert.match(css, /@keyframes media-import-in \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);

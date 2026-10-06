@@ -2440,6 +2440,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   pointer-events: none;
   overflow-anchor: none;
 }
+.media-import-block > * { animation: media-import-in 140ms ease-out backwards; }
 .media-import-block h2 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.15; letter-spacing: -0.035em; }
 .media-import-block-bottom { display: flex; flex-direction: column; gap: 14px; }
 .media-import-block-count { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1; }
@@ -2448,6 +2449,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .media-import-block-fill { display: block; width: var(--media-import-progress, 0%); height: 100%; background: #000000; transition: width 180ms ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .media-import-block-fill { transition: none; }
+  .media-import-block > * { animation: none; }
 }
 
 .strip-block.is-height-cropped .block-crop-viewport {

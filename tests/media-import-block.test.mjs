@@ -25,7 +25,7 @@ test("media loading renders one full-width Strip block with an accessible count,
   }
 });
 
-test("the loading design stays in flow, reserves a stable height and only animates the progress line", () => {
+test("the loading design stays in flow with fixed geometry, a quiet label reveal and progress line", () => {
   const css = read("app/globals.css");
   const block = css.match(/\.media-import-block \{[^}]+\}/)[0];
   assert.match(block, /width: 100%/);
@@ -34,5 +34,7 @@ test("the loading design stays in flow, reserves a stable height and only animat
   assert.match(block, /pointer-events: none/);
   assert.doesNotMatch(block, /position: fixed|position: absolute|animation|transition|transform|z-index/);
   assert.match(css, /\.media-import-block-fill \{[^}]*transition: width 180ms ease-out/);
+  assert.match(css, /\.media-import-block > \* \{ animation: media-import-in 140ms ease-out backwards; \}/);
   assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.media-import-block-fill \{ transition: none; \}/);
+  assert.match(css, /\.media-import-block > \* \{ animation: none; \}/);
 });
