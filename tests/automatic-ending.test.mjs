@@ -102,6 +102,7 @@ function renderFixture(blocks, isEditing) {
     installEndingContact: stub, StripEndActions: stub,
     handlePreviewEndingEdit: stub, handlePreviewEndingPublish: stub,
     MediaEdgeExtension: "media-edge-extension",
+    EmptyStripState: "empty-strip-state",
   });
   return exports.renderStrip(isEditing);
 }

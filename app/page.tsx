@@ -67,6 +67,7 @@ import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { OnboardingBackground } from "@/app/components/OnboardingBackground";
+import { EmptyStripState } from "@/app/components/EmptyStripState";
 import { ONBOARDING_BACKGROUND, backgroundOnboardingPending, rememberBackgroundOnboarding, syncOnboardingBackground } from "@/app/lib/onboarding-background";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
 import { HapticStartButton } from "@/app/components/HapticStartButton";
@@ -6340,8 +6341,7 @@ export default function Home() {
       >
         {sourceBlocks.length === 0 && isEditing ? (
           <div className="empty-strip">
-            <p>Your Strip starts here.</p>
-            <span>Add one block at a time.</span>
+            <EmptyStripState kind="editor" />
           </div>
         ) : null}
 
@@ -7190,15 +7190,11 @@ export default function Home() {
             ) : viewingPublicProfile && libraryItems.length === 0 ? (
               <div className="profile-empty-state"><strong>No Strips yet.</strong><p>Published Strips will appear here.</p></div>
             ) : view === "library" && libraryItems.length === 0 ? (
-              <div className="profile-empty-state">
-                <strong>A little space for your world.</strong>
-                <p>Your published Strips live here.</p>
-                <button type="button" disabled={stripProfile.editing} onClick={beginNewStrip}><Plus aria-hidden="true" />Make your first Strip</button>
-              </div>
-            ) : isHistory && libraryItems.length === 0 ? (
-              <div className="library-empty-state">
-                <strong>No viewing history yet.</strong>
-                <span>Strips you open will appear here.</span>
+              <EmptyStripState kind="profile" editing={stripProfile.editing} />
+            ) : (isHistory || isDraftLibrary) && libraryItems.length === 0 ? (
+              <div className="library-empty-state" role="status">
+                <strong>{isDraftLibrary ? "No drafts yet." : "No viewing history yet."}</strong>
+                <span>{isDraftLibrary ? "Strips you’re working on will appear here." : "Strips you open will appear here."}</span>
               </div>
             ) : (
               <div
