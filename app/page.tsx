@@ -95,6 +95,7 @@ import {
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
+import { installPublishKeyboardDock } from "@/app/lib/publish-keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
@@ -3352,6 +3353,14 @@ export default function Home() {
   }, [needsAuthBackground, authBackground]);
 
   useLayoutEffect(installKeyboardDockPosition, []);
+
+  useLayoutEffect(() => {
+    if (view !== "title-setup") return;
+    return installPublishKeyboardDock(
+      document.querySelector<HTMLElement>(".title-setup-dock"),
+      document.querySelector<HTMLInputElement>(".title-question-field input"),
+    );
+  }, [view]);
 
   useEffect(() => {
     const viewport = window.visualViewport;

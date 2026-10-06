@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { installKeyboardDockPosition } from "../app/lib/keyboard-dock.ts";
+import { installPublishKeyboardDock } from "../app/lib/publish-keyboard-dock.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -41,6 +43,7 @@ test("publish uses the same fixed dock sizing and immediate pan compensation as 
   assert.doesNotMatch(rule, /transform|translate|opacity|display|visibility|transition/);
   assert.match(css, /\.composer-dock \{[^}]*position: fixed;[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\)/);
   assert.match(page, /useLayoutEffect\(installKeyboardDockPosition, \[\]\)/);
+  assert.match(page, /if \(view !== "title-setup"\) return;\s*return installPublishKeyboardDock\(/);
 });
 
 test("typing and dismissal do not change the dock's resting position or button space", () => {
@@ -57,4 +60,161 @@ test("typing and dismissal do not change the dock's resting position or button s
       }
     }
   }
+});
+
+function fixture() {
+  const listeners = new Map(), viewportListeners = new Map(), frames = new Map();
+  const rootProperties = new Map(), dockProperties = new Map(), priorities = new Map();
+  let frameId = 0, defaultTop = 650;
+  const add = (map, name, handler) => {
+    if (!map.has(name)) map.set(name, new Set());
+    map.get(name).add(handler);
+  };
+  const remove = (map, name, handler) => map.get(name)?.delete(handler);
+  const emit = (map, name) => { for (const callback of map.get(name) ?? []) callback(); };
+  const viewport = { height: 744, offsetTop: 0, scale: 1,
+    addEventListener: (name, handler) => add(viewportListeners, name, handler),
+    removeEventListener: (name, handler) => remove(viewportListeners, name, handler) };
+  const input = { matches: () => true };
+  const dock = {
+    style: {
+      getPropertyValue: name => dockProperties.get(name) ?? "",
+      getPropertyPriority: name => priorities.get(name) ?? "",
+      setProperty: (name, value, priority = "") => { dockProperties.set(name, value); priorities.set(name, priority); },
+      removeProperty: name => { dockProperties.delete(name); priorities.delete(name); },
+    },
+    getBoundingClientRect: () => ({
+      top: (Number.parseFloat(dockProperties.get("top")) || defaultTop)
+        + (Number.parseFloat(rootProperties.get("--keyboard-dock-pan")) || 0),
+      height: Number.parseFloat(dockProperties.get("height")) || 278,
+    }),
+  };
+  globalThis.document = { activeElement: null, documentElement: { style: {
+    setProperty: (name, value) => rootProperties.set(name, value), removeProperty: name => rootProperties.delete(name),
+  } } };
+  globalThis.window = { visualViewport: viewport, innerWidth: 402,
+    addEventListener: (name, handler) => add(listeners, name, handler),
+    removeEventListener: (name, handler) => remove(listeners, name, handler),
+    requestAnimationFrame: callback => { frames.set(++frameId, callback); return frameId; },
+    cancelAnimationFrame: id => frames.delete(id) };
+  globalThis.getComputedStyle = () => ({ paddingBottom: "210px" });
+  const disposeShared = installKeyboardDockPosition();
+  const disposeTitle = installPublishKeyboardDock(dock, input);
+  return {
+    dock, input, viewport, dockProperties, rootProperties, frames, priorities,
+    focus(active = true) { document.activeElement = active ? input : null; emit(listeners, active ? "focusin" : "focusout"); },
+    resize(height, pan = 0, drift = 0) {
+      viewport.height = height; viewport.offsetTop = pan; defaultTop = 650 + drift;
+      emit(viewportListeners, "resize"); emit(viewportListeners, "scroll");
+    },
+    frame() { const pending = [...frames]; frames.clear(); for (const [, callback] of pending) callback(); },
+    screenTop: () => dock.getBoundingClientRect().top - viewport.offsetTop,
+    listenerCount: () => [...listeners.values(), ...viewportListeners.values()].reduce((total, set) => total + set.size, 0),
+    disposeTitle,
+    cleanup() {
+      disposeTitle(); disposeShared();
+      delete globalThis.window; delete globalThis.document; delete globalThis.getComputedStyle;
+    },
+  };
+}
+
+test("title tools keep their captured screen position when Safari's fixed viewport changes", () => {
+  const f = fixture();
+  try {
+    f.focus();
+    for (const [height, pan, drift] of [[400, 0, 340], [340, 60, 400], [400, 280, 320], [400, 0, -300]]) {
+      f.resize(height, pan, drift); f.frame();
+      assert.equal(f.screenTop(), 650, "a changing fixed bottom must not displace the buttons");
+      assert.equal(f.dockProperties.get("height"), "278px");
+      assert.equal(f.dockProperties.get("padding-bottom"), "210px");
+      assert.equal(f.dockProperties.get("bottom"), "auto");
+    }
+  } finally { f.cleanup(); }
+});
+
+test("blur and a recovered visual viewport cannot release into Safari's stale fixed bottom", () => {
+  const f = fixture();
+  try {
+    f.focus(); f.resize(400, 280, 320);
+    f.focus(false); f.frame(); f.frame();
+    assert.equal(f.screenTop(), 650);
+    f.resize(744, 100, 320); f.frame(); f.frame();
+    assert.equal(f.screenTop(), 650, "positive residual pan follows the existing compensation");
+    f.resize(744, 0, 320); f.frame(); f.frame();
+    assert.equal(f.screenTop(), 650, "old bottom anchoring would leave the buttons at 970px, offscreen");
+    assert.equal(f.dockProperties.get("top"), "650px", "do not release until normal CSS has actually recovered");
+    f.resize(744, 0, 0); f.frame();
+    assert.equal(f.dockProperties.get("top"), "650px");
+    f.frame();
+    assert.equal(f.dockProperties.size, 0);
+    assert.equal(f.screenTop(), 650);
+  } finally { f.cleanup(); }
+});
+
+test("keyboard dismissal while the title stays focused and rapid refocus retain the same anchor", () => {
+  const f = fixture();
+  try {
+    f.focus(); f.resize(400, 200, 300); f.resize(744, 0, 300); f.frame(); f.frame();
+    assert.equal(f.screenTop(), 650);
+    f.focus(false); f.resize(744, 0, 0); f.frame();
+    f.focus(); f.resize(400, 100, 350); f.frame(); f.frame();
+    assert.equal(f.screenTop(), 650);
+    assert.equal(f.dockProperties.get("top"), "650px");
+  } finally { f.cleanup(); }
+});
+
+test("leaving the title view restores inline styles, priorities, frames and listeners", () => {
+  const f = fixture();
+  try {
+    f.dock.style.setProperty("height", "278px", "important");
+    f.focus(); f.resize(400, 150, 320); f.focus(false);
+    f.resize(744, 0, 0); f.frame();
+    f.disposeTitle();
+    f.frame();
+    assert.equal(f.dockProperties.get("height"), "278px");
+    assert.equal(f.priorities.get("height"), "important");
+    assert.equal(f.dockProperties.has("top"), false);
+    assert.equal(f.frames.size, 0);
+    assert.equal(f.listenerCount(), 5, "only the unchanged shared pan listeners remain");
+  } finally { f.cleanup(); }
+});
+
+test("only the title input can pin this dock, and real width changes release its old geometry", () => {
+  const f = fixture();
+  try {
+    document.activeElement = { matches: () => true };
+    f.resize(744);
+    assert.equal(f.dockProperties.size, 0);
+    f.focus(); f.resize(400, 0, 320); f.focus(false);
+    window.innerWidth = 852; f.resize(360, 0, -300);
+    assert.equal(f.dockProperties.size, 0);
+    assert.equal(f.screenTop(), 350);
+  } finally { f.cleanup(); }
+});
+
+test("missing elements and browsers without VisualViewport keep ordinary toolbar layout", () => {
+  globalThis.window = {};
+  try {
+    assert.equal(installPublishKeyboardDock(null, null), undefined);
+    assert.equal(installPublishKeyboardDock({}, {}), undefined);
+  } finally { delete globalThis.window; }
+});
+
+test("twenty keyboard cycles never accumulate an offset or leave the buttons offscreen", () => {
+  const f = fixture();
+  try {
+    for (let cycle = 0; cycle < 20; cycle++) {
+      f.focus();
+      f.resize(400, 180, 280); f.frame();
+      assert.equal(f.screenTop(), 650);
+      f.focus(false); f.resize(744, 60, 280); f.frame(); f.frame();
+      assert.equal(f.screenTop(), 650);
+      f.resize(744, 0, 280); f.frame(); f.frame();
+      assert.equal(f.screenTop(), 650);
+      f.resize(744, 0, 0); f.frame(); f.frame();
+      assert.equal(f.dockProperties.size, 0);
+      assert.equal(f.screenTop(), 650);
+      assert.equal(f.frames.size, 0);
+    }
+  } finally { f.cleanup(); }
 });
