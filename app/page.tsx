@@ -62,8 +62,9 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
-import { prepareMediaFiles, mediaImportInsertionIndex, withMediaImportBlock, type MediaSize } from "@/app/lib/media-import";
+import { prepareMediaFiles, mediaImportInsertionIndex, mediaImportIsLeading, MEDIA_IMPORT_BACKGROUND, withMediaImportBlock, type MediaSize } from "@/app/lib/media-import";
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
+import { revealImportedMedia } from "@/app/lib/media-import-reveal";
 import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
@@ -1641,6 +1642,8 @@ function StripVideoBlock({
   reservedHeight,
   intrinsicSize,
   entering = false,
+  importReady = false,
+  importOverlay,
   onLoadSettled,
   onHeight,
   controls,
@@ -1667,6 +1670,8 @@ function StripVideoBlock({
   reservedHeight?: number;
   intrinsicSize?: MediaSize;
   entering?: boolean;
+  importReady?: boolean;
+  importOverlay?: ReactNode;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
@@ -1725,7 +1730,7 @@ function StripVideoBlock({
 
   return (
     <figure
-      className={`strip-block video-block ${entering ? "is-import-revealing" : ""} ${isEditing ? "is-editing" : ""} ${
+      className={`strip-block video-block ${entering ? `is-import-revealing${importReady ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
@@ -1763,6 +1768,7 @@ function StripVideoBlock({
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
+      {importOverlay}
       <div
         className="block-crop-viewport"
         style={
@@ -2643,8 +2649,8 @@ export default function Home() {
   const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportFeedback & { afterId: string | null }) | null>(null);
   const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
+  const [mediaBatchRevealStarted, setMediaBatchRevealStarted] = useState(false);
   const mediaImportRequestRef = useRef<AbortController | null>(null);
-  const mediaBatchRevealTimerRef = useRef<number | null>(null);
   const [publishedMinimumReadyKey, setPublishedMinimumReadyKey] = useState<
     string | null
   >(null);
@@ -2732,9 +2738,6 @@ export default function Home() {
   };
   const [inlinePreview, setInlinePreview] = useState(false);
   useEffect(() => () => { mediaImportRequestRef.current?.abort(); }, [currentDraftId, view, inlinePreview, authStatus]);
-  useEffect(() => () => {
-    if (mediaBatchRevealTimerRef.current !== null) window.clearTimeout(mediaBatchRevealTimerRef.current);
-  }, []);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack" | "page-color">("source");
   const [shapeStickerColor, setShapeStickerColor] = useState(() => {
@@ -2883,8 +2886,11 @@ export default function Home() {
     blockTapGestureRef.current = null;
     return !gesture || (gesture.blockId === blockId && !gesture.moved);
   };
-  const firstVisibleBlock =
-    view === "published" && openedPublishedStrip
+  const pendingMediaIsLeading = view === "edit" && !inlinePreview && Boolean(mediaImportProgress?.visible) &&
+    mediaImportIsLeading(blocks, mediaImportProgress?.afterId, mediaBatchRevealIds[0]);
+  const firstVisibleBlock = pendingMediaIsLeading && !mediaBatchRevealStarted
+      ? { type: "text" as const, backgroundColor: MEDIA_IMPORT_BACKGROUND }
+      : view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
       : blocks.find((block) => block.type !== "sticker");
   const hasStickerAnchorBlock = blocks.some(
@@ -2911,6 +2917,8 @@ export default function Home() {
     view === "title-setup" ||
     view === "share"
       ? DEFAULT_BACKGROUND
+      : pendingMediaIsLeading
+      ? MEDIA_IMPORT_BACKGROUND
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
@@ -3910,9 +3918,8 @@ export default function Home() {
           height: Math.max(1, Math.round(canvasWidth * item.height / item.width)),
           ...(item.type === "video" ? { audioEnabled: true } : {}) };
       });
-      if (mediaBatchRevealTimerRef.current !== null) window.clearTimeout(mediaBatchRevealTimerRef.current);
-      // Commit geometry, decoded pixels and selection together. The selected
-      // first photo gets one focus pass, never one pass per image load event.
+      // Mount the real elements behind the loading surface first. Their own
+      // decodes and a painted frame must precede the shared crossfade.
       flushSync(() => {
         setImportedMediaSizes(current => ({ ...current, ...sizes }));
         setMediaLoadStatus(current => ({ ...current,
@@ -3924,15 +3931,21 @@ export default function Home() {
           return next;
         });
         setMediaBatchRevealIds(mediaBlocks.map(block => block.id));
-        setSelectedBlockId(mediaBlocks[0].id);
+        setMediaBatchRevealStarted(false);
         setEditingTextBlockId(null);
         setActiveTextTool(null);
-        setMediaImportProgress(null);
       });
-      mediaBatchRevealTimerRef.current = window.setTimeout(() => {
-        setMediaBatchRevealIds([]);
-        mediaBatchRevealTimerRef.current = null;
-      }, 260);
+      await revealImportedMedia(stripCanvasRef.current, mediaBlocks.map(block => block.id), {
+        signal: controller.signal,
+        onReveal: () => {
+          if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
+          flushSync(() => {
+            setMediaBatchRevealStarted(true);
+            setSelectedBlockId(mediaBlocks[0].id);
+          });
+        },
+      });
+      if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
       if (failed > 0) setNotice("Some files couldn’t be added. The rest are ready.");
     } catch {
       if (!controller.signal.aborted && mediaImportRequestRef.current === controller) {
@@ -3943,6 +3956,8 @@ export default function Home() {
       if (mediaImportRequestRef.current === controller) {
         mediaImportRequestRef.current = null;
         setMediaImportProgress(null);
+        setMediaBatchRevealIds([]);
+        setMediaBatchRevealStarted(false);
       }
     }
   };
@@ -6436,6 +6451,9 @@ export default function Home() {
         ) : null}
 
         {withMediaImportBlock(sourceBlocks, sourceBlocks.map((block, index) => {
+        const importOverlay = isEditing && mediaImportProgress?.visible && mediaBatchRevealIds[0] === block.id
+          ? <MediaImportBlock progress={mediaImportProgress} handoff={mediaBatchRevealStarted ? "revealing" : "waiting"} leading={pendingMediaIsLeading && mediaBatchRevealStarted} />
+          : null;
         const heightCrop =
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, heightCropSession)
@@ -6561,7 +6579,7 @@ export default function Home() {
             : heightCrop?.height;
           return (
             <figure
-              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? "is-import-revealing" : ""} ${isEditing ? "is-editing" : ""} ${
+              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealStarted ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
@@ -6596,6 +6614,7 @@ export default function Home() {
               }}
             >
               {/* A Strip image is intentionally edge-to-edge. */}
+              {importOverlay}
               {isEditing ? renderBlockControls(block, index) : null}
               <div
                 className="block-crop-viewport"
@@ -6797,6 +6816,8 @@ export default function Home() {
             reservedHeight={block.height}
             intrinsicSize={importedMediaSizes[block.id]}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
+            importReady={mediaBatchRevealStarted}
+            importOverlay={importOverlay}
             cropTop={heightCrop?.top}
             cropSourceHeight={heightCrop?.sourceHeight}
             cropEditing={heightCrop?.isEditing}
@@ -6824,7 +6845,7 @@ export default function Home() {
             }
           />
         );
-        }), isEditing && mediaImportProgress?.visible ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} /> : null, mediaImportProgress?.afterId)}
+        }), isEditing && mediaImportProgress?.visible && mediaBatchRevealIds.length === 0 ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} /> : null, mediaImportProgress?.afterId)}
         {showsEndingCard ? (
           <StripEndingSheet
             preview

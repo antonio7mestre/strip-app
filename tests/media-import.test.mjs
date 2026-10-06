@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { mediaImportInsertionIndex, withMediaImportBlock } from "../app/lib/media-import.ts";
+import { mediaImportInsertionIndex, mediaImportIsLeading, withMediaImportBlock } from "../app/lib/media-import.ts";
 import { mediaFeedbackClock } from "./helpers/media-import-feedback-fixture.mjs";
 
 const root = new URL("../", import.meta.url);
@@ -132,32 +132,41 @@ const declaration = name => find(node => ts.isVariableDeclaration(node) && node.
 const handlerCode = ts.transpileModule(`export const ${declaration("addMedia")};`, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-function editor({ selected = "anchor" } = {}) {
+function editor({ selected = "anchor", holdReveal = false } = {}) {
   const feedbackClock = mediaFeedbackClock();
   const state = { blocks: [{ id: "anchor", type: "text", content: "Existing" }, { id: "after", type: "text" }],
-    sizes: {}, status: {}, progress: null, reveal: [], selected }, request = { current: null }, requests = [], notices = [], timers = [];
+    sizes: {}, status: {}, progress: null, reveal: [], started: false, selected }, request = { current: null }, requests = [], reveals = [], notices = [], timers = [];
   let id = 0, commits = 0;
   const exports = {};
   runInNewContext(handlerCode, {
     exports, AbortController, selectedBlockId: selected, mediaImportRequestRef: request, pageTransitionInFlightRef: { current: false },
     createMediaImportFeedback: feedbackClock.createMediaImportFeedback,
     stripCanvasRef: { current: { getBoundingClientRect: () => ({ width: 390 }) } },
-    mediaBatchRevealTimerRef: { current: null },
     window: { innerWidth: 390, clearTimeout() {}, setTimeout: callback => { timers.push(callback); return 1; } },
     makeId: () => `new-${++id}`, mediaImportInsertionIndex, flushSync: callback => { commits++; callback(); },
     prepareMediaFiles: (files, options) => new Promise((resolve, reject) => {
       options.onProgress({ completed: 0, total: files.length }); requests.push({ files, options, resolve, reject });
     }),
+    revealImportedMedia: (canvas, ids, options) => {
+      const reveal = { canvas, ids, options }; reveals.push(reveal);
+      if (!holdReveal) { options.onReveal(); return Promise.resolve(); }
+      return new Promise((resolve, reject) => {
+        const abort = () => reject(new DOMException("Import cancelled", "AbortError"));
+        options.signal.addEventListener("abort", abort, { once: true });
+        reveal.resolve = () => { options.signal.removeEventListener("abort", abort); resolve(); };
+      });
+    },
     setBlocks: update => { state.blocks = update(state.blocks); },
     setImportedMediaSizes: update => { state.sizes = update(state.sizes); },
     setMediaLoadStatus: update => { state.status = update(state.status); },
     setMediaBatchRevealIds: value => { state.reveal = value; },
+    setMediaBatchRevealStarted: value => { state.started = value; },
     setSelectedBlockId: value => { state.selected = value; },
     setEditingTextBlockId() {}, setActiveTextTool() {},
     setMediaImportProgress: value => { state.progress = value; },
     setNotice: value => notices.push(value),
   });
-  return { ...exports, state, request, requests, notices, timers, feedbackClock, commits: () => commits,
+  return { ...exports, state, request, requests, reveals, notices, timers, feedbackClock, commits: () => commits,
     event: { currentTarget: { files: files(6), value: "selected files" } } };
 }
 const prepared = Array.from({ length: 6 }, (_, index) => ({ type: "image", src: `original-${index}`, alt: `Photo ${index}`, width: 1200, height: 1800 }));
@@ -168,14 +177,15 @@ test("the editor inserts six ready photos in one commit, after the captured bloc
   assert.deepEqual({ ...h.state.progress }, { completed: 0, total: 6, visible: false, afterId: "anchor" });
   await h.addMedia(h.event); assert.equal(h.requests.length, 1, "overlapping batches are blocked");
   h.requests[0].resolve({ media: prepared, failed: 0 }); await pending;
-  assert.equal(h.commits(), 1); assert.equal(h.state.blocks.length, 8);
+  assert.equal(h.commits(), 2); assert.equal(h.state.blocks.length, 8);
   assert.deepEqual(Array.from(h.state.blocks, block => block.id), ["anchor", "new-1", "new-2", "new-3", "new-4", "new-5", "new-6", "after"]);
   assert.ok(h.state.blocks.slice(1, 7).every(block => block.height === 585));
   assert.equal(h.state.status["new-1"], "loaded"); assert.equal(h.state.status["new-6"], "loaded");
   assert.equal(h.state.sizes["new-1"].width, 1200);
   assert.equal(h.state.selected, "new-1", "focus starts at the beginning, not repeatedly at the end");
   assert.equal(h.state.progress, null); assert.equal(h.request.current, null);
-  assert.equal(h.state.reveal.length, 6); h.timers[0](); assert.equal(h.state.reveal.length, 0);
+  assert.equal(h.reveals.length, 1); assert.equal(h.reveals[0].ids.length, 6);
+  assert.equal(h.state.reveal.length, 0); assert.equal(h.state.started, false);
 });
 
 test("cancelled imports cannot append to a different draft or move its selection", async () => {
@@ -200,7 +210,7 @@ test("a quick completed batch holds a shown placeholder, then replaces it in one
   h.feedbackClock.advance(319); await tick();
   assert.equal(h.commits(), 0);
   h.feedbackClock.advance(1); await pending;
-  assert.equal(h.commits(), 1);
+  assert.equal(h.commits(), 2);
   assert.equal(h.state.blocks.length, 8);
   assert.equal(h.state.progress, null);
   assert.equal(h.feedbackClock.timers.size, 0);
@@ -244,11 +254,11 @@ test("prepared images bypass sequential loading, reserve aspect ratios and canno
   assert.match(page, /width=\{importedMediaSizes\[block.id\]\?\.width\}/);
   assert.match(page, /height=\{importedMediaSizes\[block.id\]\?\.height\}/);
   assert.match(page, /withMediaImportBlock\(sourceBlocks, sourceBlocks\.map/);
-  assert.match(page, /isEditing && mediaImportProgress\?\.visible \? <MediaImportBlock key="pending-media-import" progress=\{mediaImportProgress\}/);
+  assert.match(page, /isEditing && mediaImportProgress\?\.visible && mediaBatchRevealIds\.length === 0 \? <MediaImportBlock key="pending-media-import" progress=\{mediaImportProgress\}/);
   assert.doesNotMatch(page, /notice media-import-notice/);
   const css = readFileSync(new URL("app/globals.css", root), "utf8");
   assert.match(css, /@keyframes media-import-in \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
-  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.editor-mode \.strip-block.is-import-revealing \{ animation: none; \}/);
+  assert.match(css, /prefers-reduced-motion: reduce\) \{\s*\.editor-mode \.strip-block\.is-import-revealing > :not\(\.media-import-block\) \{ transition: none; \}/);
 });
 
 test("the temporary block and ready batch share the captured insertion spot without mutating draft content", () => {
@@ -275,4 +285,48 @@ test("progress updates do not insert partial media or move the captured insertio
   h.requests[0].resolve({ media: prepared, failed: 0 }); await pending;
   assert.equal(h.state.progress, null, "the real batch replaces its placeholder in the same commit");
   assert.equal(h.state.blocks[1].id, "new-1");
+});
+
+test("mounted photos retain the loading overlay and import gate through the entire crossfade", async () => {
+  const h = editor({ holdReveal: true }), pending = h.addMedia(h.event);
+  h.feedbackClock.advance(500);
+  h.requests[0].resolve({ media: prepared, failed: 0 }); await tick();
+  assert.equal(h.state.blocks.length, 8);
+  assert.equal(h.state.progress.visible, true);
+  assert.equal(h.state.reveal.length, 6);
+  assert.equal(h.state.started, false);
+  assert.equal(h.state.selected, "anchor", "mounting hidden photos must not move the selection");
+  h.reveals[0].options.onReveal();
+  assert.equal(h.state.started, true);
+  assert.equal(h.state.selected, "new-1");
+  assert.equal(h.state.progress.visible, true);
+  await h.addMedia(h.event); assert.equal(h.requests.length, 1);
+  h.reveals[0].resolve(); await pending;
+  assert.equal(h.state.progress, null);
+  assert.equal(h.state.reveal.length, 0);
+  assert.equal(h.state.started, false);
+});
+
+test("leaving during mounted decoding prevents late selection or reveal", async () => {
+  const h = editor({ holdReveal: true }), pending = h.addMedia(h.event);
+  h.requests[0].resolve({ media: prepared, failed: 0 }); await tick();
+  h.request.current.abort(); await pending;
+  h.reveals[0].options.onReveal();
+  assert.equal(h.state.selected, "anchor");
+  assert.equal(h.state.started, false);
+  assert.equal(h.state.progress, null);
+  assert.equal(h.state.reveal.length, 0);
+});
+
+test("a pending first media block has text-block safe-area treatment until its photo reveal", () => {
+  assert.equal(mediaImportIsLeading([], null), true);
+  assert.equal(mediaImportIsLeading([{ id: "sticker", type: "sticker" }], null), true);
+  const blocks = [{ id: "sticker", type: "sticker" }, { id: "image", type: "image" }, { id: "text", type: "text" }];
+  assert.equal(mediaImportIsLeading(blocks, "sticker"), true);
+  for (const anchor of ["image", "text", null, "removed"]) assert.equal(mediaImportIsLeading(blocks, anchor), false);
+  assert.equal(mediaImportIsLeading(blocks, null, "image"), true);
+  assert.equal(mediaImportIsLeading(blocks, null, "text"), false);
+  assert.match(declaration("firstVisibleBlock"), /pendingMediaIsLeading && !mediaBatchRevealStarted\s*\? \{ type: "text" as const, backgroundColor: MEDIA_IMPORT_BACKGROUND \}/);
+  assert.match(declaration("topSafeAreaColor"), /pendingMediaIsLeading\s*\? MEDIA_IMPORT_BACKGROUND/);
+  assert.match(declaration("pendingMediaIsLeading"), /view === "edit" && !inlinePreview/);
 });
