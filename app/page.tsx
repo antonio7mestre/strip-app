@@ -3845,7 +3845,7 @@ export default function Home() {
       const insertionIndex = selectedIndex >= 0 ? selectedIndex + 1 : current.length;
       const inheritedStyle = nearestTextBlock(current, insertionIndex);
       const backgroundColor =
-        inheritedStyle?.backgroundColor ?? DEFAULT_BLOCK_BACKGROUND;
+        inheritedStyle?.backgroundColor ?? stripProfile.profile.background;
       const next = [...current];
       next.splice(insertionIndex, 0, {
         id,
