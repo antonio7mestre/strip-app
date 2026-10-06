@@ -84,11 +84,12 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
   assert.match(css, /\.profile \.arrowGraphic \{ left: 104px; top: 0; \}/);
   assert.match(css, /\.profile \.lettering \{[^}]*left: -50px; top: -26px/);
   assert.match(css, /\.profile \.artwork \{ transform: translate\(-12px, -12px\)/);
-  assert.match(css, /\.profile \.sticker1 \{ left: 16px; top: 66px/);
+  assert.match(css, /\.profile \.sticker0 \{ left: -20px/);
+  assert.match(css, /\.profile \.sticker1 \{ left: -20px; top: 66px/);
   assert.match(css, /\.artwork \{[^}]*--empty-guide-left[^}]*--empty-guide-top/s);
   assert.match(css, /\.editor \.arrowGraphic \{[^}]*top: -8px/);
-  assert.match(css, /\.editor \.lettering \{[^}]*left: 104px; top: -38px/);
-  assert.match(css, /\.editor \.sticker2 \{ top: -110px;[^}]*left: 206px/);
+  assert.match(css, /\.editor \.lettering \{[^}]*left: 112px; top: -46px/);
+  assert.match(css, /\.editor \.sticker2 \{ top: -102px;[^}]*left: 194px/);
   assert.match(css, /\.subtitle \{[^}]*margin: 8px auto 0/);
   assert.match(css, /\.guide \{[^}]*position: absolute;[^}]*pointer-events: none/s);
   assert.match(css, /\.artwork \{[^}]*pointer-events: none/s);
@@ -102,8 +103,8 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
     assert.ok(render({ kind: "editor" }).includes(src));
   }
   assert.match(render({ kind: "editor" }), /class="textGlyph">Aa<\/span>/);
-  assert.match(render({ kind: "profile" }), /random\/silver-heart.webp/);
-  assert.doesNotMatch(render({ kind: "profile" }), /jelly-bow.webp/);
+  assert.match(render({ kind: "profile" }), /nature\/red-cherries.webp/);
+  assert.doesNotMatch(render({ kind: "profile" }), /jelly-bow.webp|silver-heart.webp/);
   assert.doesNotMatch(source, /setBlocks|placeSticker|addSticker|onPointer|onTouch|onClick/);
 });
 

@@ -9,7 +9,7 @@ const artwork = {
   profile: [
     { src: "/landing/sticker-camera.webp", width: 768, height: 512 },
     { src: "/sticker-pack/nature/white-daisy.webp", width: 512, height: 490 },
-    { src: "/sticker-pack/random/silver-heart.webp", width: 373, height: 512 },
+    { src: "/sticker-pack/nature/red-cherries.webp", width: 512, height: 458 },
   ],
   editor: [
     { src: "/sticker-pack/items/digital-camera.webp", width: 512, height: 289 },
