@@ -96,7 +96,7 @@ import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
-import { DEFAULT_PROFILE, profileCoverOutline, profileTitle, profileTextColor, type StripProfile } from "@/app/lib/profile";
+import { DEFAULT_PROFILE, PROFILE_FONTS, PROFILE_FONT_CATALOG, profileFontWeight, profileCoverOutline, profileTitle, profileTextColor, type ProfileFont, type StripProfile } from "@/app/lib/profile";
 import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout } from "@/app/components/ProfileReload";
 import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
@@ -162,7 +162,7 @@ type View =
   | "title-setup"
   | "share"
   | "published";
-type FontStyle = "sans" | "serif" | "mono" | "rounded" | "condensed" | "display" | "hand";
+type FontStyle = ProfileFont;
 type TextTool = "font" | "background" | "color";
 type CoverColorShape = "portrait" | "square" | "landscape";
 type PublishedCover =
@@ -266,25 +266,11 @@ const MIN_CROPPED_BLOCK_HEIGHT = 44;
 const INLINE_PREVIEW_HISTORY_KEY = "stripInlinePreview";
 const AUTH_CODE_LENGTH = 6;
 
-const FONT_OPTIONS: { label: string; value: FontStyle }[] = [
-  { label: "Sans", value: "sans" },
-  { label: "Serif", value: "serif" },
-  { label: "Mono", value: "mono" },
-  { label: "Rounded", value: "rounded" },
-  { label: "Condensed", value: "condensed" },
-  { label: "Display", value: "display" },
-  { label: "Handwritten", value: "hand" },
-];
+const FONT_OPTIONS = PROFILE_FONTS.map((font) => ({
+  label: font.label, value: font.id, family: font.family, weight: profileFontWeight(font.id),
+}));
 
-const FONT_STACKS: Record<FontStyle, string> = {
-  sans: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif',
-  serif: '"Iowan Old Style", "Baskerville", Georgia, serif',
-  mono: '"SFMono-Regular", "SF Mono", Menlo, Consolas, monospace',
-  rounded: 'ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif',
-  condensed: '"Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif',
-  display: 'Didot, "Bodoni 72", "Times New Roman", serif',
-  hand: '"Noteworthy", "Bradley Hand", "Comic Sans MS", cursive',
-};
+const FONT_STACKS = Object.fromEntries(PROFILE_FONT_CATALOG.map((font) => [font.id, font.family])) as Record<FontStyle, string>;
 
 const BACKGROUND_COLORS = [
   { label: "Black", value: "#000000" },
@@ -1437,6 +1423,7 @@ function TextStyleSelector({
                   key={option.value}
                   type="button"
                   data-font={option.value}
+                  style={{ fontFamily: option.family, fontWeight: option.weight }}
                   className={`selector-option font-selector-option ${
                     fontStyle === option.value ? "is-selected" : ""
                   }`}
@@ -6481,7 +6468,8 @@ export default function Home() {
                 backgroundColor,
                 color: textColor,
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
-              }}
+                "--text-font-weight": block.fontStyle ? profileFontWeight(block.fontStyle) : undefined,
+              } as CSSProperties}
             >
               {isEditing ? renderBlockControls(block, index) : null}
               <div className="block-crop-viewport">

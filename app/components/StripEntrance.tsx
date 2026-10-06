@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
-import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, type ProfileFont } from "@/app/lib/profile";
+import { profileFontInfo, profileFontWeight, profileInk, type ProfileFont } from "@/app/lib/profile";
 import { COVER_MOVE_MS, coverEntranceLayout, fitCoverTitle, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
 type Cover = { kind: "image"; src: string; alt?: string; aspectRatio?: number }
@@ -31,8 +31,8 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
   const [initialDock] = useState(dock);
   const [initialBackground] = useState(backgroundColor);
   const [ink] = useState(() => inkColor && /^#[\da-f]{6}$/i.test(inkColor) ? inkColor : profileInk(initialBackground));
-  const [font] = useState(() => (PROFILE_FONTS.find(({ id }) => id === profileFont)
-    ?? PROFILE_FONTS.find(({ id }) => id === DEFAULT_PROFILE.font)!).family);
+  const [font] = useState(() => profileFontInfo(profileFont).family);
+  const [fontWeight] = useState(() => profileFontWeight(profileFont));
   const [centered, setCentered] = useState(!origin);
   const [dockDropped, setDockDropped] = useState(!dock);
   const [coverReady, setCoverReady] = useState(cover.kind === "color" || Boolean(origin?.snapshot));
@@ -196,7 +196,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
 
   return (
     <div ref={surfaceRef} className={`published-strip-loading strip-entrance cover-entrance ${initialOrigin ? "is-from-library" : ""} ${centered ? "is-centered" : ""} ${coverVisible ? "is-cover-visible" : ""}`}
-      style={{ "--entrance-a": ink, "--entrance-background": initialBackground, "--entrance-font": font } as CSSProperties}
+      style={{ "--entrance-a": ink, "--entrance-background": initialBackground, "--entrance-font": font, "--entrance-font-weight": fontWeight } as CSSProperties}
       role="status" aria-label="Loading Strip" data-load-progress={loadPercent}>
       <div className="strip-entrance-backdrop" />
       {initialDock ? <div ref={dockRef} className="composer-dock app-navigation-dock strip-entrance-dock"

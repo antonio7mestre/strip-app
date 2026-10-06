@@ -4,7 +4,7 @@ import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
 import { recordStripView } from "@/app/server/view-history";
-import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk, profileTextColor } from "@/app/lib/profile";
+import { profileFontInfo, profileInk, profileTextColor } from "@/app/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -202,7 +202,7 @@ export async function GET(
       title: row.title,
       profileBackground: background,
       profileTextColor: profileTextColor({ background, accent }),
-      profileFont: PROFILE_FONTS.find(({ id }) => id === row.profile_font)?.id ?? DEFAULT_PROFILE.font,
+      profileFont: profileFontInfo(row.profile_font).id,
       cover:
         row.cover_kind === "image"
           ? {

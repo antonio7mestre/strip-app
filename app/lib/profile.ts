@@ -4,12 +4,38 @@ export const PROFILE_FONTS = [
   { id: "serif", label: "Serif", family: '"Iowan Old Style", "Baskerville", Georgia, serif' },
   { id: "mono", label: "Mono", family: '"SFMono-Regular", "SF Mono", Menlo, Consolas, monospace' },
   { id: "rounded", label: "Rounded", family: 'ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif' },
-  { id: "condensed", label: "Condensed", family: '"Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif' },
   { id: "display", label: "Display", family: 'Didot, "Bodoni 72", "Times New Roman", serif' },
+  { id: "arial", label: "Arial", family: 'Arial, "Helvetica Neue", Helvetica, sans-serif' },
+  { id: "times", label: "Times New Roman", family: '"Times New Roman", Times, serif' },
+  { id: "bungee", label: "Bungee", family: '"Bungee", "Arial Black", sans-serif', asset: "/fonts/bungee.woff2" },
+  { id: "rubik-mono-one", label: "Rubik Mono One", family: '"Rubik Mono One", "Arial Black", sans-serif', asset: "/fonts/rubik-mono-one.woff2" },
+  { id: "shrikhand", label: "Shrikhand", family: '"Shrikhand", Georgia, serif', asset: "/fonts/shrikhand.woff2" },
+  { id: "notable", label: "Notable", family: '"Notable", "Arial Black", sans-serif', asset: "/fonts/notable.woff2" },
+  { id: "rammetto-one", label: "Rammetto One", family: '"Rammetto One", "Arial Black", sans-serif', asset: "/fonts/rammetto-one.woff2" },
+  { id: "gloock", label: "Gloock", family: '"Gloock", Georgia, serif', asset: "/fonts/gloock.woff2" },
+  { id: "yeseva-one", label: "Yeseva One", family: '"Yeseva One", Georgia, serif', asset: "/fonts/yeseva-one.woff2" },
+  { id: "jacquarda-bastarda-9", label: "Jacquarda Bastarda 9", family: '"Jacquarda Bastarda 9", Georgia, serif', asset: "/fonts/jacquarda-bastarda-9.woff2" },
+  { id: "unifrakturcook", label: "UnifrakturCook", family: '"UnifrakturCook", Georgia, serif', asset: "/fonts/unifrakturcook.woff2", weight: 700 },
+] as const;
+
+// Hidden from the new menus, but still valid for older profiles and Strips.
+export const PROFILE_FONT_CATALOG = [
+  ...PROFILE_FONTS,
+  { id: "condensed", label: "Condensed", family: '"Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif' },
   { id: "hand", label: "Handwritten", family: '"Noteworthy", "Bradley Hand", "Comic Sans MS", cursive' },
 ] as const;
 
-export type ProfileFont = (typeof PROFILE_FONTS)[number]["id"];
+export type ProfileFont = (typeof PROFILE_FONT_CATALOG)[number]["id"];
+
+export function profileFontInfo(id: unknown) {
+  return PROFILE_FONT_CATALOG.find(font => font.id === id) ?? PROFILE_FONTS[0];
+}
+
+/** Single-weight display faces use their real outlines, not synthetic bold. */
+export function profileFontWeight(id: unknown) {
+  const font = profileFontInfo(id);
+  return font.id === "letter" ? 900 : "weight" in font ? font.weight : "asset" in font ? 400 : undefined;
+}
 export type StripProfile = {
   title: string;
   font: ProfileFont;
@@ -106,7 +132,7 @@ export function validateProfile(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const data = input as Record<string, unknown>;
   if (typeof data.title !== "string" || data.title.length > 60 ||
-      !PROFILE_FONTS.some(({ id }) => id === data.font) ||
+      !PROFILE_FONT_CATALOG.some(({ id }) => id === data.font) ||
       typeof data.background !== "string" || !/^#[\da-f]{6}$/i.test(data.background) ||
       typeof data.accent !== "string" || !/^#[\da-f]{6}$/i.test(data.accent) ||
       typeof data.revision !== "number" || !Number.isSafeInteger(data.revision) || data.revision < 0) return null;

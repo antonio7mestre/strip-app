@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { automaticStripEndingStyle, readStripContent, writeStripContent } from "../app/lib/strip-ending.ts";
+import { profileFontWeight } from "../app/lib/profile.ts";
 
 const black = { backgroundColor: "#000000", buttonColor: "#FFFFFF" };
 const white = { backgroundColor: "#FFFFFF", buttonColor: "#000000" };
@@ -98,7 +99,7 @@ function renderFixture(blocks, isEditing) {
     resolveBlockHeightCrop: () => null,
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,
     renderBlockControls: stub, recordBlockHeight: stub, BlockHeightReporter: stub,
-    DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" },
+    DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" }, profileFontWeight,
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
     installEndingContact: stub, StripEndActions: stub,
     handlePreviewEndingEdit: stub, handlePreviewEndingPublish: stub,

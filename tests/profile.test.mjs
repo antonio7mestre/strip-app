@@ -126,6 +126,18 @@ test("stale saves and cross-origin requests cannot overwrite a profile", async (
   assert.equal((await api.PUT(request({ ...profile.DEFAULT_PROFILE, revision: 1, title: "latest" }))).status, 200);
   api.db.close();
 });
+test("every selected and legacy font survives a profile save and reload", async () => {
+  const api = fixture();
+  try {
+    for (const [revision, { id: font }] of profile.PROFILE_FONT_CATALOG.entries()) {
+      const saved = await api.PUT(request({ ...profile.DEFAULT_PROFILE, font, revision }));
+      assert.equal(saved.status, 200, font);
+      assert.equal((await saved.json()).profile.font, font);
+      const reloaded = await api.GET(new Request("http://localhost:3035/api/profile"));
+      assert.equal((await reloaded.json()).profile.font, font);
+    }
+  } finally { api.db.close(); }
+});
 test("profile photos accept only bounded raster JPEGs and reject arbitrary URLs", async () => {
   for (const value of ["https://example.com/avatar.jpg", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/jpeg;base64,SGVsbG8=", "data:image/jpeg;base64," + "A".repeat(700000)]) {
     assert.equal(server.decodeProfilePhoto(value), null);

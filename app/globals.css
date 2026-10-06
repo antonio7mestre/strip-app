@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Selected typefaces are self-hosted and requested only when used. */
+@font-face { font-family: "Bungee"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/bungee.woff2") format("woff2"); }
+@font-face { font-family: "Rubik Mono One"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/rubik-mono-one.woff2") format("woff2"); }
+@font-face { font-family: "Shrikhand"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/shrikhand.woff2") format("woff2"); }
+@font-face { font-family: "Notable"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/notable.woff2") format("woff2"); }
+@font-face { font-family: "Rammetto One"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/rammetto-one.woff2") format("woff2"); }
+@font-face { font-family: "Gloock"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/gloock.woff2") format("woff2"); }
+@font-face { font-family: "Yeseva One"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/yeseva-one.woff2") format("woff2"); }
+@font-face { font-family: "Jacquarda Bastarda 9"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/jacquarda-bastarda-9.woff2") format("woff2"); }
+@font-face { font-family: "UnifrakturCook"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/unifrakturcook.woff2") format("woff2"); }
+
 :root {
   --black: #000000;
   --white: #ffffff;
@@ -2315,7 +2326,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   background: transparent;
   color: inherit;
   font-family: inherit;
-  font-weight: 450;
+  font-weight: var(--text-font-weight, 450);
   line-height: 1.22;
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
@@ -2521,7 +2532,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   color: var(--entrance-a);
   font-family: var(--entrance-font, "Arial Black", "Helvetica Neue", Arial, sans-serif);
   font-size: 24px;
-  font-weight: 700;
+  font-weight: var(--entrance-font-weight, 700);
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: 0;

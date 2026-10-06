@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Baseline, Check, ChevronLeft, ChevronUp, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
-import { PROFILE_FONTS, profileColorChoices, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
+import { PROFILE_FONTS, profileFontInfo, profileFontWeight, profileColorChoices, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { type useStripProfile } from "./useStripProfile";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleProfilePageColor } from "@/app/lib/page-color-sampler";
@@ -134,7 +134,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
       <div ref={selectorScrollRef} className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${colorLabel} color choices`}>
         {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id}
           className={`selector-option font-selector-option ${profile.font === font.id ? "is-selected" : ""}`}
-          style={{ fontFamily: font.family }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
+          style={{ fontFamily: font.family, fontWeight: profileFontWeight(font.id) }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
           disabled={pending} onClick={() => update({ font: font.id })}>Aa</button>) : wheel ? <GradientColorPicker
           color={activeColor} onChange={changeColor} label={`Choose any ${colorLabel} color`} /> : <>{colorChoices.map((color) => {
           const selected = activeColor === color.value;
@@ -184,7 +184,7 @@ export function profilePageStyle(controller: Pick<ProfileController, "profile"> 
     "--profile-ui-ink": profileInk(profile.background),
     "--profile-accent": profile.accent,
     "--profile-accent-ink": profileInk(profile.accent),
-    "--profile-font": PROFILE_FONTS.find(({ id }) => id === profile.font)?.family,
-    "--profile-font-weight": profile.font === "letter" ? 900 : undefined,
+    "--profile-font": profileFontInfo(profile.font).family,
+    "--profile-font-weight": profileFontWeight(profile.font),
   } as CSSProperties;
 }

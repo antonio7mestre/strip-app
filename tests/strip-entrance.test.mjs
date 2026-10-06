@@ -9,7 +9,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, paletteFromPixels, sampleEntranceMedia, startEntranceCounter } from "../app/lib/strip-entrance.ts";
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
-import { DEFAULT_PROFILE, PROFILE_FONTS, profileInk } from "../app/lib/profile.ts";
+import * as profile from "../app/lib/profile.ts";
+const { PROFILE_FONT_CATALOG, profileFontInfo, profileFontWeight, profileInk } = profile;
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
   assert.equal(normalizeEntranceColor("#3af"), "#33AAFF");
@@ -66,7 +67,7 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
-      : name === "@/app/lib/profile" ? { DEFAULT_PROFILE, PROFILE_FONTS, profileInk } : require(name) });
+      : name === "@/app/lib/profile" ? profile : require(name) });
 test("renders the title, centered cover and loading number, with no squares or percent sign", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, title: "Slow Sunday", blocks: [],
@@ -101,7 +102,7 @@ test("the number aligns with the cover's right edge at the same vertical midpoin
   assert.match(componentSource, /setProperty\("--entrance-viewport-bottom",\s*\(\(viewport\?\.offsetTop \?\? 0\) \+ \(viewport\?\.height \?\? window.innerHeight\)\) \+ "px"\)/);
   assert.match(type, /font-family: var\(--entrance-font, "Arial Black", "Helvetica Neue", Arial, sans-serif\)/);
   assert.match(type, /font-size: 24px/);
-  assert.match(type, /font-weight: 700/);
+  assert.match(type, /font-weight: var\(--entrance-font-weight, 700\)/);
   assert.match(type, /font-variant-numeric: tabular-nums/);
   assert.match(css, /\.strip-entrance-percent \{[^}]*width: 3ch;[^}]*text-align: right;/);
   for (const [width, height] of [[320, 640], [393, 714], [852, 393], [1440, 900]]) {
@@ -151,14 +152,15 @@ test("the loading row uses saved profile ink and rejects invalid CSS colors", ()
   assert.match(page, /inkColor=\{openingCover\?\.ink \?\? openedPublishedStrip\?\.profileTextColor\}/);
 });
 test("both loader labels use the author's selected profile font on clicks and direct loads", () => {
-  for (const profileFont of [...PROFILE_FONTS.map(({ id }) => id), undefined, "url(unsafe)"]) {
+  for (const profileFont of [...PROFILE_FONT_CATALOG.map(({ id }) => id), undefined, "url(unsafe)"]) {
     const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
       cover: { kind: "color", color: "#3155FF" }, profileFont,
       settledAssets: 0, totalAssets: 1, revealing: false, onCoverSettled() {}, onExitComplete() {},
     }));
-    const font = PROFILE_FONTS.find(({ id }) => id === profileFont)
-      ?? PROFILE_FONTS.find(({ id }) => id === DEFAULT_PROFILE.font);
+    const font = profileFontInfo(profileFont);
     assert.ok(html.includes(`--entrance-font:${font.family.replaceAll('"', '&quot;')}`));
+    const weight = profileFontWeight(profileFont);
+    if (weight !== undefined) assert.ok(html.includes(`--entrance-font-weight:${weight}`));
   }
   assert.match(page, /font: visibleProfile.font/);
   assert.match(page, /profileFont=\{openingCover\?\.font \?\? openedPublishedStrip\?\.profileFont\}/);
