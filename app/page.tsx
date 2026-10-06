@@ -358,7 +358,12 @@ function colorChannels(color: string) {
 
 function textColorOptionsForBackground(background: string) {
   const normalized = background.trim().toUpperCase();
-  if (TEXT_COLOR_PALETTES[normalized]) return TEXT_COLOR_PALETTES[normalized];
+  const ink = contrastColor(normalized);
+  const withNeutralInk = (options: { label: string; value: string }[]) => [
+    { label: ink === "#000000" ? "Black" : "White", value: ink },
+    ...options.filter(({ value }) => value.toUpperCase() !== ink),
+  ];
+  if (TEXT_COLOR_PALETTES[normalized]) return withNeutralInk(TEXT_COLOR_PALETTES[normalized]);
 
   const [red, green, blue] = colorChannels(normalized);
   const nearestBackground = BACKGROUND_COLORS.reduce((nearest, option) => {
@@ -370,7 +375,7 @@ function textColorOptionsForBackground(background: string) {
     return distance < nearest.distance ? { value: option.value, distance } : nearest;
   }, { value: DEFAULT_BACKGROUND, distance: Number.POSITIVE_INFINITY });
 
-  return TEXT_COLOR_PALETTES[nearestBackground.value.toUpperCase()];
+  return withNeutralInk(TEXT_COLOR_PALETTES[nearestBackground.value.toUpperCase()]);
 }
 
 function makeId() {

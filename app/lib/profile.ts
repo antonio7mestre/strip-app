@@ -7,10 +7,10 @@ export const PROFILE_FONTS = [
   { id: "display", label: "Display", family: 'Didot, "Bodoni 72", "Times New Roman", serif' },
   { id: "arial", label: "Arial", family: 'Arial, "Helvetica Neue", Helvetica, sans-serif' },
   { id: "times", label: "Times New Roman", family: '"Times New Roman", Times, serif' },
-  { id: "bungee", label: "Bungee", family: '"Bungee", "Arial Black", sans-serif', asset: "/fonts/bungee.woff2" },
-  { id: "rubik-mono-one", label: "Rubik Mono One", family: '"Rubik Mono One", "Arial Black", sans-serif', asset: "/fonts/rubik-mono-one.woff2" },
+  { id: "changa-one", label: "Changa One", family: '"Changa One", "Arial Black", sans-serif', asset: "/fonts/changa-one.woff2" },
+  { id: "rubik-black", label: "Rubik Black", family: '"Rubik", "Arial Black", sans-serif', asset: "/fonts/rubik-black.woff2", weight: 900 },
   { id: "shrikhand", label: "Shrikhand", family: '"Shrikhand", Georgia, serif', asset: "/fonts/shrikhand.woff2" },
-  { id: "notable", label: "Notable", family: '"Notable", "Arial Black", sans-serif', asset: "/fonts/notable.woff2" },
+  { id: "dela-gothic-one", label: "Dela Gothic One", family: '"Dela Gothic One", "Arial Black", sans-serif', asset: "/fonts/dela-gothic-one.woff2" },
   { id: "rammetto-one", label: "Rammetto One", family: '"Rammetto One", "Arial Black", sans-serif', asset: "/fonts/rammetto-one.woff2" },
   { id: "gloock", label: "Gloock", family: '"Gloock", Georgia, serif', asset: "/fonts/gloock.woff2" },
   { id: "yeseva-one", label: "Yeseva One", family: '"Yeseva One", Georgia, serif', asset: "/fonts/yeseva-one.woff2" },
@@ -23,6 +23,9 @@ export const PROFILE_FONT_CATALOG = [
   ...PROFILE_FONTS,
   { id: "condensed", label: "Condensed", family: '"Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif' },
   { id: "hand", label: "Handwritten", family: '"Noteworthy", "Bradley Hand", "Comic Sans MS", cursive' },
+  { id: "bungee", label: "Bungee", family: '"Bungee", "Arial Black", sans-serif', asset: "/fonts/bungee.woff2" },
+  { id: "rubik-mono-one", label: "Rubik Mono One", family: '"Rubik Mono One", "Arial Black", sans-serif', asset: "/fonts/rubik-mono-one.woff2" },
+  { id: "notable", label: "Notable", family: '"Notable", "Arial Black", sans-serif', asset: "/fonts/notable.woff2" },
 ] as const;
 
 export type ProfileFont = (typeof PROFILE_FONT_CATALOG)[number]["id"];
@@ -106,9 +109,12 @@ export function applyProfileChanges(profile: StripProfile, changes: Partial<Stri
  * Test the actual update so neutral text can follow a new background. Choices
  * depend on the opposite color, not the color being dragged in this tool. */
 export function profileColorChoices(profile: StripProfile, tool: "background" | "accent") {
-  return PROFILE_COLORS.filter(({ value }) =>
+  const choices = PROFILE_COLORS.filter(({ value }) =>
     profileColorsReadable(applyProfileChanges(profile, { [tool]: value })),
   );
+  if (tool === "background") return choices;
+  const ink = profileInk(profile.background);
+  return [...choices.filter(({ value }) => value === ink), ...choices.filter(({ value }) => value !== ink)];
 }
 
 /** Preserve a cover's edge when it blends into the profile canvas. */

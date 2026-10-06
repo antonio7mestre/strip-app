@@ -1,0 +1,74 @@
+{
+  "bungee": {
+    "sha256": "126eec706b7931682dbcf6c6efc274132c603f181fbf912678e6cfeb341e721b",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 0
+  },
+  "changa-one": {
+    "sha256": "fbd0536d5b92c0dbe6ad2637800ae8da10c20755b564a3575bd12bba57f73b18",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "dela-gothic-one": {
+    "sha256": "00ffa61fea9edb126e8e4fd3cf2b46e96ad158a0c1078b3cd22a3f6964993a88",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "gloock": {
+    "sha256": "9389ada8d35754635432c5565f03e8e3ce0f37f529207356426d1d9983b1bc29",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "jacquarda-bastarda-9": {
+    "sha256": "be1cb0e76fae02090286bb8dcffa45f9f31d06d96b2710bf87266dca6f27ab0d",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "notable": {
+    "sha256": "a28fb17ecdebf8c95a84e5f9afa6553226f6f09ece191509e2bf48f6352d2815",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 0
+  },
+  "rammetto-one": {
+    "sha256": "2834f4c0a7ee3b2ce6da1c93463b8c720fbddddc444bd21881c1ada3c66966d9",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "rubik-black": {
+    "sha256": "9ab80489aea97335ef86ea6d7386e5ffbf57a2abeeaea8da6f84c694c87792ad",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "rubik-mono-one": {
+    "sha256": "4c1f9c2e5e3f867641f60becebfc11cd0e6ab02aa96bac88d750e37de8fce3c4",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 0
+  },
+  "shrikhand": {
+    "sha256": "ae958e0da508cb9c0094ce2a2cd2ce142756cc434d88ecd3f353c3f80749da9d",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "unifrakturcook": {
+    "sha256": "3304757748716ececd1b87999cb92d61ff5332aefbe8331d5155bbb68218e588",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  },
+  "yeseva-one": {
+    "sha256": "593184b5936b6c88f68a1ac5d03e1e505478de7f61caaa2f8377a50a804c211b",
+    "uppercase": true,
+    "lowercase": true,
+    "distinctPairs": 26
+  }
+}

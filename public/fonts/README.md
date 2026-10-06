@@ -13,5 +13,10 @@ These unmodified Latin WOFF2 files are served locally, not from a third-party fo
 | Yeseva One | 400 | https://fonts.gstatic.com/s/yesevaone/v24/OpNJno4ck8vc-xYpwWWxli1VWw.woff2 |
 | Jacquarda Bastarda 9 | 400 | https://fonts.gstatic.com/s/jacquardabastarda9/v6/f0Xp0fWr_8t6WFtKQJfOhaC0hcZ1HYAMAYwE3zE.woff2 |
 | UnifrakturCook | 700 | https://fonts.gstatic.com/s/unifrakturcook/v25/IurA6Yli8YOdcoky-0PTTdkm56n05Xwy1oM.woff2 |
+| Changa One | 400 | https://fonts.gstatic.com/s/changaone/v22/xfu00W3wXn3QLUJXhzq42AHiuQ.woff2 |
+| Rubik | 900 | https://fonts.gstatic.com/s/rubik/v31/iJWZBXyIfDnIV5PNhY1KTN7Z-Yh-ro-FV0U1.woff2 |
+| Dela Gothic One | 400 | https://fonts.gstatic.com/s/delagothicone/v19/hESp6XxvMDRA-2eD0lXpDa6QkBA2QkEI.woff2 |
 
 Original license sources: `https://github.com/google/fonts/tree/main/ofl/` in each corresponding family folder. Arial and Times New Roman use system fonts and are not redistributed here.
+
+The menu uses Changa One, Rubik Black, and Dela Gothic One in place of the uppercase-only Bungee, Rubik Mono One, and Notable. Those older faces remain hosted only to preserve saved profiles and Strips.

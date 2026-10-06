@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { DEFAULT_PROFILE, PROFILE_COLORS, applyProfileChanges, profileColorChoices, profileColorsReadable } from "../app/lib/profile.ts";
+import { DEFAULT_PROFILE, PROFILE_COLORS, applyProfileChanges, profileColorChoices, profileColorsReadable, profileInk } from "../app/lib/profile.ts";
 
 const theme = (background, accent) => ({ ...DEFAULT_PROFILE, background, accent });
 const values = choices => choices.map(({ value }) => value);
@@ -29,7 +29,19 @@ test("every suggested text or background swatch produces a saveable pair, includ
     for (const { value } of choices) {
       assert.ok(profileColorsReadable(applyProfileChanges(profile, { [tool]: value })), `${tool} ${value} works with ${oppositeColor}`);
     }
-    assert.deepEqual(choices, PROFILE_COLORS.filter(({ value }) => profileColorsReadable(applyProfileChanges(profile, { [tool]: value }))));
+    const readable = PROFILE_COLORS.filter(({ value }) => profileColorsReadable(applyProfileChanges(profile, { [tool]: value })));
+    const ink = profileInk(profile.background);
+    assert.deepEqual(choices, tool === "accent" ? [...readable.filter(({ value }) => value === ink), ...readable.filter(({ value }) => value !== ink)] : readable);
+    if (tool === "accent") assert.equal(choices[0].value, ink, "readable neutral ink always comes first");
+    assert.equal(new Set(values(choices)).size, choices.length, "no duplicate swatches");
+  }
+});
+
+test("the first text swatch is white on dark backgrounds and black on light backgrounds", () => {
+  for (const [background, expected] of [["#000000", "#FFFFFF"], ["#3155FF", "#FFFFFF"], ["#171E5B", "#FFFFFF"], ["#FFFFFF", "#000000"], ["#BFFF00", "#000000"], ["#FFB2DE", "#000000"], ["#ff4d00", "#000000"]]) {
+    for (const accent of ["#BFFF00", "#3155FF", "#123456", "#000000", "#FFFFFF"]) {
+      assert.equal(profileColorChoices(theme(background, accent), "accent")[0].value, expected);
+    }
   }
 });
 
