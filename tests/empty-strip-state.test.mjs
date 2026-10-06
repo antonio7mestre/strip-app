@@ -27,15 +27,15 @@ const component = compile(read("app/components/EmptyStripState.tsx"), {
 }).EmptyStripState;
 const render = props => renderToStaticMarkup(React.createElement(component, props));
 
-test("empty profile and editor have simple copy, three existing cutouts and a control-specific arrow", () => {
+test("empty profile and editor have simple copy, one existing cutout and a control-specific arrow", () => {
   for (const kind of ["profile", "editor"]) {
     const html = render({ kind });
-    assert.equal((html.match(/<img /g) ?? []).length, 3);
+    assert.equal((html.match(/<img /g) ?? []).length, 1);
     for (const [, src] of html.matchAll(/src="([^"]+)"/g)) {
       assert.ok(existsSync(new URL(`public${src}`, root)), `${src} exists`);
     }
-    assert.equal((html.match(/alt=""/g) ?? []).length, 3);
-    assert.equal((html.match(/draggable="false"/g) ?? []).length, 3);
+    assert.equal((html.match(/alt=""/g) ?? []).length, 1);
+    assert.equal((html.match(/draggable="false"/g) ?? []).length, 1);
     assert.match(html, /class="artwork" aria-hidden="true"/);
     assert.match(html, /class="arrowGraphic" aria-hidden="true"/);
     assert.doesNotMatch(html, /<button|data-block-id|sticker-block|data-landing-sticker|<input|contenteditable/,
@@ -57,7 +57,7 @@ test("empty profile and editor have simple copy, three existing cutouts and a co
 test("profile editing removes the plus guidance, without changing the empty layout", () => {
   const html = render({ kind: "profile", editing: true });
   assert.doesNotMatch(html, /<h2|<p/);
-  assert.equal((html.match(/<img /g) ?? []).length, 3);
+  assert.equal((html.match(/<img /g) ?? []).length, 1);
   assert.doesNotMatch(html, /click here to make a strip|arrowGraphic|class="guide"/);
 });
 
@@ -82,14 +82,11 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
   assert.match(css, /mask: url\("\/landing\/sticker-help-arrow.png"\)/);
   assert.match(css, /\.editor \.arrowGraphic \{[^}]*scaleX\(-1\)/);
   assert.match(css, /\.profile \.arrowGraphic \{ left: 104px; top: 0; \}/);
-  assert.match(css, /\.profile \.lettering \{[^}]*left: -50px; top: -26px/);
-  assert.match(css, /\.profile \.artwork \{ transform: translate\(-12px, -12px\)/);
-  assert.match(css, /\.profile \.sticker0 \{ left: -20px/);
-  assert.match(css, /\.profile \.sticker1 \{ left: -20px; top: 66px/);
+  assert.match(css, /\.profile \.lettering \{[^}]*left: -58px; top: -42px/);
+  assert.match(css, /\.profile \.guide, \.profile \.artwork \{ transform: translateX\(-8px\)/);
   assert.match(css, /\.artwork \{[^}]*--empty-guide-left[^}]*--empty-guide-top/s);
   assert.match(css, /\.editor \.arrowGraphic \{[^}]*top: -8px/);
   assert.match(css, /\.editor \.lettering \{[^}]*left: 112px; top: -46px/);
-  assert.match(css, /\.editor \.sticker2 \{ top: -102px;[^}]*left: 194px/);
   assert.match(css, /\.subtitle \{[^}]*margin: 8px auto 0/);
   assert.match(css, /\.guide \{[^}]*position: absolute;[^}]*pointer-events: none/s);
   assert.match(css, /\.artwork \{[^}]*pointer-events: none/s);
@@ -99,13 +96,33 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
     "Generated handwriting keeps its alpha and follows readable theme ink");
   const source = read("app/components/EmptyStripState.tsx");
   assert.match(source, /<StickerImage/);
-  for (const src of ["items/digital-camera.webp", "random/pearl-star.webp", "scrap/notebook-scrap.webp"]) {
-    assert.ok(render({ kind: "editor" }).includes(src));
+  assert.match(render({ kind: "editor" }), /items\/digital-camera.webp/);
+  assert.match(render({ kind: "profile" }), /nature\/white-daisy.webp/);
+  for (const kind of ["profile", "editor"]) {
+    assert.doesNotMatch(render({ kind }), /jelly-bow.webp|silver-heart.webp|red-cherries.webp|pearl-star.webp|notebook-scrap.webp|textGlyph/);
   }
-  assert.match(render({ kind: "editor" }), /class="textGlyph">Aa<\/span>/);
-  assert.match(render({ kind: "profile" }), /nature\/red-cherries.webp/);
-  assert.doesNotMatch(render({ kind: "profile" }), /jelly-bow.webp|silver-heart.webp/);
   assert.doesNotMatch(source, /setBlocks|placeSticker|addSticker|onPointer|onTouch|onClick/);
+});
+
+test("the sole flower and camera overlap the requested upper corners without covering the note's center", () => {
+  const css = read("app/components/EmptyStripState.module.css");
+  const rect = (kind, part, ratio = 1) => {
+    const rule = css.match(new RegExp(`\\.${kind} \\.${part} \\{([^}]+)\\}`))[1];
+    const value = name => Number(rule.match(new RegExp(`${name}: (-?[\\d.]+)px`))[1]);
+    const width = part === "lettering" ? 148 : value("width");
+    return { x: value("left"), y: value("top"), width, height: part === "lettering" ? 68 : width * ratio };
+  };
+  for (const [kind, ratio] of [["profile", 490 / 512], ["editor", 289 / 512]]) {
+    const note = rect(kind, "lettering"), cutout = rect(kind, "sticker", ratio);
+    assert.ok(cutout.y < note.y && cutout.y + cutout.height > note.y);
+    if (kind === "profile") {
+      assert.ok(cutout.x < note.x && cutout.x + cutout.width > note.x);
+      assert.ok(cutout.x + cutout.width < note.x + note.width / 3);
+    } else {
+      assert.ok(cutout.x < note.x + note.width && cutout.x + cutout.width > note.x + note.width);
+      assert.ok(cutout.x > note.x + note.width * 2 / 3);
+    }
+  }
 });
 
 test("both generated handwritten labels ship as transparent landscape PNGs", () => {

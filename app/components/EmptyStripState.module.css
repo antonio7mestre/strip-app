@@ -38,25 +38,7 @@
   user-select: none;
 }
 .sticker { position: absolute; height: auto; object-fit: contain; }
-.sticker0 { top: 2px; left: 0; width: 120px; transform: rotate(-12deg); }
-.sticker1 { top: 174px; right: -4px; width: 82px; transform: rotate(15deg); }
-.sticker2 { bottom: 0; left: 12px; width: 96px; transform: rotate(-8deg); }
-.editor .sticker0 { top: -102px; left: 104px; width: 90px; transform: rotate(12deg); }
-.editor .sticker1 { top: 2px; right: auto; left: 258px; width: 48px; transform: rotate(-14deg); }
-.editor .sticker2 { top: -102px; bottom: auto; left: 194px; width: 42px; transform: rotate(-8deg); }
-.textPaper { display: block; width: 100%; height: auto; }
-.textGlyph {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #111;
-  font-family: "Arial Black", Arial, sans-serif;
-  font-size: 24px;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.08em;
-}
+.editor .sticker { left: 248px; top: -86px; width: 76px; transform: rotate(10deg); }
 .guide {
   position: absolute;
   z-index: 2;
@@ -91,14 +73,13 @@
 .editor .arrowGraphic { left: 25px; top: -8px; transform: scaleX(-1); }
 .editor .lettering { position: absolute; left: 112px; top: -46px; margin: 0; }
 .profile .arrowGraphic { left: 104px; top: 0; }
-.profile .lettering { position: absolute; left: -50px; top: -26px; margin: 0; }
-.profile .artwork { transform: translate(-12px, -12px); }
-/* Three sides of the handwritten note, with clear space around the lettering. */
-.profile .sticker0 { left: -20px; top: -82px; width: 78px; }
-.profile .sticker1 { left: -20px; top: 66px; right: auto; width: 64px; }
-.profile .sticker2 { left: -102px; top: 15px; bottom: auto; width: 60px; }
+.profile .lettering { position: absolute; left: -58px; top: -42px; margin: 0; }
+.profile .guide, .profile .artwork { transform: translateX(-8px); }
+/* One cutout touches the note's corner without covering its main lettering. */
+.profile .sticker { left: -104px; top: -74px; width: 50px; transform: rotate(15deg); }
 @media (max-width: 360px) {
-  .profile .sticker2 { left: -86px; width: 48px; }
+  .profile .sticker { left: -94px; top: -68px; width: 40px; }
+  .editor .sticker { left: 246px; top: -78px; width: 64px; }
 }
 @media (max-height: 650px) {
   .profile { padding-top: 0; padding-bottom: calc(154px + env(safe-area-inset-bottom)); }

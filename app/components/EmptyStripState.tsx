@@ -6,16 +6,8 @@ import { installEmptyStateGuide, type EmptyStateKind } from "@/app/lib/empty-sta
 import styles from "./EmptyStripState.module.css";
 
 const artwork = {
-  profile: [
-    { src: "/landing/sticker-camera.webp", width: 768, height: 512 },
-    { src: "/sticker-pack/nature/white-daisy.webp", width: 512, height: 490 },
-    { src: "/sticker-pack/nature/red-cherries.webp", width: 512, height: 458 },
-  ],
-  editor: [
-    { src: "/sticker-pack/items/digital-camera.webp", width: 512, height: 289 },
-    { src: "/sticker-pack/random/pearl-star.webp", width: 512, height: 507 },
-    { src: "/sticker-pack/scrap/notebook-scrap.webp", width: 411, height: 512 },
-  ],
+  profile: { src: "/sticker-pack/nature/white-daisy.webp", width: 512, height: 490 },
+  editor: { src: "/sticker-pack/items/digital-camera.webp", width: 512, height: 289 },
 } as const;
 
 /** Decorative cutouts are guidance, never blocks added to someone's Strip. */
@@ -27,13 +19,7 @@ export function EmptyStripState({ kind, editing = false }: { kind: EmptyStateKin
     return installEmptyStateGuide(root.current, arrow.current, kind);
   }, [kind, editing]);
   const decorations = <div className={styles.artwork} aria-hidden="true">
-    {artwork[kind].map((image, index) => kind === "editor" && index === 2
-      ? <span key={image.src} className={`${styles.sticker} ${styles.sticker2}`}>
-          <StickerImage {...image} alt="" draggable={false} decoding="async" className={styles.textPaper} />
-          <span className={styles.textGlyph}>Aa</span>
-        </span>
-      : <StickerImage key={image.src} {...image}
-          alt="" draggable={false} decoding="async" className={`${styles.sticker} ${styles[`sticker${index}`]}`} />)}
+    <StickerImage {...artwork[kind]} alt="" draggable={false} decoding="async" className={styles.sticker} />
   </div>;
   return <div ref={root} className={`${styles.state} ${styles[kind]}`}>
     {kind === "editor" ? <>
