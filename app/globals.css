@@ -2400,6 +2400,16 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
     var(--height-crop-motion-easing);
 }
 
+/* An imported batch already has its dimensions and decoded image pixels.
+   Reveal it on one clock without moving, scaling or changing the tool tray. */
+.editor-mode .strip-block.is-import-revealing {
+  animation: media-import-in 220ms ease-out backwards;
+}
+@keyframes media-import-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .editor-mode .strip-block.is-import-revealing { animation: none; }
+}
+
 .strip-block.is-height-cropped .block-crop-viewport {
   overflow: hidden;
 }
@@ -4662,6 +4672,7 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
 }
 
 .notice.is-repeated { animation: notice-shake 240ms ease-out; }
+.media-import-notice { color: #FFFFFF; font-variant-numeric: tabular-nums; }
 @keyframes notice-shake {
   0%, 100% { transform: translateX(50%); }
   20% { transform: translateX(calc(50% - 3px)); }

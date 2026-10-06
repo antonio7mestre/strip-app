@@ -41,6 +41,7 @@ function harness({ owner = true, signedIn = true, origin = "https://antonio.stri
     DEFAULT_STRIP_ENDING_STYLE: "white",
     pageTransitionInFlightRef: gate,
     publishedEditorRequestRef: request,
+    mediaImportRequestRef: { current: null },
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen() {}, setStoryShareConfirmation() {},
     openingCoverRequestRef: { current: null }, setOpeningCover() {},
     flushSync: callback => { callback(); events.push("paint-committed"); },

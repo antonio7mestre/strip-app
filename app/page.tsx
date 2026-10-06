@@ -62,6 +62,7 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
+import { prepareMediaFiles, type MediaImportProgress, type MediaSize } from "@/app/lib/media-import";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
@@ -1641,6 +1642,8 @@ function StripVideoBlock({
   loadSettled,
   loadBeforeReveal,
   reservedHeight,
+  intrinsicSize,
+  entering = false,
   onLoadSettled,
   onHeight,
   controls,
@@ -1665,6 +1668,8 @@ function StripVideoBlock({
   loadSettled: boolean;
   loadBeforeReveal: boolean;
   reservedHeight?: number;
+  intrinsicSize?: MediaSize;
+  entering?: boolean;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
@@ -1723,7 +1728,7 @@ function StripVideoBlock({
 
   return (
     <figure
-      className={`strip-block video-block ${isEditing ? "is-editing" : ""} ${
+      className={`strip-block video-block ${entering ? "is-import-revealing" : ""} ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
@@ -1779,6 +1784,8 @@ function StripVideoBlock({
         >
           <video
             ref={videoRef}
+            width={intrinsicSize?.width}
+            height={intrinsicSize?.height}
             src={shouldLoad ? block.src : undefined}
             aria-label={block.alt ? `Video: ${block.alt}` : "Strip video"}
             autoPlay
@@ -1793,6 +1800,7 @@ function StripVideoBlock({
             style={{
               display: loadSettled && !isLoaded ? "none" : undefined,
               visibility: isLoaded ? "visible" : "hidden",
+              aspectRatio: intrinsicSize ? `auto ${intrinsicSize.width} / ${intrinsicSize.height}` : undefined,
             }}
             onLoadedData={(event) => {
               onLoadSettled(true);
@@ -2641,6 +2649,11 @@ export default function Home() {
   const [mediaLoadStatus, setMediaLoadStatus] = useState<
     Record<string, "loaded" | "error">
   >({});
+  const [mediaImportProgress, setMediaImportProgress] = useState<MediaImportProgress | null>(null);
+  const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
+  const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
+  const mediaImportRequestRef = useRef<AbortController | null>(null);
+  const mediaBatchRevealTimerRef = useRef<number | null>(null);
   const [publishedMinimumReadyKey, setPublishedMinimumReadyKey] = useState<
     string | null
   >(null);
@@ -2727,6 +2740,10 @@ export default function Home() {
     setNoticeRevision(value => value + 1);
   };
   const [inlinePreview, setInlinePreview] = useState(false);
+  useEffect(() => () => { mediaImportRequestRef.current?.abort(); }, [currentDraftId, view, inlinePreview, authStatus]);
+  useEffect(() => () => {
+    if (mediaBatchRevealTimerRef.current !== null) window.clearTimeout(mediaBatchRevealTimerRef.current);
+  }, []);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack" | "page-color">("source");
   const [shapeStickerColor, setShapeStickerColor] = useState(() => {
@@ -3861,57 +3878,67 @@ export default function Home() {
   const addMedia = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = "";
-    if (files.length === 0) return;
-
+    if (files.length === 0 || mediaImportRequestRef.current || pageTransitionInFlightRef.current) return;
+    const controller = new AbortController();
+    mediaImportRequestRef.current = controller;
     const insertionAfterId = selectedBlockId;
-    const mediaBlocks = (
-      await Promise.all(
-        files.map(
-          (file) =>
-            new Promise<ImageBlock | VideoBlock | null>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                if (typeof reader.result !== "string") {
-                  resolve(null);
-                  return;
-                }
-
-                const id = makeId();
-                resolve(
-                  file.type.startsWith("video/")
-                    ? {
-                        id,
-                        type: "video",
-                        src: reader.result,
-                        alt: file.name.replace(/\.[^/.]+$/, ""),
-                        audioEnabled: true,
-                      }
-                    : {
-                        id,
-                        type: "image",
-                        src: reader.result,
-                        alt: file.name.replace(/\.[^/.]+$/, ""),
-                      },
-                );
-              };
-              reader.onerror = () => resolve(null);
-              reader.readAsDataURL(file);
-            }),
-        ),
-      )
-    ).filter((block): block is ImageBlock | VideoBlock => block !== null);
-
-    if (mediaBlocks.length === 0) return;
-
-    setBlocks((current) => {
-      const next = [...current];
-      const selectedIndex = current.findIndex((block) => block.id === insertionAfterId);
-      next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, ...mediaBlocks);
-      return next;
-    });
-    setSelectedBlockId(mediaBlocks[mediaBlocks.length - 1].id);
-    setEditingTextBlockId(null);
-    setActiveTextTool(null);
+    setNotice("");
+    try {
+      const { media, failed } = await prepareMediaFiles(files, {
+        signal: controller.signal,
+        onProgress: progress => {
+          if (!controller.signal.aborted && mediaImportRequestRef.current === controller) setMediaImportProgress(progress);
+        },
+      });
+      if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
+      if (media.length === 0) {
+        setNotice("Couldn’t add these files. Try different photos or videos.");
+        return;
+      }
+      const canvasWidth = stripCanvasRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+      const sizes: Record<string, MediaSize> = {};
+      const mediaBlocks: Array<ImageBlock | VideoBlock> = media.map(item => {
+        const id = makeId();
+        sizes[id] = { width: item.width, height: item.height };
+        return { id, type: item.type, src: item.src, alt: item.alt,
+          height: Math.max(1, Math.round(canvasWidth * item.height / item.width)),
+          ...(item.type === "video" ? { audioEnabled: true } : {}) };
+      });
+      if (mediaBatchRevealTimerRef.current !== null) window.clearTimeout(mediaBatchRevealTimerRef.current);
+      // Commit geometry, decoded pixels and selection together. The selected
+      // first photo gets one focus pass, never one pass per image load event.
+      flushSync(() => {
+        setImportedMediaSizes(current => ({ ...current, ...sizes }));
+        setMediaLoadStatus(current => ({ ...current,
+          ...Object.fromEntries(mediaBlocks.filter(block => block.type === "image").map(block => [block.id, "loaded" as const])),
+        }));
+        setBlocks(current => {
+          const next = [...current];
+          const selectedIndex = current.findIndex(block => block.id === insertionAfterId);
+          next.splice(selectedIndex >= 0 ? selectedIndex + 1 : next.length, 0, ...mediaBlocks);
+          return next;
+        });
+        setMediaBatchRevealIds(mediaBlocks.map(block => block.id));
+        setSelectedBlockId(mediaBlocks[0].id);
+        setEditingTextBlockId(null);
+        setActiveTextTool(null);
+        setMediaImportProgress(null);
+      });
+      mediaBatchRevealTimerRef.current = window.setTimeout(() => {
+        setMediaBatchRevealIds([]);
+        mediaBatchRevealTimerRef.current = null;
+      }, 260);
+      if (failed > 0) setNotice("Some files couldn’t be added. The rest are ready.");
+    } catch {
+      if (!controller.signal.aborted && mediaImportRequestRef.current === controller) {
+        setNotice("Couldn’t add these files. Try again.");
+      }
+    } finally {
+      if (mediaImportRequestRef.current === controller) {
+        mediaImportRequestRef.current = null;
+        setMediaImportProgress(null);
+      }
+    }
   };
 
   const placeSticker = (
@@ -4482,6 +4509,7 @@ export default function Home() {
     openingCoverRequestRef.current = null;
     publishedEditorRequestRef.current?.abort();
     publishedEditorRequestRef.current = null;
+    mediaImportRequestRef.current?.abort();
     setOpeningCover(null);
     cancelDockTransitionSchedule();
     setOpeningStripId(null);
@@ -6351,6 +6379,7 @@ export default function Home() {
       block.type === "image" || block.type === "video" ? [block.id] : [],
     );
     const shouldLoadMedia = (blockId: string) => {
+      if (importedMediaSizes[blockId]) return true;
       const mediaIndex = mediaBlockIds.indexOf(blockId);
       if (!isEditing && view === "published") return mediaIndex >= 0;
       return (
@@ -6524,7 +6553,7 @@ export default function Home() {
             : heightCrop?.height;
           return (
             <figure
-              className={`strip-block image-block ${isEditing ? "is-editing" : ""} ${
+              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? "is-import-revealing" : ""} ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
@@ -6577,6 +6606,8 @@ export default function Home() {
                   }
                 >
                   <img
+                    width={importedMediaSizes[block.id]?.width}
+                    height={importedMediaSizes[block.id]?.height}
                     src={shouldLoadMedia(block.id) ? block.src : undefined}
                     alt={block.alt}
                     loading="eager"
@@ -6587,6 +6618,9 @@ export default function Home() {
                         : view === "published"
                           ? undefined
                           : {
+                              aspectRatio: importedMediaSizes[block.id]
+                                ? `auto ${importedMediaSizes[block.id].width} / ${importedMediaSizes[block.id].height}`
+                                : undefined,
                               visibility:
                                 mediaLoadStatus[block.id] === "loaded"
                                   ? "visible"
@@ -6602,6 +6636,7 @@ export default function Home() {
                           settleMediaLoad(block.id, true);
                           if (
                             isEditing &&
+                            !importedMediaSizes[block.id] &&
                             !suppressSelectedBlockAutoFocusRef.current &&
                             selectedBlockId === block.id
                           ) {
@@ -6752,6 +6787,8 @@ export default function Home() {
             loadSettled={mediaLoadStatus[block.id] !== undefined}
             loadBeforeReveal={!isEditing && view === "published"}
             reservedHeight={block.height}
+            intrinsicSize={importedMediaSizes[block.id]}
+            entering={isEditing && mediaBatchRevealIds.includes(block.id)}
             cropTop={heightCrop?.top}
             cropSourceHeight={heightCrop?.sourceHeight}
             cropEditing={heightCrop?.isEditing}
@@ -6761,6 +6798,7 @@ export default function Home() {
               if (
                 isEditing &&
                 loadedSuccessfully &&
+                !importedMediaSizes[block.id] &&
                 !suppressSelectedBlockAutoFocusRef.current &&
                 selectedBlockId === block.id
               ) {
@@ -8168,6 +8206,8 @@ export default function Home() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             aria-label="Add photo or video"
+            disabled={mediaImportProgress !== null}
+            aria-busy={mediaImportProgress !== null || undefined}
           >
             <ImagePlus className="dock-glyph" aria-hidden="true" />
           </button>
@@ -8240,7 +8280,11 @@ export default function Home() {
           }}
         />
       ) : null}
-      {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
+      {mediaImportProgress ? (
+        <div className="notice media-import-notice" role="status" aria-live="polite" aria-atomic="true">
+          Adding media {mediaImportProgress.completed} / {mediaImportProgress.total}
+        </div>
+      ) : notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
       </main>
     </>
   );

@@ -93,6 +93,7 @@ function renderFixture(blocks, isEditing) {
     view: "edit", inlinePreview: !isEditing, hasRequiredContent: true,
     stripCanvasRef: { current: null },
     mediaLoadStatus: Object.fromEntries(blocks.map(block => [block.id, "loaded"])),
+    importedMediaSizes: {}, mediaBatchRevealIds: [],
     selectedBlockId: null, editingTextBlockId: null, heightCropSession: null,
     resolveBlockHeightCrop: () => null,
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,

@@ -73,6 +73,7 @@ function harness(needsAuthUsername = false, options = {}) {
     cancelDockTransitionSchedule: noop, setOpeningDraftId: noop,
     setLegacyPageTransition: noop, setOpeningPublishedEditor: noop,
     publishedEditorRequestRef: { current: null },
+    mediaImportRequestRef: { current: null },
     setDockTransition: noop, setDockTransitionStarted: noop,
     COVER_MOVE_MS: 620, PUBLISHED_MEDIA_LOAD_TIMEOUT_MS: 18000,
     fetch: (url, options) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })),
