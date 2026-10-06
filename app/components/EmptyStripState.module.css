@@ -12,11 +12,13 @@
 .profile { flex: 1 0 auto; padding: 12px 20px calc(170px + env(safe-area-inset-bottom)); }
 .editor { flex: 1 0 auto; }
 .collage { position: relative; width: min(100%, 320px); height: 280px; }
-.title {
+.intro {
   position: absolute;
-  top: 76px;
+  top: 100px;
   left: 28px;
   right: 28px;
+}
+.title {
   margin: 0;
   font-family: var(--profile-font, "Arial Black", "Helvetica Neue", Arial, sans-serif);
   font-size: clamp(26px, 8vw, 36px);
@@ -24,8 +26,7 @@
   line-height: 1.03;
   letter-spacing: -0.04em;
 }
-.editor .title { top: 100px; }
-.subtitle { max-width: 29ch; margin: 2px 0 0; font-size: 14px; line-height: 1.45; }
+.subtitle { max-width: 29ch; margin: 8px auto 0; font-size: 14px; line-height: 1.45; }
 .artwork {
   position: absolute;
   left: var(--empty-guide-left, calc(100% - 190px));
@@ -40,9 +41,9 @@
 .sticker0 { top: 2px; left: 0; width: 120px; transform: rotate(-12deg); }
 .sticker1 { top: 174px; right: -4px; width: 82px; transform: rotate(15deg); }
 .sticker2 { bottom: 0; left: 12px; width: 96px; transform: rotate(-8deg); }
-.editor .sticker0 { top: -86px; left: 104px; width: 90px; transform: rotate(12deg); }
+.editor .sticker0 { top: -102px; left: 104px; width: 90px; transform: rotate(12deg); }
 .editor .sticker1 { top: 2px; right: auto; left: 258px; width: 48px; transform: rotate(-14deg); }
-.editor .sticker2 { top: 60px; bottom: auto; left: 154px; width: 42px; transform: rotate(-8deg); }
+.editor .sticker2 { top: -110px; bottom: auto; left: 206px; width: 42px; transform: rotate(-8deg); }
 .textPaper { display: block; width: 100%; height: auto; }
 .textGlyph {
   position: absolute;
@@ -88,16 +89,20 @@
   mask: url("/landing/sticker-help-arrow.png") -75px -37px / 218px 145.333px no-repeat;
 }
 .editor .arrowGraphic { left: 25px; top: -8px; transform: scaleX(-1); }
-.editor .lettering { position: absolute; left: 104px; top: -6px; margin: 0; }
+.editor .lettering { position: absolute; left: 104px; top: -38px; margin: 0; }
 .profile .arrowGraphic { left: 104px; top: 0; }
-.profile .lettering { position: absolute; left: -26px; top: -14px; margin: 0; }
+.profile .lettering { position: absolute; left: -50px; top: -26px; margin: 0; }
+.profile .artwork { transform: translate(-12px, -12px); }
 /* Three sides of the handwritten note, with clear space around the lettering. */
 .profile .sticker0 { left: 20px; top: -82px; width: 78px; }
-.profile .sticker1 { left: 132px; top: 4px; right: auto; width: 64px; }
-.profile .sticker2 { left: -102px; top: 15px; bottom: auto; width: 70px; }
+.profile .sticker1 { left: 16px; top: 66px; right: auto; width: 64px; }
+.profile .sticker2 { left: -102px; top: 15px; bottom: auto; width: 56px; }
+@media (max-width: 360px) {
+  .profile .sticker2 { left: -86px; }
+}
 @media (max-height: 650px) {
   .profile { padding-top: 0; padding-bottom: calc(154px + env(safe-area-inset-bottom)); }
   .collage { height: 218px; width: min(100%, 282px); }
-  .title { top: 62px; left: 24px; right: 24px; font-size: 29px; }
-  .editor .title { top: 78px; }
+  .intro { top: 78px; left: 24px; right: 24px; }
+  .title { font-size: 29px; }
 }

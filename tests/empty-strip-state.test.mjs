@@ -40,7 +40,13 @@ test("empty profile and editor have simple copy, three existing cutouts and a co
     assert.match(html, /class="arrowGraphic" aria-hidden="true"/);
     assert.doesNotMatch(html, /<button|data-block-id|sticker-block|data-landing-sticker|<input|contenteditable/,
       "Guidance is not user content or a second set of controls");
-    assert.match(html, kind === "profile" ? /Your photos\.<br\/>Your words\.<br\/>Your world\./ : /Your Strip<br\/>starts here\./);
+    if (kind === "profile") {
+      assert.doesNotMatch(html, /<h2|<p|Your photos|Your words|Your world|Make a little something/);
+    } else {
+      assert.match(html, /Your Strip<br\/>starts here\./);
+      assert.match(html, /Add a photo, a video, or a few words\./);
+      assert.match(html, /class="intro"><h2[^>]*>Your Strip<br\/>starts here\.<\/h2><p class="subtitle">Add a photo/);
+    }
     assert.match(html, kind === "profile" ? /click here to make a strip/ : /pick a starting block/);
     assert.doesNotMatch(html, /Tap \+|tap \+/);
     assert.match(html, /class="lettering" role="img" aria-label=/);
@@ -50,7 +56,7 @@ test("empty profile and editor have simple copy, three existing cutouts and a co
 
 test("profile editing removes the plus guidance, without changing the empty layout", () => {
   const html = render({ kind: "profile", editing: true });
-  assert.match(html, /Your photos/);
+  assert.doesNotMatch(html, /<h2|<p/);
   assert.equal((html.match(/<img /g) ?? []).length, 3);
   assert.doesNotMatch(html, /click here to make a strip|arrowGraphic|class="guide"/);
 });
@@ -76,10 +82,14 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
   assert.match(css, /mask: url\("\/landing\/sticker-help-arrow.png"\)/);
   assert.match(css, /\.editor \.arrowGraphic \{[^}]*scaleX\(-1\)/);
   assert.match(css, /\.profile \.arrowGraphic \{ left: 104px; top: 0; \}/);
-  assert.match(css, /\.profile \.lettering \{[^}]*left: -26px; top: -14px/);
+  assert.match(css, /\.profile \.lettering \{[^}]*left: -50px; top: -26px/);
+  assert.match(css, /\.profile \.artwork \{ transform: translate\(-12px, -12px\)/);
+  assert.match(css, /\.profile \.sticker1 \{ left: 16px; top: 66px/);
   assert.match(css, /\.artwork \{[^}]*--empty-guide-left[^}]*--empty-guide-top/s);
   assert.match(css, /\.editor \.arrowGraphic \{[^}]*top: -8px/);
-  assert.match(css, /\.editor \.lettering \{[^}]*left: 104px/);
+  assert.match(css, /\.editor \.lettering \{[^}]*left: 104px; top: -38px/);
+  assert.match(css, /\.editor \.sticker2 \{ top: -110px;[^}]*left: 206px/);
+  assert.match(css, /\.subtitle \{[^}]*margin: 8px auto 0/);
   assert.match(css, /\.guide \{[^}]*position: absolute;[^}]*pointer-events: none/s);
   assert.match(css, /\.artwork \{[^}]*pointer-events: none/s);
   assert.doesNotMatch(css, /box-shadow|drop-shadow|100[lsd]?vh|position: fixed|animation:|transition:/);
@@ -92,6 +102,8 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
     assert.ok(render({ kind: "editor" }).includes(src));
   }
   assert.match(render({ kind: "editor" }), /class="textGlyph">Aa<\/span>/);
+  assert.match(render({ kind: "profile" }), /random\/silver-heart.webp/);
+  assert.doesNotMatch(render({ kind: "profile" }), /jelly-bow.webp/);
   assert.doesNotMatch(source, /setBlocks|placeSticker|addSticker|onPointer|onTouch|onClick/);
 });
 

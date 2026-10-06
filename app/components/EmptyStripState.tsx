@@ -9,7 +9,7 @@ const artwork = {
   profile: [
     { src: "/landing/sticker-camera.webp", width: 768, height: 512 },
     { src: "/sticker-pack/nature/white-daisy.webp", width: 512, height: 490 },
-    { src: "/sticker-pack/random/jelly-bow.webp", width: 512, height: 344 },
+    { src: "/sticker-pack/random/silver-heart.webp", width: 373, height: 512 },
   ],
   editor: [
     { src: "/sticker-pack/items/digital-camera.webp", width: 512, height: 289 },
@@ -36,14 +36,14 @@ export function EmptyStripState({ kind, editing = false }: { kind: EmptyStateKin
           alt="" draggable={false} decoding="async" className={`${styles.sticker} ${styles[`sticker${index}`]}`} />)}
   </div>;
   return <div ref={root} className={`${styles.state} ${styles[kind]}`}>
-    <div className={styles.collage}>
-      <h2 className={styles.title}>{kind === "profile"
-        ? <>Your photos.<br />Your words.<br />Your world.</>
-        : <>Your Strip<br />starts here.</>}</h2>
-    </div>
-    <p className={styles.subtitle}>{kind === "profile"
-      ? "Make a little something that feels like you."
-      : "Add a photo, a video, or a few words."}</p>
+    {kind === "editor" ? <>
+      <div className={styles.collage}>
+        <div className={styles.intro}>
+          <h2 className={styles.title}>Your Strip<br />starts here.</h2>
+          <p className={styles.subtitle}>Add a photo, a video, or a few words.</p>
+        </div>
+      </div>
+    </> : null}
     {!editing ? <div ref={arrow} className={styles.guide}>
       <span className={styles.lettering} role="img"
         aria-label={kind === "profile" ? "click here to make a strip" : "pick a starting block"}
