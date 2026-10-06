@@ -28,7 +28,8 @@ test("shape, profile and regular samplers share dragging, explicit confirmation,
 test("shape and profile palettes never add a moving current-color swatch", () => {
   for (const source of [shapes, profile]) assert.doesNotMatch(source, /customColor|name: "Current"/);
   assert.match(shapes, /SHAPE_STICKER_COLORS\.map/);
-  assert.match(profile, /PROFILE_COLORS\.map/);
+  assert.match(profile, /colorChoices\.map/);
+  assert.match(profile, /profileColorChoices\(profile, colorTool\)/);
   assert.match(shapes, /page-color-trigger"[\s\S]*?backgroundColor: shapeColor/);
   assert.match(profile, /page-color-trigger"[\s\S]*?backgroundColor: activeColor/);
 });

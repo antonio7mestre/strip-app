@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Baseline, Check, ChevronLeft, ChevronUp, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
-import { PROFILE_COLORS, PROFILE_FONTS, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
+import { PROFILE_FONTS, profileColorChoices, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { type useStripProfile } from "./useStripProfile";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleProfilePageColor } from "@/app/lib/page-color-sampler";
@@ -45,7 +45,7 @@ export function ProfileHeader({ controller, username, publicProfile }: Props) {
           aria-describedby={editing ? "profile-title-edit-hint" : undefined}
           contentEditable={editing && !pending ? "plaintext-only" : false} suppressContentEditableWarning
           role={editing ? "textbox" : undefined} aria-multiline={editing ? false : undefined}
-          data-placeholder={username || "Your profile"} enterKeyHint="done" spellCheck={false}
+          data-placeholder={profileTitle({ title: "" }, username)} enterKeyHint="done" spellCheck={false}
           onKeyDown={(event) => { if (editing && event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } }}
           onInput={(event) => { if (editing && !(event.nativeEvent as InputEvent).isComposing) updateTitle(event.currentTarget); }}
           onCompositionEnd={(event) => { if (editing) updateTitle(event.currentTarget); }}
@@ -89,6 +89,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   const colorTool = tool === "background" || tool === "accent" ? tool : null;
   const colorLabel = tool === "accent" ? "text" : "background";
   const activeColor = colorTool ? profile[colorTool] : profile.background;
+  const colorChoices = colorTool ? profileColorChoices(profile, colorTool) : [];
   const changeColor = (color: string) => {
     if (!colorTool) return;
     const nextColor = color.toUpperCase();
@@ -135,7 +136,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
           className={`selector-option font-selector-option ${profile.font === font.id ? "is-selected" : ""}`}
           style={{ fontFamily: font.family }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
           disabled={pending} onClick={() => update({ font: font.id })}>Aa</button>) : wheel ? <GradientColorPicker
-          color={activeColor} onChange={changeColor} label={`Choose any ${colorLabel} color`} /> : <>{PROFILE_COLORS.map((color) => {
+          color={activeColor} onChange={changeColor} label={`Choose any ${colorLabel} color`} /> : <>{colorChoices.map((color) => {
           const selected = activeColor === color.value;
           return <button key={color.value} type="button" className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
             style={{ backgroundColor: color.value, color: profileInk(color.value), "--swatch-foreground": profileInk(color.value) } as CSSProperties}

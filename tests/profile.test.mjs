@@ -57,12 +57,19 @@ function fixture() {
   return { ...routes, db, objects, asUser: (value) => { user = value; }, fail: () => { failing = true; } };
 }
 
-test("username is the default title, custom titles do not change usernames", () => {
+test("the default title capitalizes the username's first letter, without changing handles or custom titles", () => {
   assert.equal(profile.DEFAULT_PROFILE.font, "letter");
   assert.ok(profile.PROFILE_FONTS.some(({ id, family }) => id === "letter" && family.includes("Arial Black")));
-  assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, "antonio"), "antonio");
+  assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, "antonio"), "Antonio");
   assert.equal(profile.profileTitle({ title: "my little world" }, "antonio"), "my little world");
-  assert.equal(profile.profileTitle({ title: "   " }, "antonio"), "antonio");
+  assert.equal(profile.profileTitle({ title: "   " }, "antonio"), "Antonio");
+  assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, "softweekend-demo"), "Softweekend-demo");
+  assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, "1antonio"), "1antonio");
+  assert.equal(profile.profileTitle(profile.DEFAULT_PROFILE, null), "Your profile");
+  assert.equal(profile.DEFAULT_PROFILE.title, "", "the display default is not persisted as a custom title");
+  const editor = read("app/components/ProfileEditor.tsx");
+  assert.match(editor, /data-placeholder=\{profileTitle\(\{ title: "" \}, username\)\}/);
+  assert.match(editor, /className="profile-handle">@\{username\}/, "handles retain the exact username");
 });
 test("font, colors, title length and revision are validated", () => {
   assert.ok(profile.validateProfile(profile.DEFAULT_PROFILE));

@@ -23,12 +23,16 @@ export const DEFAULT_PROFILE: StripProfile = {
   photoUrl: null, revision: 0,
 };
 export const PROFILE_COLORS = [
+  { name: "Cobalt", value: "#3155FF" }, { name: "Acid green", value: "#BFFF00" },
+  { name: "Hot pink", value: "#FF0099" }, { name: "Safety orange", value: "#FF4D00" },
+  { name: "Cherry", value: "#FF1744" }, { name: "Laser violet", value: "#8500FF" },
+  { name: "Pool blue", value: "#00D5FF" }, { name: "Acid yellow", value: "#D7FF00" },
+  { name: "Mint", value: "#39FFE3" }, { name: "Candy pink", value: "#FFB2DE" },
+  { name: "Forest", value: "#007F21" }, { name: "Burgundy", value: "#98004F" },
+  { name: "Midnight", value: "#171E5B" }, { name: "Aubergine", value: "#32004B" },
+  { name: "Lilac", value: "#CB8DFF" }, { name: "Chrome", value: "#D9D9D9" },
   { name: "White", value: "#FFFFFF" },
-  { name: "Black", value: "#000000" }, { name: "Acid", value: "#8ACE00" },
-  { name: "Hot pink", value: "#FF4FA3" }, { name: "Chrome", value: "#D9D9D9" },
-  { name: "Electric blue", value: "#3155FF" }, { name: "Laser violet", value: "#7A2CFF" },
-  { name: "Safety orange", value: "#FF4D00" }, { name: "Paper", value: "#F5F1E8" },
-  { name: "Pink", value: "#FF8CCC" }, { name: "Acid yellow", value: "#D7FF00" },
+  { name: "Black", value: "#000000" },
 ] as const;
 
 function profileLuminance(color: string) {
@@ -72,6 +76,15 @@ export function applyProfileChanges(profile: StripProfile, changes: Partial<Stri
   return next;
 }
 
+/** Suggest bold, usable pairs without changing custom colors or the save guard.
+ * Test the actual update so neutral text can follow a new background. Choices
+ * depend on the opposite color, not the color being dragged in this tool. */
+export function profileColorChoices(profile: StripProfile, tool: "background" | "accent") {
+  return PROFILE_COLORS.filter(({ value }) =>
+    profileColorsReadable(applyProfileChanges(profile, { [tool]: value })),
+  );
+}
+
 /** Preserve a cover's edge when it blends into the profile canvas. */
 export function profileCoverOutline(cover: string, background: string) {
   const channels = (color: string) => {
@@ -86,7 +99,7 @@ export function profileCoverOutline(cover: string, background: string) {
 }
 
 export function profileTitle(profile: Pick<StripProfile, "title">, username: string | null | undefined) {
-  return profile.title.trim() || username || "Your profile";
+  return profile.title.trim() || (username ? username.charAt(0).toUpperCase() + username.slice(1) : "Your profile");
 }
 
 export function validateProfile(input: unknown) {
