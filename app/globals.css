@@ -3849,6 +3849,16 @@ html:has(.story-share-boundary) body {
   justify-content: center;
 }
 
+/* Match the editor's explicit dock geometry, independent of the title form's
+   intrinsic height and Safari's changing viewport. */
+.title-setup-dock {
+  height: calc(
+    var(--dock-visible-height) + 180px + env(safe-area-inset-bottom) +
+      var(--dock-browser-extension)
+  );
+  min-height: 0;
+}
+
 .publish-flow-dock .dock-controls-current {
   width: min(100%, var(--bottom-action-tray-max-width));
   gap: 8px;

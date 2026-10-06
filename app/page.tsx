@@ -7514,7 +7514,11 @@ export default function Home() {
             <p className="title-question-hint">Optional, only if you want!</p>
           </div>
         </section>
+        {notice ? <div className="notice">{notice}</div> : null}
+        </main>
 
+        {/* Keep the fixed tools outside the form's clipped viewport so Safari
+            can retain their layer behind the keyboard and during dismissal. */}
         <footer
           key="persistent-composer-dock"
           className="composer-dock title-setup-dock publish-flow-dock"
@@ -7540,8 +7544,6 @@ export default function Home() {
             </button>
           </div>
         </footer>
-        {notice ? <div className="notice">{notice}</div> : null}
-        </main>
       </>
     );
   }
