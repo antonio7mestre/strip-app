@@ -1,15 +1,15 @@
 /** Keep one painted title toolbar at its resting position for the whole step.
- * Render it in the document's retained canvas, not Safari's fixed-layer tree,
- * which can withhold covered fixed layers until keyboard dismissal completes. */
+ * Retain a full-screen drawing layer with ordinary absolute-positioned tools.
+ * Safari can withhold a small covered fixed layer until dismissal completes. */
 export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTMLInputElement | null) {
   const viewport = window.visualViewport;
   if (!dock || !input || !viewport) return;
   const canvas = dock.parentElement;
   const canvasHeight = canvas?.style.getPropertyValue("height") ?? "";
 
-  const properties = ["position", "top", "bottom", "height", "padding-bottom", "--publish-document-pan"] as const;
+  const properties = ["position", "top", "bottom", "height", "padding-bottom"] as const;
   let saved: Array<{ name: string; value: string; priority: string }> | null = null;
-  let anchor: { top: number; height: number; paddingBottom: string; scrollY: number } | null = null;
+  let anchor: { top: number; height: number; paddingBottom: string } | null = null;
   let restingWidth = window.innerWidth;
 
   const restoreProperties = () => {
@@ -51,16 +51,8 @@ export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTML
     // Capture before any tap starts Safari's chrome/keyboard transition, not
     // on focusin (which can arrive after the fixed viewport has already moved).
     anchor = { top: bounds.top - Math.max(0, viewport.offsetTop), height: bounds.height,
-      paddingBottom: computed.paddingBottom, scrollY: window.scrollY };
+      paddingBottom: computed.paddingBottom };
     pin();
-  };
-
-  const syncDocumentPan = () => {
-    if (!anchor) return;
-    const pan = `${window.scrollY - anchor.scrollY}px`;
-    if (dock.style.getPropertyValue("--publish-document-pan") !== pan) {
-      dock.style.setProperty("--publish-document-pan", pan);
-    }
   };
 
   const sync = () => {
@@ -68,16 +60,13 @@ export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTML
     // Keyboard resize, blur, dismissal and refocus leave the layer untouched.
     if (window.innerWidth !== restingWidth) restore();
     capture();
-    syncDocumentPan();
   };
 
   sync();
   window.addEventListener("resize", sync);
-  window.addEventListener("scroll", syncDocumentPan);
   viewport.addEventListener("resize", sync);
   return () => {
     window.removeEventListener("resize", sync);
-    window.removeEventListener("scroll", syncDocumentPan);
     viewport.removeEventListener("resize", sync);
     restore();
   };

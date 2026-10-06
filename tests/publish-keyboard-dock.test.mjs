@@ -41,10 +41,11 @@ test("publish uses the same fixed dock sizing and immediate pan compensation as 
   assert.ok(rule);
   assert.match(rule, /height: calc\(\s*var\(--dock-visible-height\) \+ 180px \+ env\(safe-area-inset-bottom\) \+\s*var\(--dock-browser-extension\)\s*\)/);
   assert.match(rule, /min-height: 0/);
-  assert.match(rule, /transform: translate3d\(0, 0, 0\)/);
-  assert.match(rule, /will-change: transform/);
-  assert.match(rule, /translate: 0 calc\(var\(--keyboard-dock-pan, 0px\) \+ var\(--publish-document-pan, 0px\)\)/);
-  assert.match(css, /\.title-dock-canvas \{[^}]*position: absolute;[^}]*height: 100dvh;[^}]*contain: layout paint;[^}]*overflow: clip/);
+  assert.match(rule, /transform: none/);
+  assert.match(rule, /translate: none/);
+  assert.match(rule, /will-change: auto/);
+  assert.match(css, /\.title-dock-canvas \{[^}]*position: fixed;[^}]*height: 100dvh;[^}]*contain: layout paint;[^}]*overflow: clip;[^}]*transform: translate3d\(0, 0, 0\);[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\);[^}]*will-change: transform/);
+  assert.match(css, /\.title-dock-canvas \.dock-controls \{[^}]*will-change: auto;[^}]*backface-visibility: visible/);
   assert.doesNotMatch(rule, /opacity|display|visibility|transition:/);
   assert.match(css, /\.composer-dock \{[^}]*position: fixed;[^}]*translate: 0 var\(--keyboard-dock-pan, 0px\)/);
   assert.match(page, /useLayoutEffect\(installKeyboardDockPosition, \[\]\)/);
@@ -103,9 +104,7 @@ function fixture(initialProperties = []) {
     },
     getBoundingClientRect: () => ({
       top: (Number.parseFloat(dockProperties.get("top")) || defaultTop)
-        + (Number.parseFloat(rootProperties.get("--keyboard-dock-pan")) || 0)
-        + (Number.parseFloat(dockProperties.get("--publish-document-pan")) || 0)
-        - (window.scrollY || 0),
+        + (Number.parseFloat(rootProperties.get("--keyboard-dock-pan")) || 0),
       height: Number.parseFloat(dockProperties.get("height")) || 278,
     }),
   };
@@ -254,7 +253,7 @@ test("title input does not queue the editor's delayed smooth scroll on blur", ()
   assert.match(page, /activeElement\?\.closest\("\.auth-shell, \.title-setup-mode"\)/);
 });
 
-test("native document scrolling cannot move the retained title canvas tools", () => {
+test("document scrolling does not move the full-screen fixed canvas or double-compensate its children", () => {
   const f = fixture();
   try {
     f.focus(); f.resize(400, 90, 320);
@@ -262,6 +261,7 @@ test("native document scrolling cannot move the retained title canvas tools", ()
       f.scroll(y);
       assert.equal(f.screenTop(), 650);
       assert.equal(f.dockProperties.get("top"), "650px");
+      assert.equal(f.dockProperties.has("--publish-document-pan"), false);
     }
   } finally { f.cleanup(); }
 });
