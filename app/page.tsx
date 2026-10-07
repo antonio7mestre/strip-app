@@ -3938,13 +3938,15 @@ export default function Home() {
         onReveal: () => {
           if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
           flushSync(() => {
+            setSelectedBlockId(mediaBlocks[0].id);
             setMediaBatchRevealStarted(true);
           });
         },
       });
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
-      // Focus after the first photo's size has settled, never during the morph.
-      setSelectedBlockId(mediaBlocks[0].id);
+      // Selection and its attached controls travel with the first photo. Only
+      // scroll it into view after the geometry has settled.
+      if (!suppressSelectedBlockAutoFocusRef.current) focusSelectedBlockWithToolbar(mediaBlocks[0].id);
       if (failed > 0) setNotice("Some files couldn’t be added. The rest are ready.");
     } catch {
       if (!controller.signal.aborted && mediaImportRequestRef.current === controller) {
@@ -4161,6 +4163,7 @@ export default function Home() {
       view !== "edit" ||
       inlinePreview ||
       !selectedBlockId ||
+      mediaImportRequestRef.current ||
       suppressSelectedBlockAutoFocusRef.current
     ) {
       return;

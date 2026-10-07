@@ -135,13 +135,15 @@ const handlerCode = ts.transpileModule(`export const ${declaration("addMedia")};
 function editor({ selected = "anchor", holdReveal = false } = {}) {
   const feedbackClock = mediaFeedbackClock();
   const state = { blocks: [{ id: "anchor", type: "text", content: "Existing" }, { id: "after", type: "text" }],
-    sizes: {}, status: {}, progress: null, reveal: [], started: false, selected }, request = { current: null }, requests = [], reveals = [], notices = [], timers = [];
+    sizes: {}, status: {}, progress: null, reveal: [], started: false, selected }, request = { current: null }, requests = [], reveals = [], notices = [], timers = [], focuses = [];
   let id = 0, commits = 0;
   const exports = {};
   runInNewContext(handlerCode, {
     exports, AbortController, selectedBlockId: selected, mediaImportRequestRef: request, pageTransitionInFlightRef: { current: false },
     createMediaImportFeedback: feedbackClock.createMediaImportFeedback,
     stripCanvasRef: { current: { getBoundingClientRect: () => ({ width: 390 }) } },
+    suppressSelectedBlockAutoFocusRef: { current: false },
+    focusSelectedBlockWithToolbar: id => focuses.push(id),
     window: { innerWidth: 390, clearTimeout() {}, setTimeout: callback => { timers.push(callback); return 1; } },
     makeId: () => `new-${++id}`, mediaImportInsertionIndex, flushSync: callback => { commits++; callback(); },
     prepareMediaFiles: (files, options) => new Promise((resolve, reject) => {
@@ -166,7 +168,7 @@ function editor({ selected = "anchor", holdReveal = false } = {}) {
     setMediaImportProgress: value => { state.progress = value; },
     setNotice: value => notices.push(value),
   });
-  return { ...exports, state, request, requests, reveals, notices, timers, feedbackClock, commits: () => commits,
+  return { ...exports, state, request, requests, reveals, notices, timers, focuses, feedbackClock, commits: () => commits,
     event: { currentTarget: { files: files(6), value: "selected files" } } };
 }
 const prepared = Array.from({ length: 6 }, (_, index) => ({ type: "image", src: `original-${index}`, alt: `Photo ${index}`, width: 1200, height: 1800 }));
@@ -287,7 +289,7 @@ test("progress updates do not insert partial media or move the captured insertio
   assert.equal(h.state.blocks[1].id, "new-1");
 });
 
-test("mounted photos retain the loading block, selection and gate through the first-photo morph", async () => {
+test("the first photo is selected at reveal and its scroll waits until the morph finishes", async () => {
   const h = editor({ holdReveal: true }), pending = h.addMedia(h.event);
   h.feedbackClock.advance(500);
   h.requests[0].resolve({ media: prepared, failed: 0 }); await tick();
@@ -298,14 +300,17 @@ test("mounted photos retain the loading block, selection and gate through the fi
   assert.equal(h.state.selected, "anchor", "mounting hidden photos must not move the selection");
   h.reveals[0].options.onReveal();
   assert.equal(h.state.started, true);
-  assert.equal(h.state.selected, "anchor", "the exit must not trigger a scroll to the new photo yet");
+  assert.equal(h.state.selected, "new-1", "selection is committed together with the first visible frame");
+  assert.deepEqual(h.focuses, [], "selection must not trigger a mid-morph scroll");
   assert.equal(h.state.progress.visible, true);
   await h.addMedia(h.event); assert.equal(h.requests.length, 1);
   h.reveals[0].resolve(); await pending;
   assert.equal(h.state.selected, "new-1");
+  assert.deepEqual(h.focuses, ["new-1"]);
   assert.equal(h.state.progress, null);
   assert.equal(h.state.reveal.length, 0);
   assert.equal(h.state.started, false);
+  assert.match(page, /!selectedBlockId \|\|\s*mediaImportRequestRef\.current \|\|\s*suppressSelectedBlockAutoFocusRef\.current/);
 });
 
 test("leaving during mounted decoding prevents late selection or reveal", async () => {

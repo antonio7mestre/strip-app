@@ -2423,11 +2423,15 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .editor-mode .strip-block.is-import-ready { animation: media-import-in 360ms ease-out; }
 .editor-mode .strip-block.is-import-ready.is-import-first {
   height: var(--media-import-height);
-  overflow: hidden;
+  overflow: visible;
   background: #d9d9d9;
   animation: media-import-first-size 360ms cubic-bezier(0.22, 0.72, 0.18, 1);
 }
-.editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport { animation: media-import-in 360ms ease-out; }
+.editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport {
+  height: 100%;
+  overflow: hidden;
+  animation: media-import-in 360ms ease-out;
+}
 @keyframes media-import-first-size { from { height: 240px; } to { height: var(--media-import-height); } }
 @keyframes media-import-in { from { opacity: 0; } to { opacity: 1; } }
 
