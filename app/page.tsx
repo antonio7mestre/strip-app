@@ -65,6 +65,7 @@ import { prepareStickerUploads } from "@/app/lib/sticker-upload";
 import { prepareMediaFiles, mediaImportInsertionIndex, mediaImportIsLeading, MEDIA_IMPORT_BACKGROUND, withMediaImportBlock, type MediaSize } from "@/app/lib/media-import";
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
+import { preparePublishedEditorMedia, type EditorMediaStatus } from "@/app/lib/published-editor-media";
 import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
@@ -2855,8 +2856,11 @@ export default function Home() {
         ? `draft:${currentDraftId}`
         : "none";
 
+  const preparedEditorMediaRef = useRef<{ key: string; status: EditorMediaStatus } | null>(null);
   useLayoutEffect(() => {
-    setMediaLoadStatus({});
+    const prepared = preparedEditorMediaRef.current;
+    setMediaLoadStatus(prepared?.key === mediaLoadKey ? prepared.status : {});
+    preparedEditorMediaRef.current = null;
   }, [mediaLoadKey]);
 
   const beginBlockTapGesture = (
@@ -5903,32 +5907,9 @@ export default function Home() {
     }
     pageTransitionInFlightRef.current = true;
     const strip = openedPublishedStrip;
-    const readerScrollTop = window.scrollY;
     const controller = new AbortController();
     publishedEditorRequestRef.current = controller;
-    // Show the already-loaded content immediately. Keep it read-only until
-    // the draft is ready, so autosave cannot overwrite an existing draft.
-    flushSync(() => {
-      setOpeningPublishedEditor(true);
-      setCurrentDraftId(null);
-      setCurrentDraftCreatedAt(0);
-      setEditingPublishedStripId(strip.id);
-      setBlocks(strip.blocks);
-      setEndingStyle(strip.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE);
-      setStripTitle(strip.title);
-      setSelectedBlockId(null);
-      setEditingTextBlockId(null);
-      setActiveTextTool(null);
-      setHeightCropSession(null);
-      setStickerPickerOpen(false);
-      setSelectedCover("");
-      setActiveCoverKey("");
-      setCustomCoverSrc(null);
-      setCustomCoverColors([]);
-      setCoverColorShape("square");
-    });
-    showEditorDockEntry();
-    setViewInstantly("edit", 0, false);
+    setOpeningPublishedEditor(true);
     try {
       const response = await fetch(
         `/api/strips/${encodeURIComponent(strip.id)}/draft`,
@@ -5949,8 +5930,11 @@ export default function Home() {
         window.location.assign(`${workspaceOrigin}${editorPath}`);
         return;
       }
-      // Reuse any unsaved draft rather than replacing it with the public copy.
-      // Only change the URL once a reload can safely restore that draft.
+      const readyMedia = await preparePublishedEditorMedia(draft.blocks, controller.signal);
+      if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
+      preparedEditorMediaRef.current = { key: `draft:${draft.id}`, status: readyMedia };
+      // One editor entry, using the real saved draft and already-decoded media.
+      // No provisional content, second source swap, or second loading reset.
       setBrowserPath(editorPath);
       flushSync(() => {
         setCurrentDraftId(draft.id);
@@ -5959,17 +5943,24 @@ export default function Home() {
         setBlocks(draft.blocks);
         setEndingStyle(draft.endingStyle ?? DEFAULT_STRIP_ENDING_STYLE);
         setStripTitle(draft.title);
+        setSelectedBlockId(null);
+        setEditingTextBlockId(null);
+        setActiveTextTool(null);
+        setHeightCropSession(null);
+        setStickerPickerOpen(false);
+        setSelectedCover("");
+        setActiveCoverKey("");
+        setCustomCoverSrc(null);
+        setCustomCoverColors([]);
+        setCoverColorShape("square");
         setOpenedPublishedStrip(null);
         setOpeningPublishedEditor(false);
       });
+      showEditorDockEntry();
+      setViewInstantly("edit", 0, false);
     } catch {
       if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
-      setCurrentDraftId(null);
-      setEditingPublishedStripId(null);
-      setBlocks([]);
-      setOpenedPublishedStrip(strip);
       setOpeningPublishedEditor(false);
-      setViewInstantly("published", readerScrollTop, false);
       setNotice("Couldn’t open this Strip for editing. Try again.");
     } finally {
       if (publishedEditorRequestRef.current === controller) {
@@ -8002,7 +7993,7 @@ export default function Home() {
               } ${legacyPageEnterClass}`}
               style={publishedStripStyle}
               aria-hidden={!publishedContentCanReveal}
-              inert={!publishedContentCanReveal}
+              inert={!publishedContentCanReveal || openingPublishedEditor}
             >
               {renderStrip(false, publishedBlocks)}
               <StripEndingSheet

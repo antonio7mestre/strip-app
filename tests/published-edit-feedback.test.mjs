@@ -21,9 +21,10 @@ const actions = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "Strip
 const compiled = ts.transpileModule(`export const ${handler.getText(tree)};\nexport const ${reset.getText(tree)};\nexport ${actions.getText(tree)}`, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
-function harness({ owner = true, signedIn = true, origin = "https://antonio.striiip.com" } = {}) {
+function harness({ owner = true, signedIn = true, origin = "https://antonio.striiip.com", mediaReady = Promise.resolve({ "draft-image": "loaded" }) } = {}) {
   const events = [], requests = [], notices = [], navigations = [], paths = [], views = [], exports = {};
   const gate = { current: false };
+  const prepared = { current: null };
   const request = { current: null }, state = {};
   const setters = Object.fromEntries([
     "OpeningPublishedEditor", "CurrentDraftId", "CurrentDraftCreatedAt", "EditingPublishedStripId",
@@ -41,6 +42,11 @@ function harness({ owner = true, signedIn = true, origin = "https://antonio.stri
     DEFAULT_STRIP_ENDING_STYLE: "white",
     pageTransitionInFlightRef: gate,
     publishedEditorRequestRef: request,
+    preparedEditorMediaRef: prepared,
+    preparePublishedEditorMedia: (blocks, signal) => {
+      events.push("prepare-media");
+      return mediaReady.then(status => { if (signal.aborted) throw new Error("Cancelled"); return status; });
+    },
     mediaImportRequestRef: { current: null },
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen() {}, setStoryShareConfirmation() {},
     openingCoverRequestRef: { current: null }, setOpeningCover() {},
@@ -59,7 +65,7 @@ function harness({ owner = true, signedIn = true, origin = "https://antonio.stri
     cancelDockTransitionSchedule() {}, setOpeningStripId() {}, setOpeningDraftId() {},
     setLegacyPageTransition() {}, setDockTransition() {}, setDockTransitionStarted() {},
   });
-  return { ...exports, events, requests, notices, navigations, paths, views, gate, request, state,
+  return { ...exports, events, requests, notices, navigations, paths, views, gate, request, state, prepared,
     get pending() { return state.OpeningPublishedEditor; } };
 }
 const success = { ok: true, json: async () => ({ draft: { id: "published-123" } }) };
@@ -72,14 +78,13 @@ async function finish(h, opening) {
   h.requests[1].resolve(draftSuccess); await opening;
 }
 
-test("published Edit opens the loaded editor before any network response, without reloading", async () => {
+test("published Edit keeps the reader painted, then opens the actual draft once without reloading", async () => {
   const h = harness();
   const opening = h.editPublishedStripFromReader();
-  assert.ok(h.events.indexOf("view:edit") < h.events.indexOf("request"));
-  assert.deepEqual(h.views, [["edit", 0, false]]);
+  assert.deepEqual(h.views, []);
   assert.equal(h.pending, true);
-  assert.equal(h.state.CurrentDraftId, null, "autosave stays off until the server draft exists");
-  assert.equal(h.state.Blocks[0].id, "published-image", "loaded content is present immediately");
+  assert.equal(h.state.CurrentDraftId, undefined, "autosave state is not changed before the draft exists");
+  assert.equal(h.state.Blocks, undefined, "there is no provisional public copy in the editor");
   assert.equal(h.gate.current, true);
   assert.equal(h.navigations.length, 0);
   assert.equal(h.paths.length, 0, "the URL stays reload-safe while preparing");
@@ -88,6 +93,7 @@ test("published Edit opens the loaded editor before any network response, withou
   await h.editPublishedStripFromReader();
   assert.equal(h.requests.length, 1, "repeated taps cannot create duplicate requests");
   await finish(h, opening);
+  assert.ok(h.events.indexOf("prepare-media") < h.events.indexOf("view:edit"));
   assert.equal(h.requests[1].url, "/api/drafts/published-123");
   assert.equal(h.requests[1].options.cache, "no-store");
   assert.deepEqual(h.paths, ["/edit/published-123"]);
@@ -99,10 +105,10 @@ test("published Edit opens the loaded editor before any network response, withou
   assert.equal(h.state.StripTitle, draft.title);
   assert.deepEqual(h.state.Blocks, draft.blocks, "existing unsaved draft content is preserved");
   assert.equal(h.state.OpenedPublishedStrip, null);
-  assert.equal(h.views.length, 1, "draft readiness does not reset scroll again");
+  assert.deepEqual(h.views, [["edit", 0, false]], "only one editor entry and one scroll reset");
 });
 
-test("failed preparation returns to the reader at its original position and permits retry", async () => {
+test("failed preparation leaves the reader and its scroll untouched and permits retry", async () => {
   for (const failure of ["network", "response", "json", "draft-response", "draft-json"]) {
     const h = harness();
     const opening = h.editPublishedStripFromReader();
@@ -114,8 +120,8 @@ test("failed preparation returns to the reader at its original position and perm
     await opening;
     assert.equal(h.pending, false); assert.equal(h.gate.current, false);
     assert.equal(h.notices.length, 1); assert.equal(h.navigations.length, 0);
-    assert.deepEqual(h.views.at(-1), ["published", 650, false]);
-    assert.equal(h.state.CurrentDraftId, null); assert.equal(h.paths.length, 0);
+    assert.deepEqual(h.views, []);
+    assert.equal(h.state.CurrentDraftId, undefined); assert.equal(h.paths.length, 0);
     const count = h.requests.length;
     const retry = h.editPublishedStripFromReader();
     assert.equal(h.requests.length, count + 1); assert.equal(h.pending, true);
@@ -139,17 +145,44 @@ test("browser Back cancels preparation and prevents stale responses from reopeni
   assert.equal(h.requests[0].options.signal.aborted, true);
   h.requests[0].resolve(success); await opening;
   assert.equal(h.requests.length, 1); assert.equal(h.paths.length, 0);
-  assert.equal(h.state.CurrentDraftId, null); assert.equal(h.notices.length, 0);
+  assert.equal(h.state.CurrentDraftId, undefined); assert.equal(h.notices.length, 0);
   assert.match(page, /if \(event.persisted\) resetTransientNavigationState\(\)/);
 });
 
 test("an older host forwards to the owner's canonical workspace once its draft is ready", async () => {
   const h = harness({ origin: "https://striiip.com" });
   const opening = h.editPublishedStripFromReader();
-  assert.equal(h.views[0][0], "edit");
+  assert.deepEqual(h.views, []);
   await finish(h, opening);
   assert.deepEqual(h.navigations, ["https://antonio.striiip.com/edit/published-123"]);
   assert.equal(h.paths.length, 0);
+  assert.deepEqual(h.views, [], "never flash a temporary editor on the outgoing host");
+});
+
+test("images must finish decoding before the editor is shown", async () => {
+  let ready;
+  const h = harness({ mediaReady: new Promise(resolve => { ready = resolve; }) });
+  const opening = h.editPublishedStripFromReader();
+  h.requests[0].resolve(success); await tick();
+  h.requests[1].resolve(draftSuccess); await tick();
+  assert.deepEqual(h.views, []);
+  assert.equal(h.pending, true);
+  ready({ "draft-image": "loaded" }); await opening;
+  assert.deepEqual(h.views, [["edit", 0, false]]);
+  assert.equal(h.prepared.current.key, "draft:published-123");
+  assert.deepEqual({ ...h.prepared.current.status }, { "draft-image": "loaded" });
+  assert.match(page, /setMediaLoadStatus\(prepared\?\.key === mediaLoadKey \? prepared\.status : \{\}\)/);
+});
+
+test("Back while images decode cannot open a stale editor", async () => {
+  let ready;
+  const h = harness({ mediaReady: new Promise(resolve => { ready = resolve; }) });
+  const opening = h.editPublishedStripFromReader();
+  h.requests[0].resolve(success); await tick();
+  h.requests[1].resolve(draftSuccess); await tick();
+  h.resetTransientNavigationState();
+  ready({}); await opening;
+  assert.deepEqual(h.views, []); assert.deepEqual(h.paths, []); assert.deepEqual(h.notices, []);
 });
 
 test("Edit keeps the original two-button footer without an opening message", () => {
@@ -161,4 +194,5 @@ test("Edit keeps the original two-button footer without an opening message", () 
   assert.doesNotMatch(renderToStaticMarkup(idle), /disabled|aria-busy|strip-end-sheet-spinner/);
   assert.doesNotMatch(page, /Opening editor|primaryPending/);
   assert.match(page, /<main\s+inert=\{openingPublishedEditor\}\s+aria-busy=\{openingPublishedEditor \|\| undefined\}\s+className=\{`app-shell editor-mode/);
+  assert.match(page, /inert=\{!publishedContentCanReveal \|\| openingPublishedEditor\}/);
 });
