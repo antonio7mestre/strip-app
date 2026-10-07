@@ -1643,7 +1643,7 @@ function StripVideoBlock({
   intrinsicSize,
   entering = false,
   importReady = false,
-  importOverlay,
+  importFirst = false,
   onLoadSettled,
   onHeight,
   controls,
@@ -1671,7 +1671,7 @@ function StripVideoBlock({
   intrinsicSize?: MediaSize;
   entering?: boolean;
   importReady?: boolean;
-  importOverlay?: ReactNode;
+  importFirst?: boolean;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
@@ -1730,18 +1730,17 @@ function StripVideoBlock({
 
   return (
     <figure
-      className={`strip-block video-block ${entering ? `is-import-revealing${importReady ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
+      className={`strip-block video-block ${entering ? `is-import-revealing${importReady ? " is-import-ready" : ""}${importFirst ? " is-import-first" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
       }`}
       data-block-id={block.id}
       aria-busy={!loadSettled}
-      style={
-        !loadSettled && reservedHeight && croppedHeight === undefined
-          ? { minHeight: reservedHeight }
-          : undefined
-      }
+      style={{
+        ...(!loadSettled && reservedHeight && croppedHeight === undefined ? { minHeight: reservedHeight } : {}),
+        ...(entering && importFirst ? { "--media-import-height": `${block.height}px` } : {}),
+      } as CSSProperties}
       onPointerDown={(event) => {
         tapGestureRef.current = {
           pointerId: event.pointerId,
@@ -1768,7 +1767,6 @@ function StripVideoBlock({
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {importOverlay}
       <div
         className="block-crop-viewport"
         style={
@@ -2888,7 +2886,7 @@ export default function Home() {
   };
   const pendingMediaIsLeading = view === "edit" && !inlinePreview && Boolean(mediaImportProgress?.visible) &&
     mediaImportIsLeading(blocks, mediaImportProgress?.afterId, mediaBatchRevealIds[0]);
-  const firstVisibleBlock = pendingMediaIsLeading && !mediaBatchRevealStarted
+  const firstVisibleBlock = pendingMediaIsLeading
       ? { type: "text" as const, backgroundColor: MEDIA_IMPORT_BACKGROUND }
       : view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
@@ -3918,8 +3916,8 @@ export default function Home() {
           height: Math.max(1, Math.round(canvasWidth * item.height / item.width)),
           ...(item.type === "video" ? { audioEnabled: true } : {}) };
       });
-      // Mount the real elements behind the loading surface first. Their own
-      // decodes and a painted frame must precede the shared crossfade.
+      // Decode the actual mounted media while the loading block holds its spot.
+      // Only the first photo takes over that block's geometry during reveal.
       flushSync(() => {
         setImportedMediaSizes(current => ({ ...current, ...sizes }));
         setMediaLoadStatus(current => ({ ...current,
@@ -3941,11 +3939,12 @@ export default function Home() {
           if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
           flushSync(() => {
             setMediaBatchRevealStarted(true);
-            setSelectedBlockId(mediaBlocks[0].id);
           });
         },
       });
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
+      // Focus after the first photo's size has settled, never during the morph.
+      setSelectedBlockId(mediaBlocks[0].id);
       if (failed > 0) setNotice("Some files couldn’t be added. The rest are ready.");
     } catch {
       if (!controller.signal.aborted && mediaImportRequestRef.current === controller) {
@@ -6444,16 +6443,13 @@ export default function Home() {
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
       >
-        {sourceBlocks.length === 0 && isEditing && !mediaImportProgress?.visible ? (
+        {(sourceBlocks.length === 0 || (!mediaBatchRevealStarted && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing && !mediaImportProgress?.visible ? (
           <div className="empty-strip">
             <EmptyStripState kind="editor" />
           </div>
         ) : null}
 
         {withMediaImportBlock(sourceBlocks, sourceBlocks.map((block, index) => {
-        const importOverlay = isEditing && mediaImportProgress?.visible && mediaBatchRevealIds[0] === block.id
-          ? <MediaImportBlock progress={mediaImportProgress} handoff={mediaBatchRevealStarted ? "revealing" : "waiting"} leading={pendingMediaIsLeading && mediaBatchRevealStarted} />
-          : null;
         const heightCrop =
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, heightCropSession)
@@ -6579,7 +6575,7 @@ export default function Home() {
             : heightCrop?.height;
           return (
             <figure
-              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealStarted ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
+              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealStarted ? " is-import-ready" : ""}${mediaImportProgress?.visible && mediaBatchRevealIds[0] === block.id ? " is-import-first" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
@@ -6591,13 +6587,10 @@ export default function Home() {
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] === undefined}
-              style={
-                mediaLoadStatus[block.id] === undefined &&
-                block.height &&
-                heightCrop?.height === undefined
-                  ? { minHeight: block.height }
-                  : undefined
-              }
+              style={{
+                ...(mediaLoadStatus[block.id] === undefined && block.height && heightCrop?.height === undefined ? { minHeight: block.height } : {}),
+                ...(isEditing && mediaBatchRevealIds[0] === block.id ? { "--media-import-height": `${block.height}px` } : {}),
+              } as CSSProperties}
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
                 beginBlockTapGesture(event, block.id);
@@ -6614,7 +6607,6 @@ export default function Home() {
               }}
             >
               {/* A Strip image is intentionally edge-to-edge. */}
-              {importOverlay}
               {isEditing ? renderBlockControls(block, index) : null}
               <div
                 className="block-crop-viewport"
@@ -6817,7 +6809,7 @@ export default function Home() {
             intrinsicSize={importedMediaSizes[block.id]}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
             importReady={mediaBatchRevealStarted}
-            importOverlay={importOverlay}
+            importFirst={Boolean(mediaImportProgress?.visible && mediaBatchRevealIds[0] === block.id)}
             cropTop={heightCrop?.top}
             cropSourceHeight={heightCrop?.sourceHeight}
             cropEditing={heightCrop?.isEditing}
@@ -6845,7 +6837,7 @@ export default function Home() {
             }
           />
         );
-        }), isEditing && mediaImportProgress?.visible && mediaBatchRevealIds.length === 0 ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} /> : null, mediaImportProgress?.afterId)}
+        }), isEditing && mediaImportProgress?.visible ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} handoff={mediaBatchRevealIds.length ? (mediaBatchRevealStarted ? "revealing" : "waiting") : undefined} /> : null, mediaImportProgress?.afterId, mediaBatchRevealIds[0])}
         {showsEndingCard ? (
           <StripEndingSheet
             preview

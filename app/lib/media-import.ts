@@ -21,10 +21,11 @@ export function mediaImportIsLeading(blocks: readonly { id: string; type: string
 }
 
 /** Render-only placeholder. Never add it to draft state or serialized content. */
-export function withMediaImportBlock<Node>(blocks: readonly { id: string }[], nodes: readonly Node[], pending: Node | null, afterId: string | null | undefined) {
+export function withMediaImportBlock<Node>(blocks: readonly { id: string }[], nodes: readonly Node[], pending: Node | null, afterId: string | null | undefined, mountedFirstId?: string) {
   if (pending === null) return nodes;
   const rendered = [...nodes];
-  rendered.splice(mediaImportInsertionIndex(blocks, afterId), 0, pending);
+  const mountedIndex = mountedFirstId ? blocks.findIndex(block => block.id === mountedFirstId) : -1;
+  rendered.splice(mountedIndex >= 0 ? mountedIndex : mediaImportInsertionIndex(blocks, afterId), 0, pending);
   return rendered;
 }
 

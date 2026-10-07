@@ -1,7 +1,7 @@
 export const MEDIA_IMPORT_REVEAL_MS = 360;
 const MOUNTED_MEDIA_TIMEOUT_MS = 2_000;
 
-/** Keep the loading surface until the actual mounted elements can paint.
+/** Keep the loading block until the actual mounted media is decoded.
  * An offscreen predecode alone does not guarantee a new Safari image is ready. */
 export async function revealImportedMedia(canvas: HTMLElement | null, ids: readonly string[], {
   signal,
@@ -47,7 +47,7 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
       void Promise.all(ready).then(done);
       return () => { clearTimeout(timer); removers.forEach(remove => remove()); };
     });
-    // Paint the mounted, opaque loading surface before starting one batch fade.
+    // Establish the loading block before the first photo takes over its size.
     await frame();
     await frame();
     if (signal.aborted) throw cancelled();

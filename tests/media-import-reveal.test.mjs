@@ -109,11 +109,16 @@ test("missing canvas does not strand a completed import", async () => {
   assert.equal(h.reveals(), 1);
 });
 
-test("loading surface and photo children share a crossfade over an opaque gray backing", () => {
+test("waiting photos stay hidden and only the first selected photo morphs from the loader", () => {
   const css = read("app/globals.css"), page = read("app/page.tsx");
-  assert.match(css, /\.editor-mode \.strip-block\.is-import-revealing \{\s*background: #d9d9d9;\s*\}/);
-  assert.match(css, /\.editor-mode \.strip-block\.is-import-revealing > :not\(\.media-import-block\) \{[^}]*opacity: 0;[^}]*transition: opacity 360ms/);
-  assert.match(css, /\.media-import-block\.is-handoff \{[^}]*opacity: 1;[^}]*transition: opacity 360ms/);
-  assert.match(page, /importReady=\{mediaBatchRevealStarted\}\s*importOverlay=\{importOverlay\}/);
+  assert.match(css, /\.editor-mode \.strip-block\.is-import-revealing:not\(\.is-import-ready\) \{ display: none; \}/);
+  assert.doesNotMatch(css, /\.editor-mode \.strip-block\.is-import-revealing \{|\.strip-block\.is-import-revealing[^{}]*\{[^}]*background|\.strip-block\.is-import-revealing > :not/);
+  assert.match(css, /is-import-ready\.is-import-first \{[^}]*height: var\(--media-import-height\)/);
+  assert.match(page, /mediaImportProgress\?\.visible && mediaBatchRevealIds\[0\] === block.id \? " is-import-first"/);
+  assert.match(page, /"--media-import-height": `\$\{block.height\}px`/);
+  assert.match(page, /importFirst=\{Boolean\(mediaImportProgress\?\.visible && mediaBatchRevealIds\[0\] === block.id\)\}/);
+  assert.match(page, /importReady=\{mediaBatchRevealStarted\}/);
+  assert.doesNotMatch(page, /importOverlay/);
+  assert.match(page, /<MediaImportBlock key="pending-media-import"[^\n]+mediaImportProgress\?\.afterId, mediaBatchRevealIds\[0\]/);
   assert.equal(harness().MEDIA_IMPORT_REVEAL_MS, 360);
 });

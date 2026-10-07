@@ -25,16 +25,21 @@ test("media loading renders one full-width Strip block with an accessible count,
   }
 });
 
-test("mounted media keeps the loading surface until its batch reveal, without replaying the label entrance", () => {
+test("the loading label holds its position as only the first real photo takes over its size", () => {
   const html = renderToStaticMarkup(React.createElement(exports.MediaImportBlock, {
-    progress: { completed: 6, total: 6 }, handoff: "revealing", leading: true,
+    progress: { completed: 6, total: 6 }, handoff: "revealing",
   }));
-  assert.match(html, /class="strip-block media-import-block is-handoff is-revealing is-leading"/);
+  assert.match(html, /class="strip-block media-import-block is-handoff is-revealing"/);
   const css = read("app/globals.css");
-  assert.match(css, /\.media-import-block\.is-handoff \{[^}]*position: absolute;[^}]*transition: opacity 360ms/);
-  assert.match(css, /\.media-import-block\.is-handoff > \* \{ animation: none; \}/);
-  assert.match(css, /\.media-import-block\.is-handoff\.is-leading \{[^}]*env\(safe-area-inset-top\)/);
-  assert.match(css, /\.media-import-block\.is-handoff\.is-revealing \{ opacity: 0; \}/);
+  const handoff = css.match(/\.media-import-block\.is-handoff \{[^}]+\}/)[0];
+  assert.doesNotMatch(handoff, /position:|inset:|height:|transform:|z-index:|transition:/);
+  assert.match(css, /\.media-import-block\.is-handoff > \* \{ animation: none; transition: opacity 160ms ease-out; \}/);
+  assert.match(css, /\.media-import-block\.is-handoff\.is-revealing \{ height: 0; padding-block: 0; \}/);
+  assert.match(css, /\.media-import-block\.is-handoff\.is-revealing > \* \{[^}]*position: absolute;[^}]*height: 240px;[^}]*opacity: 0;/);
+  assert.match(css, /@keyframes media-import-first-size \{ from \{ height: 240px; \} to \{ height: var\(--media-import-height\); \} \}/);
+  assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first \{[^}]*height: var\(--media-import-height\);[^}]*animation: media-import-first-size 360ms/);
+  assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first > \.block-crop-viewport \{ animation: media-import-in 360ms/);
+  assert.doesNotMatch(css, /\.media-import-block\.is-handoff\.is-leading/);
 });
 
 test("the ellipsis animates independently and stays still for reduced motion", () => {
