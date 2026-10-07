@@ -47,7 +47,17 @@ function harness({ reduced = false } = {}) {
   const start = (ids, target = canvas) => exports.revealImportedMedia(target, ids, {
     signal: controller.signal, onReveal: () => { reveals++; },
   });
-  return { ...exports, controller, timers, frames, image, video, frame, timer, start, reveals: () => reveals };
+  const animate = blockId => {
+    let finish;
+    const finished = new Promise(resolve => { finish = resolve; });
+    blocks.find(block => block.dataset.blockId === blockId).getAnimations = options => {
+      assert.equal(options.subtree, true);
+      return [{ animationName: "media-import-first-size", finished },
+        { animationName: "unrelated-animation", finished: new Promise(() => {}) }];
+    };
+    return finish;
+  };
+  return { ...exports, controller, timers, frames, image, video, frame, timer, start, animate, reveals: () => reveals };
 }
 
 test("actual mounted photos decode, paint twice, then reveal as one 360ms batch", async () => {
@@ -107,6 +117,31 @@ test("missing canvas does not strand a completed import", async () => {
   const h = harness(); const pending = h.start(["removed"], null); await tick();
   await h.frame(); await h.frame(); await h.timer(360); await pending;
   assert.equal(h.reveals(), 1);
+});
+
+test("grow and shrink handoffs wait for the actual CSS finish rather than a shorter wall clock", async () => {
+  const h = harness(), image = h.image("first"), finish = h.animate("first");
+  let settled = false;
+  const pending = h.start(["first"]).then(() => { settled = true; });
+  image.resolve(); await tick(); await h.frame(); await h.frame();
+  assert.equal(h.reveals(), 1);
+  assert.equal(settled, false);
+  assert.deepEqual([...h.timers.values()].map(timer => timer.duration), [600], "only the bounded safety fallback runs while CSS is animating");
+  finish(); await pending;
+  assert.equal(settled, true); assert.equal(h.timers.size, 0);
+});
+
+test("a stalled animation remains bounded and cancellation clears its fallback", async () => {
+  for (const abort of [false, true]) {
+    const h = harness(), image = h.image("first"); h.animate("first");
+    const pending = h.start(["first"]);
+    image.resolve(); await tick(); await h.frame(); await h.frame();
+    if (abort) {
+      const rejected = assert.rejects(pending, error => error.name === "AbortError");
+      h.controller.abort(); await rejected;
+    } else { await h.timer(600); await pending; }
+    assert.equal(h.timers.size, 0); assert.equal(h.frames.size, 0);
+  }
 });
 
 test("waiting photos stay hidden and only the first selected photo morphs from the loader", () => {

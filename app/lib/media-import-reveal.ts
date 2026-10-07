@@ -53,7 +53,16 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
     if (signal.aborted) throw cancelled();
     onReveal();
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      await wait(done => { const timer = setTimeout(done, MEDIA_IMPORT_REVEAL_MS); return () => clearTimeout(timer); });
+      // CSS begins on its own paint clock, which may lag the commit on a busy
+      // phone. Keep the handoff until the real grow/shrink and pixel fade finish.
+      const animations = (blocks[0]?.getAnimations?.({ subtree: true }) ?? []).filter(animation =>
+        "animationName" in animation && typeof animation.animationName === "string" &&
+        animation.animationName.startsWith("media-import-"));
+      await wait(done => {
+        const timer = setTimeout(done, MEDIA_IMPORT_REVEAL_MS + (animations.length ? 240 : 0));
+        if (animations.length) void Promise.all(animations.map(animation => animation.finished.catch(() => {}))).then(done);
+        return () => clearTimeout(timer);
+      });
     }
   } finally {
     cleanups.forEach(cleanup => cleanup());
