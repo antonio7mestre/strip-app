@@ -1,4 +1,4 @@
-export const MEDIA_IMPORT_REVEAL_MS = 360;
+export const MEDIA_IMPORT_REVEAL_MS = 440;
 const MOUNTED_MEDIA_TIMEOUT_MS = 2_000;
 
 /** Keep the loading block until the actual mounted media is decoded.
@@ -27,8 +27,8 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
 
   try {
     const selected = new Set(ids);
-    const blocks = Array.from(canvas?.querySelectorAll<HTMLElement>(".strip-block[data-block-id]") ?? [])
-      .filter(block => selected.has(block.dataset.blockId ?? ""));
+    const mounted = Array.from(canvas?.querySelectorAll<HTMLElement>(".strip-block[data-block-id]") ?? []);
+    const blocks = mounted.filter(block => selected.has(block.dataset.blockId ?? ""));
     await wait(done => {
       const removers: Array<() => void> = [];
       const ready = blocks.flatMap(block => {
@@ -51,13 +51,29 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
     await frame();
     await frame();
     if (signal.aborted) throw cancelled();
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const positions = reduced ? [] : mounted.filter(block => !selected.has(block.dataset.blockId ?? ""))
+      .flatMap(block => {
+        const bounds = block.getBoundingClientRect?.();
+        return bounds?.height ? [{ block, top: bounds.top }] : [];
+      });
     onReveal();
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (!reduced) {
+      // The final layout is committed once. Existing content moves from its
+      // previous position using translation, without reflowing every frame.
+      const moves = positions.flatMap(({ block, top }) => {
+        const delta = top - block.getBoundingClientRect().top;
+        if (Math.abs(delta) < 1 || !block.animate) return [];
+        const animation = block.animate([{ translate: `0 ${delta}px` }, { translate: "0 0" }],
+          { duration: MEDIA_IMPORT_REVEAL_MS, easing: "cubic-bezier(0.4, 0, 0.2, 1)" });
+        cleanups.add(() => animation.cancel());
+        return [animation];
+      });
       // CSS begins on its own paint clock, which may lag the commit on a busy
       // phone. Keep the handoff until the real grow/shrink and pixel fade finish.
       const animations = (blocks[0]?.getAnimations?.({ subtree: true }) ?? []).filter(animation =>
         "animationName" in animation && typeof animation.animationName === "string" &&
-        animation.animationName.startsWith("media-import-"));
+        animation.animationName.startsWith("media-import-")).concat(moves);
       await wait(done => {
         const timer = setTimeout(done, MEDIA_IMPORT_REVEAL_MS + (animations.length ? 240 : 0));
         if (animations.length) void Promise.all(animations.map(animation => animation.finished.catch(() => {}))).then(done);

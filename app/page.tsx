@@ -912,6 +912,7 @@ function BlockControls({
   stickerRotation,
   showTopEdge = true,
   closing = false,
+  mediaHandoff,
 }: {
   index: number;
   count: number;
@@ -927,7 +928,11 @@ function BlockControls({
   stickerRotation?: number;
   showTopEdge?: boolean;
   closing?: boolean;
+  mediaHandoff?: "morph" | "fade";
 }) {
+  // Preserve the entrance for this selection's lifetime. Clearing the import
+  // flags must not restart the normal toolbar animation after the morph.
+  const [mediaHandoffEntrance] = useState(mediaHandoff);
   const trayClass = onTextTool
     ? "is-text-tray"
     : onVideoAudio
@@ -1022,7 +1027,7 @@ function BlockControls({
         <span className="block-controls-text-join" style={style} aria-hidden="true" />
       ) : null}
       <div
-        className={`block-controls-reveal ${closing ? "is-closing" : ""}`}
+        className={`block-controls-reveal ${mediaHandoffEntrance ? `is-media-handoff is-media-handoff-${mediaHandoffEntrance}` : ""} ${closing ? "is-closing" : ""}`}
         style={style}
       >
         <div
@@ -3913,7 +3918,7 @@ export default function Home() {
         const id = makeId();
         sizes[id] = { width: item.width, height: item.height };
         return { id, type: item.type, src: item.src, alt: item.alt,
-          height: Math.max(1, Math.round(canvasWidth * item.height / item.width)),
+          height: Math.max(1, canvasWidth * item.height / item.width),
           ...(item.type === "video" ? { audioEnabled: true } : {}) };
       });
       // Decode the actual mounted media while the loading block holds its spot.
@@ -6372,6 +6377,8 @@ export default function Home() {
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
         showTopEdge={!(block.type === "text" && index === firstFlowBlockIndex)}
         closing={heightCropSession?.blockId === block.id}
+        mediaHandoff={mediaBatchRevealStarted && mediaBatchRevealIds[0] === block.id
+          ? (mediaImportProgress?.visible ? "morph" : "fade") : undefined}
       />
     );
   };
@@ -6431,17 +6438,24 @@ export default function Home() {
         ? `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`
         : `${stickerFloor}px`
       : undefined;
+    const importingFirst = isEditing && mediaImportProgress?.visible
+      ? sourceBlocks.find(block => block.id === mediaBatchRevealIds[0]) : undefined;
+    const importingHeight = importingFirst?.height;
     const canvasStyle = {
       ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
       ...(showsEndingCard
         ? { backgroundColor: "#FFFFFF" }
         : {}),
-    } satisfies CSSProperties;
+      ...(importingHeight ? {
+        "--media-import-offset": `${240 - importingHeight}px`,
+        "--media-import-scale": 240 / importingHeight,
+      } : {}),
+    } as CSSProperties;
 
     return (
       <div
         ref={stripCanvasRef}
-        className={`strip-canvas ${showsEndingCard ? "has-ending-card" : ""} ${
+        className={`strip-canvas ${importingFirst ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""} ${
           endingFollowsMedia ? "has-trailing-media" : ""
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
         style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}

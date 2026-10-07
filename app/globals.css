@@ -2419,20 +2419,53 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 
 /* Decode the real media with no layout footprint. Only the first ready photo
    grows from the loading block's 240px height, never the whole batch. */
+.editor-mode {
+  --media-import-duration: 440ms;
+  --media-import-easing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }
 .editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }
-.editor-mode .strip-block.is-import-ready { animation: media-import-in 360ms ease-out; }
+.editor-mode .strip-block.is-import-ready { animation: media-import-in var(--media-import-duration) var(--media-import-easing); }
 .editor-mode .strip-block.is-import-ready.is-import-first {
   height: var(--media-import-height);
   overflow: visible;
+  background: transparent;
+  animation: none;
+}
+.editor-mode .strip-block.is-import-ready.is-import-first::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: #d9d9d9;
-  animation: media-import-first-size 360ms cubic-bezier(0.22, 0.72, 0.18, 1);
+  transform-origin: 50% 0;
+  animation: media-import-surface var(--media-import-duration) var(--media-import-easing);
+  pointer-events: none;
 }
 .editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport {
   height: 100%;
   overflow: hidden;
-  animation: media-import-in 360ms ease-out;
+  animation: media-import-first-size var(--media-import-duration) var(--media-import-easing),
+    media-import-in var(--media-import-duration) var(--media-import-easing);
 }
-@keyframes media-import-first-size { from { height: 240px; } to { height: var(--media-import-height); } }
+.editor-mode .strip-block.is-import-first ~ .strip-block.is-import-ready:not(.sticker-block) {
+  animation: media-import-follow var(--media-import-duration) var(--media-import-easing),
+    media-import-in var(--media-import-duration) var(--media-import-easing);
+}
+.block-controls-reveal.is-media-handoff:not(.is-closing) {
+  animation: none;
+  will-change: transform, opacity;
+}
+.block-controls-reveal.is-media-handoff-morph:not(.is-closing) {
+  animation: media-import-follow var(--media-import-duration) var(--media-import-easing) both,
+    media-import-in var(--media-import-duration) var(--media-import-easing) both;
+}
+.block-controls-reveal.is-media-handoff:not(.is-closing) button { animation: none; }
+@keyframes media-import-first-size {
+  from { clip-path: inset(0 0 max(0px, calc(100% - 240px)) 0); }
+  to { clip-path: inset(0); }
+}
+@keyframes media-import-surface { from { transform: scaleY(var(--media-import-scale, 1)); } to { transform: scaleY(1); } }
+@keyframes media-import-follow { from { transform: translateY(var(--media-import-offset, 0px)); } to { transform: translateY(0); } }
 @keyframes media-import-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* A loading batch occupies its insertion spot, never a floating notice. */
@@ -2486,7 +2519,10 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   .media-import-block.is-handoff > * { transition: none; }
   .editor-mode .strip-block.is-import-ready,
   .editor-mode .strip-block.is-import-ready.is-import-first,
-  .editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport { animation: none; }
+  .editor-mode .strip-block.is-import-ready.is-import-first::before,
+  .editor-mode .strip-block.is-import-first ~ .strip-block.is-import-ready:not(.sticker-block),
+  .editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport,
+  .block-controls-reveal.is-media-handoff-morph:not(.is-closing) { animation: none; }
   .media-import-dots > span { animation: none; opacity: 1; }
 }
 

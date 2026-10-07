@@ -36,10 +36,10 @@ test("the loading label holds its position as only the first real photo takes ov
   assert.match(css, /\.media-import-block\.is-handoff > \* \{ animation: none; transition: opacity 160ms ease-out; \}/);
   assert.match(css, /\.media-import-block\.is-handoff\.is-revealing \{ height: 0; padding-block: 0; \}/);
   assert.match(css, /\.media-import-block\.is-handoff\.is-revealing > \* \{[^}]*position: absolute;[^}]*height: 240px;[^}]*opacity: 0;/);
-  assert.match(css, /@keyframes media-import-first-size \{ from \{ height: 240px; \} to \{ height: var\(--media-import-height\); \} \}/);
-  assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first \{[^}]*height: var\(--media-import-height\);[^}]*animation: media-import-first-size 360ms/);
+  assert.match(css, /@keyframes media-import-first-size \{\s*from \{ clip-path: inset\(0 0 max\(0px, calc\(100% - 240px\)\) 0\); \}\s*to \{ clip-path: inset\(0\); \}/);
+  assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first \{[^}]*height: var\(--media-import-height\);[^}]*animation: none/);
   assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first \{[^}]*overflow: visible;/);
-  assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first > \.block-crop-viewport \{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*animation: media-import-in 360ms/);
+  assert.match(css, /\.editor-mode \.strip-block\.is-import-ready\.is-import-first > \.block-crop-viewport \{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*animation: media-import-first-size var\(--media-import-duration\) var\(--media-import-easing\),\s*media-import-in/);
   assert.doesNotMatch(css, /\.media-import-block\.is-handoff\.is-leading/);
 });
 

@@ -190,6 +190,14 @@ test("the editor inserts six ready photos in one commit, after the captured bloc
   assert.equal(h.state.reveal.length, 0); assert.equal(h.state.started, false);
 });
 
+test("the morph target retains fractional photo height so cleanup cannot snap to its natural size", async () => {
+  const h = editor(), pending = h.addMedia(h.event);
+  h.requests[0].resolve({ media: [{ ...prepared[0], width: 1200, height: 900 }], failed: 0 });
+  await pending;
+  assert.equal(h.state.blocks[1].height, 292.5);
+  assert.equal(h.state.sizes["new-1"].height, 900);
+});
+
 test("cancelled imports cannot append to a different draft or move its selection", async () => {
   const h = editor(), pending = h.addMedia(h.event);
   h.request.current.abort();
