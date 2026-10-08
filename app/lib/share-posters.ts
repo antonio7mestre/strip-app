@@ -2,26 +2,25 @@ export const STORY_WIDTH = 1080;
 export const STORY_HEIGHT = 1920;
 // A real Instagram link sticker is much larger than a line of footer text.
 // All layouts reserve this clear area, with extra room around the sticker itself.
-// These are the approved gallery's cover and paper-frame limits. The footer
-// fits below the artwork, rather than shrinking approved covers to make room.
-export const POSTER_COVER_BOTTOM = 1600;
+// Keep the link clear of Story controls, with the cover and its frame above it.
+export const POSTER_COVER_BOTTOM = 1420;
 export const POSTER_CONTENT_BOTTOM = POSTER_COVER_BOTTOM + 28;
-export const LINK_STICKER_AREA = { x: 112, y: 1656, width: 856, height: 220 } as const;
-export const LINK_STICKER_TARGET = { x: 160, y: 1686, width: 760, height: 160 } as const;
+export const LINK_STICKER_AREA = { x: 112, y: 1476, width: 856, height: 220 } as const;
+export const LINK_STICKER_TARGET = { x: 160, y: 1506, width: 760, height: 160 } as const;
 export const SAVED_LINK_GUIDANCE_CENTER_Y = LINK_STICKER_TARGET.y + LINK_STICKER_TARGET.height / 2;
 export const SAVED_LINK_GUIDANCE_SCALE = 1.3;
 export const SAVED_LINK_PANEL_PADDING = 24;
 export const SAVED_LINK_PANEL_COLOR = "#D9D9D9";
 export const SAVED_LINK_PANEL_ROUNDNESS = 34 / 106;
 export const POSTER_DESIGNS = [
-  { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 710, width: 620, size: 80, gap: 28, front: "label", darkness: .12 },
-  { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 540, width: 670, size: 96, gap: 30, front: "naked", darkness: .72 },
-  { id: "portrait-atmosphere", name: "Portrait atmosphere", mode: "portrait-hero", x: 80, y: 530, width: 690, size: 80, gap: 32, front: "label", darkness: .5 },
-  { id: "photo-diptych", name: "Photo diptych", mode: "diptych", x: 230, y: 555, width: 630, size: 86, gap: 32, front: "paper", darkness: 0 },
-  { id: "sidecar-strip", name: "Sidecar Strip", mode: "sidecar", x: 414, y: 570, width: 560, size: 82, gap: 34, front: "label", darkness: 0 },
-  { id: "diagonal-cascade", name: "Diagonal cascade", mode: "cascade", x: 240, y: 670, width: 580, size: 82, gap: 30, front: "paper", darkness: .12 },
-  { id: "soft-memory", name: "Soft memory", mode: "soft-stack", x: 110, y: 450, width: 850, size: 90, gap: 38, front: "naked", darkness: .48 },
-  { id: "stepped-blocks", name: "Stepped blocks", mode: "steps", x: 90, y: 590, width: 710, size: 82, gap: 30, front: "paper", darkness: 0 },
+  { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 590, width: 620, size: 80, gap: 28, front: "label", darkness: .12 },
+  { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 420, width: 670, size: 96, gap: 30, front: "naked", darkness: .72 },
+  { id: "portrait-atmosphere", name: "Portrait atmosphere", mode: "portrait-hero", x: 80, y: 410, width: 690, size: 80, gap: 32, front: "label", darkness: .5 },
+  { id: "photo-diptych", name: "Photo diptych", mode: "diptych", x: 230, y: 435, width: 630, size: 86, gap: 32, front: "paper", darkness: 0 },
+  { id: "sidecar-strip", name: "Sidecar Strip", mode: "sidecar", x: 414, y: 450, width: 560, size: 82, gap: 34, front: "label", darkness: 0 },
+  { id: "diagonal-cascade", name: "Diagonal cascade", mode: "cascade", x: 240, y: 550, width: 580, size: 82, gap: 30, front: "paper", darkness: .12 },
+  { id: "soft-memory", name: "Soft memory", mode: "soft-stack", x: 110, y: 330, width: 850, size: 90, gap: 38, front: "naked", darkness: .48 },
+  { id: "stepped-blocks", name: "Stepped blocks", mode: "steps", x: 90, y: 470, width: 710, size: 82, gap: 30, front: "paper", darkness: 0 },
 ] as const;
 
 /** Gapless masonry. Each column fills the canvas, with staggered horizontal seams. */
@@ -225,7 +224,7 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string, la
 /** Measure the address after setting its actual font, never use a fixed-width badge. */
 export function posterLinkBounds(c: CanvasRenderingContext2D, address: string) {
   const width = Math.min(LINK_STICKER_TARGET.width, c.measureText(address).width + 48);
-  return { x: (STORY_WIDTH - width) / 2, y: 1690, width, height: 85 };
+  return { x: (STORY_WIDTH - width) / 2, y: LINK_STICKER_TARGET.y + 4, width, height: 85 };
 }
 
 function wrapPosterText(c: CanvasRenderingContext2D, text: string, width: number) {
@@ -245,7 +244,7 @@ function wrapPosterText(c: CanvasRenderingContext2D, text: string, width: number
   return lines;
 }
 
-/** Foreground artwork and title never enter the unchanged Instagram sticker area. */
+/** Foreground artwork and title never enter the raised Instagram sticker area. */
 export function posterCoverBounds(assets: PosterAssets, index: number) {
   const design = POSTER_DESIGNS[index] ?? POSTER_DESIGNS[0];
   const cover = assets.cover ?? assets.photos[0];

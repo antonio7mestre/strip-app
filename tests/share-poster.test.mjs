@@ -54,7 +54,7 @@ test("preview address containers hug the measured link, including long usernames
   for(const address of ["a.striiip.com","antonio.striiip.com","averylongbutvalidusername.striiip.com"]) {
     const box=posterLinkBounds(c,address);
     assert.equal(box.width,Math.min(LINK_STICKER_TARGET.width,c.measureText(address).width+48));
-    assert.equal(box.x+box.width/2,540);assert.equal(box.height,85);assert.equal(box.y,1690);
+    assert.equal(box.x+box.width/2,540);assert.equal(box.height,85);assert.equal(box.y,1510);
   }
   assert(posterLinkBounds(c,"a.striiip.com").width<posterLinkBounds(c,"antonio.striiip.com").width);
 });
@@ -186,11 +186,11 @@ test("saved cue balances two-line copy at three quarters of the badge height, wi
     assert(layout.panel.height<LINK_STICKER_AREA.height);
   }
 });
-test("Siblings cover sizes exactly preserve the approved gallery composition",()=>{
+test("all eight Siblings covers are refitted above the raised link while preserving their proportions",()=>{
   const expected=[
-    [350,710,890/1.5,890], [210,540,670,1005], [80,530,690,1035],
-    [230,555,630,945], [414,570,560,840], [240,670,580,870],
-    [110,450,1150/1.5,1150], [90,590,1010/1.5,1010],
+    [350,590,830/1.5,830], [210,420,1000/1.5,1000], [80,410,1010/1.5,1010],
+    [230,435,630,945], [414,450,560,840], [240,550,580,870],
+    [110,330,1090/1.5,1090], [90,470,950/1.5,950],
   ];
   for (let i=0;i<POSTER_DESIGNS.length;i++) {
     const data=assets(7,1.5),bounds=posterCoverBounds(data,i),[x,y,w,h]=expected[i];
@@ -200,6 +200,22 @@ test("Siblings cover sizes exactly preserve the approved gallery composition",()
     const {c,paints}=context();drawPoster(c,data,i,true);
     const footer=paints.at(-1);
     assert(footer.args[1]>=bounds.y+bounds.height+28);
+  }
+});
+test("preview links and saved cues move up together and remain clear of covers and bottom Story controls",()=>{
+  assert.equal(LINK_STICKER_TARGET.y,1506);
+  assert.equal(SAVED_LINK_GUIDANCE_CENTER_Y,1586);
+  assert.equal(POSTER_COVER_BOTTOM,1420);
+  for(const ratio of [.05,.5,1,1.5,3,20])for(let i=0;i<POSTER_DESIGNS.length;i++) {
+    const data=assets(7,ratio),preview=context(),saved=context(),bounds=posterCoverBounds(data,i);
+    drawPoster(preview.c,data,i);drawPoster(saved.c,data,i,true);
+    const address=preview.paints.at(-1).args,panel=saved.paints.at(-1).args;
+    const framedBottom=bounds.y+bounds.height+28;
+    assert(address[1]>=framedBottom+28);
+    assert(panel[1]>=framedBottom+28);
+    assert(STORY_HEIGHT-address[1]-address[3]>=250);
+    assert(STORY_HEIGHT-panel[1]-panel[3]>=250);
+    assert.deepEqual(preview.commands.slice(0,-2),saved.commands.slice(0,preview.commands.length-2));
   }
 });
 test("approved title sizes and theme-colored dark panels survive production transfer",()=>{
