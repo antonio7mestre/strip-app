@@ -3428,7 +3428,6 @@ html:has(.story-share-boundary) body {
 .story-share-messages-icon { display: block; width: 76px; height: 76px; }
 .story-share-save-icon {
   border-radius: 50%;
-  box-shadow: 0 0 24px 12px rgba(48, 77, 255, 0.55), 0 0 56px 22px rgba(48, 77, 255, 0.2);
 }
 .story-share-messages-icon { border-radius: 22.5%; }
 
