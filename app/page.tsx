@@ -6005,6 +6005,7 @@ export default function Home() {
         },
       });
       const result = await finished;
+      if (result !== "cancelled") posters.remember(storyAssetFile);
       if (storyShareAttemptRef.current === attempt) {
         setStoryShareConfirmation(getStoryShareConfirmation(result, null));
       }
@@ -7449,7 +7450,7 @@ export default function Home() {
               <h1 id="share-heading">Pick your story poster</h1>
             </header>
 
-            <SharePosterPicker previews={posters.previews} index={posters.index} onSelect={posters.select} />
+            <SharePosterPicker previews={posters.previews} index={posters.index} onSelect={posters.select} designs={posters.designs} />
 
             <div className="poster-picker-meta">
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}

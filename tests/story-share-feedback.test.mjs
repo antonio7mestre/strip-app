@@ -22,7 +22,7 @@ function harness({supported=true}={}){
   share:()=>{events.push("share");return share.promise;},
  };
  runInNewContext(compiled,{
-  exports,storyShareInFlightRef:gate,storyShareAttemptRef:attempt,
+  exports,storyShareInFlightRef:gate,storyShareAttemptRef:attempt,posters:{remember:()=>events.push("remember")},
   openedPublishedStrip:{id:"test"},storyAssetFile:new File(["image"],"story.png",{type:"image/png"}),storyAssetLoading:false,
   publicStripUrl:()=>"https://example.com/test",getStoryShareConfirmation,
   beginStoryShare:(data,url,callbacks)=>beginStoryShare(data,url,callbacks,browser),
@@ -64,6 +64,7 @@ test("real page handler shows image feedback immediately, then only confirms a r
  h.share.resolve();await running;
  assert.equal(h.sheet,false);assert.equal(h.gate.current,false);
  assert.deepEqual(h.confirmation,{image:"Story image saved or shared",copied:null});
+ assert.equal(h.events.filter(event=>event==="remember").length,1);
  h.copy.resolve();await tick();
  assert.deepEqual(h.confirmation,{image:"Story image saved or shared",copied:true});
 });
@@ -71,6 +72,7 @@ test("cancel reports only the copied link and never says the image was saved",as
  const h=harness(),running=h.run();h.copy.resolve();h.share.reject(new DOMException("Cancelled","AbortError"));
  await running;await tick();
  assert.deepEqual(h.confirmation,{image:null,copied:true});assert.equal(h.downloads,0);
+ assert.equal(h.events.filter(event=>event==="remember").length,0);
 });
 test("clipboard failure retains the image result without claiming a copied link",async()=>{
  const h=harness(),running=h.run();h.copy.reject(new Error("denied"));h.share.resolve();

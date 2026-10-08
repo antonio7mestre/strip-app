@@ -5,27 +5,60 @@ export const STORY_HEIGHT = 1920;
 export const POSTER_CONTENT_BOTTOM = 1480;
 export const LINK_STICKER_AREA = { x: 112, y: 1520, width: 856, height: 300 } as const;
 export const LINK_STICKER_TARGET = { x: 160, y: 1590, width: 760, height: 160 } as const;
+export const SAVED_LINK_PANEL = { x: 112, y: 1536, width: 856, height: 268 } as const;
+export const SAVED_LINK_GUIDANCE_SCALE = 1.3;
 export const POSTER_DESIGNS = [
-  { id: "loud", name: "Cover story" },
-  { id: "contact", name: "Contact sheet" },
-  { id: "sideways", name: "Side note" },
-  { id: "billboard", name: "Cut across" },
-  { id: "booth", name: "Little receipt" },
-  { id: "split", name: "Two of us" },
-  { id: "scrapbook", name: "Loose ends" },
-  { id: "type", name: "A little note" },
-  { id: "bleed", name: "In the frame" },
-  { id: "scan", name: "Color study" },
+  { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 710, width: 620, size: 80, gap: 28, front: "label", darkness: .12 },
+  { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 540, width: 670, size: 96, gap: 30, front: "naked", darkness: .72 },
+  { id: "portrait-atmosphere", name: "Portrait atmosphere", mode: "portrait-hero", x: 80, y: 530, width: 690, size: 80, gap: 32, front: "label", darkness: .5 },
+  { id: "photo-diptych", name: "Photo diptych", mode: "diptych", x: 230, y: 555, width: 630, size: 86, gap: 32, front: "paper", darkness: 0 },
+  { id: "sidecar-strip", name: "Sidecar Strip", mode: "sidecar", x: 414, y: 570, width: 560, size: 82, gap: 34, front: "label", darkness: 0 },
+  { id: "diagonal-cascade", name: "Diagonal cascade", mode: "cascade", x: 240, y: 670, width: 580, size: 82, gap: 30, front: "paper", darkness: .12 },
+  { id: "soft-memory", name: "Soft memory", mode: "soft-stack", x: 110, y: 450, width: 850, size: 90, gap: 38, front: "naked", darkness: .48 },
+  { id: "stepped-blocks", name: "Stepped blocks", mode: "steps", x: 90, y: 590, width: 710, size: 82, gap: 30, front: "paper", darkness: 0 },
 ] as const;
 
+/** Gapless masonry. Each column fills the canvas, with staggered horizontal seams. */
+export function steppedPosterTiles(heights: number[]) {
+  const columns: number[][] = [[], []], totals = [0, 0];
+  heights.forEach((height, index) => {
+    const column = totals[0] <= totals[1] ? 0 : 1;
+    columns[column].push(index); totals[column] += Math.max(150, height);
+  });
+  const cells: { index: number; x: number; y: number; width: number; height: number }[] = [];
+  columns.forEach((indices, column) => {
+    let y = 0;
+    indices.forEach((index, position) => {
+      const bottom = position === indices.length - 1 ? STORY_HEIGHT
+        : y + Math.max(150, heights[index]) / totals[column] * STORY_HEIGHT;
+      cells.push({ index, x: column * 540, y, width: columns[1].length ? 540 : STORY_WIDTH, height: bottom - y });
+      y = bottom;
+    });
+  });
+  return cells.sort((a, b) => a.index - b.index);
+}
+
+export type PosterBlock = {
+  id?: string; type: string; mediaType?: string; src?: string; content?: string;
+  backgroundColor?: string; textColor?: string; fontStyle?: string; fontSize?: number;
+  height?: number; cropTop?: number; cropBottom?: number;
+  x?: number; y?: number; width?: number; rotation?: number;
+};
 export type PosterStrip = {
   id: string; title: string; username?: string | null;
-  cover: { kind: string; src?: string; color?: string };
-  blocks: { type: string; mediaType?: string; src?: string; content?: string; backgroundColor?: string; textColor?: string }[];
+  cover: { kind: string; src?: string; color?: string; shape?: string };
+  blocks: PosterBlock[];
+  profileBackground?: string; profileTextColor?: string; profileFont?: string;
   endingStyle?: { backgroundColor?: string; buttonColor?: string };
 };
 export type PosterPhoto = { source: CanvasImageSource; width: number; height: number };
-export type PosterAssets = { title: string; address: string; palette: string[]; photos: PosterPhoto[] };
+export type PosterTile = PosterPhoto & { id: string; type: string; top: number; flowHeight: number; color?: string };
+export type PosterAssets = {
+  title: string; address: string; palette: string[]; photos: PosterPhoto[];
+  cover?: PosterPhoto | null; coverColor?: string; coverRatio?: number;
+  theme?: { background: string; ink: string; font: string; weight: number; scale?: number };
+  tiles?: PosterTile[]; flow?: PosterPhoto;
+};
 
 export function posterColor(value?: string) {
   if (!value) return null;
@@ -34,7 +67,7 @@ export function posterColor(value?: string) {
     : /^[\da-f]{6}$/i.test(raw) ? `#${raw.toUpperCase()}` : null;
 }
 export function posterPalette(strip: PosterStrip) {
-  const colors = [strip.cover.color, ...strip.blocks.flatMap(b => [b.backgroundColor, b.textColor]), strip.endingStyle?.backgroundColor, strip.endingStyle?.buttonColor];
+  const colors = [strip.profileBackground, strip.profileTextColor, strip.cover.color, ...strip.blocks.flatMap(b => [b.backgroundColor, b.textColor]), strip.endingStyle?.backgroundColor, strip.endingStyle?.buttonColor];
   const unique = [...new Set(colors.map(posterColor).filter((c): c is string => !!c))];
   // Actual strip colors first. Black/white remain the brand's neutral ink.
   const chromatic = unique.filter(c => {
@@ -44,10 +77,9 @@ export function posterPalette(strip: PosterStrip) {
   return [...chromatic, ...unique.filter(c => !chromatic.includes(c))].slice(0, 6);
 }
 export function posterMedia(strip: PosterStrip) {
-  const sources = [...(strip.cover.kind === "image" && strip.cover.src ? [strip.cover.src] : []), ...strip.blocks.filter(b => b.type === "image" || (b.type === "sticker" && b.mediaType !== "video")).flatMap(b => b.src ? [b.src] : [])];
-  const all = [...new Set(sources)].filter(s => !/\.(mp4|mov|webm)(?:\?|$)/i.test(s));
-  if (all.length <= 8) return all;
-  return Array.from({ length: 8 }, (_, i) => all[Math.round(i * (all.length - 1) / 7)]);
+  // Order and repetitions belong to the Strip. Only network requests are deduplicated.
+  return [...new Set([...(strip.cover.kind === "image" && strip.cover.src ? [strip.cover.src] : []),
+    ...strip.blocks.flatMap(block => block.src ? [block.src] : [])])];
 }
 export function posterInk(color: string) {
   const channels = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
@@ -143,146 +175,180 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
   c.restore();
 }
 
-/** Every layout uses the same full-image renderer for preview and 1080×1920 export. */
-export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, index: number, saved = false) {
-  const { photos } = assets;
-  const title = (assets.title || "").trim();
-  const palette = posterBackgrounds(assets.palette);
-  const [accent, second, third] = palette, ink = posterInk(accent);
-  const count = Math.max(1, photos.length);
-  const fill = (color: string, x = 0, y = 0, w = STORY_WIDTH, h = STORY_HEIGHT) => {
-    c.fillStyle = color; c.fillRect(x, y, w, h);
-  };
-  const drawTitle = (x: number, y: number, width: number, height: number, color = ink, align: CanvasTextAlign = "left") => {
-    if (!title) return;
-    let size = 48, lines: string[] = [];
-    for (; size >= 18; size -= 2) {
-      c.font = `500 ${size}px ${SANS}`;
-      lines = []; let line = "";
-      for (const word of title.split(/\s+/)) {
-        const next = line ? `${line} ${word}` : word;
-        if (c.measureText(next).width <= width) { line = next; continue; }
-        if (line) { lines.push(line); line = ""; }
-        // A long unbroken title must fit too, without cropping or ellipses.
-        for (const letter of word) {
-          if (line && c.measureText(line + letter).width > width) { lines.push(line); line = ""; }
-          line += letter;
-        }
-      }
-      if (line) lines.push(line);
-      if (lines.length * size * 1.2 <= height) break;
-    }
-    c.fillStyle = color; c.textAlign = align; c.textBaseline = "top";
-    const left = align === "center" ? x + width / 2 : x;
-    const top = y + (height - lines.length * size * 1.2) / 2;
-    lines.forEach((line, i) => c.fillText(line, left, top + i * size * 1.2, width));
-  };
-  const photo = (i: number, x: number, y: number, w: number, h: number, rotation = 0) => {
-    const p = photos.length ? photos[i % photos.length] : null;
-    const dimensions = fitPosterPhoto(p?.width || 4, p?.height || 3, w, h, rotation);
-    const bounds = { x: x + (w - dimensions.width) / 2, y: y + (h - dimensions.height) / 2, ...dimensions };
-    c.save(); c.translate(x + w / 2, y + h / 2); c.rotate(rotation * Math.PI / 180);
-    if (p) {
-      // Full source rectangle, always. No crop, stretching, masks, or images over images.
-      c.drawImage(p.source, 0, 0, p.width, p.height, -dimensions.width / 2, -dimensions.height / 2, dimensions.width, dimensions.height);
-    } else {
-      // Image-free strips become color compositions, never invented text.
-      fill(palette[i % palette.length], -dimensions.width / 2, -dimensions.height / 2, dimensions.width, dimensions.height);
-      fill(palette[(i + 1) % palette.length], -dimensions.width / 2, dimensions.height * .2, dimensions.width, dimensions.height * .3);
-    }
-    c.restore();
-    return bounds;
-  };
+/** Measure the address after setting its actual font, never use a fixed-width badge. */
+export function posterLinkBounds(c: CanvasRenderingContext2D, address: string) {
+  const width = Math.min(LINK_STICKER_TARGET.width, c.measureText(address).width + 48);
+  return { x: (STORY_WIDTH - width) / 2, y: 1636, width, height: 68 };
+}
 
-  c.save(); c.setTransform(c.canvas.width / STORY_WIDTH, 0, 0, c.canvas.height / STORY_HEIGHT, 0, 0);
-  fill(accent);
-  switch (index) {
-    case 0: { // Full cover above a low color plinth.
-      fill(second, 0, 1500, 1080, 420);
-      const image = photo(0, 100, title ? 465 : 385, 880, title ? 930 : 1030);
-      drawTitle(100, image.y - 172, 880, 140, ink, "center");
-      break;
-    }
-    case 1: { // A contact sheet with an authored-color edge instead of black.
-      fill(second); fill(accent, 0, 0, 32, 1920); fill(accent, 88, 1450, 904, 24);
-      drawTitle(88, 240, 904, 140, posterInk(second));
-      const n = Math.min(count, 6), columns = n === 1 ? 1 : 2, rows = Math.ceil(n / columns);
-      const gap = 40, cellWidth = (904 - gap * (columns - 1)) / columns;
-      const start = title ? 480 : 340, cellHeight = ((title ? 920 : 1060) - gap * (rows - 1)) / rows;
-      for (let i = 0; i < n; i++) photo(i, 88 + (i % columns) * (cellWidth + gap), start + Math.floor(i / columns) * (cellHeight + gap), cellWidth, cellHeight);
-      break;
-    }
-    case 2: { // A colored spine and a complete image beside it.
-      fill(second, 0, 0, 180, POSTER_CONTENT_BOTTOM);
-      photo(0, 220, 365, 768, 1060);
-      c.save(); c.translate(70, 1450); c.rotate(-Math.PI / 2);
-      drawTitle(0, 0, 1100, 70, posterInk(second), "center"); c.restore();
-      break;
-    }
-    case 3: { // Two cut-paper color fields, not a box inside another box.
-      fill(second);
-      c.fillStyle = accent;
-      c.beginPath(); c.moveTo(0, 0); c.lineTo(1080, 0);
-      c.lineTo(1080, 700); c.lineTo(0, 1120); c.closePath(); c.fill();
-      if (third !== accent && third !== second) {
-        c.fillStyle = third;
-        c.beginPath(); c.moveTo(0, 1120); c.lineTo(1080, 700);
-        c.lineTo(1080, 728); c.lineTo(0, 1148); c.closePath(); c.fill();
-      }
-      drawTitle(88, photos.length ? 245 : 420, 904, 140);
-      // A photo bridges the diagonal. Image-free strips keep the pure color
-      // composition instead of drawing a fake photo-shaped placeholder.
-      if (photos.length) photo(0, 120, title ? 440 : 340, 840, title ? 980 : 1080);
-      break;
-    }
-    case 4: { // A long paper insert. No receipt copy or numbering.
-      fill(second, 150, 220, 780, 1260);
-      drawTitle(212, 258, 656, 132, posterInk(second));
-      const n = Math.min(count, 3), start = title ? 430 : 300;
-      const height = ((title ? 980 : 1110) - (n - 1) * 32) / n;
-      for (let i = 0; i < n; i++) photo(i, 212, start + i * (height + 32), 656, height);
-      break;
-    }
-    case 5: { // A diptych across a second-color band.
-      fill(second, 0, 440, 1080, 1020);
-      drawTitle(110, 290, 860, 140, ink, "center");
-      const n = Math.min(count, 2), w = n === 1 ? 860 : 410;
-      for (let i = 0; i < n; i++) photo(i, 110 + i * 450, title ? 500 : 380, w, title ? 900 : 1040);
-      break;
-    }
-    case 6: { // Loose placement, with color tabs behind the fully visible photos.
-      fill(second); fill(accent, 0, title ? 398 : 270, 310, 50); fill(accent, 710, 1440, 370, 32);
-      drawTitle(88, 245, 904, 140, posterInk(second));
-      const n = Math.min(count, 3), start = title ? 450 : 340;
-      const slotHeight = ((title ? 960 : 1070) - (n - 1) * 44) / n;
-      for (let i = 0; i < n; i++) photo(i, i % 2 ? 230 : 88, start + i * (slotHeight + 44), 760, slotHeight, i % 2 ? 5 : -5);
-      break;
-    }
-    case 7: { // An image above a solid caption band, or a wordless color base.
-      fill(second, 0, title ? 1320 : 1460, 1080, title ? 600 : 460);
-      photo(0, 100, title ? 330 : 310, 880, title ? 920 : 1110);
-      drawTitle(100, 1330, 880, 130, posterInk(second));
-      break;
-    }
-    case 8: { // A flat two-color mat, never a full-bleed crop.
-      fill(second, 54, 160, 972, 1760);
-      drawTitle(130, 235, 820, 138, posterInk(second));
-      photo(0, 130, title ? 420 : 290, 820, title ? 990 : 1120);
-      fill(third, 130, 1450, 820, 22);
-      break;
-    }
-    default: { // Colored rails and a small swatch row surround the intact cover.
-      fill(second, 0, 0, 62, 1920); fill(second, 1018, 0, 62, 1920);
-      drawTitle(145, 270, 790, 140, ink, "center");
-      const image = photo(0, 145, title ? 490 : 410, 790, title ? 900 : 980);
-      for (let i = 0; i < palette.length; i++) fill(palette[i], 360 + i * 120, image.y + image.height + 54, 120, 24);
+function wrapPosterText(c: CanvasRenderingContext2D, text: string, width: number) {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    const next = line ? `${line} ${word}` : word;
+    if (c.measureText(next).width <= width) { line = next; continue; }
+    if (line) { lines.push(line); line = ""; }
+    // Keep unbroken usernames and every title character, without an ellipsis.
+    for (const letter of word) {
+      if (line && c.measureText(line + letter).width > width) { lines.push(line); line = ""; }
+      line += letter;
     }
   }
-  // Previews keep the real address; the saved story leaves a place for a link sticker.
-  c.fillStyle = posterInk([0, 1, 3, 6, 7, 8].includes(index) ? second : accent);
-  c.font = '400 24px "Courier New", monospace';
-  c.textAlign = "center"; c.textBaseline = "top";
-  if (saved) drawLinkStickerHint(c, c.fillStyle);
-  else c.fillText(assets.address || "striiip.com", 540, LINK_STICKER_TARGET.y + (LINK_STICKER_TARGET.height - 24) / 2, LINK_STICKER_TARGET.width - 80);
+  if (line) lines.push(line);
+  return lines;
+}
+
+/** Foreground artwork and title never enter the unchanged Instagram sticker area. */
+export function posterCoverBounds(assets: PosterAssets, index: number) {
+  const design = POSTER_DESIGNS[index] ?? POSTER_DESIGNS[0];
+  const cover = assets.cover ?? assets.photos[0];
+  const ratio = cover ? cover.height / cover.width : assets.coverRatio ?? 1;
+  const height = Math.min(POSTER_CONTENT_BOTTOM - design.y - 28, design.width * ratio);
+  const width = Math.min(design.width, height / ratio);
+  // Very thin images retain their entire source without making the title unreadable.
+  const boxWidth = width < 180 ? design.width : width;
+  return { x: design.x, y: design.y, width: boxWidth, height, imageWidth: width };
+}
+
+function drawFitted(c: CanvasRenderingContext2D, photo: PosterPhoto,
+  x: number, y: number, width: number, height: number, contain = false) {
+  const scale = contain ? Math.min(width / photo.width, height / photo.height)
+    : Math.max(width / photo.width, height / photo.height);
+  const w = photo.width * scale, h = photo.height * scale;
+  c.save(); c.beginPath(); c.rect(x,y,width,height); c.clip();
+  c.drawImage(photo.source,0,0,photo.width,photo.height,x+(width-w)/2,y+(height-h)/2,w,h);
+  c.restore();
+}
+
+/** Preview and PNG export share one composition. Only the link-sticker cue differs. */
+export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, index: number, saved = false) {
+  const design = POSTER_DESIGNS[index] ?? POSTER_DESIGNS[0];
+  const colors = posterBackgrounds(assets.palette);
+  const theme = assets.theme ?? { background: colors[0], ink: posterInk(colors[0]), font: SANS, weight: 500 };
+  const mat = posterInk(theme.ink);
+  const tiles: PosterTile[] = assets.tiles ?? assets.photos.map((photo,i) => ({
+    ...photo, id: String(i), type: "image", top: 0, flowHeight: photo.height / photo.width * 390,
+  }));
+  const fill = (color: string,x=0,y=0,w=1080,h=1920) => { c.fillStyle=color; c.fillRect(x,y,w,h); };
+  const tile = (i: number,x: number,y: number,w: number,h: number,rotation=0) => {
+    const p=tiles[i]; if (!p) return;
+    c.save(); c.translate(x+w/2,y+h/2); c.rotate(rotation*Math.PI/180);
+    fill(p.color ?? theme.background,-w/2,-h/2,w,h);
+    drawFitted(c,p,-w/2,-h/2,w,h,p.type==="text");
+    c.restore();
+  };
+  const stack = (x: number,y: number,w: number,h: number) => {
+    if (assets.flow) {
+      c.drawImage(assets.flow.source,0,0,assets.flow.width,assets.flow.height,x,y,w,h);
+      return;
+    }
+    const total=tiles.reduce((sum,p)=>sum+p.flowHeight,0); let top=y;
+    tiles.forEach((p,i)=>{const height=p.flowHeight/total*h;tile(i,x,top,w,height);top+=height;});
+  };
+  const grid = (gap=48) => {
+    const rows=Math.max(1,Math.ceil(tiles.length/2)),w=(1080-3*gap)/2,h=(1920-(rows+1)*gap)/rows;
+    // Tiny cells must still stay finite on exceptionally long Strips.
+    const g=Math.min(gap,1920/(rows+1)*.2),cellHeight=(1920-(rows+1)*g)/rows;
+    tiles.forEach((_,i)=>tile(i,g+(i%2)*(w+g),g+Math.floor(i/2)*(cellHeight+g),
+      i===tiles.length-1 && tiles.length%2 ? 1080-2*g : w,Math.max(1,h>0?h:cellHeight)));
+  };
+  c.save(); c.setTransform(c.canvas.width/STORY_WIDTH,0,0,c.canvas.height/STORY_HEIGHT,0,0);
+  fill(theme.background);
+  switch (design.mode) {
+    case "masonry": {
+      if (tiles.length===7) {
+        [[40,40,470,640],[540,40,500,360],[540,430,500,650],[40,710,470,450],
+          [40,1190,470,690],[540,1110,500,220],[540,1360,500,520]]
+          .forEach(([x,y,w,h],i)=>tile(i,x,y,w,h));
+      } else {
+        const columns: number[][]=[[],[]],heights=[0,0];
+        tiles.forEach((p,i)=>{const column=heights[0]<=heights[1]?0:1;columns[column].push(i);
+          heights[column]+=Math.max(150,p.flowHeight);});
+        columns.forEach((indices,column)=>{
+          const gap=Math.min(30,1800/Math.max(1,indices.length)*.15);
+          const available=1840-gap*Math.max(0,indices.length-1); let y=40;
+          indices.forEach(i=>{const h=Math.max(150,tiles[i].flowHeight)/heights[column]*available;
+            tile(i,column===0?40:540,y,column===0?470:500,h);y+=h+gap;});
+        });
+      }
+      break;
+    }
+    case "night-grid": grid(); break;
+    case "steps":
+      steppedPosterTiles(tiles.map(p => p.flowHeight)).forEach(cell =>
+        tile(cell.index, cell.x, cell.y, cell.width, cell.height));
+      break;
+    case "portrait-hero": {
+      const photos=tiles.map((p,i)=>({p,i})).filter(({p})=>p.type!=="text");
+      const hero=photos[1] ?? photos[0];
+      if (hero) drawFitted(c,hero.p,0,0,1080,1920);
+      const others=tiles.map((_,i)=>i).filter(i=>i!==hero?.i);
+      const slots=[[690,60,330,495],[0,0,450,180],[0,1260,530,240],
+        [720,1410,360,510],[0,1500,700,130],[0,1630,700,290]];
+      if (others.length<=slots.length) others.forEach((i,j)=>{const [x,y,w,h]=slots[j];tile(i,x,y,w,h);});
+      else others.forEach((i,j)=>{const h=1920/Math.ceil(others.length/2);
+        tile(i,j%2?750:0,Math.floor(j/2)*h,j%2?330:450,h);});
+      break;
+    }
+    case "diptych": {
+      if (tiles.length===7) {
+        [[0,0,540,780],[0,780,540,220],[540,0,540,780],[540,780,540,220],
+          [0,1000,540,920],[540,1000,540,220],[540,1220,540,700]]
+          .forEach(([x,y,w,h],i)=>tile(i,x,y,w,h));
+      } else grid(0);
+      break;
+    }
+    case "sidecar": stack(0,0,334,1920);fill(theme.ink,334,0,12,1920); break;
+    case "cascade": {
+      const slots=[[-65,-30,500,640,-12],[510,130,560,200,9],[550,400,530,680,8],
+        [25,740,600,235,-7],[-30,1120,590,750,10],[510,1450,560,180,-6],[550,1690,530,310,6]];
+      const bands=Math.max(1,Math.ceil(tiles.length/slots.length));
+      tiles.forEach((_,i)=>{const [x,y,w,h,r]=slots[i%slots.length];
+        tile(i,x,((Math.floor(i/slots.length)*1920)+y)/bands,w,h/bands,r);});
+      break;
+    }
+    case "soft-stack":
+      c.save(); c.filter="blur(28px)";stack(-45,-45,1170,2010);c.restore();break;
+  }
+  if (design.darkness) fill(`rgba(0,0,0,${design.darkness})`);
+  const bounds=posterCoverBounds(assets,index),cover=assets.cover ?? assets.photos[0];
+  const title=(assets.title || "").trim();
+  let size: number=design.size*("scale" in theme ? theme.scale ?? 1 : 1),lines: string[]=[];
+  do {
+    c.font=`${theme.weight} ${size}px ${theme.font}`;
+    lines=wrapPosterText(c,title,bounds.width);
+    if (lines.length<=2) break;
+    size-=2;
+  } while(size>18);
+  // Extreme titles keep all text inside their allocated space, never over the cover.
+  const lineHeight=size*1.07;
+  const titleHeight=lines.length*lineHeight,titleY=bounds.y-design.gap-titleHeight;
+  const dark=design.front==="naked";
+  if (design.front==="paper") fill(mat,bounds.x-28,titleY-28,bounds.width+56,bounds.y+bounds.height+28-titleY+28);
+  if (design.front==="label" && title) fill(mat,bounds.x-12,titleY-12,bounds.width+24,titleHeight+24);
+  if (cover) {
+    c.drawImage(cover.source,0,0,cover.width,cover.height,
+      bounds.x+(bounds.width-bounds.imageWidth)/2,bounds.y,bounds.imageWidth,bounds.height);
+  } else fill(assets.coverColor ?? colors[0],bounds.x,bounds.y,bounds.width,bounds.height);
+  c.fillStyle=dark?"#FFFFFF":theme.ink;
+  c.textAlign="left"; c.textBaseline="top"; c.font=`${theme.weight} ${size}px ${theme.font}`;
+  lines.forEach((line,i)=>c.fillText(line,bounds.x,titleY+i*lineHeight,bounds.width));
+
+  // Preserve the existing save cue and its footprint. Never export a fake live link.
+  if (saved) {
+    const ink=dark?"#FFFFFF":theme.ink;
+    // Use the reserved footer, with generous vertical padding around the cue.
+    const panel=SAVED_LINK_PANEL;
+    fill(dark?"#000000":mat,panel.x,panel.y,panel.width,panel.height);
+    c.save();c.translate(540,1670);c.scale(SAVED_LINK_GUIDANCE_SCALE,SAVED_LINK_GUIDANCE_SCALE);
+    c.translate(-540,-1670);drawLinkStickerHint(c,ink);c.restore();
+  } else {
+    const address=assets.address || "striiip.com";
+    c.font=`${theme.weight} 36px ${theme.font}`;
+    const badge=posterLinkBounds(c,address);
+    fill(dark?"#000000":mat,badge.x,badge.y,badge.width,badge.height);
+    c.fillStyle=dark?"#FFFFFF":theme.ink;c.textAlign="center";c.textBaseline="middle";
+    c.fillText(address,540,badge.y+badge.height/2,badge.width-48);
+  }
   c.restore();
 }
