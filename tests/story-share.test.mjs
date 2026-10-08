@@ -80,7 +80,7 @@ test("Messages guidance uses bundled Apple artwork, without a remote image depen
 });
 test("native share keeps the poster visible behind bright guidance",()=>{
  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
- const backdrop=css.match(/\.story-share-backdrop\s*\{([^}]+)\}/)?.[1];
+ const backdrop=css.match(/\.story-share-dimmer\s*\{([^}]+)\}/)?.[1];
  assert.match(backdrop,/background: linear-gradient\(to bottom, rgba\(0, 0, 0, 0\.72\) 0 var\(--story-share-dock-top/);
  assert.doesNotMatch(backdrop,/(?:^|;)\s*opacity\s*:/);
  assert.match(css,/\.story-share-hint\s*\{[^}]*color: #fff/);

@@ -3381,14 +3381,20 @@ html:has(.story-share-boundary) body {
   left: 0;
   width: 100%;
   min-height: 100lvh;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72) 0 var(--story-share-dock-top, 100%), transparent var(--story-share-dock-top, 100%));
   touch-action: none;
+}
+
+.story-share-dimmer {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72) 0 var(--story-share-dock-top, 100%), transparent var(--story-share-dock-top, 100%));
 }
 
 .story-share-boundary[data-phase="closing"] {
   pointer-events: none;
 }
-.story-share-boundary[data-phase="closing"] .story-share-backdrop {
+.story-share-boundary[data-phase="closing"] .story-share-dimmer {
   animation: story-share-dismiss 320ms ease-out both;
 }
 @keyframes story-share-dismiss {
@@ -3424,16 +3430,27 @@ html:has(.story-share-boundary) body {
 
 .story-share-save-beacon { display: none; pointer-events: none; }
 
-/* Native controls expose no bounds to the web. These proportions match the
-   supplied iPhone portrait tray: the second round action, not its label.
-   Keep the disc a constant size while pulsing, with no oversized glow. */
+.composer-dock.story-share-document-dock {
+  position: absolute;
+  right: auto;
+  bottom: auto;
+  min-height: 0;
+  transform: none;
+  translate: none;
+  animation: none;
+  transition: none;
+  pointer-events: none;
+}
+
+/* Match the native Save Image action size. Keep the cue above our dock paint;
+   Safari's own obscured-inset fill remains outside the page stacking order. */
 @supports (-webkit-touch-callout: none) {
   @media (max-width: 600px) and (orientation: portrait) and (pointer: coarse) {
     .story-share-save-beacon {
       display: block;
       visibility: hidden;
       position: absolute;
-      z-index: 1;
+      z-index: 2147483647;
       left: 39%;
       bottom: 104px;
       width: clamp(60px, 17vw, 76px);
@@ -3455,7 +3472,7 @@ html:has(.story-share-boundary) body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .story-share-boundary[data-phase="closing"] .story-share-backdrop { animation-duration: 0ms; }
+  .story-share-boundary[data-phase="closing"] .story-share-dimmer { animation-duration: 0ms; }
 }
 
 .story-share-confirmation {

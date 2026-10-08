@@ -40,7 +40,7 @@ test("quick cancel, navigation, and a new attempt cancel the old reveal", () => 
     const s = setup(); s.schedule(phase)(); assert.equal(s.pending.size, 0);
   }
 });
-test("the toolbar remains untouched and dismissal has no slide", () => {
+test("the toolbar stays stationary and dismissal has no slide", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   const component = readFileSync(new URL("../app/components/StoryShareBackdrop.tsx", import.meta.url), "utf8");
   assert.match(component, /data-phase=\{motion.phase\}/);
