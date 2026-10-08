@@ -81,7 +81,7 @@ test("Messages guidance uses bundled Apple artwork, without a remote image depen
 test("native share keeps the poster visible behind bright guidance",()=>{
  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
  const backdrop=css.match(/\.story-share-dimmer\s*\{([^}]+)\}/)?.[1];
- assert.match(backdrop,/background: linear-gradient\(to bottom, rgba\(0, 0, 0, 0\.72\) 0 var\(--story-share-dock-top/);
+ assert.match(backdrop,/background: linear-gradient\(to bottom, rgba\(0, 0, 0, 0\.86\) 0 var\(--story-share-dock-top/);
  assert.doesNotMatch(backdrop,/(?:^|;)\s*opacity\s*:/);
  assert.match(css,/\.story-share-hint\s*\{[^}]*color: #fff/);
 });
@@ -117,8 +117,8 @@ test("tray beacon is a noninteractive, gentle iPhone glow that stops after the s
  assert.match(css,/\.story-share-save-beacon \{ display: none; pointer-events: none; \}/);
  assert.match(css,/@supports \(-webkit-touch-callout: none\)[\s\S]*?left: 39%/);
  assert.match(css,/bottom: 104px/);
- assert.match(css,/story-share-beacon-pulse 1\.6s ease-in-out infinite/);
+ assert.match(css,/story-share-beacon-pulse 0\.9s ease-in-out infinite/);
  assert.doesNotMatch(css,/\.story-share-save-beacon \{ animation: none; opacity: 0\.85; \}/);
  assert.match(css,/30svh - 62px/);
- assert.match(css,/\.story-share-or \{[^}]*translateY\(-14px\)/);
+ assert.match(css,/\.story-share-or \{[^}]*translateY\(-17px\)/);
 });

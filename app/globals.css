@@ -3388,7 +3388,7 @@ html:has(.story-share-boundary) body {
   position: absolute;
   z-index: 1;
   inset: 0;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72) 0 var(--story-share-dock-top, 100%), transparent var(--story-share-dock-top, 100%));
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.86) 0 var(--story-share-dock-top, 100%), transparent var(--story-share-dock-top, 100%));
 }
 
 .story-share-boundary[data-phase="closing"] {
@@ -3411,7 +3411,7 @@ html:has(.story-share-boundary) body {
   right: 24px;
   margin: 0;
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
   text-align: center;
@@ -3421,11 +3421,15 @@ html:has(.story-share-boundary) body {
   gap: 20px;
 }
 
-.story-share-option { display: grid; justify-items: center; gap: 10px; }
+.story-share-option { display: grid; justify-items: center; gap: 12px; }
 .story-share-hint p { margin: 0; white-space: nowrap; }
-.story-share-or { opacity: 0.65; font-weight: 400; transform: translateY(-14px); }
+.story-share-or { opacity: 0.65; font-weight: 400; transform: translateY(-17px); }
 .story-share-save-icon,
-.story-share-messages-icon { display: block; width: 56px; height: 56px; }
+.story-share-messages-icon { display: block; width: 76px; height: 76px; }
+.story-share-save-icon {
+  border-radius: 50%;
+  box-shadow: 0 0 24px 12px rgba(48, 77, 255, 0.55), 0 0 56px 22px rgba(48, 77, 255, 0.2);
+}
 .story-share-messages-icon { border-radius: 22.5%; }
 
 .story-share-save-beacon { display: none; pointer-events: none; }
@@ -3461,7 +3465,7 @@ html:has(.story-share-boundary) body {
     }
     .story-share-boundary[data-phase="covered"] .story-share-save-beacon {
       visibility: visible;
-      animation: story-share-beacon-pulse 1.6s ease-in-out infinite;
+      animation: story-share-beacon-pulse 0.9s ease-in-out infinite;
     }
   }
 }

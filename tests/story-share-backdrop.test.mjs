@@ -51,7 +51,7 @@ test("a stationary document-painted bar removes Safari's fixed white fill only w
 test("only the dimmer fades, never the white toolbar paint", () => {
   assert.match(component, /dock.getBoundingClientRect\(\).top - surface.getBoundingClientRect\(\).top/);
   assert.match(component, /window.addEventListener\("resize", measureDock\)/);
-  assert.match(css, /background: linear-gradient\(to bottom, rgba\(0, 0, 0, 0.72\) 0 var\(--story-share-dock-top, 100%\), transparent var\(--story-share-dock-top, 100%\)\)/);
+  assert.match(css, /background: linear-gradient\(to bottom, rgba\(0, 0, 0, 0.86\) 0 var\(--story-share-dock-top, 100%\), transparent var\(--story-share-dock-top, 100%\)\)/);
   assert.match(css, /\.story-share-boundary\[data-phase="closing"\] \.story-share-dimmer\s*\{[^}]*animation: story-share-dismiss/);
   assert.doesNotMatch(css, /\.story-share-boundary\[data-phase="closing"\] \.story-share-backdrop\s*\{[^}]*animation/);
   assert.doesNotMatch(css, /\.composer-dock\.story-share-dock-copy/);
@@ -64,7 +64,7 @@ test("beacon is action-sized with opacity-only motion and no oversized glow", ()
   const frames = css.match(/@keyframes story-share-beacon-pulse\s*\{([\s\S]*?)\n\}/)[1];
   assert.doesNotMatch(frames, /scale\(|box-shadow/);
   assert.doesNotMatch(css, /\.story-share-save-beacon\s*\{[^}]*animation: none/);
-  assert.match(css, /\.story-share-boundary\[data-phase="covered"\] \.story-share-save-beacon\s*\{[^}]*animation: story-share-beacon-pulse 1\.6s/);
+  assert.match(css, /\.story-share-boundary\[data-phase="covered"\] \.story-share-save-beacon\s*\{[^}]*animation: story-share-beacon-pulse 0\.9s/);
   // Only this cue opts out; reduced-motion dismissal remains immediate.
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.story-share-boundary\[data-phase="closing"\] \.story-share-dimmer \{ animation-duration: 0ms; \}/);
 });
