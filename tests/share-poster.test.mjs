@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_COVER_BOTTOM, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA,
-  LINK_STICKER_TARGET, SAVED_LINK_PANEL_PADDING, SAVED_LINK_PANEL_COLOR, SAVED_LINK_PANEL_ROUNDNESS, SAVED_LINK_GUIDANCE_SCALE, SAVED_LINK_GUIDANCE_CENTER_Y, savedLinkHintLayout, drawPoster, fitPosterPhoto, posterLinkBounds, posterCoverBounds, steppedPosterTiles,
-  posterColor, posterInk, posterMedia, posterPalette } from "../app/lib/share-posters.ts";
+  LINK_STICKER_TARGET, SAVED_LINK_PANEL_PADDING, SAVED_LINK_PANEL_COLOR, SAVED_LINK_PANEL_ROUNDNESS, SAVED_LINK_GUIDANCE_SCALE, SAVED_LINK_GUIDANCE_CENTER_Y, savedLinkHintLayout, drawPoster, fitPosterPhoto, posterLinkBounds, posterCoverBounds, posterCoverAnchor, steppedPosterTiles,
+  cascadePosterTiles, posterColor, posterInk, posterMedia, posterPalette } from "../app/lib/share-posters.ts";
 import { stackSwipeProgress, stackSwipeTarget } from "../app/lib/stack-picker.ts";
 
 const read=path=>readFileSync(new URL(`../${path}`,import.meta.url),"utf8");
@@ -29,6 +29,95 @@ function assets(count=7,ratio=1.5) {
     cover:{source:{id:"cover"},width:1000,height:1000*ratio},photos:[],tiles,
     theme:{background:"#8ACE00",ink:"#001CB5",font:'ui-rounded, "SF Pro Rounded", sans-serif',weight:500}};
 }
+
+test("Sidecar keeps natural Strip proportions at its original width, without a separator band",()=>{
+  const index=POSTER_DESIGNS.findIndex(d=>d.mode==="sidecar");
+  for(const count of [1,2,3,7,19,100]) {
+    const data=assets(count),{c,commands,paints,depth}=context();
+    // A capped whole-Strip canvas must not change the authored block heights.
+    data.flow={source:{id:"flattened"},width:390,height:8192};
+    drawPoster(c,data,index);
+    assert(commands.some(command=>JSON.stringify(command)===JSON.stringify(["rect",0,0,334,STORY_HEIGHT])));
+    assert(!commands.some(command=>command[0]==="drawImage"&&command[1]===data.flow.source));
+    const images=commands.filter(command=>command[0]==="drawImage"&&data.tiles.some(p=>p.source===command[1]));
+    assert.equal(images.length,count);
+    let bottom=0;
+    images.forEach((image,i)=>{
+      const tile=data.tiles[i],height=tile.flowHeight*334/390;
+      assert.deepEqual(image.slice(2,6),[0,0,tile.width,tile.height]);
+      assert.deepEqual(image.slice(6),[0,bottom,334,height]);
+      bottom+=height;
+    });
+    if(count<=3) assert(bottom<STORY_HEIGHT,"short Strips end at their natural height");
+    if(count>=7) assert(bottom>STORY_HEIGHT,"long Strips continue below the clipped poster bottom");
+    assert(!paints.some(paint=>paint.args[0]===334&&paint.args[2]===12),"no side band");
+    assert.equal(depth(),0);
+  }
+});
+test("title panels use exact cover edges and preserve the approved paper frame",()=>{
+  for(const ratio of [.5,1,1.5,3])for(let i=0;i<POSTER_DESIGNS.length;i++) {
+    const data=assets(3,ratio),bounds=posterCoverBounds(data,i),{c,paints}=context();
+    drawPoster(c,data,i);
+    const design=POSTER_DESIGNS[i],anchor=posterCoverAnchor(data,i);
+    const frame=design.front==="paper"?28:0;
+    assert.equal(anchor.x,bounds.x-frame);assert.equal(anchor.width,bounds.width+2*frame);
+    if(design.front==="naked")continue;
+    const mat=paints.find(paint=>paint.color===posterInk(data.theme.ink)&&paint.args[1]<bounds.y
+      &&paint.args[0]===anchor.x&&paint.args[2]===anchor.width);
+    assert(mat,`exact foreground panel for ${design.id}`);
+    if(design.front==="paper") assert.equal(mat.args[1]+mat.args[3],bounds.y+bounds.height+28);
+  }
+});
+test("preview addresses and saved cues share an exact left or right cover edge across all formats",()=>{
+  const close=(a,b)=>Math.abs(a-b)<1e-7;
+  for(const ratio of [.05,.5,1,1.5,3,20])for(let i=0;i<POSTER_DESIGNS.length;i++)
+    for(const address of ["a.striiip.com","antonio.striiip.com","averylongbutvalidusername.striiip.com"]) {
+      const data={...assets(3,ratio),address},anchor=posterCoverAnchor(data,i);
+      const preview=context(),saved=context();
+      drawPoster(preview.c,data,i);drawPoster(saved.c,data,i,true);
+      for(const box of [preview.paints.at(-1).args,saved.paints.at(-1).args]) {
+        const [x,,width]=box;
+        assert(close(x,anchor.x)||close(x+width,anchor.x+anchor.width),`cover edge for ${POSTER_DESIGNS[i].id}`);
+        assert(x>=0&&x+width<=STORY_WIDTH,"aligned links remain fully visible");
+      }
+      const badge=preview.paints.at(-1).args;
+      const text=preview.commands.filter(command=>command[0]==="fillText").at(-1);
+      assert(close(text[2],badge[0]+badge[2]/2),"address is centered inside its own aligned badge");
+      assert.equal(badge[1],1510);
+      const panel=saved.paints.at(-1).args;
+      assert.equal(panel[1]+panel[3]/2,SAVED_LINK_GUIDANCE_CENTER_Y);
+    }
+});
+
+test("short diagonal cascades span the entire page with evenly spaced tile centers",()=>{
+  assert.deepEqual(cascadePosterTiles(0),[]);
+  const single=cascadePosterTiles(1)[0];
+  assert.equal(single.y+single.height/2,STORY_HEIGHT/2);
+  for(const count of [2,3,4,5,6]) {
+    const cells=cascadePosterTiles(count);
+    assert.equal(cells.length,count);
+    assert.equal(cells[0].y,-30);
+    const last=cells.at(-1);
+    assert(Math.abs(last.y+last.height-(STORY_HEIGHT+30))<1e-7);
+    const centers=cells.map(cell=>cell.y+cell.height/2);
+    const step=centers[1]-centers[0];
+    for(let i=1;i<centers.length;i++) assert(Math.abs(centers[i]-centers[i-1]-step)<1e-7);
+  }
+});
+test("seven-block cascade keeps its approved composition and longer cascades balance their bands",()=>{
+  const expected=[[-65,-30,500,640,-12],[510,130,560,200,9],[550,400,530,680,8],
+    [25,740,600,235,-7],[-30,1120,590,750,10],[510,1450,560,180,-6],[550,1690,530,310,6]];
+  assert.deepEqual(cascadePosterTiles(7).map(({x,y,width,height,rotation})=>[x,y,width,height,rotation]),expected);
+  for(const count of [8,9,13,14,15,19,100]) {
+    const cells=cascadePosterTiles(count),bands=Math.ceil(count/7);
+    assert.deepEqual(cells.map(cell=>cell.index),Array.from({length:count},(_,i)=>i));
+    const last=cells.at(-1);
+    assert(last.y+last.height>STORY_HEIGHT,"last band must reach the bottom, not stop at its top");
+    assert(cells.every(cell=>Object.values(cell).every(Number.isFinite)));
+    const lengths=Array.from({length:bands},(_,band)=>Math.floor(count/bands)+(band<count%bands?1:0));
+    assert(Math.max(...lengths)-Math.min(...lengths)<=1);
+  }
+});
 
 test("only the eight explicitly kept directions become real poster options",()=>{
   assert.deepEqual(POSTER_DESIGNS.map(d=>d.id),["masonry-wall","after-hours-grid","portrait-atmosphere",
@@ -131,7 +220,8 @@ test("long and unbroken titles keep every character, within the cover-container 
       const data={...assets(),title}, {c,commands}=context();drawPoster(c,data,i);
       const texts=commands.filter(c=>c[0]==="fillText"&&c[1]!==data.address);
       assert.equal(texts.map(c=>c[1]).join("").replace(/\s/g,""),title.replace(/\s/g,""));
-      assert(texts.every(t=>t[2]===posterCoverBounds(data,i).x));
+      const bounds=posterCoverBounds(data,i),inset=POSTER_DESIGNS[i].front==="label"?12:0;
+      assert(texts.every(t=>t[2]===bounds.x+inset && t[4]===bounds.width-inset*2));
     }
 });
 test("export and preview draw identical normalized positions at both raster sizes",()=>{
@@ -143,20 +233,22 @@ test("export and preview draw identical normalized positions at both raster size
     assert.deepEqual(small.commands[0],["setTransform",.5,0,0,.5,0,0]);
   }
 });
-test("saved link instruction still fits behind the established Instagram sticker target",()=>{
+test("saved link instruction preserves its established vertical target while aligning to the cover",()=>{
   const target=LINK_STICKER_TARGET,area=LINK_STICKER_AREA;
   assert.equal(target.x+target.width/2,540);
   assert(POSTER_CONTENT_BOTTOM+28<=area.y);
   assert(target.width>=760&&target.height>=160);
-  const {c,commands,paints}=context(),layout=savedLinkHintLayout(c);drawPoster(c,assets(),0,true);
+  const {c,commands,paints}=context(),data=assets(),anchor=posterCoverAnchor(data,0);
+  const layout=savedLinkHintLayout(c,anchor);drawPoster(c,data,0,true);
   assert.deepEqual(commands.filter(command=>command[0]==="fillText").slice(-2),
     [["fillText","Paste your link",0,layout.baselines[0]],["fillText","sticker here",0,layout.baselines[1]]]);
   assert(commands.some(command=>command[0]==="scale" && command[1]===layout.scale));
   assert.equal(layout.scale,SAVED_LINK_GUIDANCE_SCALE);
-  assert.equal(layout.panel.x+layout.panel.width/2,540);
+  assert.equal(layout.panel.x+layout.panel.width,anchor.x+anchor.width);
   assert.equal(layout.panel.y+layout.panel.height/2,SAVED_LINK_GUIDANCE_CENTER_Y);
   assert.deepEqual(paints.at(-1).args,[layout.panel.x,layout.panel.y,layout.panel.width,layout.panel.height]);
-  assert(layout.panel.x>=target.x && layout.panel.x+layout.panel.width<=target.x+target.width);
+  assert(layout.panel.x>=0 && layout.panel.x+layout.panel.width<=STORY_WIDTH);
+  assert(layout.panel.width<=target.width);
   assert(layout.panel.y>=target.y && layout.panel.y+layout.panel.height<=target.y+target.height);
   assert(layout.panel.y>=POSTER_CONTENT_BOTTOM+28);
   assert(layout.panel.y+layout.panel.height<=area.y+area.height);
@@ -236,7 +328,7 @@ test("link badge and save instruction keep the same current font and weight",()=
   assert.equal(hint.font,'400 24px "Helvetica Neue", Arial, sans-serif');
 });
 test("saved gray panel matches Link sticker roundness and the balanced text stays centered",()=>{
-  const saved=context(),preview=context(),data=assets(),layout=savedLinkHintLayout(saved.c);
+  const saved=context(),preview=context(),data=assets(),layout=savedLinkHintLayout(saved.c,posterCoverAnchor(data,0));
   drawPoster(saved.c,data,0,true);drawPoster(preview.c,data,0);
   assert.equal(preview.commands.filter(command=>command[0]==="roundRect").length,0);
   assert.deepEqual(saved.commands.filter(command=>command[0]==="roundRect"),[
@@ -285,9 +377,10 @@ test("rapid option changes never share a stale file, and every media surface is 
   assert.match(preparation,/signal.addEventListener\("abort",cancel/);
   assert.match(page,/files: \[storyAssetFile\]/);assert.match(page,/link\.download = storyAssetFile\.name/);
 });
-test("bottom dock, share actions and swipe-dimming behavior are untouched",()=>{
+test("bottom dock surface and swipe-dimming stay intact while controls can morph after save",()=>{
   assert.match(page,/<SharePosterPicker previews=\{posters.previews\} index=\{posters.index\}/);
-  assert.match(page,/<footer className="composer-dock share-dock publish-flow-dock">\s*<div className="dock-controls dock-controls-current dock-action-controls">/);
+  assert.match(page,/<footer className="composer-dock share-dock publish-flow-dock">\s*<StoryShareControls/);
+  assert.match(read("app/components/StoryShareControls.tsx"),/className="dock-controls dock-controls-current dock-action-controls story-share-controls"/);
   assert.match(page,/<h1 id="share-heading">Pick your story poster<\/h1>/);
   assert.match(css,/\.cover-image-option::after,\s*\.poster-option::after \{[^}]*opacity: var\(--cover-dim, 0\)/);
   assert.doesNotMatch(read("app/lib/share-posters.ts"),/cover-dim|poster-dim/);

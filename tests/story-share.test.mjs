@@ -94,19 +94,19 @@ test("confirmation distinguishes sharing, downloading, cancellation, and real cl
  assert.deepEqual(getStoryShareConfirmation("cancelled",true),{image:null,copied:true});
  assert.deepEqual(getStoryShareConfirmation("cancelled",false),{image:null,copied:false});
 });
-test("confirmation is prominent, dismissible, lives longer, and resets for new shares",()=>{
+test("copied feedback activates the existing button and resets for new shares",()=>{
  const page=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
- const ui=readFileSync(new URL("../app/components/StoryShareConfirmation.tsx",import.meta.url),"utf8");
+ const ui=readFileSync(new URL("../app/components/CopyStripLinkButton.tsx",import.meta.url),"utf8");
  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
- assert.match(page,/setStoryShareConfirmation\(null\), 7000/);
+ assert.doesNotMatch(page,/setStoryShareConfirmation\(null\), 7000/);
  assert.match(page,/storyShareInFlightRef\.current = true;\s*setStoryShareConfirmation\(null\)/);
- assert.match(page,/!storyShareSheetOpen && storyShareConfirmation \? \(/);
+ assert.match(page,/<CopyStripLinkButton copied=\{storyShareConfirmation\?\.copied\}/);
  assert.match(page,/setStoryShareConfirmation\(getStoryShareConfirmation\(result, success\)\)/);
- assert.match(ui,/aria-label="Dismiss sharing confirmation"/);
- assert.match(ui,/role="status" aria-live="polite" aria-atomic="true"/);
+ assert.match(ui,/aria-live="polite" aria-atomic="true"/);
  assert.match(ui,/Link copied/);
- assert.match(ui,/Link not copied/);
- assert.match(css,/\.story-share-confirmation\s*\{[^}]*background: #fff/);
+ assert.match(ui,/Copy link/);
+ assert.match(css,/\.share-link-button\.is-copied\s*\{[^}]*background: #fff/);
+ assert.doesNotMatch(page,/<StoryShareConfirmation(?:\s|\/|>)/);
 });
 test("tray beacon is a noninteractive, gentle iPhone glow that stops after the sheet closes",()=>{
  const page=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");

@@ -87,7 +87,8 @@ import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardS
 import { useStoryPosters } from "@/app/components/useStoryPosters";
 import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
-import { StoryShareConfirmation } from "@/app/components/StoryShareConfirmation";
+import { CopyStripLinkButton } from "@/app/components/CopyStripLinkButton";
+import { StoryShareControls } from "@/app/components/StoryShareControls";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
@@ -2721,6 +2722,7 @@ export default function Home() {
   const { file: storyAssetFile, url: storyAssetUrl, loading: storyAssetLoading } = posters;
   const [storyShareSheetOpen, setStoryShareSheetOpen] = useState(false);
   const [storyShareConfirmation, setStoryShareConfirmation] = useState<StoryShareConfirmationData | null>(null);
+  const [storyInstagramFile, setStoryInstagramFile] = useState<File | null>(null);
   const storyShareInFlightRef = useRef(false);
   const storyShareAttemptRef = useRef(0);
   const [libraryScrollInset, setLibraryScrollInset] = useState(0);
@@ -3815,17 +3817,12 @@ export default function Home() {
   }, [notice, noticeRevision]);
 
   useEffect(() => {
-    if (!storyShareConfirmation || storyShareConfirmation.copied === null) return;
-    const timeout = window.setTimeout(() => setStoryShareConfirmation(null), 7000);
-    return () => window.clearTimeout(timeout);
-  }, [storyShareConfirmation]);
-
-  useEffect(() => {
     if (view === "share") return;
     storyShareAttemptRef.current++;
     storyShareInFlightRef.current = false;
     setStoryShareSheetOpen(false);
     setStoryShareConfirmation(null);
+    setStoryInstagramFile(null);
   }, [view]);
 
   useEffect(() => {
@@ -4535,7 +4532,8 @@ export default function Home() {
     storyShareAttemptRef.current++;
     storyShareInFlightRef.current = false;
     setStoryShareSheetOpen(false);
-    setStoryShareConfirmation(null);
+    // Keep the Copy link button activated when returning from Instagram.
+    setStoryShareConfirmation(previous => previous?.copied === null ? null : previous);
     pageTransitionInFlightRef.current = false;
     openingCoverRequestRef.current?.abort();
     openingCoverRequestRef.current = null;
@@ -5863,13 +5861,17 @@ export default function Home() {
 
   const copyPublishedStripLink = async () => {
     if (!openedPublishedStrip) return;
-    storyShareAttemptRef.current++;
-    setStoryShareConfirmation(null);
+    const attempt = ++storyShareAttemptRef.current;
+    setStoryShareConfirmation({ image: null, copied: null });
     const stripUrl = publicStripUrl(openedPublishedStrip);
     try {
       await navigator.clipboard.writeText(stripUrl);
-      setNotice("Strip link copied.");
+      if (storyShareAttemptRef.current !== attempt) return;
+      setStoryShareConfirmation({ image: null, copied: true });
+      if (view !== "share") setNotice("Strip link copied.");
     } catch {
+      if (storyShareAttemptRef.current !== attempt) return;
+      setStoryShareConfirmation({ image: null, copied: false });
       setNotice("Copy the Strip link from its published page.");
     }
   };
@@ -5990,6 +5992,7 @@ export default function Home() {
     const attempt = ++storyShareAttemptRef.current;
     storyShareInFlightRef.current = true;
     setStoryShareConfirmation(null);
+    setStoryInstagramFile(null);
     setNotice("");
     try {
       const { copied, finished } = beginStoryShare(shareData, publicStripUrl(openedPublishedStrip), {
@@ -6007,6 +6010,7 @@ export default function Home() {
       const result = await finished;
       if (result !== "cancelled") posters.remember(storyAssetFile);
       if (storyShareAttemptRef.current === attempt) {
+        if (result !== "cancelled") setStoryInstagramFile(storyAssetFile);
         setStoryShareConfirmation(getStoryShareConfirmation(result, null));
       }
       // A slow clipboard permission response must not leave the backdrop stuck.
@@ -7432,11 +7436,12 @@ export default function Home() {
   }
 
   if (view === "share" && openedPublishedStrip) {
+    const storyInstagramReady = Boolean(!storyShareSheetOpen && !storyAssetLoading && storyAssetFile && storyInstagramFile === storyAssetFile);
     return (
       <>
         <link rel="preload" as="image" href="/apple-messages.jpg" />
         {legacyTransitionLayer}
-        <main className="app-shell share-mode" inert={storyShareSheetOpen}>
+        <main className="app-shell share-mode" inert={storyShareSheetOpen} data-story-ready={storyInstagramReady}>
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
             style={{ backgroundColor: DEFAULT_BACKGROUND }}
@@ -7454,46 +7459,20 @@ export default function Home() {
 
             <div className="poster-picker-meta">
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}
-            <div className="share-link-anchor">
-            <button
-              className="share-link-button"
-              type="button"
-              onClick={() => void copyPublishedStripLink()}
-            >
-              <Link2 aria-hidden="true" />
-              <span>Copy link</span>
-            </button>
-            {!storyShareSheetOpen && storyShareConfirmation ? (
-              <StoryShareConfirmation confirmation={storyShareConfirmation} onDismiss={() => {
-                storyShareAttemptRef.current++;
-                setStoryShareConfirmation(null);
-              }} />
-            ) : null}
-            </div>
+              <div className="share-link-anchor">
+                <CopyStripLinkButton copied={storyShareConfirmation?.copied} onCopy={() => void copyPublishedStripLink()} />
+              </div>
             </div>
           </section>
 
           <footer className="composer-dock share-dock publish-flow-dock">
-            <div className="dock-controls dock-controls-current dock-action-controls">
-              <button
-                className="dock-icon-button publish-flow-button publish-flow-back-button"
-                type="button"
-                onClick={() => void returnToLibrary()}
-              >
-                Done
-              </button>
-              <button
-                className="dock-icon-button publish-icon-button publish-flow-button share-story-button"
-                type="button"
-                onClick={() => void shareStoryToInstagram()}
-                disabled={storyAssetLoading || !storyAssetFile || storyShareSheetOpen}
-                aria-label="Share Strip"
-              >
-                <span>
-                  {storyAssetLoading ? "Preparing…" : "Share"}
-                </span>
-              </button>
-            </div>
+            <StoryShareControls
+              instagramReady={storyInstagramReady}
+              shareLabel={storyAssetLoading ? "Preparing…" : "Share"}
+              disabled={storyAssetLoading || !storyAssetFile || storyShareSheetOpen}
+              onBack={() => void returnToLibrary()}
+              onShare={() => void shareStoryToInstagram()}
+            />
           </footer>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>

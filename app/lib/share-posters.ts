@@ -13,14 +13,14 @@ export const SAVED_LINK_PANEL_PADDING = 24;
 export const SAVED_LINK_PANEL_COLOR = "#D9D9D9";
 export const SAVED_LINK_PANEL_ROUNDNESS = 34 / 106;
 export const POSTER_DESIGNS = [
-  { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 590, width: 620, size: 80, gap: 28, front: "label", darkness: .12 },
-  { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 420, width: 670, size: 96, gap: 30, front: "naked", darkness: .72 },
-  { id: "portrait-atmosphere", name: "Portrait atmosphere", mode: "portrait-hero", x: 80, y: 410, width: 690, size: 80, gap: 32, front: "label", darkness: .5 },
-  { id: "photo-diptych", name: "Photo diptych", mode: "diptych", x: 230, y: 435, width: 630, size: 86, gap: 32, front: "paper", darkness: 0 },
-  { id: "sidecar-strip", name: "Sidecar Strip", mode: "sidecar", x: 414, y: 450, width: 560, size: 82, gap: 34, front: "label", darkness: 0 },
-  { id: "diagonal-cascade", name: "Diagonal cascade", mode: "cascade", x: 240, y: 550, width: 580, size: 82, gap: 30, front: "paper", darkness: .12 },
-  { id: "soft-memory", name: "Soft memory", mode: "soft-stack", x: 110, y: 330, width: 850, size: 90, gap: 38, front: "naked", darkness: .48 },
-  { id: "stepped-blocks", name: "Stepped blocks", mode: "steps", x: 90, y: 470, width: 710, size: 82, gap: 30, front: "paper", darkness: 0 },
+  { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 590, width: 620, size: 80, gap: 28, front: "label", darkness: .12, linkAlign: "right" },
+  { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 420, width: 670, size: 96, gap: 30, front: "naked", darkness: .72, linkAlign: "left" },
+  { id: "portrait-atmosphere", name: "Portrait atmosphere", mode: "portrait-hero", x: 80, y: 410, width: 690, size: 80, gap: 32, front: "label", darkness: .5, linkAlign: "left" },
+  { id: "photo-diptych", name: "Photo diptych", mode: "diptych", x: 230, y: 435, width: 630, size: 86, gap: 32, front: "paper", darkness: 0, linkAlign: "left" },
+  { id: "sidecar-strip", name: "Sidecar Strip", mode: "sidecar", x: 414, y: 450, width: 560, size: 82, gap: 34, front: "label", darkness: 0, linkAlign: "right" },
+  { id: "diagonal-cascade", name: "Diagonal cascade", mode: "cascade", x: 240, y: 550, width: 580, size: 82, gap: 30, front: "paper", darkness: .12, linkAlign: "left" },
+  { id: "soft-memory", name: "Soft memory", mode: "soft-stack", x: 110, y: 330, width: 850, size: 90, gap: 38, front: "naked", darkness: .48, linkAlign: "right" },
+  { id: "stepped-blocks", name: "Stepped blocks", mode: "steps", x: 90, y: 470, width: 710, size: 82, gap: 30, front: "paper", darkness: 0, linkAlign: "left" },
 ] as const;
 
 /** Gapless masonry. Each column fills the canvas, with staggered horizontal seams. */
@@ -41,6 +41,35 @@ export function steppedPosterTiles(heights: number[]) {
     });
   });
   return cells.sort((a, b) => a.index - b.index);
+}
+
+const CASCADE_SLOTS = [
+  [-65,-30,500,640,-12],[510,130,560,200,9],[550,400,530,680,8],
+  [25,740,600,235,-7],[-30,1120,590,750,10],[510,1450,560,180,-6],[550,1690,530,310,6],
+] as const;
+
+/** Short cascades span the page, rather than using only the first top-heavy slots. */
+export function cascadePosterTiles(count: number) {
+  const cells: { index: number; x: number; y: number; width: number; height: number; rotation: number }[] = [];
+  if (!Number.isInteger(count) || count < 1) return cells;
+  const bands = Math.ceil(count / CASCADE_SLOTS.length);
+  const perBand = Math.floor(count / bands), extra = count % bands;
+  let index = 0;
+  for (let band = 0; band < bands; band++) {
+    // Balance all bands so a final one-block band cannot leave the bottom empty.
+    const length = perBand + (band < extra ? 1 : 0);
+    const firstCenter = CASCADE_SLOTS[0][3] / 2 - 30;
+    const lastCenter = STORY_HEIGHT - CASCADE_SLOTS[length - 1][3] / 2 + 30;
+    for (let slot = 0; slot < length; slot++) {
+      const [x, originalY, width, height, rotation] = CASCADE_SLOTS[slot];
+      const center = length === 1 ? STORY_HEIGHT / 2
+        : firstCenter + (lastCenter - firstCenter) * slot / (length - 1);
+      const y = length === CASCADE_SLOTS.length ? originalY : center - height / 2;
+      cells.push({ index: index++, x, y: (band * STORY_HEIGHT + y) / bands,
+        width, height: height / bands, rotation });
+    }
+  }
+  return cells;
 }
 
 export type PosterBlock = {
@@ -97,8 +126,21 @@ const LINK_STICKER_FONT = '"Helvetica Neue", Arial, sans-serif';
 const LINK_STICKER_FACE_COLOR = "#38362F";
 const LINK_STICKER_INSTRUCTION_COLOR = "#2C2A25";
 
+export type PosterCoverAnchor = { x: number; width: number; side: "left" | "right" };
+function alignedPosterMaxWidth(anchor?: PosterCoverAnchor) {
+  // Even a narrow portrait cover keeps one exact edge for a long link.
+  return anchor ? Math.max(STORY_WIDTH - anchor.x, anchor.x + anchor.width) : STORY_WIDTH;
+}
+function alignedPosterX(width: number, anchor?: PosterCoverAnchor) {
+  if (!anchor) return (STORY_WIDTH - width) / 2;
+  const left = anchor.x, right = anchor.x + anchor.width - width;
+  const candidates = anchor.side === "left" ? [left,right] : [right,left];
+  return candidates.find(x => x >= 0 && x + width <= STORY_WIDTH)
+    ?? Math.max(0, Math.min(STORY_WIDTH - width, candidates[0]));
+}
+
 /** Size the saved cue to its contents, with equal padding on all four sides. */
-export function savedLinkHintLayout(c: CanvasRenderingContext2D) {
+export function savedLinkHintLayout(c: CanvasRenderingContext2D, anchor?: PosterCoverAnchor) {
   const lines = ["Paste your link", "sticker here"];
   const fontSize = 24, iconHeight = 48, rowHeight = iconHeight, gap = 16;
   c.save(); c.font = `400 ${fontSize}px ${LINK_STICKER_FONT}`;
@@ -121,13 +163,14 @@ export function savedLinkHintLayout(c: CanvasRenderingContext2D) {
   const textX = linkX + linkWidth + gap;
   const width = textX + Math.max(...metrics.map(metric => metric.width)) * textScale;
   const padding = SAVED_LINK_PANEL_PADDING;
-  const scale = Math.min(SAVED_LINK_GUIDANCE_SCALE, (LINK_STICKER_TARGET.width - padding * 2) / width);
+  const maxWidth = Math.min(LINK_STICKER_TARGET.width, alignedPosterMaxWidth(anchor));
+  const scale = Math.min(SAVED_LINK_GUIDANCE_SCALE, (maxWidth - padding * 2) / width);
   const panelWidth = width * scale + padding * 2, panelHeight = rowHeight * scale + padding * 2;
   return {
     lines, fontSize, iconHeight, rowHeight, textHeight, textInkHeight, textScale, textY,
     linkX, textX, width, scale, padding,
     baselines: [metrics[0].ascent, metrics[0].ascent + metrics[0].descent + textGap + metrics[1].ascent],
-    panel: { x: (STORY_WIDTH - panelWidth) / 2, y: SAVED_LINK_GUIDANCE_CENTER_Y - panelHeight / 2,
+    panel: { x: alignedPosterX(panelWidth, anchor), y: SAVED_LINK_GUIDANCE_CENTER_Y - panelHeight / 2,
       width: panelWidth, height: panelHeight, radius: panelHeight * SAVED_LINK_PANEL_ROUNDNESS },
   };
 }
@@ -222,9 +265,9 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string, la
 }
 
 /** Measure the address after setting its actual font, never use a fixed-width badge. */
-export function posterLinkBounds(c: CanvasRenderingContext2D, address: string) {
-  const width = Math.min(LINK_STICKER_TARGET.width, c.measureText(address).width + 48);
-  return { x: (STORY_WIDTH - width) / 2, y: LINK_STICKER_TARGET.y + 4, width, height: 85 };
+export function posterLinkBounds(c: CanvasRenderingContext2D, address: string, anchor?: PosterCoverAnchor) {
+  const width = Math.min(LINK_STICKER_TARGET.width, alignedPosterMaxWidth(anchor), c.measureText(address).width + 48);
+  return { x: alignedPosterX(width, anchor), y: LINK_STICKER_TARGET.y + 4, width, height: 85 };
 }
 
 function wrapPosterText(c: CanvasRenderingContext2D, text: string, width: number) {
@@ -254,6 +297,13 @@ export function posterCoverBounds(assets: PosterAssets, index: number) {
   // Very thin images retain their entire source without making the title unreadable.
   const boxWidth = width < 180 ? design.width : width;
   return { x: design.x, y: design.y, width: boxWidth, height, imageWidth: width };
+}
+
+/** One foreground edge contract, including an existing paper frame when present. */
+export function posterCoverAnchor(assets: PosterAssets, index: number): PosterCoverAnchor {
+  const design = POSTER_DESIGNS[index] ?? POSTER_DESIGNS[0];
+  const bounds = posterCoverBounds(assets, index), frame = design.front === "paper" ? 28 : 0;
+  return { x: bounds.x - frame, width: bounds.width + frame * 2, side: design.linkAlign };
 }
 
 function drawFitted(c: CanvasRenderingContext2D, photo: PosterPhoto,
@@ -344,13 +394,21 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
       } else grid(0);
       break;
     }
-    case "sidecar": stack(0,0,334,1920);fill(theme.ink,334,0,12,1920); break;
+    case "sidecar": {
+      // Keep the current width and authored proportions. Never stretch the
+      // bounded, flattened flow canvas to fill the poster's height.
+      c.save();c.beginPath();c.rect(0,0,334,STORY_HEIGHT);c.clip();
+      let y=0;
+      for (const p of tiles) {
+        const height=p.flowHeight*334/390;
+        c.drawImage(p.source,0,0,p.width,p.height,0,y,334,height);
+        y+=height;
+      }
+      c.restore();break;
+    }
     case "cascade": {
-      const slots=[[-65,-30,500,640,-12],[510,130,560,200,9],[550,400,530,680,8],
-        [25,740,600,235,-7],[-30,1120,590,750,10],[510,1450,560,180,-6],[550,1690,530,310,6]];
-      const bands=Math.max(1,Math.ceil(tiles.length/slots.length));
-      tiles.forEach((_,i)=>{const [x,y,w,h,r]=slots[i%slots.length];
-        tile(i,x,((Math.floor(i/slots.length)*1920)+y)/bands,w,h/bands,r);});
+      cascadePosterTiles(tiles.length).forEach(cell =>
+        tile(cell.index,cell.x,cell.y,cell.width,cell.height,cell.rotation));
       break;
     }
     case "soft-stack":
@@ -358,13 +416,15 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   }
   if (design.darkness) fill(`rgba(0,0,0,${design.darkness})`);
   const bounds=posterCoverBounds(assets,index),cover=assets.cover ?? assets.photos[0];
+  const anchor=posterCoverAnchor(assets,index),titleInset=design.front==="label"?12:0;
+  const titleWidth=Math.max(1,bounds.width-titleInset*2);
   const title=(assets.title || "").trim();
   // The gallery's nominal title sizes are part of the approved composition.
   // Do not apply a second optical adjustment when transferring that design.
   let size: number=design.size,lines: string[]=[];
   do {
     c.font=`${theme.weight} ${size}px ${theme.font}`;
-    lines=wrapPosterText(c,title,bounds.width);
+    lines=wrapPosterText(c,title,titleWidth);
     if (lines.length<=2) break;
     size-=2;
   } while(size>18);
@@ -374,28 +434,28 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   const dark=design.front==="naked";
   const darkPanel=posterInk(theme.ink)==="#FFFFFF" ? theme.ink : "#000000";
   if (design.front==="paper") fill(mat,bounds.x-28,titleY-28,bounds.width+56,bounds.y+bounds.height+28-titleY+28);
-  if (design.front==="label" && title) fill(mat,bounds.x-12,titleY-12,bounds.width+24,titleHeight+24);
+  if (design.front==="label" && title) fill(mat,bounds.x,titleY-12,bounds.width,titleHeight+24);
   if (cover) {
     c.drawImage(cover.source,0,0,cover.width,cover.height,
       bounds.x+(bounds.width-bounds.imageWidth)/2,bounds.y,bounds.imageWidth,bounds.height);
   } else fill(assets.coverColor ?? colors[0],bounds.x,bounds.y,bounds.width,bounds.height);
   c.fillStyle=dark?"#FFFFFF":theme.ink;
   c.textAlign="left"; c.textBaseline="top"; c.font=`${theme.weight} ${size}px ${theme.font}`;
-  lines.forEach((line,i)=>c.fillText(line,bounds.x,titleY+i*lineHeight,bounds.width));
+  lines.forEach((line,i)=>c.fillText(line,bounds.x+titleInset,titleY+i*lineHeight,titleWidth));
 
   // Never export a fake live link. The saved cue hugs its measured contents.
   if (saved) {
-    const layout=savedLinkHintLayout(c),panel=layout.panel;
+    const layout=savedLinkHintLayout(c,anchor),panel=layout.panel;
     c.fillStyle=SAVED_LINK_PANEL_COLOR;c.beginPath();
     c.roundRect(panel.x,panel.y,panel.width,panel.height,panel.radius);c.fill();
     drawLinkStickerHint(c,"#000000",layout);
   } else {
     const address=assets.address || "striiip.com";
     c.font=`${theme.weight} 36px ${theme.font}`;
-    const badge=posterLinkBounds(c,address);
+    const badge=posterLinkBounds(c,address,anchor);
     fill(dark?darkPanel:mat,badge.x,badge.y,badge.width,badge.height);
     c.fillStyle=dark?"#FFFFFF":theme.ink;c.textAlign="center";c.textBaseline="top";
-    c.fillText(address,540,badge.y+20,badge.width-48);
+    c.fillText(address,badge.x+badge.width/2,badge.y+20,badge.width-48);
   }
   c.restore();
 }

@@ -15,14 +15,21 @@ function moduleFor(host="antonio.striiip.com",blocked=false) {
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,sandbox);
   return {...sandbox.exports,document,values};
 }
-test("last saved design is first, with every other kept design exactly once",()=>{
+const defaultOrder=[0,2,3,6,7,4,1,5];
+test("default gallery interleaves different compositions without changing stable design indices",()=>{
+  const api=moduleFor();
+  assert.deepEqual(Array.from(api.POSTER_DEFAULT_ORDER),defaultOrder.map(i=>POSTER_DESIGNS[i].id));
+  assert.deepEqual(Array.from(api.posterDesignOrder(null)),defaultOrder);
+  assert.deepEqual(Array.from(api.posterDesignOrder("retired-design")),defaultOrder);
+});
+test("last saved design is first, with the varied default order for the rest",()=>{
   const api=moduleFor();
   for(const [index,design] of POSTER_DESIGNS.entries()) {
     const order=Array.from(api.posterDesignOrder(design.id));
     assert.equal(order[0],index);assert.equal(new Set(order).size,8);
-    assert.deepEqual(order.slice(1),POSTER_DESIGNS.map((_,i)=>i).filter(i=>i!==index));
+    assert.deepEqual(order.slice(1),defaultOrder.filter(i=>i!==index));
   }
-  assert.deepEqual(Array.from(api.posterDesignOrder("retired-design")),[0,1,2,3,4,5,6,7]);
+  assert.deepEqual(Array.from(api.posterDesignOrder("retired-design")),defaultOrder);
 });
 test("preference persists across author subdomains, reload and localhost",()=>{
   const api=moduleFor();api.rememberPosterDesign("stepped-blocks");
