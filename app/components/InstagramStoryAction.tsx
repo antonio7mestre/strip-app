@@ -18,7 +18,7 @@ export function InstagramStoryAction({ active }: { active: boolean }) {
         <circle cx="12" cy="12" r="4" />
         <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" />
       </svg>
-      <span>Open Instagram Stories</span>
+      <span>Add to Instagram Story</span>
     </a>
   );
 }

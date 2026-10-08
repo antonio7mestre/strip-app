@@ -47,7 +47,7 @@ test("rendered tray exposes only Done and Share before save, only Instagram afte
   assert.equal((after.match(/inert=""/g) ?? []).length, 2);
   assert.match(after, /<a[^>]*href="instagram:\/\/story-camera"[^>]*aria-hidden="false"/);
   assert.doesNotMatch(after, /<a[^>]*inert=""/);
-  assert.match(after, /Open Instagram Stories/);
+  assert.match(after, /Add to Instagram Story/);
 });
 test("the morph preserves 48px buttons while expanding only the share tray for instructions", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -56,10 +56,11 @@ test("the morph preserves 48px buttons while expanding only the share tray for i
   assert.match(css, /\.story-share-primary > \.publish-flow-button\s*\{[^}]*height: 48px;/);
   assert.doesNotMatch(css.match(/\.composer-dock \.story-share-controls\s*\{[^}]*\}/)?.[0] ?? "", /padding|height|shadow|bottom|position/);
   assert.match(css, /@property --story-share-instruction-space\s*\{[^}]*syntax: "<length>";[^}]*initial-value: 0px;/);
-  assert.match(css, /\.share-mode\[data-story-ready="true"\][^}]*--story-share-instruction-space: 46px/);
+  assert.match(css, /\.share-mode\[data-story-ready="true"\][^}]*--story-share-instruction-space: 28px/);
   assert.match(css, /\.share-dock \{ --dock-visible-height: calc\(64px \+ var\(--story-share-instruction-space\)\);/);
-  assert.match(controls(true), /Choose your saved poster from the camera roll\./);
-  assert.match(controls(true), /Then paste your link onto your story\./);
+  assert.match(controls(true), /Select your saved poster and paste your link sticker\./);
+  assert.doesNotMatch(controls(true), /<br\b/);
+  assert.match(css, /\.story-share-instructions p \{[^}]*white-space: nowrap;/);
 });
 test("Android intent uses the same story target with a safe browser fallback",()=>{
   const url=instagramStoryCameraUrl("Mozilla/5.0 (Linux; Android 16) Chrome/154");
@@ -76,7 +77,7 @@ test("the handoff is a fresh user-tapped tray link, inactive before a completed 
   assert.match(component,/href=\{href\}/);
   assert.match(component,/inert=\{!active\}/);
   assert.match(component,/aria-hidden=\{!active\}/);
-  assert.match(component,/<span>Open Instagram Stories<\/span>/);
+  assert.match(component,/<span>Add to Instagram Story<\/span>/);
   assert.match(component,/Choose your saved poster from the camera roll\./);
   assert.match(component,/typeof navigator === "undefined" \? "" : navigator\.userAgent/);
   assert.doesNotMatch(component,/window\.open|location\.(?:href|assign|replace)|setTimeout|LocalIdentifier/);

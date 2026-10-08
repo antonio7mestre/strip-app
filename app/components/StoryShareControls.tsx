@@ -46,7 +46,7 @@ export function StoryShareControls({
         </div>
       </div>
       <div className="story-share-instructions" aria-hidden={!instagramReady}>
-        <p>Choose your saved poster from the camera roll.<br />Then paste your link onto your story.</p>
+        <p>Select your saved poster and paste your link sticker.</p>
       </div>
     </div>
   );
