@@ -1,9 +1,37 @@
-// Only presentation geometry is persisted: no photos, titles, or Strip content.
+// Persist the public profile heading and cover geometry, never photos or Strip content.
 export const PROFILE_RELOAD_KEY = "strip-profile-reload-v1";
 export const PROFILE_PATHS = ["/", "/drafts", "/history", "/settings"];
 export type ProfileFrame = { x: number; y: number; width: number; height: number; coverId?: string };
 export type ProfileLayout = { width: number; height: number; frames: ProfileFrame[] };
-type ProfileReload = { owner: string; background: string; pages: Record<string, ProfileLayout> };
+export type ProfilePresentation = { username: string; title: string; font: string; accent: string };
+type ProfileReload = { owner: string; background: string; pages: Record<string, ProfileLayout>; presentation?: ProfilePresentation };
+
+function validPresentation(value: unknown): value is ProfilePresentation {
+  if (!value || typeof value !== "object") return false;
+  const p = value as ProfilePresentation;
+  return typeof p.username === "string" && /^[a-z0-9-]{3,24}$/i.test(p.username) &&
+    typeof p.title === "string" && p.title.length <= 60 &&
+    typeof p.font === "string" && p.font.length <= 80 && /^#[\da-f]{6}$/i.test(p.accent);
+}
+
+export function readProfilePresentation(owner?: string, hostUsername?: string | null) {
+  const saved = readProfileReload();
+  if (!saved || !validPresentation(saved.presentation) ||
+      (owner && saved.owner !== owner) ||
+      (hostUsername && saved.presentation.username !== hostUsername)) return null;
+  return { ...saved.presentation, background: saved.background, owner: saved.owner };
+}
+
+export function saveProfilePresentation(owner: string, background: string, presentation: ProfilePresentation) {
+  if (!owner || !/^#[\da-f]{6}$/i.test(background) || !validPresentation(presentation)) return;
+  try {
+    const previous = readProfileReload();
+    const { username, title, font, accent } = presentation;
+    localStorage.setItem(PROFILE_RELOAD_KEY, JSON.stringify({ owner, background,
+      presentation: { username, title, font, accent },
+      pages: previous?.owner === owner ? previous.pages : {} }));
+  } catch {}
+}
 
 export function readProfileReload(): ProfileReload | null {
   try {
@@ -29,7 +57,8 @@ export function saveProfileLayout(owner: string, background: string, path: strin
   try {
     const previous = readProfileReload();
     const pages = previous?.owner === owner ? previous.pages : {};
-    localStorage.setItem(PROFILE_RELOAD_KEY, JSON.stringify({ owner, background, pages: { ...pages, [path]: layout } }));
+    localStorage.setItem(PROFILE_RELOAD_KEY, JSON.stringify({ owner, background, pages: { ...pages, [path]: layout },
+      presentation: previous?.owner === owner ? previous.presentation : undefined }));
   } catch { /* Private browsing or storage pressure must not block the page. */ }
 }
 
@@ -38,7 +67,8 @@ export function saveProfileBackground(owner: string, background: string) {
   try {
     const previous = readProfileReload();
     localStorage.setItem(PROFILE_RELOAD_KEY, JSON.stringify({ owner, background,
-      pages: previous?.owner === owner ? previous.pages : {} }));
+      pages: previous?.owner === owner ? previous.pages : {},
+      presentation: previous?.owner === owner ? previous.presentation : undefined }));
   } catch {}
 }
 

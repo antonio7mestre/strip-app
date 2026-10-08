@@ -1,21 +1,64 @@
 "use client";
 
 import { useLayoutEffect, useState } from "react";
-import { readProfileLayout, saveProfileBackground, saveProfileLayout, type ProfileLayout } from "@/app/lib/profile-reload";
+import { Plus } from "lucide-react";
+import { PROFILE_PATHS, readProfileReload, readProfilePresentation, readProfileLayout, saveProfileBackground, saveProfileLayout, saveProfilePresentation, type ProfileLayout } from "@/app/lib/profile-reload";
+import { DEFAULT_PROFILE, profileFontInfo, type StripProfile } from "@/app/lib/profile";
+import { usernameFromHostname } from "@/app/lib/username";
+import { ProfileHeader, profilePageStyle } from "./ProfileEditor";
+import { ProfileNavigation, type ProfileView } from "./ProfileNavigation";
+import type { useStripProfile } from "./useStripProfile";
 
-export function ProfileReload() {
+export function ProfileReload({ controller, owner, profile, username, publicView, onNavigate, onNew }: {
+  controller?: ReturnType<typeof useStripProfile>; owner?: string; profile?: StripProfile;
+  username?: string | null; publicView?: boolean; onNavigate?: (view: ProfileView) => void; onNew?: () => void;
+} = {}) {
   const [layout, setLayout] = useState<ProfileLayout | null>(null);
+  const [presentation, setPresentation] = useState<ReturnType<typeof readProfilePresentation>>(null);
+  const [path, setPath] = useState<string | null>(null);
   useLayoutEffect(() => {
-    const update = () => setLayout(readProfileLayout(location.pathname, window.innerWidth));
+    const update = () => {
+      setPath(location.pathname);
+      const saved = readProfileReload();
+      setLayout(!owner || saved?.owner === owner ? readProfileLayout(location.pathname, window.innerWidth) : null);
+      setPresentation(readProfilePresentation(owner, usernameFromHostname(location.hostname)));
+    };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, []);
-  return <main className="app-shell route-loading-mode profile-reload" aria-busy="true" aria-label="Loading profile"
-    style={layout ? { minHeight: layout.height } : undefined}>
-    {layout?.frames.map((frame, index) => <span key={index} className="profile-reload-frame" aria-hidden="true"
+  }, [owner]);
+  const isProfilePage = path !== null && PROFILE_PATHS.includes(path);
+  const headingProfile = profile ?? (presentation ? { ...DEFAULT_PROFILE, ...presentation, font: profileFontInfo(presentation.font).id } : undefined);
+  const headingUsername = username ?? presentation?.username ?? null;
+  const showHeading = isProfilePage && headingProfile && headingUsername && controller;
+  const isPublic = publicView ?? Boolean(presentation?.owner.startsWith("public:"));
+  const showTools = isProfilePage && !isPublic && Boolean(owner || presentation);
+  const view: ProfileView = path === "/drafts" ? "drafts" : path === "/history" ? "history" : path === "/settings" ? "settings" : "library";
+  return <main className={`app-shell route-loading-mode profile-reload${showHeading ? ` library-mode profile-theme-mode${view === "library" ? " profile-mode" : ""}` : ""}`} aria-busy="true" aria-label="Loading profile"
+    style={headingProfile || layout ? { ...(headingProfile ? profilePageStyle({ profile: headingProfile }) : {}), ...(layout ? { minHeight: layout.height } : {}) } : undefined}>
+    {showHeading ? <section className="strip-library">
+      {view === "library" ? <ProfileHeader controller={controller} username={headingUsername} displayProfile={headingProfile}
+        publicProfile={isPublic ? headingProfile : undefined} loading /> : <header className="library-header"><div className="profile-name">
+        <h1>{view === "drafts" ? "Drafts" : view === "history" ? "History" : "Settings"}</h1>
+        <div className="profile-meta-row"><p className="profile-handle">{view === "drafts" ? "Pick up where you left off." : view === "history" ? "Revisit the Strips you’ve opened." : "Your account and app details."}</p></div>
+      </div></header>}
+    </section> : null}
+    {layout?.frames.filter(frame => frame.coverId).map((frame, index) => <span key={index} className="profile-reload-frame" aria-hidden="true"
       style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }} />)}
+    {showTools && view !== "settings" ? <button className="library-add-button" type="button" aria-label="Create a new Strip" disabled={!onNew} onClick={onNew}><Plus aria-hidden="true" /></button> : null}
+    {showTools ? <footer key="persistent-composer-dock" className="composer-dock app-navigation-dock">
+      <ProfileNavigation view={view} onNavigate={onNavigate} />
+    </footer> : null}
   </main>;
+}
+
+export function useProfileReloadPresentation({ ready, owner, username, profile, editing }: {
+  ready: boolean; owner: string; username: string | null; profile: StripProfile; editing: boolean;
+}) {
+  useLayoutEffect(() => {
+    if (!ready || !owner || !username || editing) return;
+    saveProfilePresentation(owner, profile.background, { username, title: profile.title, font: profile.font, accent: profile.accent });
+  }, [ready, owner, username, profile.background, profile.title, profile.font, profile.accent, editing]);
 }
 
 /** Capture only settled, saved layouts. Selection and entrance transforms must
@@ -33,7 +76,7 @@ export function useProfileReloadLayout({ ready, owner, background, view, editing
     let timer = 0;
     const capture = () => {
       const frames = Array.from(page.querySelectorAll<HTMLElement>(
-        ".library-cover, .library-card h2, .profile-name h1, .profile-meta-row, .settings-card",
+        ".library-cover",
       )).map(element => {
         const rect = element.getBoundingClientRect();
         return { x: rect.left + window.scrollX, y: rect.top + window.scrollY,

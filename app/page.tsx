@@ -20,10 +20,7 @@ import {
   Check,
   Crop,
   Eye,
-  Files,
   GripHorizontal,
-  UserRound,
-  History,
   ImagePlus,
   Link2,
   LogOut,
@@ -34,7 +31,6 @@ import {
   Pipette,
   Plus,
   Send,
-  Settings,
   Sticker,
   Trash2,
   Type,
@@ -106,7 +102,9 @@ import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { DEFAULT_PROFILE, PROFILE_FONTS, PROFILE_FONT_CATALOG, profileFontWeight, profileCoverOutline, profileTitle, profileTextColor, type ProfileFont, type StripProfile } from "@/app/lib/profile";
 import { normalizedFontSize } from "@/app/lib/font-sizing";
 import { useStripProfile } from "@/app/components/useStripProfile";
-import { ProfileReload, useProfileReloadLayout } from "@/app/components/ProfileReload";
+import { ProfileReload, useProfileReloadLayout, useProfileReloadPresentation } from "@/app/components/ProfileReload";
+import { ProfileNavigation, type ProfileView } from "@/app/components/ProfileNavigation";
+import { LibraryDeleteButton } from "@/app/components/LibraryDeleteButton";
 import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
 
 type TextBlock = {
@@ -3002,6 +3000,9 @@ export default function Home() {
   useProfileReloadLayout({ ready: homeIsVisible && !profilePageIsLoading,
     owner: viewingPublicProfile ? `public:${publicProfile.username}` : libraryOwnerId,
     background: visibleProfile.background, view, editing: stripProfile.editing, opening: openingCover !== null });
+  useProfileReloadPresentation({ ready: homeIsVisible && (viewingPublicProfile ? publicProfile.status !== "loading" : !stripProfile.loading && !stripProfile.loadFailed),
+    owner: viewingPublicProfile ? `public:${publicProfile.username}` : libraryOwnerId,
+    username: publicProfile?.username ?? authUser?.username ?? null, profile: visibleProfile, editing: stripProfile.editing });
   useLayoutEffect(() => {
     if (!initialRouteReady || profilePageIsLoading) return;
     const root = document.documentElement;
@@ -6935,10 +6936,26 @@ export default function Home() {
     pending={stripProfile.pending} loading={stripProfile.loading || stripProfile.loadFailed}
     error={stripProfile.error} onRetry={stripProfile.retry} />;
 
+  const navigateProfilePage = (destination: ProfileView) => {
+    if (destination === "library") void returnToLibrary();
+    else if (destination === "drafts") void openDraftLibrary();
+    else if (destination === "history") void openHistory();
+    else void openSettings();
+  };
+  const reloadProfileProps = {
+    controller: stripProfile,
+    owner: authStatus === "loading" ? undefined : visitingProfileHost ? `public:${profileHostUsername}` : libraryOwnerId || undefined,
+    profile: viewingPublicProfile ? (publicProfile.status === "ready" ? publicProfile.profile : undefined)
+      : authStatus === "signed-in" && !visitingProfileHost && !stripProfile.loading && !stripProfile.loadFailed ? stripProfile.profile : undefined,
+    username: publicProfile?.username ?? (visitingProfileHost ? profileHostUsername : authUser?.username),
+    publicView: authStatus === "loading" ? undefined : visitingProfileHost || viewingPublicProfile,
+    onNavigate: authStatus === "signed-in" && !visitingProfileHost ? navigateProfilePage : undefined,
+    onNew: authStatus === "signed-in" && !visitingProfileHost ? beginNewStrip : undefined,
+  };
   if (!initialRouteReady && !needsAuthUsername) {
-    return <ProfileReload />;
+    return <ProfileReload {...reloadProfileProps} />;
   }
-  if (profilePageIsLoading) return <ProfileReload />;
+  if (profilePageIsLoading) return <ProfileReload {...reloadProfileProps} />;
 
   if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")) {
     return (
@@ -7143,7 +7160,7 @@ export default function Home() {
       const coverStyle: CSSProperties | undefined =
         strip.cover.kind === "color"
           ? { backgroundColor: strip.cover.color,
-              ...(coverOutline ? { boxShadow: `inset 0 0 0 1px ${coverOutline}` } : {}) }
+              ...(coverOutline ? { boxShadow: `inset 0 0 0 2px ${coverOutline}` } : {}) }
           : strip.cover.aspectRatio
             ? { aspectRatio: String(strip.cover.aspectRatio) }
             : undefined;
@@ -7195,17 +7212,15 @@ export default function Home() {
             <h2>{cardTitle}</h2>
           </HapticActionButton>
           {isDraft ? (
-            <button
-              className="library-card-delete-button"
-              type="button"
+            <LibraryDeleteButton
+              coverColor={strip.cover.kind === "color" ? strip.cover.color : undefined}
+              imageSrc={strip.cover.kind === "image" ? strip.cover.src : undefined}
               onClick={() => setPendingDraftDeleteId(strip.id)}
               disabled={
                 deletingDraftId !== null || openingDraftId === strip.id
               }
-              aria-label={`Delete ${cardTitle} draft`}
-            >
-              <Trash2 aria-hidden="true" />
-            </button>
+              label={`Delete ${cardTitle} draft`}
+            />
           ) : null}
         </div>
       );
@@ -7365,60 +7380,7 @@ export default function Home() {
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
           >
             {view === "library" && stripProfile.editing ? <ProfileTools controller={stripProfile} /> : <>{dockTransitionLayer}
-            <nav
-              className={`${currentDockControlsClass} app-navigation-controls`}
-              key={`dock-controls:${view}`}
-              aria-label="Main"
-            >
-              <button
-                className={`app-navigation-button ${
-                  view === "library" ? "is-active" : ""
-                }`}
-                type="button"
-                onClick={() => void returnToLibrary()}
-                aria-label="Profile"
-                aria-current={view === "library" ? "page" : undefined}
-              >
-                <UserRound aria-hidden="true" />
-                <span className="visually-hidden">Profile</span>
-              </button>
-              <button
-                className={`app-navigation-button ${
-                  view === "drafts" ? "is-active" : ""
-                }`}
-                type="button"
-                onClick={() => void openDraftLibrary()}
-                aria-label="Drafts"
-                aria-current={view === "drafts" ? "page" : undefined}
-              >
-                <Files aria-hidden="true" />
-                <span className="visually-hidden">Drafts</span>
-              </button>
-              <button
-                className={`app-navigation-button ${
-                  view === "history" ? "is-active" : ""
-                }`}
-                type="button"
-                onClick={() => void openHistory()}
-                aria-label="History"
-                aria-current={view === "history" ? "page" : undefined}
-              >
-                <History aria-hidden="true" />
-                <span className="visually-hidden">History</span>
-              </button>
-              <button
-                className={`app-navigation-button ${
-                  view === "settings" ? "is-active" : ""
-                }`}
-                type="button"
-                onClick={() => void openSettings()}
-                aria-label="Settings"
-                aria-current={view === "settings" ? "page" : undefined}
-              >
-                <Settings aria-hidden="true" />
-                <span className="visually-hidden">Settings</span>
-              </button>
-            </nav></>}
+            <ProfileNavigation className={currentDockControlsClass} key={`dock-controls:${view}`} view={view} onNavigate={navigateProfilePage} /></>}
           </footer> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal

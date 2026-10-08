@@ -100,7 +100,7 @@ test("matching and near-matching covers get a contrasting edge without resizing"
   }
   const page = read("app/page.tsx");
   assert.match(page, /profileCoverOutline\(strip.cover.color, visibleProfile.background\)/);
-  assert.match(page, /boxShadow: `inset 0 0 0 1px \$\{coverOutline\}`/);
+  assert.match(page, /boxShadow: `inset 0 0 0 2px \$\{coverOutline\}`/);
 });
 test("profile settings persist and remain scoped to the authenticated owner", async () => {
   const api = fixture();

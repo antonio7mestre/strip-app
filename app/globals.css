@@ -1516,7 +1516,7 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   width: 18px;
   height: 18px;
   stroke-width: 2;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  filter: none;
 }
 
 .library-card-delete-button:active:not(:disabled) svg {
@@ -1529,7 +1529,7 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 }
 
 .library-card-delete-button:focus-visible {
-  outline-color: #ffffff;
+  outline-color: currentColor;
   outline-offset: -6px;
 }
 
@@ -2223,7 +2223,10 @@ html.profile-reload-pending body {
   background: var(--profile-reload-background, #000) !important;
 }
 .profile-reload { position: relative; max-width: none; }
-.profile-reload-frame { position: absolute; display: block; background: #999; opacity: .38; }
+.profile-reload-frame { position: absolute; z-index: 2; display: block; background: #999; opacity: .38; }
+.profile-reload .profile-edit-button:disabled,
+.profile-reload .app-navigation-button:disabled,
+.profile-reload .library-add-button:disabled { opacity: 1; }
 .is-restored-profile .is-library-card-entering { animation: none; }
 
 .editor-mode.is-typing .strip-canvas,

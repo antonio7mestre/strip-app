@@ -64,7 +64,7 @@ test("the loading shell gives way to the real landing and sign-in flow", async (
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
-  const loading = page.indexOf('return <ProfileReload />');
+  const loading = page.indexOf('return <ProfileReload ');
   const signIn = page.indexOf('if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in"))');
   assert.ok(loading > 0 && signIn > loading);
   assert.match(page, /<AuthLandingStrip \/>/);

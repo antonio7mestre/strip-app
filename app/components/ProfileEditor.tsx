@@ -13,12 +13,12 @@ import { HapticActionButton } from "./HapticActionButton";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
-type Props = { controller: ProfileController; username: string | null; publicProfile?: StripProfile };
+type Props = { controller: ProfileController; username: string | null; publicProfile?: StripProfile; displayProfile?: StripProfile; loading?: boolean };
 
-export function ProfileHeader({ controller, username, publicProfile }: Props) {
+export function ProfileHeader({ controller, username, publicProfile, displayProfile, loading = false }: Props) {
   const { pending, update } = controller;
-  const profile = publicProfile ?? controller.profile;
-  const editing = !publicProfile && controller.editing;
+  const profile = publicProfile ?? displayProfile ?? controller.profile;
+  const editing = !loading && !publicProfile && controller.editing;
   const titleInput = useRef<HTMLHeadingElement>(null);
   // React owns the heading, the browser owns its text/caret while typing.
   const initialTitle = useRef(profileTitle(profile, username));
@@ -61,8 +61,8 @@ export function ProfileHeader({ controller, username, publicProfile }: Props) {
           {username ? <p className="profile-handle">@{username}</p> : null}
           {username && !publicProfile ? <span className="profile-meta-divider" aria-hidden="true" /> : null}
           {!publicProfile ? <span className="profile-edit-action">
-            <button type="button" className="profile-edit-button" disabled={editing || controller.loading || controller.loadFailed}
-              aria-hidden={editing} onClick={controller.begin}><Pencil aria-hidden="true" />{controller.loading ? "Loading profile…" : "Edit profile"}</button>
+            <button type="button" className="profile-edit-button" disabled={loading || editing || controller.loading || controller.loadFailed}
+              aria-hidden={editing} onClick={controller.begin}><Pencil aria-hidden="true" />Edit profile</button>
             <span className="profile-edit-hint" id="profile-title-edit-hint" aria-hidden={!editing}>
               <ChevronUp aria-hidden="true" />Tap title to edit
             </span>

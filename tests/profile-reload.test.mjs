@@ -80,5 +80,32 @@ test("loading never fabricates four covers and unsaved layouts are not cached", 
   assert.match(page, /if \(profilePageIsLoading\) return <ProfileReload/);
   assert.match(component, /if \(!ready \|\| !owner \|\| editing \|\| opening\) return/);
   assert.match(component, /rect.top \+ window.scrollY/);
-  assert.match(component, /layout\?\.frames.map/);
+  assert.match(component, /layout\?\.frames.filter\(frame => frame.coverId\).map/);
+});
+
+test("saved public heading survives background and geometry writes without retaining private content", () => {
+  const f = fixture();
+  const heading = { username: "antonio", title: "My weekend", font: "letter", accent: "#FFFFFF" };
+  f.saveProfilePresentation("one", "#3155FF", { ...heading, phone: "must not persist", blocks: [] });
+  f.saveProfileLayout("one", "#3155FF", "/", layout);
+  f.saveProfileBackground("one", "#FF00AA");
+  assert.deepEqual(JSON.parse(JSON.stringify(f.readProfilePresentation("one", "antonio"))), {
+    ...heading, background: "#FF00AA", owner: "one",
+  });
+  assert.doesNotMatch(JSON.stringify(f.readProfileReload()), /phone|blocks/);
+  assert.equal(f.readProfilePresentation("different-user"), null);
+  assert.equal(f.readProfilePresentation(undefined, "someone-else"), null);
+  f.saveProfileBackground("two", "#000000");
+  assert.equal(f.readProfilePresentation(), null);
+});
+
+test("legacy and malformed headings are ignored while their valid layout can still load", () => {
+  const f = fixture();
+  f.saveProfileLayout("one", "#FFFFFF", "/", layout);
+  assert.equal(f.readProfilePresentation(), null);
+  for (const presentation of [null, {}, { username: "valid", title: 42, font: "letter", accent: "#000000" }]) {
+    f.items.set(f.PROFILE_RELOAD_KEY, JSON.stringify({ ...f.readProfileReload(), presentation }));
+    assert.equal(f.readProfilePresentation(), null);
+    assert.ok(f.readProfileLayout("/", 393));
+  }
 });
