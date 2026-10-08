@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_COVER_BOTTOM, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA,
-  LINK_STICKER_TARGET, SAVED_LINK_PANEL, SAVED_LINK_GUIDANCE_SCALE, SAVED_LINK_GUIDANCE_CENTER_Y, drawPoster, fitPosterPhoto, posterLinkBounds, posterCoverBounds, steppedPosterTiles,
+  LINK_STICKER_TARGET, SAVED_LINK_PANEL_PADDING, SAVED_LINK_PANEL_COLOR, SAVED_LINK_PANEL_ROUNDNESS, SAVED_LINK_GUIDANCE_SCALE, SAVED_LINK_GUIDANCE_CENTER_Y, savedLinkHintLayout, drawPoster, fitPosterPhoto, posterLinkBounds, posterCoverBounds, steppedPosterTiles,
   posterColor, posterInk, posterMedia, posterPalette } from "../app/lib/share-posters.ts";
 import { stackSwipeProgress, stackSwipeTarget } from "../app/lib/stack-picker.ts";
 
@@ -16,9 +16,9 @@ function context(width=1080) {
     save(){stack.push({font:c.font,fillStyle:c.fillStyle,textAlign:c.textAlign,textBaseline:c.textBaseline,filter:c.filter});},
     restore(){assert(stack.length);Object.assign(c,stack.pop());}};
   for(const name of ["setTransform","fillRect","fillText","drawImage","translate","scale","rotate","rect","clip",
-    "arc","beginPath","moveTo","lineTo","closePath","fill","bezierCurveTo","stroke"]) {
+    "arc","beginPath","moveTo","lineTo","closePath","fill","bezierCurveTo","stroke","roundRect"]) {
     c[name]=(...args)=>{args.filter(a=>typeof a==="number").forEach(a=>assert(Number.isFinite(a),name));
-      commands.push([name,...args]);if(name==="fillRect")paints.push({color:c.fillStyle,args});};
+      commands.push([name,...args]);if(name==="fillRect"||name==="roundRect")paints.push({color:c.fillStyle,args:args.slice(0,4)});};
   }
   return {c,commands,paints,depth:()=>stack.length};
 }
@@ -66,7 +66,7 @@ test("saved posters retain the current Instagram sticker instruction, not a fake
       "artwork must match before the footer");
     assert.deepEqual(preview.commands.filter(c=>c[0]==="fillText").map(c=>c[1]),["Siblings","antonio.striiip.com"]);
     assert.deepEqual(saved.commands.filter(c=>c[0]==="fillText").map(c=>c[1]),
-      ["Siblings","Link","Paste your link sticker here"]);
+      ["Siblings","Link","Paste your link","sticker here"]);
     assert.equal(saved.commands.filter(c=>c[0]==="arc").length,3);
     assert.equal(saved.commands.filter(c=>c[0]==="stroke").length,7);
     assert.equal(saved.depth(),0);assert.equal(preview.depth(),0);
@@ -106,14 +106,22 @@ test("actual profile theme and family are used, never demo photos or invented co
   assert.deepEqual(commands.filter(c=>c[0]==="fillText").map(c=>c[1]),["Siblings","antonio.striiip.com"]);
   assert.doesNotMatch(read("app/lib/share-poster-assets.ts"),/demo-20261001|softweekend|siblings-media|fingerprints|difference \/ /);
 });
-test("light and dark theme fonts retain contrast on title mats and link cues",()=>{
+test("preview links keep their theme while saved instruction boxes are always gray",()=>{
   for(const ink of ["#FFFFFF","#000000","#001CB5","#D7FF00"])for(let i=0;i<POSTER_DESIGNS.length;i++) {
     const data=assets();data.theme.ink=ink;
     for(const saved of [false,true]) {
-      const {c,paints}=context();drawPoster(c,data,i,saved);
+      const {c,paints}=context(),textPaints=[],fillText=c.fillText;
+      c.fillText=(...args)=>{textPaints.push({text:args[0],color:c.fillStyle});fillText(...args);};
+      drawPoster(c,data,i,saved);
       const footer=paints.at(-1).color;
-      assert.equal(footer,POSTER_DESIGNS[i].front==="naked"
-        ? posterInk(ink)==="#FFFFFF" ? ink : "#000000" : posterInk(ink));
+      if(saved) {
+        assert.equal(footer,SAVED_LINK_PANEL_COLOR);
+        assert.equal(footer,"#D9D9D9");
+        assert.deepEqual(textPaints.slice(-2).map(paint=>paint.color),["#2C2A25","#2C2A25"]);
+      } else {
+        assert.equal(footer,POSTER_DESIGNS[i].front==="naked"
+          ? posterInk(ink)==="#FFFFFF" ? ink : "#000000" : posterInk(ink));
+      }
     }
   }
 });
@@ -140,18 +148,43 @@ test("saved link instruction still fits behind the established Instagram sticker
   assert.equal(target.x+target.width/2,540);
   assert(POSTER_CONTENT_BOTTOM+28<=area.y);
   assert(target.width>=760&&target.height>=160);
-  const {c,commands}=context();drawPoster(c,assets(),0,true);
-  assert(commands.some(c=>c[0]==="translate"&&c[1]===0&&c[2]===1712));
-  assert.deepEqual(commands.at(-1),["fillText","Paste your link sticker here",540,84,680]);
-  assert(commands.some(command=>command[0]==="scale" && command[1]===SAVED_LINK_GUIDANCE_SCALE));
-  assert(108*SAVED_LINK_GUIDANCE_SCALE<=target.height);
-  const cueTop=SAVED_LINK_GUIDANCE_CENTER_Y-54*SAVED_LINK_GUIDANCE_SCALE,
-    cueBottom=SAVED_LINK_GUIDANCE_CENTER_Y+54*SAVED_LINK_GUIDANCE_SCALE;
-  assert(cueTop>=target.y && cueBottom<=target.y+target.height);
-  assert(cueTop-SAVED_LINK_PANEL.y>=39);
-  assert(SAVED_LINK_PANEL.y+SAVED_LINK_PANEL.height-cueBottom>=39);
-  assert(SAVED_LINK_PANEL.y>=POSTER_CONTENT_BOTTOM+28);
-  assert(SAVED_LINK_PANEL.y+SAVED_LINK_PANEL.height<=area.y+area.height);
+  const {c,commands,paints}=context(),layout=savedLinkHintLayout(c);drawPoster(c,assets(),0,true);
+  assert.deepEqual(commands.filter(command=>command[0]==="fillText").slice(-2),
+    [["fillText","Paste your link",0,layout.baselines[0]],["fillText","sticker here",0,layout.baselines[1]]]);
+  assert(commands.some(command=>command[0]==="scale" && command[1]===layout.scale));
+  assert.equal(layout.scale,SAVED_LINK_GUIDANCE_SCALE);
+  assert.equal(layout.panel.x+layout.panel.width/2,540);
+  assert.equal(layout.panel.y+layout.panel.height/2,SAVED_LINK_GUIDANCE_CENTER_Y);
+  assert.deepEqual(paints.at(-1).args,[layout.panel.x,layout.panel.y,layout.panel.width,layout.panel.height]);
+  assert(layout.panel.x>=target.x && layout.panel.x+layout.panel.width<=target.x+target.width);
+  assert(layout.panel.y>=target.y && layout.panel.y+layout.panel.height<=target.y+target.height);
+  assert(layout.panel.y>=POSTER_CONTENT_BOTTOM+28);
+  assert(layout.panel.y+layout.panel.height<=area.y+area.height);
+});
+test("saved cue balances two-line copy at three quarters of the badge height, with equal tight padding",()=>{
+  for (const factor of [.35,.52,.7]) {
+    const {c}=context();
+    c.textBaseline="top";
+    c.measureText=text=>{
+      assert.equal(c.textBaseline,"alphabetic","measure in the same coordinate system used for drawing");
+      return {width:text.length*24*factor,actualBoundingBoxAscent:18,actualBoundingBoxDescent:text.includes("your")?5:0};
+    };
+    const layout=savedLinkHintLayout(c);
+    assert.deepEqual(layout.lines,["Paste your link","sticker here"]);
+    assert.equal(layout.textHeight*layout.textScale,layout.textInkHeight);
+    assert.equal(layout.textInkHeight,layout.iconHeight*.75);
+    assert.equal(layout.textInkHeight,36);
+    assert.equal(layout.textY,(layout.rowHeight-layout.textInkHeight)/2);
+    assert.equal(layout.rowHeight,layout.iconHeight);assert.equal(layout.iconHeight,48);
+    assert.equal(layout.fontSize,24);assert.equal(layout.padding,24);
+    assert(layout.textX>layout.linkX+244*layout.iconHeight/106);
+    assert(Math.abs(layout.width-layout.textX-layout.lines[0].length*24*factor*layout.textScale)<1e-7);
+    assert.equal(c.textBaseline,"top","measuring leaves the artwork's canvas state untouched");
+    assert(Math.abs(layout.panel.width-layout.width*layout.scale-2*SAVED_LINK_PANEL_PADDING)<1e-7);
+    assert(Math.abs(layout.panel.height-layout.rowHeight*layout.scale-2*SAVED_LINK_PANEL_PADDING)<1e-7);
+    assert(layout.panel.width<=LINK_STICKER_TARGET.width);
+    assert(layout.panel.height<LINK_STICKER_AREA.height);
+  }
 });
 test("Siblings cover sizes exactly preserve the approved gallery composition",()=>{
   const expected=[
@@ -182,9 +215,26 @@ test("approved title sizes and theme-colored dark panels survive production tran
 test("link badge and save instruction keep the same current font and weight",()=>{
   const {c}=context(),styles=[];c.fillText=(text)=>styles.push({text,font:c.font});
   drawPoster(c,assets(),0,true);
-  const link=styles.find(s=>s.text==="Link"),hint=styles.find(s=>s.text==="Paste your link sticker here");
+  const link=styles.find(s=>s.text==="Link"),hint=styles.find(s=>s.text==="Paste your link");
   assert.equal(link.font.replace(/\d+px/,"SIZE"),hint.font.replace(/\d+px/,"SIZE"));
   assert.equal(hint.font,'400 24px "Helvetica Neue", Arial, sans-serif');
+});
+test("saved gray panel matches Link sticker roundness and the balanced text stays centered",()=>{
+  const saved=context(),preview=context(),data=assets(),layout=savedLinkHintLayout(saved.c);
+  drawPoster(saved.c,data,0,true);drawPoster(preview.c,data,0);
+  assert.equal(preview.commands.filter(command=>command[0]==="roundRect").length,0);
+  assert.deepEqual(saved.commands.filter(command=>command[0]==="roundRect"),[
+    ["roundRect",layout.panel.x,layout.panel.y,layout.panel.width,layout.panel.height,layout.panel.radius]]);
+  assert.equal(layout.panel.radius/layout.panel.height,SAVED_LINK_PANEL_ROUNDNESS);
+  assert.equal(SAVED_LINK_PANEL_ROUNDNESS,34/106);
+  assert(saved.commands.some(command=>command[0]==="scale"&&command[1]===layout.iconHeight/128&&command[2]===layout.iconHeight/128));
+  assert(saved.commands.some(command=>command[0]==="scale"&&command[1]===layout.iconHeight/106&&command[2]===layout.iconHeight/106));
+  assert(saved.commands.some(command=>command[0]==="scale"&&command[1]===layout.textScale&&command[2]===layout.textScale));
+  assert.equal(layout.textHeight*layout.textScale,layout.textInkHeight);
+  assert.equal(layout.textInkHeight,layout.iconHeight*.75);
+  assert.equal(layout.textY,6);
+  assert(saved.commands.some(command=>command[0]==="translate"&&command[1]===layout.linkX&&command[2]===0));
+  assert(saved.commands.some(command=>command[0]==="translate"&&command[1]===layout.textX&&command[2]===layout.textY));
 });
 test("swipe motion and eight-option boundaries follow the existing cover picker",()=>{
   const progress=(a,b,i)=>stackSwipeProgress(a,b,i,POSTER_DESIGNS.length);

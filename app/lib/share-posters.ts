@@ -8,9 +8,11 @@ export const POSTER_COVER_BOTTOM = 1600;
 export const POSTER_CONTENT_BOTTOM = POSTER_COVER_BOTTOM + 28;
 export const LINK_STICKER_AREA = { x: 112, y: 1656, width: 856, height: 220 } as const;
 export const LINK_STICKER_TARGET = { x: 160, y: 1686, width: 760, height: 160 } as const;
-export const SAVED_LINK_PANEL = LINK_STICKER_AREA;
 export const SAVED_LINK_GUIDANCE_CENTER_Y = LINK_STICKER_TARGET.y + LINK_STICKER_TARGET.height / 2;
 export const SAVED_LINK_GUIDANCE_SCALE = 1.3;
+export const SAVED_LINK_PANEL_PADDING = 24;
+export const SAVED_LINK_PANEL_COLOR = "#D9D9D9";
+export const SAVED_LINK_PANEL_ROUNDNESS = 34 / 106;
 export const POSTER_DESIGNS = [
   { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 710, width: 620, size: 80, gap: 28, front: "label", darkness: .12 },
   { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 540, width: 670, size: 96, gap: 30, front: "naked", darkness: .72 },
@@ -93,6 +95,43 @@ export function posterInk(color: string) {
 
 const SANS = '"Arial", "Helvetica Neue", sans-serif';
 const LINK_STICKER_FONT = '"Helvetica Neue", Arial, sans-serif';
+const LINK_STICKER_FACE_COLOR = "#38362F";
+const LINK_STICKER_INSTRUCTION_COLOR = "#2C2A25";
+
+/** Size the saved cue to its contents, with equal padding on all four sides. */
+export function savedLinkHintLayout(c: CanvasRenderingContext2D) {
+  const lines = ["Paste your link", "sticker here"];
+  const fontSize = 24, iconHeight = 48, rowHeight = iconHeight, gap = 16;
+  c.save(); c.font = `400 ${fontSize}px ${LINK_STICKER_FONT}`;
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  const metrics = lines.map(line => {
+    const measure = c.measureText(line);
+    return { width: measure.width,
+      ascent: Number.isFinite(measure.actualBoundingBoxAscent) ? measure.actualBoundingBoxAscent : fontSize * .8,
+      descent: Number.isFinite(measure.actualBoundingBoxDescent) ? measure.actualBoundingBoxDescent : fontSize * .2 };
+  });
+  c.restore();
+  const textGap = 5;
+  const textHeight = metrics.reduce((sum, metric) => sum + metric.ascent + metric.descent, textGap);
+  // Balance the two-line copy against the badge without making it equally large.
+  const textInkHeight = iconHeight * .75;
+  const textScale = textInkHeight / Math.max(1, textHeight);
+  const textY = (rowHeight - textInkHeight) / 2;
+  const linkX = rowHeight + gap + 20 + gap;
+  const linkWidth = 244 * iconHeight / 106;
+  const textX = linkX + linkWidth + gap;
+  const width = textX + Math.max(...metrics.map(metric => metric.width)) * textScale;
+  const padding = SAVED_LINK_PANEL_PADDING;
+  const scale = Math.min(SAVED_LINK_GUIDANCE_SCALE, (LINK_STICKER_TARGET.width - padding * 2) / width);
+  const panelWidth = width * scale + padding * 2, panelHeight = rowHeight * scale + padding * 2;
+  return {
+    lines, fontSize, iconHeight, rowHeight, textHeight, textInkHeight, textScale, textY,
+    linkX, textX, width, scale, padding,
+    baselines: [metrics[0].ascent, metrics[0].ascent + metrics[0].descent + textGap + metrics[1].ascent],
+    panel: { x: (STORY_WIDTH - panelWidth) / 2, y: SAVED_LINK_GUIDANCE_CENTER_Y - panelHeight / 2,
+      width: panelWidth, height: panelHeight, radius: panelHeight * SAVED_LINK_PANEL_ROUNDNESS },
+  };
+}
 
 /** Authored colors become surfaces, with warm paper replacing black backgrounds. */
 export function posterBackgrounds(colors: string[]) {
@@ -115,16 +154,16 @@ export function fitPosterPhoto(width: number, height: number, boxWidth: number, 
 }
 
 /** Instagram's sticker menu and Link sticker, redrawn as crisp canvas vectors. */
-export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
+export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string, layout = savedLinkHintLayout(c)) {
   // Keep both icons and the instruction inside a normal-size sticker's footprint,
   // so placing the real sticker here covers the entire hint.
   c.save();
-  c.translate(0, LINK_STICKER_TARGET.y + (LINK_STICKER_TARGET.height - 108) / 2);
+  c.translate(layout.panel.x + layout.padding, layout.panel.y + layout.padding);
+  c.scale(layout.scale, layout.scale);
   c.save();
   // Match the reference's charcoal circle, smiling face, and turned-up corner.
-  c.translate(415.5, 0);
-  c.scale(.5, .5);
-  c.fillStyle = "#38362F";
+  c.scale(layout.iconHeight / 128, layout.iconHeight / 128);
+  c.fillStyle = LINK_STICKER_FACE_COLOR;
   c.beginPath(); c.arc(64, 64, 64, 0, Math.PI * 2); c.fill();
   c.strokeStyle = "#FFFDF9"; c.lineWidth = 6;
   c.lineCap = "round"; c.lineJoin = "round";
@@ -147,11 +186,12 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
   // Read as a small instruction sequence, not another interactive control.
   c.save(); c.strokeStyle = ink; c.lineWidth = 2;
   c.lineCap = "round"; c.lineJoin = "round";
-  c.beginPath(); c.moveTo(497.5, 32); c.lineTo(517.5, 32);
-  c.moveTo(511.5, 26); c.lineTo(517.5, 32); c.lineTo(511.5, 38); c.stroke();
+  const arrowX = layout.rowHeight + 16, arrowY = layout.rowHeight / 2;
+  c.beginPath(); c.moveTo(arrowX, arrowY); c.lineTo(arrowX + 20, arrowY);
+  c.moveTo(arrowX + 14, arrowY - 6); c.lineTo(arrowX + 20, arrowY); c.lineTo(arrowX + 14, arrowY + 6); c.stroke();
   c.restore();
 
-  c.save(); c.translate(535.5, 4); c.scale(56 / 106, 56 / 106);
+  c.save(); c.translate(layout.linkX, 0); c.scale(layout.iconHeight / 106, layout.iconHeight / 106);
   // Preserve the rounded white badge and blue diagonal chain from the reference.
   c.fillStyle = "#FFFFFF"; c.beginPath();
   c.moveTo(34, 0); c.lineTo(210, 0);
@@ -173,9 +213,12 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
   c.fillText("Link", 102, 74, 120);
   c.restore();
 
-  c.fillStyle = ink; c.font = `400 24px ${LINK_STICKER_FONT}`;
-  c.textAlign = "center"; c.textBaseline = "top";
-  c.fillText("Paste your link sticker here", 540, 84, LINK_STICKER_TARGET.width - 80);
+  // Keep the smaller two-line instruction optically centered on the sticker artwork.
+  c.save(); c.translate(layout.textX, layout.textY); c.scale(layout.textScale, layout.textScale);
+  c.fillStyle = LINK_STICKER_INSTRUCTION_COLOR; c.font = `400 ${layout.fontSize}px ${LINK_STICKER_FONT}`;
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  layout.lines.forEach((line, index) => c.fillText(line, 0, layout.baselines[index]));
+  c.restore();
   c.restore();
 }
 
@@ -341,14 +384,12 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   c.textAlign="left"; c.textBaseline="top"; c.font=`${theme.weight} ${size}px ${theme.font}`;
   lines.forEach((line,i)=>c.fillText(line,bounds.x,titleY+i*lineHeight,bounds.width));
 
-  // Preserve the existing save cue and its footprint. Never export a fake live link.
+  // Never export a fake live link. The saved cue hugs its measured contents.
   if (saved) {
-    const ink=dark?"#FFFFFF":theme.ink;
-    // Use the reserved footer, with generous vertical padding around the cue.
-    const panel=SAVED_LINK_PANEL;
-    fill(dark?darkPanel:mat,panel.x,panel.y,panel.width,panel.height);
-    c.save();c.translate(540,SAVED_LINK_GUIDANCE_CENTER_Y);c.scale(SAVED_LINK_GUIDANCE_SCALE,SAVED_LINK_GUIDANCE_SCALE);
-    c.translate(-540,-SAVED_LINK_GUIDANCE_CENTER_Y);drawLinkStickerHint(c,ink);c.restore();
+    const layout=savedLinkHintLayout(c),panel=layout.panel;
+    c.fillStyle=SAVED_LINK_PANEL_COLOR;c.beginPath();
+    c.roundRect(panel.x,panel.y,panel.width,panel.height,panel.radius);c.fill();
+    drawLinkStickerHint(c,"#000000",layout);
   } else {
     const address=assets.address || "striiip.com";
     c.font=`${theme.weight} 36px ${theme.font}`;
