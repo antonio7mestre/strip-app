@@ -26,6 +26,7 @@ function assets(count=7,ratio=1.5) {
   const tiles=Array.from({length:count},(_,i)=>({id:String(i),type:i%2?"text":"image",source:{id:i},
     width:390,height:i%2?130:585,flowHeight:i%2?130:585,top:i*500,color:i%2?"#3155FF":undefined}));
   return {title:"Siblings",address:"antonio.striiip.com",palette:["#8ACE00","#001CB5","#FF4FA3"],
+    softBackground:{source:{id:"soft-background"},width:270,height:480},
     cover:{source:{id:"cover"},width:1000,height:1000*ratio},photos:[],tiles,
     theme:{background:"#8ACE00",ink:"#001CB5",font:'ui-rounded, "SF Pro Rounded", sans-serif',weight:500}};
 }
@@ -167,8 +168,26 @@ test("all layouts retain every ordered content tile, including very long Strips"
     const {c,commands,depth}=context(),data=assets(count);
     drawPoster(c,data,i);
     const drawn=new Set(commands.filter(c=>c[0]==="drawImage").map(c=>c[1].id));
-    for(const tile of data.tiles)assert(drawn.has(tile.id==="cover"?"cover":Number(tile.id)),`layout ${i} omitted ${tile.id}`);
+    if (POSTER_DESIGNS[i].mode==="soft-stack") {
+      assert(drawn.has("soft-background"),"Soft Memory uses the baked whole-Strip raster");
+    } else for(const tile of data.tiles)assert(drawn.has(tile.id==="cover"?"cover":Number(tile.id)),`layout ${i} omitted ${tile.id}`);
     assert.equal(depth(),0);
+  }
+});
+test("Soft Memory preview and saved PNG reuse baked blur while the cover stays sharp",()=>{
+  const index=POSTER_DESIGNS.findIndex(design=>design.id==="soft-memory"),data=assets();
+  for(const saved of [false,true]) {
+    const {c,commands}=context();
+    Object.defineProperty(c,"filter",{set(value){if(value!==undefined)throw new Error("Native filter must not be used");}});
+    drawPoster(c,data,index,saved);
+    const images=commands.filter(command=>command[0]==="drawImage");
+    assert.deepEqual(images[0],["drawImage",data.softBackground.source,0,0,270,480,0,0,1080,1920]);
+    assert.equal(images.at(-1)[1],data.cover.source,"cover is drawn after blur and darkening");
+  }
+  assert.throws(()=>drawPoster(context().c,{...data,softBackground:null},index),/Soft poster background unavailable/);
+  for(let i=0;i<POSTER_DESIGNS.length;i++)if(i!==index) {
+    const {c,commands}=context();drawPoster(c,data,i);
+    assert(!commands.some(command=>command[0]==="drawImage"&&command[1]===data.softBackground.source));
   }
 });
 test("approved compositions are distinct for mixed media and image-free Strips",()=>{
@@ -373,7 +392,7 @@ test("rapid option changes never share a stale file, and every media surface is 
   assert.match(hook,/URL\.revokeObjectURL\(url\)/);
   const preparation=read("app/lib/share-poster-assets.ts");
   assert.match(preparation,/disposePosterAssets\(assets\)/);
-  assert.match(preparation,/new Set\(\[assets.cover,assets.flow,\.\.\.assets.photos/);
+  assert.match(preparation,/new Set\(\[assets.cover,assets.flow,assets.softBackground,\.\.\.assets.photos/);
   assert.match(preparation,/signal.addEventListener\("abort",cancel/);
   assert.match(page,/files: \[storyAssetFile\]/);assert.match(page,/link\.download = storyAssetFile\.name/);
 });

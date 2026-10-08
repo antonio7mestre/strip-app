@@ -15,12 +15,18 @@ function moduleFor(host="antonio.striiip.com",blocked=false) {
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,sandbox);
   return {...sandbox.exports,document,values};
 }
-const defaultOrder=[0,2,3,6,7,4,1,5];
+const defaultOrder=[4,0,2,3,6,7,1,5];
 test("default gallery interleaves different compositions without changing stable design indices",()=>{
   const api=moduleFor();
   assert.deepEqual(Array.from(api.POSTER_DEFAULT_ORDER),defaultOrder.map(i=>POSTER_DESIGNS[i].id));
   assert.deepEqual(Array.from(api.posterDesignOrder(null)),defaultOrder);
   assert.deepEqual(Array.from(api.posterDesignOrder("retired-design")),defaultOrder);
+});
+test("Sidecar Strip leads the default stack without overriding a saved or shared preference",()=>{
+  const api=moduleFor();
+  assert.equal(POSTER_DESIGNS[api.posterDesignOrder(null)[0]].id,"sidecar-strip");
+  assert.equal(POSTER_DESIGNS[api.posterDesignOrder("portrait-atmosphere")[0]].id,"portrait-atmosphere");
+  assert.equal(new Set(api.posterDesignOrder(null)).size,POSTER_DESIGNS.length);
 });
 test("last saved design is first, with the varied default order for the rest",()=>{
   const api=moduleFor();

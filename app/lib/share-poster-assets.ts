@@ -1,4 +1,5 @@
-import { posterColor, posterInk, posterPalette, type PosterAssets, type PosterPhoto, type PosterStrip, type PosterTile } from "./share-posters";
+import { STORY_WIDTH, STORY_HEIGHT, posterColor, posterInk, posterPalette, type PosterAssets, type PosterPhoto, type PosterStrip, type PosterTile } from "./share-posters";
+import { blurPosterPixels } from "./poster-blur";
 import { profileFontInfo, profileFontWeight } from "./profile";
 import { fontVisualScale } from "./font-sizing";
 import { createPosterMediaTile, createPosterTextTile, paintPosterSticker, posterRasterWidth } from "./poster-content";
@@ -109,11 +110,23 @@ export async function preparePosterAssets(strip: PosterStrip, signal: AbortSigna
         flow.width,tile.flowHeight/top*flow.height+1);
     }
     assets.flow={source:flow,width:flow.width,height:flow.height};
+    // Preserve the approved overscan and 28px softness, independently of Safari's
+    // canvas filter implementation. Preview and PNG reuse this exact same raster.
+    const soft=document.createElement("canvas");
+    soft.width=STORY_WIDTH/4;soft.height=STORY_HEIGHT/4;
+    assets.softBackground={source:soft,width:soft.width,height:soft.height};
+    const softContext=soft.getContext("2d");
+    if (!softContext) throw new Error("Canvas unavailable");
+    softContext.fillStyle=background;softContext.fillRect(0,0,soft.width,soft.height);
+    softContext.drawImage(flow,0,0,flow.width,flow.height,-45/4,-45/4,1170/4,2010/4);
+    const pixels=softContext.getImageData(0,0,soft.width,soft.height);
+    blurPosterPixels(pixels.data,soft.width,soft.height,28/4);
+    softContext.putImageData(pixels,0,0);
     return assets;
   } catch (error) { free(active);disposePosterAssets(assets);throw error; }
 }
 
 export function disposePosterAssets(assets: PosterAssets) {
-  const sources=new Set([assets.cover,assets.flow,...assets.photos,...(assets.tiles ?? [])].filter(Boolean));
+  const sources=new Set([assets.cover,assets.flow,assets.softBackground,...assets.photos,...(assets.tiles ?? [])].filter(Boolean));
   for (const photo of sources) free(photo);
 }

@@ -91,7 +91,7 @@ export type PosterAssets = {
   title: string; address: string; palette: string[]; photos: PosterPhoto[];
   cover?: PosterPhoto | null; coverColor?: string; coverRatio?: number;
   theme?: { background: string; ink: string; font: string; weight: number; scale?: number };
-  tiles?: PosterTile[]; flow?: PosterPhoto;
+  tiles?: PosterTile[]; flow?: PosterPhoto; softBackground?: PosterPhoto;
 };
 
 export function posterColor(value?: string) {
@@ -333,14 +333,6 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
     drawFitted(c,p,-w/2,-h/2,w,h,p.type==="text");
     c.restore();
   };
-  const stack = (x: number,y: number,w: number,h: number) => {
-    if (assets.flow) {
-      c.drawImage(assets.flow.source,0,0,assets.flow.width,assets.flow.height,x,y,w,h);
-      return;
-    }
-    const total=tiles.reduce((sum,p)=>sum+p.flowHeight,0); let top=y;
-    tiles.forEach((p,i)=>{const height=p.flowHeight/total*h;tile(i,x,top,w,height);top+=height;});
-  };
   const grid = (gap=48) => {
     const rows=Math.max(1,Math.ceil(tiles.length/2)),w=(1080-3*gap)/2,h=(1920-(rows+1)*gap)/rows;
     // Tiny cells must still stay finite on exceptionally long Strips.
@@ -411,8 +403,13 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
         tile(cell.index,cell.x,cell.y,cell.width,cell.height,cell.rotation));
       break;
     }
-    case "soft-stack":
-      c.save(); c.filter="blur(28px)";stack(-45,-45,1170,2010);c.restore();break;
+    case "soft-stack": {
+      // Blur is baked once into shared pixels, not an unsupported Safari filter.
+      const soft = assets.softBackground;
+      if (!soft) throw new Error("Soft poster background unavailable");
+      c.drawImage(soft.source,0,0,soft.width,soft.height,0,0,STORY_WIDTH,STORY_HEIGHT);
+      break;
+    }
   }
   if (design.darkness) fill(`rgba(0,0,0,${design.darkness})`);
   const bounds=posterCoverBounds(assets,index),cover=assets.cover ?? assets.photos[0];
