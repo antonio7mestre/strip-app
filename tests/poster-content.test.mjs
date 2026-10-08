@@ -73,11 +73,23 @@ test("explicit blank lines and long words preserve all authored paragraph conten
   assert.equal(lines.join("").replace(/\s/g,""),content.replace(/\s/g,""));
   assert(lines.every(line=>c.measureText(line).width<=60));
 });
-test("text geometry is measured, not stretched to stale stored block heights",()=>{
-  const tile=createPosterTextTile({id:"text",type:"text",content:"hello",height:9999,fontSize:18},0,585,390);
+test("unpublished text without authored geometry is measured normally",()=>{
+  const tile=createPosterTextTile({id:"text",type:"text",content:"hello",fontSize:18},0,585,390);
   assert.equal(tile.flowHeight,32+18*1.22);assert.equal(tile.top,585);
   assert.equal(tile.source.commands.find(c=>c[0]==="fillText")[2],16);
   assert.equal(tile.source.commands.find(c=>c[0]==="fillText")[3],16);
+});
+test("published text heights preserve the approved layout and sticker coordinates",()=>{
+  for(const height of [76,98,142,625,9999]) {
+    const tile=createPosterTextTile({id:"text",type:"text",content:"hello",height,fontSize:18},0,2110,390);
+    assert.equal(tile.flowHeight,height);assert.equal(tile.top,2110);
+    assert.equal(tile.height,Math.min(8192,height));
+    paintPosterSticker([tile],{width:80,x:60,y:2394.63,rotation:89.335},
+      {source:{},width:512,height:427});
+    if(height===625) {
+      assert(tile.source.commands.some(c=>c[0]==="translate"&&c[1]===234&&Math.abs(c[2]-284.63)<1e-7));
+    }
+  }
 });
 test("media uses its real ratio, with saved top/bottom crops applied before layouts",()=>{
   const photo={source:{},width:800,height:1200};

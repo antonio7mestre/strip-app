@@ -4,7 +4,7 @@ import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
 import { recordStripView } from "@/app/server/view-history";
-import { profileFontInfo, profileInk, profileTextColor } from "@/app/lib/profile";
+import { publishedProfileTheme } from "@/app/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -190,19 +190,16 @@ export async function GET(
           ];
   }
 
-  const background = typeof row.profile_background === "string" && /^#[\da-f]{6}$/i.test(row.profile_background)
-    ? row.profile_background : "#000000";
-  const accent = typeof row.profile_accent === "string" && /^#[\da-f]{6}$/i.test(row.profile_accent)
-    ? row.profile_accent : profileInk(background);
+  const authorTheme = publishedProfileTheme({
+    background: row.profile_background, accent: row.profile_accent, font: row.profile_font,
+  });
   return Response.json({
     strip: {
       id: row.id,
       username: row.username,
       viewerIsOwner: viewer?.id === row.owner_id,
       title: row.title,
-      profileBackground: background,
-      profileTextColor: profileTextColor({ background, accent }),
-      profileFont: profileFontInfo(row.profile_font).id,
+      ...authorTheme,
       cover:
         row.cover_kind === "image"
           ? {

@@ -9,6 +9,7 @@ import {
 } from "@/app/lib/strip-ending";
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
+import { publishedProfileTheme } from "@/app/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -384,6 +385,12 @@ export async function POST(request: Request) {
   if (existing && existing.owner_id !== ownerId) {
     return Response.json({ error: "Strip already exists." }, { status: 409 });
   }
+  // The post-publish sharing screen uses this response immediately, without a
+  // detail reload. Include the author's saved theme instead of a strip-color fallback.
+  const authorProfile = await env.DB.prepare(
+    "SELECT background, accent, font FROM profiles WHERE user_id = ?",
+  ).bind(ownerId).first<{ background: string; accent: string; font: string }>();
+  const authorTheme = publishedProfileTheme(authorProfile);
   const preparedContent = prepareContentBlocks(
     ownerId,
     id,
@@ -539,7 +546,7 @@ export async function POST(request: Request) {
     published_at: publishedAt,
   };
   return Response.json(
-    { strip: serializeRow(row, auth.user.username) },
+    { strip: { ...serializeRow(row, auth.user.username), ...authorTheme } },
     { status: existing ? 200 : 201 },
   );
 }

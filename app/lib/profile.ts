@@ -96,6 +96,19 @@ export function profileTextColor(profile: Pick<StripProfile, "background" | "acc
   return editing || profileColorsReadable(profile) ? profile.accent : profileInk(profile.background);
 }
 
+/** The same author theme accompanies both a fresh publish and a public reload. */
+export function publishedProfileTheme(profile: { background?: unknown; accent?: unknown; font?: unknown } | null) {
+  const background = typeof profile?.background === "string" && /^#[\da-f]{6}$/i.test(profile.background)
+    ? profile.background : DEFAULT_PROFILE.background;
+  const accent = typeof profile?.accent === "string" && /^#[\da-f]{6}$/i.test(profile.accent)
+    ? profile.accent : profileInk(background);
+  return {
+    profileBackground: background,
+    profileTextColor: profileTextColor({ background, accent }),
+    profileFont: profileFontInfo(profile?.font).id,
+  };
+}
+
 /** Only neutral ink follows the background. A chosen color belongs to its owner. */
 export function applyProfileChanges(profile: StripProfile, changes: Partial<StripProfile>): StripProfile {
   const next = { ...profile, ...changes };

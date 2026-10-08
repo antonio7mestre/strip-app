@@ -2,10 +2,14 @@ export const STORY_WIDTH = 1080;
 export const STORY_HEIGHT = 1920;
 // A real Instagram link sticker is much larger than a line of footer text.
 // All layouts reserve this clear area, with extra room around the sticker itself.
-export const POSTER_CONTENT_BOTTOM = 1480;
-export const LINK_STICKER_AREA = { x: 112, y: 1520, width: 856, height: 300 } as const;
-export const LINK_STICKER_TARGET = { x: 160, y: 1590, width: 760, height: 160 } as const;
-export const SAVED_LINK_PANEL = { x: 112, y: 1536, width: 856, height: 268 } as const;
+// These are the approved gallery's cover and paper-frame limits. The footer
+// fits below the artwork, rather than shrinking approved covers to make room.
+export const POSTER_COVER_BOTTOM = 1600;
+export const POSTER_CONTENT_BOTTOM = POSTER_COVER_BOTTOM + 28;
+export const LINK_STICKER_AREA = { x: 112, y: 1656, width: 856, height: 220 } as const;
+export const LINK_STICKER_TARGET = { x: 160, y: 1686, width: 760, height: 160 } as const;
+export const SAVED_LINK_PANEL = LINK_STICKER_AREA;
+export const SAVED_LINK_GUIDANCE_CENTER_Y = LINK_STICKER_TARGET.y + LINK_STICKER_TARGET.height / 2;
 export const SAVED_LINK_GUIDANCE_SCALE = 1.3;
 export const POSTER_DESIGNS = [
   { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 710, width: 620, size: 80, gap: 28, front: "label", darkness: .12 },
@@ -178,7 +182,7 @@ export function drawLinkStickerHint(c: CanvasRenderingContext2D, ink: string) {
 /** Measure the address after setting its actual font, never use a fixed-width badge. */
 export function posterLinkBounds(c: CanvasRenderingContext2D, address: string) {
   const width = Math.min(LINK_STICKER_TARGET.width, c.measureText(address).width + 48);
-  return { x: (STORY_WIDTH - width) / 2, y: 1636, width, height: 68 };
+  return { x: (STORY_WIDTH - width) / 2, y: 1690, width, height: 85 };
 }
 
 function wrapPosterText(c: CanvasRenderingContext2D, text: string, width: number) {
@@ -203,7 +207,7 @@ export function posterCoverBounds(assets: PosterAssets, index: number) {
   const design = POSTER_DESIGNS[index] ?? POSTER_DESIGNS[0];
   const cover = assets.cover ?? assets.photos[0];
   const ratio = cover ? cover.height / cover.width : assets.coverRatio ?? 1;
-  const height = Math.min(POSTER_CONTENT_BOTTOM - design.y - 28, design.width * ratio);
+  const height = Math.min(POSTER_COVER_BOTTOM - design.y, design.width * ratio);
   const width = Math.min(design.width, height / ratio);
   // Very thin images retain their entire source without making the title unreadable.
   const boxWidth = width < 180 ? design.width : width;
@@ -313,7 +317,9 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   if (design.darkness) fill(`rgba(0,0,0,${design.darkness})`);
   const bounds=posterCoverBounds(assets,index),cover=assets.cover ?? assets.photos[0];
   const title=(assets.title || "").trim();
-  let size: number=design.size*("scale" in theme ? theme.scale ?? 1 : 1),lines: string[]=[];
+  // The gallery's nominal title sizes are part of the approved composition.
+  // Do not apply a second optical adjustment when transferring that design.
+  let size: number=design.size,lines: string[]=[];
   do {
     c.font=`${theme.weight} ${size}px ${theme.font}`;
     lines=wrapPosterText(c,title,bounds.width);
@@ -324,6 +330,7 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   const lineHeight=size*1.07;
   const titleHeight=lines.length*lineHeight,titleY=bounds.y-design.gap-titleHeight;
   const dark=design.front==="naked";
+  const darkPanel=posterInk(theme.ink)==="#FFFFFF" ? theme.ink : "#000000";
   if (design.front==="paper") fill(mat,bounds.x-28,titleY-28,bounds.width+56,bounds.y+bounds.height+28-titleY+28);
   if (design.front==="label" && title) fill(mat,bounds.x-12,titleY-12,bounds.width+24,titleHeight+24);
   if (cover) {
@@ -339,16 +346,16 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
     const ink=dark?"#FFFFFF":theme.ink;
     // Use the reserved footer, with generous vertical padding around the cue.
     const panel=SAVED_LINK_PANEL;
-    fill(dark?"#000000":mat,panel.x,panel.y,panel.width,panel.height);
-    c.save();c.translate(540,1670);c.scale(SAVED_LINK_GUIDANCE_SCALE,SAVED_LINK_GUIDANCE_SCALE);
-    c.translate(-540,-1670);drawLinkStickerHint(c,ink);c.restore();
+    fill(dark?darkPanel:mat,panel.x,panel.y,panel.width,panel.height);
+    c.save();c.translate(540,SAVED_LINK_GUIDANCE_CENTER_Y);c.scale(SAVED_LINK_GUIDANCE_SCALE,SAVED_LINK_GUIDANCE_SCALE);
+    c.translate(-540,-SAVED_LINK_GUIDANCE_CENTER_Y);drawLinkStickerHint(c,ink);c.restore();
   } else {
     const address=assets.address || "striiip.com";
     c.font=`${theme.weight} 36px ${theme.font}`;
     const badge=posterLinkBounds(c,address);
-    fill(dark?"#000000":mat,badge.x,badge.y,badge.width,badge.height);
-    c.fillStyle=dark?"#FFFFFF":theme.ink;c.textAlign="center";c.textBaseline="middle";
-    c.fillText(address,540,badge.y+badge.height/2,badge.width-48);
+    fill(dark?darkPanel:mat,badge.x,badge.y,badge.width,badge.height);
+    c.fillStyle=dark?"#FFFFFF":theme.ink;c.textAlign="center";c.textBaseline="top";
+    c.fillText(address,540,badge.y+20,badge.width-48);
   }
   c.restore();
 }

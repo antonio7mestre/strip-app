@@ -57,15 +57,17 @@ export function createPosterTextTile(block: PosterBlock, index: number, top: num
   const style=posterTextStyle(block);
   // Measure at the shared mobile reference width, independent of the preview device.
   context.font=`${style.weight} ${style.size}px ${style.font}`;
-  context.letterSpacing=`${-0.025*style.size}px`;
   const lines=posterParagraphLines(context,block.content ?? "",POSTER_REFERENCE_WIDTH-32);
-  const flowHeight=32+Math.max(1,lines.length)*style.leading;
+  // Sticker y coordinates refer to the authored Strip, not a fresh browser
+  // reflow. Preserve published text-block geometry, as the approved gallery did.
+  const measuredHeight=32+Math.max(1,lines.length)*style.leading;
+  const flowHeight=Number.isFinite(block.height) && block.height!>0
+    ? Math.max(32+style.leading,block.height!) : measuredHeight;
   const scale=rasterWidth/POSTER_REFERENCE_WIDTH;
   canvas.width=rasterWidth;canvas.height=Math.max(1,Math.min(8192,Math.ceil(flowHeight*scale)));
   context.scale(scale,canvas.height/flowHeight);context.fillStyle=style.background;
   context.fillRect(0,0,POSTER_REFERENCE_WIDTH,flowHeight);
   context.font=`${style.weight} ${style.size}px ${style.font}`;
-  context.letterSpacing=`${-0.025*style.size}px`;
   context.fillStyle=style.ink;context.textBaseline="top";
   lines.forEach((line,i)=>context.fillText(line,16,16+i*style.leading));
   return {id:block.id ?? String(index),type:"text",source:canvas,width:canvas.width,height:canvas.height,

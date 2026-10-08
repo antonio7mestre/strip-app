@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA,
-  LINK_STICKER_TARGET, SAVED_LINK_PANEL, SAVED_LINK_GUIDANCE_SCALE, drawPoster, fitPosterPhoto, posterLinkBounds, posterCoverBounds, steppedPosterTiles,
+import { STORY_WIDTH, STORY_HEIGHT, POSTER_DESIGNS, POSTER_COVER_BOTTOM, POSTER_CONTENT_BOTTOM, LINK_STICKER_AREA,
+  LINK_STICKER_TARGET, SAVED_LINK_PANEL, SAVED_LINK_GUIDANCE_SCALE, SAVED_LINK_GUIDANCE_CENTER_Y, drawPoster, fitPosterPhoto, posterLinkBounds, posterCoverBounds, steppedPosterTiles,
   posterColor, posterInk, posterMedia, posterPalette } from "../app/lib/share-posters.ts";
 import { stackSwipeProgress, stackSwipeTarget } from "../app/lib/stack-picker.ts";
 
@@ -54,7 +54,7 @@ test("preview address containers hug the measured link, including long usernames
   for(const address of ["a.striiip.com","antonio.striiip.com","averylongbutvalidusername.striiip.com"]) {
     const box=posterLinkBounds(c,address);
     assert.equal(box.width,Math.min(LINK_STICKER_TARGET.width,c.measureText(address).width+48));
-    assert.equal(box.x+box.width/2,540);assert.equal(box.height,68);
+    assert.equal(box.x+box.width/2,540);assert.equal(box.height,85);assert.equal(box.y,1690);
   }
   assert(posterLinkBounds(c,"a.striiip.com").width<posterLinkBounds(c,"antonio.striiip.com").width);
 });
@@ -112,7 +112,8 @@ test("light and dark theme fonts retain contrast on title mats and link cues",()
     for(const saved of [false,true]) {
       const {c,paints}=context();drawPoster(c,data,i,saved);
       const footer=paints.at(-1).color;
-      assert.equal(footer,POSTER_DESIGNS[i].front==="naked"?"#000000":posterInk(ink));
+      assert.equal(footer,POSTER_DESIGNS[i].front==="naked"
+        ? posterInk(ink)==="#FFFFFF" ? ink : "#000000" : posterInk(ink));
     }
   }
 });
@@ -137,19 +138,46 @@ test("export and preview draw identical normalized positions at both raster size
 test("saved link instruction still fits behind the established Instagram sticker target",()=>{
   const target=LINK_STICKER_TARGET,area=LINK_STICKER_AREA;
   assert.equal(target.x+target.width/2,540);
-  assert(POSTER_CONTENT_BOTTOM+40<=area.y);
+  assert(POSTER_CONTENT_BOTTOM+28<=area.y);
   assert(target.width>=760&&target.height>=160);
   const {c,commands}=context();drawPoster(c,assets(),0,true);
-  assert(commands.some(c=>c[0]==="translate"&&c[1]===0&&c[2]===1616));
+  assert(commands.some(c=>c[0]==="translate"&&c[1]===0&&c[2]===1712));
   assert.deepEqual(commands.at(-1),["fillText","Paste your link sticker here",540,84,680]);
   assert(commands.some(command=>command[0]==="scale" && command[1]===SAVED_LINK_GUIDANCE_SCALE));
   assert(108*SAVED_LINK_GUIDANCE_SCALE<=target.height);
-  const cueTop=1670-54*SAVED_LINK_GUIDANCE_SCALE,cueBottom=1670+54*SAVED_LINK_GUIDANCE_SCALE;
+  const cueTop=SAVED_LINK_GUIDANCE_CENTER_Y-54*SAVED_LINK_GUIDANCE_SCALE,
+    cueBottom=SAVED_LINK_GUIDANCE_CENTER_Y+54*SAVED_LINK_GUIDANCE_SCALE;
   assert(cueTop>=target.y && cueBottom<=target.y+target.height);
-  assert(cueTop-SAVED_LINK_PANEL.y>=60);
-  assert(SAVED_LINK_PANEL.y+SAVED_LINK_PANEL.height-cueBottom>=60);
-  assert(SAVED_LINK_PANEL.y>=POSTER_CONTENT_BOTTOM+40);
+  assert(cueTop-SAVED_LINK_PANEL.y>=39);
+  assert(SAVED_LINK_PANEL.y+SAVED_LINK_PANEL.height-cueBottom>=39);
+  assert(SAVED_LINK_PANEL.y>=POSTER_CONTENT_BOTTOM+28);
   assert(SAVED_LINK_PANEL.y+SAVED_LINK_PANEL.height<=area.y+area.height);
+});
+test("Siblings cover sizes exactly preserve the approved gallery composition",()=>{
+  const expected=[
+    [350,710,890/1.5,890], [210,540,670,1005], [80,530,690,1035],
+    [230,555,630,945], [414,570,560,840], [240,670,580,870],
+    [110,450,1150/1.5,1150], [90,590,1010/1.5,1010],
+  ];
+  for (let i=0;i<POSTER_DESIGNS.length;i++) {
+    const data=assets(7,1.5),bounds=posterCoverBounds(data,i),[x,y,w,h]=expected[i];
+    assert.equal(bounds.x,x);assert.equal(bounds.y,y);
+    assert(Math.abs(bounds.imageWidth-w)<1e-7);assert.equal(bounds.height,h);
+    assert(bounds.y+bounds.height<=POSTER_COVER_BOTTOM);
+    const {c,paints}=context();drawPoster(c,data,i,true);
+    const footer=paints.at(-1);
+    assert(footer.args[1]>=bounds.y+bounds.height+28);
+  }
+});
+test("approved title sizes and theme-colored dark panels survive production transfer",()=>{
+  for(let i=0;i<POSTER_DESIGNS.length;i++) {
+    const data=assets();data.theme.scale=1.33;
+    const {c,paints}=context(),styles=[];
+    c.fillText=(text)=>styles.push({text,font:c.font});
+    drawPoster(c,data,i);
+    assert.equal(styles[0].font,`500 ${POSTER_DESIGNS[i].size}px ${data.theme.font}`);
+    if(POSTER_DESIGNS[i].front==="naked") assert.equal(paints.at(-1).color,data.theme.ink);
+  }
 });
 test("link badge and save instruction keep the same current font and weight",()=>{
   const {c}=context(),styles=[];c.fillText=(text)=>styles.push({text,font:c.font});
