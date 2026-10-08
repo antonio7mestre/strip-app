@@ -105,6 +105,7 @@ import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout, useProfileReloadPresentation } from "@/app/components/ProfileReload";
 import { ProfileNavigation, type ProfileView } from "@/app/components/ProfileNavigation";
 import { LibraryDeleteButton } from "@/app/components/LibraryDeleteButton";
+import { retainProfileBrowserTheme } from "@/app/lib/profile-browser-theme";
 import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
 
 type TextBlock = {
@@ -3020,12 +3021,7 @@ export default function Home() {
   }, [view, stripProfile.cancel]);
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
-    const theme = document.getElementById("strip-theme-color");
-    const name = theme?.getAttribute("name");
-    theme?.removeAttribute("name");
-    return () => {
-      if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
-    };
+    return retainProfileBrowserTheme();
   }, [homeIsVisible]);
 
   useEffect(() => {

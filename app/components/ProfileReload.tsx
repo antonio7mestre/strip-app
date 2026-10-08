@@ -8,6 +8,7 @@ import { usernameFromHostname } from "@/app/lib/username";
 import { ProfileHeader, profilePageStyle } from "./ProfileEditor";
 import { ProfileNavigation, type ProfileView } from "./ProfileNavigation";
 import type { useStripProfile } from "./useStripProfile";
+import { retainProfileBrowserTheme } from "@/app/lib/profile-browser-theme";
 
 export function ProfileReload({ controller, owner, profile, username, publicView, onNavigate, onNew }: {
   controller?: ReturnType<typeof useStripProfile>; owner?: string; profile?: StripProfile;
@@ -33,6 +34,9 @@ export function ProfileReload({ controller, owner, profile, username, publicView
   const showHeading = isProfilePage && headingProfile && headingUsername && controller;
   const isPublic = publicView ?? Boolean(presentation?.owner.startsWith("public:"));
   const showTools = isProfilePage && !isPublic && Boolean(owner || presentation);
+  useLayoutEffect(() => {
+    if (showTools) return retainProfileBrowserTheme();
+  }, [showTools]);
   const view: ProfileView = path === "/drafts" ? "drafts" : path === "/history" ? "history" : path === "/settings" ? "settings" : "library";
   return <main className={`app-shell route-loading-mode profile-reload${showHeading ? ` library-mode profile-theme-mode${view === "library" ? " profile-mode" : ""}` : ""}`} aria-busy="true" aria-label="Loading profile"
     style={headingProfile || layout ? { ...(headingProfile ? profilePageStyle({ profile: headingProfile }) : {}), ...(layout ? { minHeight: layout.height } : {}) } : undefined}>

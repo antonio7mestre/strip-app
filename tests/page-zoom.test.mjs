@@ -93,6 +93,5 @@ test("signed-in home has no fixed safe-area cap or forced Safari tint", () => {
   assert.doesNotMatch(library, /top-safe-area-anchor/);
   const effect = page.slice(page.indexOf("const homeIsVisible ="), page.indexOf('setPublishedMinimumReadyKey(null)'));
   assert.match(effect, /if \(!homeIsVisible\) return/);
-  assert.match(effect, /theme\?\.removeAttribute\("name"\)/);
-  assert.match(effect, /theme\?\.setAttribute\("name", name\)/);
+  assert.match(effect, /return retainProfileBrowserTheme\(\)/);
 });

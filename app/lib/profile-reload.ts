@@ -89,15 +89,24 @@ export function cachedCoverRatio(id: string) {
 // Runs in <head>, before either the body or React can paint a default canvas.
 export const PROFILE_RELOAD_SCRIPT = `(() => { try {
   const root = document.documentElement;
-  // A fresh server-resolved author color wins over this browser's last profile.
-  if (/^#[\\da-f]{6}$/i.test(root.dataset?.initialBackground || "")) return;
   if (!["/", "/drafts", "/history", "/settings"].includes(location.pathname)) return;
   const saved = JSON.parse(localStorage.getItem("strip-profile-reload-v1") || "null");
+  const theme = document.getElementById("strip-theme-color");
+  const host = (location.hostname || "").toLowerCase();
+  const profileHost = host.match(/^([a-z0-9-]+)\\.striiip\\.com$/)?.[1];
+  // Match the signed-in toolbar's existing Safari treatment before first paint.
+  // Public profiles and Strip loaders retain their own full-canvas color.
+  if (typeof saved?.owner === "string" && !saved.owner.startsWith("public:") &&
+      saved.presentation?.username && (!profileHost || profileHost === "www" || profileHost === saved.presentation.username)) {
+    theme?.removeAttribute("name");
+  }
+  // A fresh server-resolved author color wins over this browser's last profile.
+  if (/^#[\\da-f]{6}$/i.test(root.dataset?.initialBackground || "")) return;
   if (!saved || !/^#[\\da-f]{6}$/i.test(saved.background)) return;
   root.style.setProperty("--profile-reload-background", saved.background);
   root.style.setProperty("--top-safe-area-color", saved.background);
   root.style.setProperty("--bottom-safe-area-color", saved.background);
   root.style.backgroundColor = saved.background;
   root.classList.add("profile-reload-pending");
-  document.getElementById("strip-theme-color")?.setAttribute("content", saved.background);
+  theme?.setAttribute("content", saved.background);
 } catch {} })();`;
