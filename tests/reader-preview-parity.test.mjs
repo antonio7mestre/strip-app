@@ -8,6 +8,7 @@ import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { withMediaImportBlock } from "../app/lib/media-import.ts";
 import { profileFontWeight } from "../app/lib/profile.ts";
 import { normalizedFontSize } from "../app/lib/font-sizing.ts";
+import { getReaderImageProps } from "../app/lib/reader-image.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -68,7 +69,7 @@ function fixture(mode, blocks, overrides = {}) {
     renderHeightCropHandles: () => ({ type: "crop-handles", props: {} }),
     recordBlockHeight: stub, BlockHeightReporter: "height-reporter",
     DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" },
-    profileFontWeight, normalizedFontSize, withMediaImportBlock,
+    profileFontWeight, normalizedFontSize, withMediaImportBlock, getReaderImageProps,
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
     StripEndingSheet, StripEndActions: "reader-actions", MediaEdgeExtension: "media-edge-extension",
     StripVideoBlock: "reader-video", StripStickerBlock: "reader-sticker", EmptyStripState: "empty-strip-state",
@@ -145,6 +146,26 @@ test("every reader loads all media immediately without editor visibility or deco
   assert.equal(ofType(root, "reader-video")[0].props.shouldLoad, false);
   assert.equal(footer(root), undefined);
   assert.equal(ofType(root, "editor-controls").length, 2);
+});
+
+test("every actual reader selects bounded image variants while editing retains the original source", () => {
+  const source = "/api/strips/1791303521563-plsa2g/media/photo-001";
+  const media = { ...photo, src: source, cropTop: 70, cropBottom: 90 };
+  for (const mode of readerModes) {
+    const { root } = fixture(mode, [media]);
+    const image = ofType(root, "img")[0];
+    const expected = getReaderImageProps(source);
+    for (const key of ["src", "srcSet", "sizes"]) assert.equal(image.props[key], expected[key], `${mode}: ${key}`);
+    assert.notEqual(image.props.src, source, "the reader does not decode the full-size source by default");
+    assert.equal(image.props.loading, "eager");
+    assert.equal(all(root, node => hasClass(node, "block-crop-viewport"))[0].props.style.height, "640px");
+    assert.equal(all(root, node => hasClass(node, "block-crop-content"))[0].props.style.transform, "translateY(-70px)");
+  }
+  const { root } = fixture("editor", [media]);
+  const image = ofType(root, "img")[0];
+  assert.equal(image.props.src, source);
+  assert.equal(image.props.srcSet, undefined);
+  assert.equal(image.props.sizes, undefined);
 });
 
 test("saved photo and video crops match across readers despite an active editor crop session", () => {

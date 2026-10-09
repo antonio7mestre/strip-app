@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { createElement } from "react";
 import { ImageResponse } from "next/og";
 import { applyPublicMediaSecurityHeaders } from "@/app/server/media-security";
+import { readReaderImageWidth, serveReaderImage } from "@/app/server/reader-image";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,14 @@ export async function GET(
   if (!row.cover_object_key) return new Response("Not found", { status: 404 });
   const object = await env.STRIP_MEDIA.get(row.cover_object_key);
   if (!object) return new Response("Not found", { status: 404 });
+
+  const readerWidth = readReaderImageWidth(request);
+  if (readerWidth !== null) {
+    return serveReaderImage({ request, object, width: readerWidth,
+      scope: `public-strip:${id}:cover`, images: env.IMAGES,
+      loadOriginal: () => env.STRIP_MEDIA.get(row.cover_object_key!),
+    });
+  }
 
   const headers = new Headers({
     "Cache-Control": "public, max-age=31536000, immutable",

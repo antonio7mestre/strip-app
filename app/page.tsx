@@ -62,6 +62,7 @@ import { prepareMediaFiles, mediaImportInsertionIndex, mediaImportIsLeading, MED
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
 import { preparePublishedEditorMedia, type EditorMediaStatus } from "@/app/lib/published-editor-media";
+import { getReaderImageProps } from "@/app/lib/reader-image";
 import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
@@ -6656,7 +6657,9 @@ export default function Home() {
                   <img
                     width={importedMediaSizes[block.id]?.width}
                     height={importedMediaSizes[block.id]?.height}
-                    src={shouldLoadMedia(block.id) ? block.src : undefined}
+                    {...(shouldLoadMedia(block.id)
+                      ? isEditing ? { src: block.src } : getReaderImageProps(block.src)
+                      : {})}
                     alt={block.alt}
                     loading="eager"
                     decoding="async"

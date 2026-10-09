@@ -10,6 +10,7 @@ import { entranceLoadPercent, makeEntrancePalette, normalizeEntranceColor, palet
 import { chooseScribbleColor, installScribbleSurface } from "../app/lib/scribble-entrance.ts";
 import * as coverEntrance from "../app/lib/cover-entrance.ts";
 import * as profile from "../app/lib/profile.ts";
+import * as readerImage from "../app/lib/reader-image.ts";
 const { PROFILE_FONT_CATALOG, profileFontInfo, profileFontWeight, profileInk } = profile;
 
 test("normalizes authored colors without accepting arbitrary CSS", () => {
@@ -67,7 +68,23 @@ runInNewContext(ts.transpileModule(componentSource, { compilerOptions: {
 } }).outputText, { exports, require: name => name === "@/app/lib/strip-entrance"
   ? { entranceLoadPercent, makeEntrancePalette, sampleEntranceMedia, startEntranceCounter } : name === "@/app/lib/scribble-entrance"
     ? { chooseScribbleColor, installScribbleSurface } : name === "@/app/lib/cover-entrance" ? coverEntrance
-      : name === "@/app/lib/profile" ? profile : require(name) });
+      : name === "@/app/lib/profile" ? profile : name === "@/app/lib/reader-image" ? readerImage : require(name) });
+
+test("the actual entrance cover uses bounded variants at its cover display width", () => {
+  const source = "/api/strips/1791303521563-plsa2g/cover";
+  const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
+    cover: { kind: "image", src: source }, settledAssets: 0, totalAssets: 1,
+    revealing: false, onCoverSettled() {}, onExitComplete() {},
+  }));
+  const image = html.match(/<img\b[^>]*>/)?.[0];
+  assert.ok(image, "direct entrance load renders its cover image");
+  const expected = readerImage.getReaderImageProps(source, "74vw");
+  const escapeAttribute = value => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+  assert.ok(image.includes(`src="${escapeAttribute(expected.src)}"`));
+  assert.ok(image.includes(`srcSet="${escapeAttribute(expected.srcSet)}"`));
+  assert.ok(image.includes('sizes="74vw"'));
+  assert.ok(image.includes('decoding="sync"'));
+});
 test("renders the title, centered cover and loading number, with no squares or percent sign", () => {
   const html = renderToStaticMarkup(React.createElement(exports.StripEntrance, {
     cover: { kind: "color", color: "#FF3366" }, title: "Slow Sunday", blocks: [],
@@ -268,7 +285,7 @@ test("text-first reader reveals the real edge underneath its opaque cover surfac
   assert.doesNotMatch(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body/);
   assert.match(css, /html:has\(\.published-mode\.has-leading-text\):has\(\.cover-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color 650ms ease-in-out;/);
   assert.match(css, /padding-top: calc\(var\(--leading-image-inset\) \+ env\(safe-area-inset-top\)\)/);
-  assert.match(page, /hasLeadingImage \|\| \(view === "published" && hasLeadingText\)/);
+  assert.match(page, /hasLeadingImage \|\| \(hasLeadingText &&\s*\(view === "published" \|\| view === "preview" \|\| \(view === "edit" && inlinePreview\)\)\)/);
   const anchorEffect = page.slice(page.indexOf("const calculateLeadingImageOffset"), page.indexOf("const calculateLeadingImageOffset") + 2500);
   assert.doesNotMatch(anchorEffect, /publishedLoaderIsVisible|publishedContentCanReveal/);
 });

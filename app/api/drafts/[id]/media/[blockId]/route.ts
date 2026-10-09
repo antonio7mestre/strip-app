@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { requireAuthUser } from "@/app/server/auth";
+import { readReaderImageWidth, serveReaderImage } from "@/app/server/reader-image";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +54,18 @@ export async function GET(
   }
   if (!mediaBlock) return new Response("Not found", { status: 404 });
 
-  const object = await env.STRIP_MEDIA.get(mediaBlock.objectKey, {
+  const readerWidth = mediaBlock.type === "image" ? readReaderImageWidth(request) : null;
+  const object = await env.STRIP_MEDIA.get(mediaBlock.objectKey, readerWidth === null ? {
     range: request.headers,
-  });
+  } : undefined);
   if (!object) return new Response("Not found", { status: 404 });
+
+  if (readerWidth !== null) {
+    return serveReaderImage({ request, object, width: readerWidth,
+      scope: `draft:${ownerId}:${id}:media:${blockId}`, images: env.IMAGES, isPrivate: true,
+      loadOriginal: () => env.STRIP_MEDIA.get(mediaBlock.objectKey),
+    });
+  }
 
   const headers = new Headers({
     "Accept-Ranges": "bytes",

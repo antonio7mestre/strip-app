@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
+import { getReaderImageProps } from "@/app/lib/reader-image";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { profileFontInfo, profileFontWeight, profileInk, type ProfileFont } from "@/app/lib/profile";
 import { COVER_MOVE_MS, coverEntranceLayout, fitCoverTitle, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
@@ -211,7 +212,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
             role="img" aria-label={cover.kind === "image" ? cover.alt ?? "Strip cover" : "Strip cover"} />
           : cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img ref={coverRef} src={cover.src} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
+            <img ref={coverRef} {...getReaderImageProps(cover.src, "74vw")} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
           ) : null}
         </div>
       </div>

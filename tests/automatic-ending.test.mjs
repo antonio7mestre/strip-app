@@ -8,6 +8,7 @@ import { automaticStripEndingStyle, readStripContent, writeStripContent } from "
 import { profileFontWeight } from "../app/lib/profile.ts";
 import { withMediaImportBlock } from "../app/lib/media-import.ts";
 import { normalizedFontSize } from "../app/lib/font-sizing.ts";
+import { getReaderImageProps } from "../app/lib/reader-image.ts";
 
 const black = { backgroundColor: "#000000", buttonColor: "#FFFFFF" };
 const white = { backgroundColor: "#FFFFFF", buttonColor: "#000000" };
@@ -101,7 +102,7 @@ function renderFixture(blocks, isEditing) {
     resolveBlockHeightCrop: () => null,
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,
     renderBlockControls: stub, recordBlockHeight: stub, BlockHeightReporter: stub,
-    DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" }, profileFontWeight, normalizedFontSize,
+    DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" }, profileFontWeight, normalizedFontSize, getReaderImageProps,
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
     installEndingContact: stub, StripEndActions: stub,
     handlePreviewEndingEdit: stub, handlePreviewEndingPublish: stub,
