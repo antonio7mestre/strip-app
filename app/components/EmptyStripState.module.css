@@ -65,6 +65,9 @@
 .profile .arrowGraphic { left: 104px; top: 0; }
 .profile .lettering { position: absolute; left: -58px; top: -32px; margin: 0; }
 .profile .guide { transform: translateX(-8px); }
+@media (min-width: 900px) {
+  .profile .guide { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .guide { transition: none; }
 }

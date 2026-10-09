@@ -2911,6 +2911,7 @@ export default function Home() {
   const dockTransitionFrameRef = useRef<number | null>(null);
   const editorDockEntryTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
+  const editorBackPathRef = useRef("/");
   const inlinePreviewScrollRef = useRef<number | null>(null);
   const previewLayoutRef = useRef<PreviewLayoutTransition | null>(null);
   const inlinePreviewHistoryEntryRef = useRef(false);
@@ -5455,6 +5456,7 @@ export default function Home() {
       return;
     }
     // An empty new Strip has no saved content to fetch or decode.
+    editorBackPathRef.current = window.location.pathname;
     editorEntrance.cancel();
     resetEditorEntry();
     const draftId = makeId();
@@ -5512,6 +5514,7 @@ export default function Home() {
 
   const openDraft = async (draft: DraftStripSummary) => {
     if (!libraryOwnerId || openingDraftId || pageTransitionInFlightRef.current) return;
+    editorBackPathRef.current = window.location.pathname;
     setOpeningDraftId(draft.id);
     pageTransitionInFlightRef.current = true;
     const request = startEditorEntry();
@@ -6094,6 +6097,7 @@ export default function Home() {
     }
     pageTransitionInFlightRef.current = true;
     const strip = openedPublishedStrip;
+    editorBackPathRef.current = window.location.pathname;
     const controller = new AbortController();
     publishedEditorRequestRef.current = controller;
     setOpeningPublishedEditor(true);
@@ -7055,6 +7059,59 @@ export default function Home() {
     );
   };
 
+  const desktopBackLabel = view === "title-setup" ? "Back to cover"
+    : view === "publish-setup" ? "Back to editor"
+    : view === "preview" || (view === "edit" && inlinePreview) ? "Back to editor"
+    : view === "edit" ? "Back"
+    : view === "share" ? "Back to Strip"
+    : ["published", "drafts", "history", "settings"].includes(view) ? "Back to profile"
+    : null;
+  const handleDesktopBack = () => {
+    if (publishing || storyShareSheetOpen) return;
+    if (view === "title-setup") return returnToCoverSetup();
+    if (view === "publish-setup") return returnFromPublishSetup();
+    if (view === "preview" || (view === "edit" && inlinePreview)) return handlePreviewEndingEdit();
+    if (view === "edit") {
+      // Keep imports and the existing autosave intact. An entrance fetch can
+      // be cancelled safely, but selected media must finish being added.
+      if (mediaImportRequestRef.current || mediaImportProgress || mediaBatchRevealIds.length) {
+        showEditorLoadingNotice("Images loading");
+        return;
+      }
+      if (pageTransitionInFlightRef.current && !editorEntrance.active) return;
+      resetTransientNavigationState();
+      setEditingTextBlockId(null);
+      setActiveTextTool(null);
+      setStickerPickerOpen(false);
+      setHeightCropSession(null);
+      setBrowserPath(editorBackPathRef.current);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
+    if (view === "share" && openedPublishedStrip) {
+      if (pageTransitionInFlightRef.current) return;
+      const destination = new URL(publicStripUrl(openedPublishedStrip));
+      if (destination.origin !== window.location.origin) {
+        window.location.assign(destination.href);
+        return;
+      }
+      setBrowserPath(destination.pathname);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
+    if (view === "published") {
+      void returnToLibraryFromPublished();
+      return;
+    }
+    returnToLibrary();
+  };
+  const desktopBackControl = desktopBackLabel && typeof document !== "undefined" ? createPortal(
+    <button className="desktop-back-button" type="button" onClick={handleDesktopBack}
+      aria-label={desktopBackLabel} title={desktopBackLabel} disabled={publishing || storyShareSheetOpen}>
+      <ArrowLeft aria-hidden="true" strokeWidth={2.3} />
+    </button>, document.body, "desktop-back-control",
+  ) : null;
+
   const legacyTransitionLayer = legacyPageTransition ? (
     <div
       className={`legacy-page-transition-overlay is-${legacyPageTransition.direction}`}
@@ -7414,6 +7471,7 @@ export default function Home() {
       <>
         {coverEntranceLayer}
         {legacyTransitionLayer}
+        {desktopBackControl}
         <main
           inert={openingCover !== null}
           className={`app-shell library-mode profile-theme-mode ${view === "library" ? "profile-mode" : ""} ${viewingPublicProfile ? "public-profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
@@ -7587,6 +7645,7 @@ export default function Home() {
       <>
         <link rel="preload" as="image" href="/apple-messages.jpg" />
         {legacyTransitionLayer}
+        {desktopBackControl}
         <main className="app-shell share-mode" inert={storyShareSheetOpen} data-story-ready={storyInstagramReady}>
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -7647,6 +7706,7 @@ export default function Home() {
     return (
       <>
         {legacyTransitionLayer}
+        {desktopBackControl}
         <main className="app-shell title-setup-mode title-dock-canvas">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -7796,6 +7856,7 @@ export default function Home() {
     return (
       <>
         {legacyTransitionLayer}
+        {desktopBackControl}
         <main className="app-shell publish-setup-mode">
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -8103,6 +8164,7 @@ export default function Home() {
         <>
           {coverEntranceLayer}
           {legacyTransitionLayer}
+          {desktopBackControl}
           <main
             className={`app-shell reader-mode published-mode is-strip-reader ${
               hasLeadingImage ? "has-leading-image" : ""
@@ -8156,6 +8218,7 @@ export default function Home() {
     return (
       <>
         {legacyTransitionLayer}
+        {desktopBackControl}
         <main
           className={`app-shell reader-mode preview-mode is-strip-reader ${
             hasLeadingImage ? "has-leading-image" : ""
@@ -8199,6 +8262,7 @@ export default function Home() {
   return (
     <>
       {legacyTransitionLayer}
+      {desktopBackControl}
       <main
         aria-busy={editorEntrance.active || undefined}
         onClickCapture={(event) => {

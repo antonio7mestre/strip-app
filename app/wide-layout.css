@@ -1,6 +1,7 @@
 /* The same mobile document, capped on wide screens. No separate desktop
    canvas, zoom, scroll container, navigation or interaction model. */
 .desktop-wordmark,
+.desktop-back-button,
 .sticker-transform-orbit,
 .cover-instruction-desktop { display: none; }
 
@@ -17,6 +18,28 @@
   }
   .cover-instruction-mobile { display: none; }
   .cover-instruction-desktop { display: inline; }
+
+  .desktop-back-button {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    z-index: 2147483647;
+    top: 20px;
+    left: calc((100% - var(--page-max-width)) / 2 - 64px);
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    border: 0;
+    border-radius: 50%;
+    color: #ffffff;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 160ms ease;
+  }
+  .desktop-back-button svg { width: 24px; height: 24px; }
+  .desktop-back-button:hover { background: #ffffff18; }
+  .desktop-back-button:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+  .desktop-back-button:disabled { opacity: 0.4; cursor: default; }
 
   .desktop-wordmark {
     --desktop-brand-size: clamp(22px, 3.2vw, 54px);
@@ -147,8 +170,8 @@
   }
 
   .library-add-button {
-    right: calc((100% - var(--page-max-width)) / 2 + 18px);
-    bottom: calc(var(--dock-visible-height) + 64px);
+    right: calc((100% - var(--desktop-pill-width)) / 2 + 12px);
+    bottom: var(--desktop-dock-clearance);
   }
 
   .notice,

@@ -5,6 +5,12 @@ import test from "node:test";
 const css = readFileSync(new URL("../app/wide-layout.css", import.meta.url), "utf8");
 const base = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
+test("desktop profile guidance is hidden and create sits above the pill's right edge", () => {
+  const empty = readFileSync(new URL("../app/components/EmptyStripState.module.css", import.meta.url), "utf8");
+  assert.match(empty, /@media \(min-width: 900px\) \{\s*\.profile \.guide \{ display: none; \}/);
+  assert.match(css, /\.library-add-button \{\s*right: calc\(\(100% - var\(--desktop-pill-width\)\) \/ 2 \+ 12px\);\s*bottom: var\(--desktop-dock-clearance\)/);
+});
+
 test("desktop is only a capped mobile document and floating bottom surfaces", () => {
   assert.match(css, /@media \(min-width: 900px\)/);
   assert.match(css, /--page-max-width: 640px/);
