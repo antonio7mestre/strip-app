@@ -7871,10 +7871,10 @@ export default function Home() {
               className="dock-icon-button publish-icon-button publish-strip-button publish-flow-button"
               type="button"
               onClick={continueToTitle}
-              aria-label="Continue to title"
+              aria-label="Next: add a title"
               disabled={!publishSetupHasCover}
             >
-              Continue
+              Next
             </button>
           </div>
         </footer>
@@ -8199,9 +8199,9 @@ export default function Home() {
             className="dock-icon-button publish-icon-button publish-strip-button"
             onClick={continueToPublish}
             feedback={!hasRequiredContent}
-            label="Continue to cover"
+            label="Next: choose a cover"
           >
-            Continue
+            Next
           </HapticActionButton>
         </div>
         )}

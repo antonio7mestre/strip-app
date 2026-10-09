@@ -903,14 +903,14 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 }
 
 .auth-step-landing .auth-action-controls.dock-controls {
-  width: min(calc(100% - 44px), 536px);
+  width: var(--dock-controls-width);
   flex-direction: column;
   gap: 8px;
 }
 
 .auth-step-phone .auth-action-controls.dock-controls,
 .auth-step-code .auth-action-controls.dock-controls {
-  width: min(calc(100% - 44px), 536px);
+  width: var(--dock-controls-width);
 }
 
 .auth-step-landing .auth-action-dock.composer-dock {
@@ -2883,7 +2883,10 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   --dock-browser-extension: max(0px, calc(100lvh - 100dvh));
   --dock-padding-left: max(12px, env(safe-area-inset-left));
   --dock-padding-right: max(12px, env(safe-area-inset-right));
-  --dock-controls-width: min(calc(100% - 24px), 536px);
+  /* The landing CTA, editor tools and publish pairs share one inner edge.
+     Combined with the 12px outer padding, this gives 34px on phones. */
+  --dock-controls-inset: 22px;
+  --dock-controls-width: min(calc(100% - 2 * var(--dock-controls-inset)), 536px);
   position: fixed;
   z-index: 30;
   right: 0;
@@ -4034,8 +4037,8 @@ html:has(.story-share-boundary) body {
 
 /* Outgoing rows are absolute, so include the dock padding in their insets. */
 .composer-dock .dock-action-controls.dock-controls-outgoing {
-  right: calc(var(--dock-padding-right) + 12px);
-  left: calc(var(--dock-padding-left) + 12px);
+  right: calc(var(--dock-padding-right) + var(--dock-controls-inset));
+  left: calc(var(--dock-padding-left) + var(--dock-controls-inset));
   width: auto;
   max-width: 536px;
   margin-inline: auto;

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const shareControls = readFileSync(new URL("../app/components/StoryShareControls.tsx", import.meta.url), "utf8");
 
 function rule(selector) {
   const start = css.indexOf(`\n${selector} {`) + 1;
@@ -28,14 +29,17 @@ test("all two-button steps opt into the shared layout without changing actions",
   const shareStart = page.indexOf('className="composer-dock share-dock publish-flow-dock"');
   assert.ok(shareStart >= 0);
   const shareFooter = page.slice(shareStart, page.indexOf("</footer>", shareStart));
-  assert.match(shareFooter, /dock-controls dock-controls-current dock-action-controls/);
+  assert.match(shareFooter, /<StoryShareControls/);
+  assert.match(shareControls, /dock-controls dock-controls-current dock-action-controls/);
   assert.match(shareFooter, /returnToLibrary\(\)/);
   assert.match(shareFooter, /shareStoryToInstagram\(\)/);
 });
 
-test("action rows and the main editor use exactly the same width and outer padding", () => {
+test("landing, action rows and editor tools share the wider phone inset", () => {
   const dock = rule(".composer-dock");
-  assert.match(dock, /--dock-controls-width: min\(calc\(100% - 24px\), 536px\)/);
+  assert.match(dock, /--dock-controls-inset: 22px/);
+  assert.match(dock, /--dock-controls-width: min\(calc\(100% - 2 \* var\(--dock-controls-inset\)\), 536px\)/);
+  assert.match(rule(".auth-step-landing .auth-action-controls.dock-controls"), /width: var\(--dock-controls-width\)/);
   assert.match(dock, /--dock-padding-left: max\(12px, env\(safe-area-inset-left\)\)/);
   assert.match(dock, /--dock-padding-right: max\(12px, env\(safe-area-inset-right\)\)/);
   assert.match(rule(".main-composer-dock .dock-controls-current"), /width: var\(--dock-controls-width\)/);
@@ -68,10 +72,16 @@ test("phone rules cannot collapse the crop gap or shrink a Back button to icon w
 test("outgoing action rows retain equal columns and the same inset during navigation", () => {
   assert.match(page, /classList\.contains\("dock-action-controls"\)\s*\? "dock-action-controls"/);
   const outgoing = rule(".composer-dock .dock-action-controls.dock-controls-outgoing");
-  assert.match(outgoing, /right: calc\(var\(--dock-padding-right\) \+ 12px\)/);
-  assert.match(outgoing, /left: calc\(var\(--dock-padding-left\) \+ 12px\)/);
+  assert.match(outgoing, /right: calc\(var\(--dock-padding-right\) \+ var\(--dock-controls-inset\)\)/);
+  assert.match(outgoing, /left: calc\(var\(--dock-padding-left\) \+ var\(--dock-controls-inset\)\)/);
   assert.match(outgoing, /width: auto/);
   assert.match(outgoing, /max-width: 536px/);
   assert.match(outgoing, /margin-inline: auto/);
   assert.match(css, /\.publish-flow-dock \.publish-flow-button,\s*\.dock-action-controls \.publish-flow-button/);
+});
+
+test("editor and cover steps say Next while retaining their existing actions", () => {
+  assert.match(page, /label="Next: choose a cover"\s*>\s*Next/);
+  assert.match(page, /onClick=\{continueToTitle\}\s*aria-label="Next: add a title"\s*disabled=\{!publishSetupHasCover\}\s*>\s*Next/);
+  assert.doesNotMatch(page, /(?:aria-label|label)="Continue to (?:cover|title)"/);
 });
