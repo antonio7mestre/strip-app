@@ -64,7 +64,7 @@ test("Drafts and History share one empty treatment; public profiles do not point
   const publicEmpty = page.indexOf('viewingPublicProfile && libraryItems.length === 0');
   const ownerEmpty = page.indexOf('<EmptyStripState kind="profile"');
   assert.ok(publicEmpty > 0 && publicEmpty < ownerEmpty);
-  assert.match(page, /sourceBlocks\.length === 0 \|\| \(!mediaBatchRevealStarted[^\n]+&& isEditing && !mediaImportProgress\?\.visible \? \(\s*<div className="empty-strip">\s*<EmptyStripState kind="editor" \/>/);
+  assert.match(page, /sourceBlocks\.length === 0 \|\| \(!mediaBatchRevealStarted[^\n]+&& isEditing \? \(\s*<div className="empty-strip">\s*<EmptyStripState kind="editor" \/>/);
   assert.match(page, /<EmptyStripState kind="profile" editing=\{stripProfile\.editing\} \/>/);
   assert.doesNotMatch(page, /Make your first Strip<\/button>/);
 });
@@ -85,7 +85,7 @@ test("guidance inherits profile type/ink, has no shadow and cannot swallow tool 
   assert.doesNotMatch(css, /box-shadow|drop-shadow|100[lsd]?vh|position: fixed|animation:/);
   assert.match(css, /transition: opacity 240ms/);
   assert.match(css, /\.guide\[data-positioned="true"\]\[data-artwork-ready="true"\]/);
-  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*\.guide \{ transition: none; \}/);
+  assert.doesNotMatch(css, /prefers-reduced-motion/);
   assert.match(css, /max-height: 650px/);
   assert.match(css, /background: currentColor;[\s\S]*mask: var\(--empty-state-lettering\)/,
     "Generated handwriting keeps its alpha and follows readable theme ink");

@@ -5,7 +5,6 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
 import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
-import { withMediaImportBlock } from "../app/lib/media-import.ts";
 import { profileFontWeight } from "../app/lib/profile.ts";
 import { normalizedFontSize } from "../app/lib/font-sizing.ts";
 import { getReaderImageProps } from "../app/lib/reader-image.ts";
@@ -62,6 +61,7 @@ function fixture(mode, blocks, overrides = {}) {
     legacyPageEnterClass: "", topSafeAreaColor: "#000000", hasRequiredContent: true,
     stripCanvasRef: { current: null }, mediaLoadStatus: {}, importedMediaSizes: {},
     mediaBatchRevealIds: [], mediaBatchRevealStarted: false, mediaImportProgress: null,
+    editorEntrance: { active: false },
     selectedBlockId: null, editingTextBlockId: null, heightCropSession: null,
     overlappingStickerIds: [], selectedBlock: null, audibleVideoId: null, videoAudioPresence: {},
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,
@@ -69,7 +69,7 @@ function fixture(mode, blocks, overrides = {}) {
     renderHeightCropHandles: () => ({ type: "crop-handles", props: {} }),
     recordBlockHeight: stub, BlockHeightReporter: "height-reporter",
     DEFAULT_BACKGROUND: "#000000", DEFAULT_FONT_SIZE: 24, FONT_STACKS: { sans: "Arial" },
-    profileFontWeight, normalizedFontSize, withMediaImportBlock, getReaderImageProps,
+    profileFontWeight, normalizedFontSize, getReaderImageProps,
     contrastColor: color => color === "#FFFFFF" ? "#000000" : "#FFFFFF",
     StripEndingSheet, StripEndActions: "reader-actions", MediaEdgeExtension: "media-edge-extension",
     StripVideoBlock: "reader-video", StripStickerBlock: "reader-sticker", EmptyStripState: "empty-strip-state",

@@ -81,7 +81,7 @@ test("the handoff is a fresh user-tapped tray link, inactive before a completed 
   assert.match(component,/Choose your saved poster from the camera roll\./);
   assert.match(component,/typeof navigator === "undefined" \? "" : navigator\.userAgent/);
   assert.doesNotMatch(component,/window\.open|location\.(?:href|assign|replace)|setTimeout|LocalIdentifier/);
-  assert.match(css,/prefers-reduced-motion: reduce\) \{\s*\.share-mode,[^}]*\.composer-dock \.story-share-controls,[^}]*transition: none;/);
+  assert.doesNotMatch(css,/prefers-reduced-motion/);
 });
 
 const { CopyStripLinkButton } = loadComponent("../app/components/CopyStripLinkButton.tsx");

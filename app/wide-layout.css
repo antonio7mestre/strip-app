@@ -223,7 +223,3 @@
   .landing-hero-stickers { margin-inline: auto; }
   .landing-make-collage { margin-top: 38px; }
 }
-
-@media (min-width: 900px) and (prefers-reduced-motion: reduce) {
-  body::before, body::after { transition: none; }
-}

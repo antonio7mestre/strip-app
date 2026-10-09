@@ -4,8 +4,8 @@ export type MediaImportFeedback = MediaImportProgress & { visible: boolean };
 export const MEDIA_IMPORT_SHOW_DELAY_MS = 180;
 export const MEDIA_IMPORT_MIN_VISIBLE_MS = 320;
 
-/** Fast batches skip the loading block. Once shown, it gets a readable beat
- * before the editor replaces it with the complete, decoded batch. */
+/** Fast batches skip the popup. Once shown, it gets a readable beat
+ * before fading out over the complete, decoded batch. */
 export function createMediaImportFeedback({ signal, onProgress }: {
   signal: AbortSignal;
   onProgress: (progress: MediaImportFeedback) => void;

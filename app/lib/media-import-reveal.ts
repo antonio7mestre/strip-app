@@ -1,7 +1,7 @@
 export const MEDIA_IMPORT_REVEAL_MS = 440;
 const MOUNTED_MEDIA_TIMEOUT_MS = 2_000;
 
-/** Keep the loading block until the actual mounted media is decoded.
+/** Keep the upload feedback until the actual mounted media is decoded.
  * An offscreen predecode alone does not guarantee a new Safari image is ready. */
 export async function revealImportedMedia(canvas: HTMLElement | null, ids: readonly string[], {
   signal,
@@ -47,39 +47,36 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
       void Promise.all(ready).then(done);
       return () => { clearTimeout(timer); removers.forEach(remove => remove()); };
     });
-    // Establish the loading block before the first photo takes over its size.
+    // Paint the unchanged canvas before the decoded batch is revealed.
     await frame();
     await frame();
     if (signal.aborted) throw cancelled();
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const positions = reduced ? [] : mounted.filter(block => !selected.has(block.dataset.blockId ?? ""))
+    const positions = mounted.filter(block => !selected.has(block.dataset.blockId ?? ""))
       .flatMap(block => {
         const bounds = block.getBoundingClientRect?.();
         return bounds?.height ? [{ block, top: bounds.top }] : [];
       });
     onReveal();
-    if (!reduced) {
-      // The final layout is committed once. Existing content moves from its
-      // previous position using translation, without reflowing every frame.
-      const moves = positions.flatMap(({ block, top }) => {
-        const delta = top - block.getBoundingClientRect().top;
-        if (Math.abs(delta) < 1 || !block.animate) return [];
-        const animation = block.animate([{ translate: `0 ${delta}px` }, { translate: "0 0" }],
-          { duration: MEDIA_IMPORT_REVEAL_MS, easing: "cubic-bezier(0.4, 0, 0.2, 1)" });
-        cleanups.add(() => animation.cancel());
-        return [animation];
-      });
-      // CSS begins on its own paint clock, which may lag the commit on a busy
-      // phone. Keep the handoff until the real grow/shrink and pixel fade finish.
-      const animations = (blocks[0]?.getAnimations?.({ subtree: true }) ?? []).filter(animation =>
-        "animationName" in animation && typeof animation.animationName === "string" &&
-        animation.animationName.startsWith("media-import-")).concat(moves);
-      await wait(done => {
-        const timer = setTimeout(done, MEDIA_IMPORT_REVEAL_MS + (animations.length ? 240 : 0));
-        if (animations.length) void Promise.all(animations.map(animation => animation.finished.catch(() => {}))).then(done);
-        return () => clearTimeout(timer);
-      });
-    }
+    // The final layout is committed once. Existing content moves from its
+    // previous position using translation, without reflowing every frame.
+    const moves = positions.flatMap(({ block, top }) => {
+      const delta = top - block.getBoundingClientRect().top;
+      if (Math.abs(delta) < 1 || !block.animate) return [];
+      const animation = block.animate([{ translate: `0 ${delta}px` }, { translate: "0 0" }],
+        { duration: MEDIA_IMPORT_REVEAL_MS, easing: "cubic-bezier(0.4, 0, 0.2, 1)" });
+      cleanups.add(() => animation.cancel());
+      return [animation];
+    });
+    // CSS begins on its own paint clock, which may lag the commit on a busy
+    // phone. Keep the handoff until the real grow/shrink and pixel fade finish.
+    const animations = (blocks[0]?.getAnimations?.({ subtree: true }) ?? []).filter(animation =>
+      "animationName" in animation && typeof animation.animationName === "string" &&
+      animation.animationName.startsWith("media-import-")).concat(moves);
+    await wait(done => {
+      const timer = setTimeout(done, MEDIA_IMPORT_REVEAL_MS + (animations.length ? 240 : 0));
+      if (animations.length) void Promise.all(animations.map(animation => animation.finished.catch(() => {}))).then(done);
+      return () => clearTimeout(timer);
+    });
   } finally {
     cleanups.forEach(cleanup => cleanup());
   }

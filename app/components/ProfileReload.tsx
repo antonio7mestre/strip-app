@@ -10,9 +10,9 @@ import { ProfileNavigation, type ProfileView } from "./ProfileNavigation";
 import type { useStripProfile } from "./useStripProfile";
 import { retainProfileBrowserTheme } from "@/app/lib/profile-browser-theme";
 
-export function ProfileReload({ controller, owner, profile, username, publicView, onNavigate, onNew }: {
+export function ProfileReload({ controller, owner, profile, username, publicView, view: requestedView, onNavigate, onNew }: {
   controller?: ReturnType<typeof useStripProfile>; owner?: string; profile?: StripProfile;
-  username?: string | null; publicView?: boolean; onNavigate?: (view: ProfileView) => void; onNew?: () => void;
+  username?: string | null; publicView?: boolean; view?: ProfileView; onNavigate?: (view: ProfileView) => void; onNew?: () => void;
 } = {}) {
   const [layout, setLayout] = useState<ProfileLayout | null>(null);
   const [presentation, setPresentation] = useState<ReturnType<typeof readProfilePresentation>>(null);
@@ -27,7 +27,7 @@ export function ProfileReload({ controller, owner, profile, username, publicView
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [owner]);
+  }, [owner, requestedView]);
   const isProfilePage = path !== null && PROFILE_PATHS.includes(path);
   const headingProfile = profile ?? (presentation ? { ...DEFAULT_PROFILE, ...presentation, font: profileFontInfo(presentation.font).id } : undefined);
   const headingUsername = username ?? presentation?.username ?? null;
@@ -37,7 +37,7 @@ export function ProfileReload({ controller, owner, profile, username, publicView
   useLayoutEffect(() => {
     if (showTools) return retainProfileBrowserTheme();
   }, [showTools]);
-  const view: ProfileView = path === "/drafts" ? "drafts" : path === "/history" ? "history" : path === "/settings" ? "settings" : "library";
+  const view: ProfileView = requestedView ?? (path === "/drafts" ? "drafts" : path === "/history" ? "history" : path === "/settings" ? "settings" : "library");
   return <main className={`app-shell route-loading-mode profile-reload${showHeading ? ` library-mode profile-theme-mode${view === "library" ? " profile-mode" : ""}` : ""}`} aria-busy="true" aria-label="Loading profile"
     style={headingProfile || layout ? { ...(headingProfile ? profilePageStyle({ profile: headingProfile }) : {}), ...(layout ? { minHeight: layout.height } : {}) } : undefined}>
     {showHeading ? <section className="strip-library">

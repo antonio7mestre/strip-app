@@ -63,7 +63,7 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
   useEffect(() => {
     if (entrance?.phase !== "revealing") return;
     const timer = window.setTimeout(() => setEntrance(current => current?.request === request ? null : current),
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : EDITOR_ENTRANCE_FADE_MS);
+      EDITOR_ENTRANCE_FADE_MS);
     return () => clearTimeout(timer);
   }, [entrance?.phase, request]);
 

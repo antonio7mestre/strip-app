@@ -58,7 +58,7 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
-import { prepareMediaFiles, mediaImportInsertionIndex, mediaImportIsLeading, MEDIA_IMPORT_BACKGROUND, withMediaImportBlock, type MediaSize } from "@/app/lib/media-import";
+import { prepareMediaFiles, mediaImportInsertionIndex, type MediaSize } from "@/app/lib/media-import";
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
 import { EditorEntrance } from "@/app/components/EditorEntrance";
@@ -66,7 +66,7 @@ import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
 import { StackPickerArrows } from "@/app/components/StackPickerArrows";
 import { useEditorEntrance } from "@/app/components/useEditorEntrance";
 import { getReaderImageProps } from "@/app/lib/reader-image";
-import { MediaImportBlock } from "@/app/components/MediaImportBlock";
+import { MediaImportPopup } from "@/app/components/MediaImportPopup";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
 import { resizeStickerWidth, stickerHandleTransform } from "@/app/lib/sticker-sizing";
@@ -265,7 +265,6 @@ const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
-const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
@@ -937,7 +936,7 @@ function BlockControls({
   stickerRotation?: number;
   showTopEdge?: boolean;
   closing?: boolean;
-  mediaHandoff?: "morph" | "fade";
+  mediaHandoff?: "fade";
 }) {
   // Preserve the entrance for this selection's lifetime. Clearing the import
   // flags must not restart the normal toolbar animation after the morph.
@@ -1657,7 +1656,6 @@ function StripVideoBlock({
   intrinsicSize,
   entering = false,
   importReady = false,
-  importFirst = false,
   onLoadSettled,
   onHeight,
   controls,
@@ -1685,7 +1683,6 @@ function StripVideoBlock({
   intrinsicSize?: MediaSize;
   entering?: boolean;
   importReady?: boolean;
-  importFirst?: boolean;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
   controls?: ReactNode;
@@ -1744,7 +1741,7 @@ function StripVideoBlock({
 
   return (
     <figure
-      className={`strip-block video-block ${entering ? `is-import-revealing${importReady ? " is-import-ready" : ""}${importFirst ? " is-import-first" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
+      className={`strip-block video-block ${entering ? `is-import-revealing${importReady ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
@@ -1753,7 +1750,6 @@ function StripVideoBlock({
       aria-busy={!loadSettled}
       style={{
         ...(!loadSettled && reservedHeight && croppedHeight === undefined ? { minHeight: reservedHeight } : {}),
-        ...(entering && importFirst ? { "--media-import-height": `${block.height}px` } : {}),
       } as CSSProperties}
       onPointerDown={(event) => {
         tapGestureRef.current = {
@@ -2824,6 +2820,7 @@ export default function Home() {
   const storyShareInFlightRef = useRef(false);
   const storyShareAttemptRef = useRef(0);
   const [libraryScrollInset, setLibraryScrollInset] = useState(0);
+  const [instantLibraryNavigation, setInstantLibraryNavigation] = useState(false);
   const [initialRouteReady, setInitialRouteReady] = useState(false);
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
@@ -3003,13 +3000,10 @@ export default function Home() {
     blockTapGestureRef.current = null;
     return !gesture || (gesture.blockId === blockId && !gesture.moved);
   };
-  const pendingMediaIsLeading = view === "edit" && !inlinePreview && Boolean(mediaImportProgress?.visible) &&
-    mediaImportIsLeading(blocks, mediaImportProgress?.afterId, mediaBatchRevealIds[0]);
-  const firstVisibleBlock = pendingMediaIsLeading
-      ? { type: "text" as const, backgroundColor: MEDIA_IMPORT_BACKGROUND }
-      : view === "published" && openedPublishedStrip
+  const firstVisibleBlock = view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.find((block) => block.type !== "sticker")
-      : blocks.find((block) => block.type !== "sticker");
+      : blocks.find((block) => block.type !== "sticker" &&
+          (mediaBatchRevealStarted || !mediaBatchRevealIds.includes(block.id)));
   const hasStickerAnchorBlock = blocks.some(
     (block) => block.type !== "sticker",
   );
@@ -3034,8 +3028,6 @@ export default function Home() {
     view === "title-setup" ||
     view === "share"
       ? DEFAULT_BACKGROUND
-      : pendingMediaIsLeading
-      ? MEDIA_IMPORT_BACKGROUND
       : firstVisibleBlock?.type === "text"
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
       : DEFAULT_BACKGROUND;
@@ -4054,8 +4046,8 @@ export default function Home() {
           height: Math.max(1, canvasWidth * item.height / item.width),
           ...(item.type === "video" ? { audioEnabled: true } : {}) };
       });
-      // Decode the actual mounted media while the loading block holds its spot.
-      // Only the first photo takes over that block's geometry during reveal.
+      // Decode the whole mounted batch without changing the visible canvas.
+      // The popup fades away as the ready photos fade in together.
       flushSync(() => {
         setImportedMediaSizes(current => ({ ...current, ...sizes }));
         setMediaLoadStatus(current => ({ ...current,
@@ -4553,40 +4545,22 @@ export default function Home() {
     }, 360);
   };
 
-  const transitionToViewStandard = async (
-    nextView: View,
-    nextScroll: "top" | "end" = "top",
-    preserveScroll = false,
-  ) => {
+  const switchLibraryView = (nextView: ProfileView) => {
     const root = document.documentElement;
-    const preservedScrollTop = preserveScroll ? Math.max(0, window.scrollY) : 0;
+    // The four tabs already have their data in memory. Swap in the tap, keep
+    // Safari's current scroll canvas, and never queue an entrance animation.
+    const preservedScrollTop = Math.max(0, window.scrollY);
     cancelDockTransitionSchedule();
-    root.classList.remove("strip-page-transitioning");
+    root.classList.remove("strip-page-transitioning", "strip-standard-page-entering");
     libraryScrollInsetRef.current = preservedScrollTop;
     flushSync(() => {
       setLegacyPageTransition(null);
       setDockTransition(null);
       setDockTransitionStarted(false);
+      setInstantLibraryNavigation(true);
       setLibraryScrollInset(preservedScrollTop);
       setView(nextView);
     });
-    if (!preserveScroll) {
-      const top =
-        nextScroll === "end"
-          ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-          : 0;
-      window.scrollTo({ top, behavior: "auto" });
-      document.documentElement.scrollTop = top;
-      document.body.scrollTop = top;
-    }
-    root.classList.add("strip-standard-page-entering");
-    try {
-      await new Promise<void>((resolve) =>
-        window.setTimeout(resolve, STANDARD_PAGE_TRANSITION_DURATION_MS),
-      );
-    } finally {
-      root.classList.remove("strip-standard-page-entering");
-    }
   };
 
   const transitionToView = async (
@@ -5571,7 +5545,7 @@ export default function Home() {
             ? "/history"
             : "/settings",
     );
-    void transitionToViewStandard(nextView, "top", true);
+    switchLibraryView(nextView);
   };
 
   const openDraftLibrary = () => openLibrarySection("drafts");
@@ -6563,8 +6537,7 @@ export default function Home() {
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
         showTopEdge={!(block.type === "text" && index === firstFlowBlockIndex)}
         closing={heightCropSession?.blockId === block.id}
-        mediaHandoff={mediaBatchRevealStarted && mediaBatchRevealIds[0] === block.id
-          ? (mediaImportProgress?.visible ? "morph" : "fade") : undefined}
+        mediaHandoff={mediaBatchRevealStarted && mediaBatchRevealIds[0] === block.id ? "fade" : undefined}
       />
     );
   };
@@ -6620,33 +6593,23 @@ export default function Home() {
       (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
     const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
     const canvasMinHeight = !isEditing && stickerFloor > 0 ? `${stickerFloor}px` : undefined;
-    const importingFirst = isEditing && mediaImportProgress?.visible
-      ? sourceBlocks.find(block => block.id === mediaBatchRevealIds[0]) : undefined;
-    const importingHeight = importingFirst?.height;
-    const canvasStyle = {
-      ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
-      ...(importingHeight ? {
-        "--media-import-offset": `${240 - importingHeight}px`,
-        "--media-import-scale": 240 / importingHeight,
-      } : {}),
-    } as CSSProperties;
 
     return (
       <>
       <div
         ref={stripCanvasRef}
-        className={`strip-canvas ${importingFirst ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""} ${
+        className={`strip-canvas ${isEditing && mediaBatchRevealIds.length ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""} ${
           endingFollowsMedia ? "has-trailing-media" : ""
         } ${endingFollowsText ? "has-trailing-text" : ""}`}
-        style={Object.keys(canvasStyle).length > 0 ? canvasStyle : undefined}
+        style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
-        {(sourceBlocks.length === 0 || (!mediaBatchRevealStarted && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing && !mediaImportProgress?.visible ? (
+        {(sourceBlocks.length === 0 || (!mediaBatchRevealStarted && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing ? (
           <div className="empty-strip">
             <EmptyStripState kind="editor" />
           </div>
         ) : null}
 
-        {withMediaImportBlock(sourceBlocks, sourceBlocks.map((block, index) => {
+        {sourceBlocks.map((block, index) => {
         const heightCrop =
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, isEditing ? heightCropSession : null)
@@ -6772,7 +6735,7 @@ export default function Home() {
             : heightCrop?.height;
           return (
             <figure
-              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealStarted ? " is-import-ready" : ""}${mediaImportProgress?.visible && mediaBatchRevealIds[0] === block.id ? " is-import-first" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
+              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealStarted ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
@@ -6786,7 +6749,6 @@ export default function Home() {
               aria-busy={mediaLoadStatus[block.id] === undefined}
               style={{
                 ...(mediaLoadStatus[block.id] === undefined && block.height && heightCrop?.height === undefined ? { minHeight: block.height } : {}),
-                ...(isEditing && mediaBatchRevealIds[0] === block.id ? { "--media-import-height": `${block.height}px` } : {}),
               } as CSSProperties}
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
@@ -7010,7 +6972,6 @@ export default function Home() {
             intrinsicSize={importedMediaSizes[block.id]}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
             importReady={mediaBatchRevealStarted}
-            importFirst={Boolean(mediaImportProgress?.visible && mediaBatchRevealIds[0] === block.id)}
             cropTop={heightCrop?.top}
             cropSourceHeight={heightCrop?.sourceHeight}
             cropEditing={heightCrop?.isEditing}
@@ -7038,7 +6999,7 @@ export default function Home() {
             }
           />
         );
-        }), isEditing && mediaImportProgress?.visible ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} handoff={mediaBatchRevealIds.length ? (mediaBatchRevealStarted ? "revealing" : "waiting") : undefined} /> : null, mediaImportProgress?.afterId, mediaBatchRevealIds[0])}
+        })}
       </div>
         {showsEndingCard ? (
           <StripEndingSheet
@@ -7184,6 +7145,7 @@ export default function Home() {
     else void openSettings();
   };
   const reloadProfileProps = {
+    view: initialRouteReady && (view === "library" || view === "drafts" || view === "history" || view === "settings") ? view : undefined,
     controller: stripProfile,
     owner: authStatus === "loading" ? undefined : visitingProfileHost ? `public:${profileHostUsername}` : libraryOwnerId || undefined,
     profile: viewingPublicProfile ? (publicProfile.status === "ready" ? publicProfile.profile : undefined)
@@ -7474,7 +7436,7 @@ export default function Home() {
         {desktopBackControl}
         <main
           inert={openingCover !== null}
-          className={`app-shell library-mode profile-theme-mode ${view === "library" ? "profile-mode" : ""} ${viewingPublicProfile ? "public-profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
+          className={`app-shell library-mode profile-theme-mode ${instantLibraryNavigation ? "is-instant-navigation" : ""} ${view === "library" ? "profile-mode" : ""} ${viewingPublicProfile ? "public-profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
             isDraftLibrary ? "drafts-library-mode" : ""
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
@@ -7622,7 +7584,7 @@ export default function Home() {
             className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
           >
             {view === "library" && stripProfile.editing ? <ProfileTools controller={stripProfile} /> : <>{dockTransitionLayer}
-            <ProfileNavigation className={currentDockControlsClass} key={`dock-controls:${view}`} view={view} onNavigate={navigateProfilePage} /></>}
+            <ProfileNavigation className={currentDockControlsClass} view={view} onNavigate={navigateProfilePage} /></>}
           </footer> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal
@@ -8263,6 +8225,10 @@ export default function Home() {
     <>
       {legacyTransitionLayer}
       {desktopBackControl}
+      {!inlinePreview && mediaImportProgress?.visible && typeof document !== "undefined" ? createPortal(
+        <MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} />,
+        document.body,
+      ) : null}
       <main
         aria-busy={editorEntrance.active || undefined}
         onClickCapture={(event) => {

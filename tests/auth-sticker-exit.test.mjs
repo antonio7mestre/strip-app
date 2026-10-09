@@ -91,7 +91,7 @@ test("the real form mounts in the tap and fades in under an independent sticker 
   assert.doesNotMatch(source, /elapsed >= 2200/);
   assert.match(source, /progress === 1\) document\.removeEventListener\("click", preventTap, true\)/);
   assert.match(page, /const returnToAuthLanding = \(\) => \{\s*authStickerExitRef\.current\?\.\(\);/);
-  assert.match(source, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(source, /prefers-reduced-motion/);
   assert.match(source, /window\.setTimeout\(finish, 2400\)/);
   for (const cleanup of ["cancelAnimationFrame(frame)", "clearTimeout(watchdog)", "physics.dispose()", "overlay.remove()", 'removeEventListener("click", preventTap, true)']) assert.ok(source.includes(cleanup));
   assert.match(css, /\.auth-sticker-revealed \.auth-flow-stage \{ animation: none; \}/);

@@ -136,10 +136,11 @@ test("Back cancels timers and stale font or draft completions cannot reveal the 
   assert.equal(h.value.active, false);
 });
 
-test("reduced motion does not wait for a crossfade", async () => {
+test("the same crossfade completes even when the device requests reduced motion", async () => {
   const h = harness({ reduced: true }); const request = h.value.start(); h.render();
   h.value.resolve(request); h.render(); await h.fontsReady();
-  h.advance(296); assert.equal(h.value.active, false);
+  h.advance(296); assert.equal(h.value.phase, "revealing");
+  h.advance(320); assert.equal(h.value.active, false);
 });
 
 test("loader uses the selected theme color and face, right-aligns text, and leaves tools outside the fade", () => {

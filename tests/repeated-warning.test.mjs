@@ -43,7 +43,7 @@ test("shake moves only a few pixels horizontally without fading or changing the 
   assert.match(animation, /calc\(50% - 3px\)/);
   assert.match(animation, /calc\(50% \+ 3px\)/);
   assert.doesNotMatch(animation, /opacity|translateY|bottom:|display:|visibility:/);
-  assert.match(animation, /prefers-reduced-motion: reduce.*\.notice.is-repeated \{ animation: none;/);
+  assert.doesNotMatch(animation, /prefers-reduced-motion/);
   assert.match(read("app/components/ProfileEditor.tsx"), /controller.errorRepeated \? " is-repeated"/);
   assert.match(read("app/page.tsx"), /notice === noticeShakeMessage \? " is-repeated"/);
 });

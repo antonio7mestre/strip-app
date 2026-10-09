@@ -116,10 +116,10 @@ test("cancelling during decode, paint, or fade removes every timer and frame", a
   }
 });
 
-test("reduced motion still waits for ready paint but does not hold an animation", async () => {
+test("the same bounded reveal runs when the device requests reduced motion", async () => {
   const h = harness({ reduced: true }); h.video("ready", 2);
   const pending = h.start(["ready"]); await tick();
-  await h.frame(); await h.frame(); await pending;
+  await h.frame(); await h.frame(); await h.timer(440); await pending;
   assert.equal(h.reveals(), 1); assert.equal(h.timers.size, 0);
 });
 
@@ -154,32 +154,18 @@ test("a stalled animation remains bounded and cancellation clears its fallback",
   }
 });
 
-test("waiting photos stay hidden and only the first selected photo morphs from the loader", () => {
+test("waiting photos stay hidden until the whole batch can fade in with its selection", () => {
   const css = read("app/globals.css"), page = read("app/page.tsx");
-  assert.match(css, /\.editor-mode \.strip-block\.is-import-revealing:not\(\.is-import-ready\) \{ display: none; \}/);
-  assert.doesNotMatch(css, /\.editor-mode \.strip-block\.is-import-revealing \{|\.strip-block\.is-import-revealing[^{}]*\{[^}]*background|\.strip-block\.is-import-revealing > :not/);
-  assert.match(css, /is-import-ready\.is-import-first \{[^}]*height: var\(--media-import-height\)/);
-  assert.match(page, /mediaImportProgress\?\.visible && mediaBatchRevealIds\[0\] === block.id \? " is-import-first"/);
-  assert.match(page, /"--media-import-height": `\$\{block.height\}px`/);
-  assert.match(page, /importFirst=\{Boolean\(mediaImportProgress\?\.visible && mediaBatchRevealIds\[0\] === block.id\)\}/);
-  assert.match(page, /importReady=\{mediaBatchRevealStarted\}/);
-  assert.doesNotMatch(page, /importOverlay/);
-  assert.match(page, /<MediaImportBlock key="pending-media-import"[^\n]+mediaImportProgress\?\.afterId, mediaBatchRevealIds\[0\]/);
+  assert.ok(css.includes(".editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }"));
+  assert.ok(css.includes(".editor-mode .strip-block.is-import-ready { animation: media-import-in"));
+  assert.ok(page.includes("importReady={mediaBatchRevealStarted}"));
+  assert.ok(page.includes('mediaHandoff={mediaBatchRevealStarted && mediaBatchRevealIds[0] === block.id ? "fade" : undefined}'));
+  assert.ok(page.includes("const [mediaHandoffEntrance] = useState(mediaHandoff)"));
+  assert.doesNotMatch(page, /is-import-first|--media-import-height|importFirst/);
+  assert.doesNotMatch(css, /media-import-first-size|media-import-follow|media-import-surface/);
   assert.equal(harness().MEDIA_IMPORT_REVEAL_MS, 440);
-});
-
-test("photo, size and selected controls share one clock without restarting controls at cleanup", () => {
-  const css = read("app/globals.css"), page = read("app/page.tsx");
-  assert.match(css, /--media-import-duration: 440ms/);
-  assert.match(css, /--media-import-easing: cubic-bezier\(0\.4, 0, 0\.2, 1\)/);
-  assert.match(css, /\.block-controls-reveal\.is-media-handoff-morph:not\(\.is-closing\) \{[^}]*animation: media-import-follow var\(--media-import-duration\) var\(--media-import-easing\) both,\s*media-import-in/);
-  assert.match(css, /\.block-controls-reveal\.is-media-handoff:not\(\.is-closing\) button \{ animation: none; \}/);
-  assert.match(page, /const \[mediaHandoffEntrance\] = useState\(mediaHandoff\)/);
-  assert.match(page, /mediaHandoff=\{mediaBatchRevealStarted && mediaBatchRevealIds\[0\] === block.id/);
-  assert.doesNotMatch(page, /Math.round\(canvasWidth \* item.height \/ item.width\)/);
-  assert.match(css, /\.editor-mode \.strip-canvas\.is-media-handoff \{ overflow-anchor: none; \}/);
-  assert.doesNotMatch(css, /@keyframes media-import-first-size[^}]+height:/);
-  assert.match(css, /@keyframes media-import-follow \{ from \{ transform: translateY\(var\(--media-import-offset, 0px\)\)/);
+  assert.ok(css.includes(".editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }"));
+  assert.ok(css.includes(".block-controls-reveal.is-media-handoff:not(.is-closing) button { animation: none; }"));
 });
 
 test("existing content keeps its pre-import position and translates once without per-frame layout", async () => {
@@ -196,16 +182,14 @@ test("existing content keeps its pre-import position and translates once without
   assert.equal(h.timers.size, 0);
 });
 
-test("existing-content motion cancels cleanly and is skipped for reduced motion", async () => {
+test("existing-content motion runs and cancels cleanly regardless of the device motion preference", async () => {
   for (const reduced of [false, true]) {
     const h = harness({ reduced }), first = h.image("first"); h.existing("following", 240, 900);
     const pending = h.start(["first"]);
     first.resolve(); await tick(); await h.frame(); await h.frame();
-    if (reduced) { await pending; assert.equal(h.moves.length, 0); }
-    else {
-      const rejected = assert.rejects(pending, error => error.name === "AbortError");
-      h.controller.abort(); await rejected; assert.equal(h.moves[0].cancelled, true);
-    }
+    assert.equal(h.moves.length, 1);
+    const rejected = assert.rejects(pending, error => error.name === "AbortError");
+    h.controller.abort(); await rejected; assert.equal(h.moves[0].cancelled, true);
     assert.equal(h.timers.size, 0);
   }
 });

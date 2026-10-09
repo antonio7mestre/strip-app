@@ -1,5 +1,4 @@
 export type MediaImportProgress = { completed: number; total: number };
-export const MEDIA_IMPORT_BACKGROUND = "#d9d9d9";
 export type MediaSize = { width: number; height: number };
 export type PreparedMedia = MediaSize & {
   type: "image" | "video";
@@ -7,26 +6,10 @@ export type PreparedMedia = MediaSize & {
   alt: string;
 };
 
-/** The pending block and decoded batch use the same captured insertion spot. */
+/** Keep the selected insertion spot while preparing the complete media batch. */
 export function mediaImportInsertionIndex(blocks: readonly { id: string }[], afterId: string | null | undefined) {
   const index = blocks.findIndex(block => block.id === afterId);
   return index >= 0 ? index + 1 : blocks.length;
-}
-
-/** A pending first block owns the same safe-area treatment as a text block. */
-export function mediaImportIsLeading(blocks: readonly { id: string; type: string }[], afterId: string | null | undefined, mountedFirstId?: string) {
-  const first = blocks.findIndex(block => block.type !== "sticker");
-  if (mountedFirstId) return first >= 0 && blocks[first].id === mountedFirstId;
-  return first < 0 || mediaImportInsertionIndex(blocks, afterId) <= first;
-}
-
-/** Render-only placeholder. Never add it to draft state or serialized content. */
-export function withMediaImportBlock<Node>(blocks: readonly { id: string }[], nodes: readonly Node[], pending: Node | null, afterId: string | null | undefined, mountedFirstId?: string) {
-  if (pending === null) return nodes;
-  const rendered = [...nodes];
-  const mountedIndex = mountedFirstId ? blocks.findIndex(block => block.id === mountedFirstId) : -1;
-  rendered.splice(mountedIndex >= 0 ? mountedIndex : mediaImportInsertionIndex(blocks, afterId), 0, pending);
-  return rendered;
 }
 
 const IMPORT_CONCURRENCY = 2;

@@ -183,7 +183,7 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
     };
   }, [src]);
 
-  // Also update immediate crops when reduced motion disables transition events.
+  // Also update immediate crops that do not emit transition events.
   useLayoutEffect(() => {
     refreshRef.current?.();
   }, [cropTop, cropHeight]);

@@ -1008,9 +1008,6 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 }
 .auth-code-delivery-prefix > .is-current { opacity: 1; transform: translateY(0); }
 .auth-code-delivery-phone { white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) {
-  .auth-code-delivery-prefix > span { transform: none; transition: opacity 150ms ease; }
-}
 
 .auth-flow-form {
   flex: 1;
@@ -1136,21 +1133,6 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .auth-transition-forward .auth-landing,
-  .auth-transition-forward .auth-flow-header,
-  .auth-transition-forward .auth-flow-stage,
-  .auth-transition-backward .auth-landing,
-  .auth-transition-backward .auth-flow-header,
-  .auth-transition-backward .auth-flow-stage {
-    animation: none;
-  }
-
-  .auth-action-button,
-  .app-navigation-button {
-    transition: none;
-  }
-}
 
 
 /* Phone, code and username share one fixed, keyboard-sized canvas. */
@@ -1401,7 +1383,6 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 .profile-tool-row .profile-save-button:disabled { opacity: 0.5; cursor: wait; }
 .profile-save-notice.notice { z-index: 90; }
 @keyframes profile-tools-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .profile-tools { animation: none; } }
 
 .library-header-actions {
   display: flex;
@@ -1615,6 +1596,10 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   animation-delay: calc(var(--library-item-order, 0) * 45ms);
 }
 
+.library-mode.is-instant-navigation .library-card.is-library-card-entering {
+  animation: none;
+}
+
 .library-add-button {
   position: fixed;
   z-index: 35;
@@ -1671,10 +1656,8 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   color: #999999;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    transform 160ms cubic-bezier(0.22, 0.72, 0.18, 1),
-    background-color 180ms ease,
-    color 180ms ease;
+  touch-action: manipulation;
+  transition: transform 100ms ease-out;
 }
 
 .app-navigation-button svg {
@@ -1898,9 +1881,6 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   to { transform: rotate(360deg); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .strip-end-sheet-spinner { animation: none; }
-}
 
 .strip-end-sheet-share {
   display: inline-flex;
@@ -2411,8 +2391,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
     var(--height-crop-motion-easing);
 }
 
-/* Decode the real media with no layout footprint. Only the first ready photo
-   grows from the loading block's 240px height, never the whole batch. */
+/* Decode the real media with no layout footprint, then fade in the ready batch. */
 .editor-mode {
   --media-import-duration: 440ms;
   --media-import-easing: cubic-bezier(0.4, 0, 0.2, 1);
@@ -2446,112 +2425,35 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .editor-entrance-label { margin-top: 32px; text-align: right; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .editor-entrance-label[data-waiting="true"] { animation: editor-loading-pulse 900ms ease-in-out infinite alternate; }
 @keyframes editor-loading-pulse { from { opacity: .25; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-  .editor-entrance, .editor-mode.is-editor-loading > .editor-canvas { transition: none; }
-  .editor-entrance-label[data-waiting="true"] { animation: none; }
-}
 .editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }
 .editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }
 .editor-mode .strip-block.is-import-ready { animation: media-import-in var(--media-import-duration) var(--media-import-easing); }
-.editor-mode .strip-block.is-import-ready.is-import-first {
-  height: var(--media-import-height);
-  overflow: visible;
-  background: transparent;
-  animation: none;
-}
-.editor-mode .strip-block.is-import-ready.is-import-first::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: #d9d9d9;
-  transform-origin: 50% 0;
-  animation: media-import-surface var(--media-import-duration) var(--media-import-easing);
-  pointer-events: none;
-}
-.editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport {
-  height: 100%;
-  overflow: hidden;
-  animation: media-import-first-size var(--media-import-duration) var(--media-import-easing),
-    media-import-in var(--media-import-duration) var(--media-import-easing);
-}
-.editor-mode .strip-block.is-import-first ~ .strip-block.is-import-ready:not(.sticker-block) {
-  animation: media-import-follow var(--media-import-duration) var(--media-import-easing),
-    media-import-in var(--media-import-duration) var(--media-import-easing);
-}
 .block-controls-reveal.is-media-handoff:not(.is-closing) {
   animation: none;
   will-change: transform, opacity;
 }
-.block-controls-reveal.is-media-handoff-morph:not(.is-closing) {
-  animation: media-import-follow var(--media-import-duration) var(--media-import-easing) both,
-    media-import-in var(--media-import-duration) var(--media-import-easing) both;
-}
 .block-controls-reveal.is-media-handoff:not(.is-closing) button { animation: none; }
-@keyframes media-import-first-size {
-  from { clip-path: inset(0 0 max(0px, calc(100% - 240px)) 0); }
-  to { clip-path: inset(0); }
-}
-@keyframes media-import-surface { from { transform: scaleY(var(--media-import-scale, 1)); } to { transform: scaleY(1); } }
-@keyframes media-import-follow { from { transform: translateY(var(--media-import-offset, 0px)); } to { transform: translateY(0); } }
 @keyframes media-import-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* A loading batch occupies its insertion spot, never a floating notice. */
-.media-import-block {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 100%;
-  height: 240px;
-  padding: 32px;
-  background: #d9d9d9;
-  color: #000000;
+/* Shares the delete confirmation surface without entering the Strip layout.
+   Tools keep their existing loading feedback instead of swallowing taps. */
+.confirmation-backdrop.media-import-popup {
   pointer-events: none;
-  overflow-anchor: none;
+  opacity: 1;
+  animation: media-import-in 160ms ease-out;
+  transition: opacity 200ms ease-out;
 }
-.media-import-block-content { display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
-.media-import-block > * { animation: media-import-in 140ms ease-out backwards; }
-.media-import-block h2 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.15; letter-spacing: -0.035em; }
+.confirmation-backdrop.media-import-popup.is-revealing { opacity: 0; }
+.media-import-progress { display: flex; flex-direction: column; gap: 18px; margin-top: 20px; }
+.media-import-count { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1; }
+.media-import-count > span { opacity: 0.45; }
+.media-import-track { display: block; height: 4px; border-radius: 2px; overflow: hidden; background: rgba(0, 0, 0, 0.12); }
+.media-import-fill { display: block; width: var(--media-import-progress, 0%); height: 100%; background: #000000; transition: width 180ms ease-out; }
 .media-import-dots { display: inline-flex; width: 0.8em; }
 .media-import-dots > span { animation: media-import-dot 1200ms steps(1, end) infinite; }
 .media-import-dots > span:nth-child(2) { animation-delay: 160ms; }
 .media-import-dots > span:nth-child(3) { animation-delay: 320ms; }
 @keyframes media-import-dot { 0%, 80%, 100% { opacity: 0.2; } 20%, 60% { opacity: 1; } }
-.media-import-block.is-handoff {
-  opacity: 1;
-}
-.media-import-block.is-handoff > * { animation: none; transition: opacity 160ms ease-out; }
-/* At takeover the first real figure occupies the same starting 240px. The
-   existing label stays at that exact position while its pixels fade away. */
-.media-import-block.is-handoff.is-revealing { height: 0; padding-block: 0; }
-.media-import-block.is-handoff.is-revealing > * {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  width: 100%;
-  height: 240px;
-  padding: 32px;
-  opacity: 0;
-}
-.media-import-block-bottom { display: flex; flex-direction: column; gap: 14px; }
-.media-import-block-count { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1; }
-.media-import-block-count > span { opacity: 0.45; }
-.media-import-block-track { display: block; height: 4px; overflow: hidden; background: rgba(0, 0, 0, 0.12); }
-.media-import-block-fill { display: block; width: var(--media-import-progress, 0%); height: 100%; background: #000000; transition: width 180ms ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .media-import-block-fill { transition: none; }
-  .media-import-block > * { animation: none; }
-  .media-import-block.is-handoff { transition: none; }
-  .media-import-block.is-handoff > * { transition: none; }
-  .editor-mode .strip-block.is-import-ready,
-  .editor-mode .strip-block.is-import-ready.is-import-first,
-  .editor-mode .strip-block.is-import-ready.is-import-first::before,
-  .editor-mode .strip-block.is-import-first ~ .strip-block.is-import-ready:not(.sticker-block),
-  .editor-mode .strip-block.is-import-ready.is-import-first > .block-crop-viewport,
-  .block-controls-reveal.is-media-handoff-morph:not(.is-closing) { animation: none; }
-  .media-import-dots > span { animation: none; opacity: 1; }
-}
 
 .strip-block.is-height-cropped .block-crop-viewport {
   overflow: hidden;
@@ -2811,9 +2713,6 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .sticker-image-reveal[data-sticker-ready="false"] { opacity: 0; }
 .sticker-image-reveal[data-sticker-ready="true"] { animation: sticker-image-in 180ms ease-out backwards; }
 @keyframes sticker-image-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-  .sticker-image-reveal[data-sticker-ready="true"] { animation: none; }
-}
 
 .sticker-block img,
 .sticker-block video {
@@ -3505,9 +3404,6 @@ html:has(.story-share-boundary) body {
   50% { opacity: 1; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .story-share-boundary[data-phase="closing"] .story-share-dimmer { animation-duration: 0ms; }
-}
 
 .story-share-confirmation {
   position: absolute;
@@ -3540,9 +3436,6 @@ html:has(.story-share-boundary) body {
 @keyframes story-share-confirmation-in {
   from { opacity: 0; transform: translate(-50%, 12px) scale(.94); }
   to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .story-share-confirmation, .story-share-confirmation .is-pending { animation: none; }
 }
 
 .poster-picker {
@@ -4151,15 +4044,6 @@ html:has(.story-share-boundary) body {
 }
 .story-share-controls[data-instagram-ready="true"] .story-share-primary > button { opacity: 0; pointer-events: none; }
 .story-share-controls[data-instagram-ready="true"] .instagram-story-button { opacity: 1; pointer-events: auto; }
-@media (prefers-reduced-motion: reduce) {
-  .share-mode,
-  .story-share-instructions,
-  .share-link-button,
-  .composer-dock .story-share-controls,
-  .composer-dock .story-share-controls > button,
-  .story-share-primary > .publish-flow-button { transition: none; }
-  .share-link-button .is-copying { animation: none; }
-}
 
 .main-composer-dock.is-shifted,
 .publish-setup-dock.is-shifted {
@@ -4979,7 +4863,6 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
   60% { transform: translateX(calc(50% - 2px)); }
   80% { transform: translateX(calc(50% + 1px)); }
 }
-@media (prefers-reduced-motion: reduce) { .notice.is-repeated { animation: none; } }
 
 .haptic-action-button { position: relative; font-family: inherit; user-select: none; -webkit-tap-highlight-color: transparent; }
 .haptic-action-content { display: contents; }
@@ -5106,31 +4989,4 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
     --dock-padding-right: max(20px, env(safe-area-inset-right));
     --dock-padding-left: max(20px, env(safe-area-inset-left));
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cover-option,
-  .poster-option,
-  .cover-image-option::after,
-  .poster-option::after,
-  .cover-selection-corners,
-  .cover-pagination button {
-    transition-duration: 0ms;
-  }
-
-  html.strip-standard-page-entering .app-shell,
-  html.strip-standard-page-entering .app-shell.library-mode .strip-library,
-  .main-composer-dock.is-entering-editor {
-    animation: none;
-  }
-
-  .composer-dock,
-  .dock-icon-button,
-  .library-card-skeleton,
-  .library-card.is-library-card-entering,
-  .selector-option {
-    animation: none;
-    transition: none;
-  }
-
 }

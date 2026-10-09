@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { mediaImportInsertionIndex, mediaImportIsLeading, withMediaImportBlock } from "../app/lib/media-import.ts";
+import { mediaImportInsertionIndex } from "../app/lib/media-import.ts";
 import { mediaFeedbackClock } from "./helpers/media-import-feedback-fixture.mjs";
 
 const root = new URL("../", import.meta.url);
@@ -190,7 +190,7 @@ test("the editor inserts six ready photos in one commit, after the captured bloc
   assert.equal(h.state.reveal.length, 0); assert.equal(h.state.started, false);
 });
 
-test("the morph target retains fractional photo height so cleanup cannot snap to its natural size", async () => {
+test("the reveal target retains fractional photo height so cleanup cannot snap to its natural size", async () => {
   const h = editor(), pending = h.addMedia(h.event);
   h.requests[0].resolve({ media: [{ ...prepared[0], width: 1200, height: 900 }], failed: 0 });
   await pending;
@@ -240,10 +240,10 @@ test("leaving the editor during the minimum display beat cannot commit ready pho
   assert.equal(h.feedbackClock.timers.size, 0);
 });
 
-test("delay keeps the empty editor present, while progress immediately disables another import", () => {
+test("delay keeps the empty editor present, while progress immediately guards another import", () => {
   assert.match(page, /sourceBlocks\.length === 0 \|\| \(!mediaBatchRevealStarted && mediaBatchRevealIds\.length > 0 && sourceBlocks\.every/);
-  assert.match(page, /disabled=\{mediaImportProgress !== null\}/);
-  assert.match(page, /aria-busy=\{mediaImportProgress !== null \|\| undefined\}/);
+  assert.match(page, /showEditorLoadingNotice\(editorEntrance.active \? "Strip is loading" : "Images loading"\)/);
+  assert.match(handlerCode, /mediaImportRequestRef.current \|\| pageTransitionInFlightRef.current\)\s*return/);
   assert.match(handlerCode, /await feedback\.finish\(\);\s*if \(controller\.signal\.aborted/);
 });
 
@@ -263,27 +263,21 @@ test("prepared images bypass sequential loading, reserve aspect ratios and canno
   assert.match(declaration("shouldLoadMedia"), /if \(importedMediaSizes\[blockId\]\) return true/);
   assert.match(page, /width=\{importedMediaSizes\[block.id\]\?\.width\}/);
   assert.match(page, /height=\{importedMediaSizes\[block.id\]\?\.height\}/);
-  assert.match(page, /withMediaImportBlock\(sourceBlocks, sourceBlocks\.map/);
-  assert.match(page, /isEditing && mediaImportProgress\?\.visible \? <MediaImportBlock key="pending-media-import" progress=\{mediaImportProgress\}/);
+  assert.ok(page.includes("{sourceBlocks.map((block, index) => {"));
+  assert.ok(page.includes("<MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} />"));
   assert.doesNotMatch(page, /notice media-import-notice/);
   const css = readFileSync(new URL("app/globals.css", root), "utf8");
   assert.match(css, /@keyframes media-import-in \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
-  assert.match(css, /\.media-import-block\.is-handoff \{ transition: none; \}/);
+  assert.doesNotMatch(css, /media-import-block/);
 });
 
-test("the temporary block and ready batch share the captured insertion spot without mutating draft content", () => {
+test("the prepared batch keeps the captured insertion spot without a temporary content block", () => {
   const blocks = [{ id: "first" }, { id: "second" }, { id: "sticker" }];
-  const nodes = ["first-node", "second-node", "sticker-node"];
   for (const [afterId, expected] of [["first", 1], ["second", 2], ["sticker", 3], [null, 3], ["removed", 3]]) {
     assert.equal(mediaImportInsertionIndex(blocks, afterId), expected);
-    const rendered = withMediaImportBlock(blocks, nodes, "pending", afterId);
-    assert.equal(rendered.indexOf("pending"), expected);
-    assert.deepEqual(rendered.filter(node => node !== "pending"), nodes);
-    assert.equal(nodes.length, 3);
     assert.equal(blocks.length, 3);
   }
-  assert.deepEqual(withMediaImportBlock([], [], "pending", null), ["pending"]);
-  assert.equal(withMediaImportBlock(blocks, nodes, null, "first"), nodes);
+  assert.equal(mediaImportInsertionIndex([], null), 0);
 });
 
 test("progress updates do not insert partial media or move the captured insertion anchor", async () => {
@@ -291,13 +285,13 @@ test("progress updates do not insert partial media or move the captured insertio
   h.requests[0].options.onProgress({ completed: 3, total: 6 });
   assert.equal(h.state.progress.afterId, "anchor");
   assert.equal(h.state.progress.completed, 3);
-  assert.equal(h.state.blocks.length, 2, "the loading block never becomes saved draft content");
+  assert.equal(h.state.blocks.length, 2, "the popup never becomes saved draft content");
   h.requests[0].resolve({ media: prepared, failed: 0 }); await pending;
-  assert.equal(h.state.progress, null, "the real batch replaces its placeholder in the same commit");
+  assert.equal(h.state.progress, null, "the real batch replaces its progress in the same commit");
   assert.equal(h.state.blocks[1].id, "new-1");
 });
 
-test("the first photo is selected at reveal and its scroll waits until the morph finishes", async () => {
+test("the first photo is selected at reveal and its scroll waits until the reveal finishes", async () => {
   const h = editor({ holdReveal: true }), pending = h.addMedia(h.event);
   h.feedbackClock.advance(500);
   h.requests[0].resolve({ media: prepared, failed: 0 }); await tick();
@@ -309,7 +303,7 @@ test("the first photo is selected at reveal and its scroll waits until the morph
   h.reveals[0].options.onReveal();
   assert.equal(h.state.started, true);
   assert.equal(h.state.selected, "new-1", "selection is committed together with the first visible frame");
-  assert.deepEqual(h.focuses, [], "selection must not trigger a mid-morph scroll");
+  assert.deepEqual(h.focuses, [], "selection must not trigger a mid-reveal scroll");
   assert.equal(h.state.progress.visible, true);
   await h.addMedia(h.event); assert.equal(h.requests.length, 1);
   h.reveals[0].resolve(); await pending;
@@ -332,29 +326,8 @@ test("leaving during mounted decoding prevents late selection or reveal", async 
   assert.equal(h.state.reveal.length, 0);
 });
 
-test("a pending first media block has text-block safe-area treatment until its photo reveal", () => {
-  assert.equal(mediaImportIsLeading([], null), true);
-  assert.equal(mediaImportIsLeading([{ id: "sticker", type: "sticker" }], null), true);
-  const blocks = [{ id: "sticker", type: "sticker" }, { id: "image", type: "image" }, { id: "text", type: "text" }];
-  assert.equal(mediaImportIsLeading(blocks, "sticker"), true);
-  for (const anchor of ["image", "text", null, "removed"]) assert.equal(mediaImportIsLeading(blocks, anchor), false);
-  assert.equal(mediaImportIsLeading(blocks, null, "image"), true);
-  assert.equal(mediaImportIsLeading(blocks, null, "text"), false);
-  assert.match(declaration("firstVisibleBlock"), /pendingMediaIsLeading\s*\? \{ type: "text" as const, backgroundColor: MEDIA_IMPORT_BACKGROUND \}/);
-  assert.match(declaration("topSafeAreaColor"), /pendingMediaIsLeading\s*\? MEDIA_IMPORT_BACKGROUND/);
-  assert.match(declaration("pendingMediaIsLeading"), /view === "edit" && !inlinePreview/);
-});
-
-test("the same render-only loader stays before the mounted batch for append, insert and first-block imports", () => {
-  for (const existing of [[], [{ id: "anchor" }], [{ id: "anchor" }, { id: "last" }]]) {
-    for (const afterId of [null, "anchor", "removed"]) {
-      const blocks = [...existing], index = mediaImportInsertionIndex(blocks, afterId);
-      blocks.splice(index, 0, { id: "new-1" }, { id: "new-2" });
-      const nodes = blocks.map(block => block.id);
-      const rendered = withMediaImportBlock(blocks, nodes, "loader", afterId, "new-1");
-      assert.equal(rendered[index], "loader");
-      assert.equal(rendered[index + 1], "new-1");
-      assert.deepEqual(rendered.filter(node => node !== "loader"), nodes);
-    }
-  }
+test("the upload popup does not own the top safe area or add fake content", () => {
+  assert.doesNotMatch(page, /pendingMediaIsLeading|MEDIA_IMPORT_BACKGROUND|withMediaImportBlock/);
+  assert.ok(declaration("firstVisibleBlock").includes("mediaBatchRevealStarted || !mediaBatchRevealIds.includes(block.id)"));
+  assert.ok(declaration("topSafeAreaColor").includes('firstVisibleBlock?.type === "text"'));
 });

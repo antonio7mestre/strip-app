@@ -42,7 +42,7 @@ test("only outside gutters get a neutral, smoothly transitioning theme tone", ()
   assert.match(css, /background-color: hsl\(from var\(--top-safe-area-color, #000000\) 0 0 calc\(12 \+ l \* 0.10\)\)/);
   assert.match(css, /transition: background-color 480ms ease/);
   assert.match(css, /pointer-events: none/);
-  assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(css, /prefers-reduced-motion/);
 });
 
 test("measured transition copies keep their own coordinates and menus stay at the bottom", () => {

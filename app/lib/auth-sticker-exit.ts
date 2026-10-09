@@ -32,7 +32,6 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     queueMicrotask(() => { if (!canceled) { onReveal(); onComplete(); } });
     return () => { canceled = true; };
   }
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const width = document.documentElement.clientWidth;
   const overlay = document.createElement("div");
   overlay.className = "auth-sticker-exit";
@@ -78,41 +77,39 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   overlay.append(stage);
   const sprites: HTMLElement[] = [];
   const seeds: FloatingSticker[] = [];
-  if (!reducedMotion) {
-    landing.querySelectorAll<HTMLElement>(FLOATING_STICKER_SELECTOR).forEach(element => {
-      const rect = element.getBoundingClientRect();
-      // Keep document coordinates so objects lift from their own place, never teleport into view.
-      if (!rect.width || !rect.height || !intersectsScreen(rect)) return;
-      const style = getComputedStyle(element);
-      if (style.visibility === "hidden" || style.opacity === "0") return;
+  landing.querySelectorAll<HTMLElement>(FLOATING_STICKER_SELECTOR).forEach(element => {
+    const rect = element.getBoundingClientRect();
+    // Keep document coordinates so objects lift from their own place, never teleport into view.
+    if (!rect.width || !rect.height || !intersectsScreen(rect)) return;
+    const style = getComputedStyle(element);
+    if (style.visibility === "hidden" || style.opacity === "0") return;
+    const sprite = document.createElement("div");
+    sprite.className = "auth-floating-sticker";
+    sprite.dataset.sticker = element.className;
+    Array.from(element.childNodes).forEach(child => sprite.append(child.cloneNode(true)));
+    Object.assign(sprite.style, { width: `${element.offsetWidth}px`, height: `${element.offsetHeight}px`,
+      color: style.color, zIndex: style.zIndex === "auto" ? "1" : style.zIndex });
+    stage.append(sprite);
+    sprites.push(sprite);
+    seeds.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
+      width: element.offsetWidth, height: element.offsetHeight, angle: screenAngle(element),
+      round: /cutout-(ball|cd)|landing-doodle/.test(element.className) });
+  });
+  const button = document.querySelector<HTMLElement>(".auth-step-landing .auth-action-button");
+  if (button) {
+    const rect = button.getBoundingClientRect();
+    const cursor = getComputedStyle(button, "::after");
+    const w = parseFloat(cursor.width), h = parseFloat(cursor.height);
+    const right = rect.right - parseFloat(cursor.right), bottom = rect.bottom - parseFloat(cursor.bottom);
+    if (w > 0 && h > 0 && intersectsScreen({ left: right - w, right, top: bottom - h, bottom }, viewportBottom)) {
       const sprite = document.createElement("div");
       sprite.className = "auth-floating-sticker";
-      sprite.dataset.sticker = element.className;
-      Array.from(element.childNodes).forEach(child => sprite.append(child.cloneNode(true)));
-      Object.assign(sprite.style, { width: `${element.offsetWidth}px`, height: `${element.offsetHeight}px`,
-        color: style.color, zIndex: style.zIndex === "auto" ? "1" : style.zIndex });
+      sprite.dataset.sticker = "cursor";
+      Object.assign(sprite.style, { width: `${w}px`, height: `${h}px`, background: cursor.background, zIndex: "5" });
       stage.append(sprite);
       sprites.push(sprite);
-      seeds.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
-        width: element.offsetWidth, height: element.offsetHeight, angle: screenAngle(element),
-        round: /cutout-(ball|cd)|landing-doodle/.test(element.className) });
-    });
-    const button = document.querySelector<HTMLElement>(".auth-step-landing .auth-action-button");
-    if (button) {
-      const rect = button.getBoundingClientRect();
-      const cursor = getComputedStyle(button, "::after");
-      const w = parseFloat(cursor.width), h = parseFloat(cursor.height);
-      const right = rect.right - parseFloat(cursor.right), bottom = rect.bottom - parseFloat(cursor.bottom);
-      if (w > 0 && h > 0 && intersectsScreen({ left: right - w, right, top: bottom - h, bottom }, viewportBottom)) {
-        const sprite = document.createElement("div");
-        sprite.className = "auth-floating-sticker";
-        sprite.dataset.sticker = "cursor";
-        Object.assign(sprite.style, { width: `${w}px`, height: `${h}px`, background: cursor.background, zIndex: "5" });
-        stage.append(sprite);
-        sprites.push(sprite);
-        seeds.push({ x: right - w / 2,
-          y: bottom - h / 2, width: w, height: h, angle: 0 });
-      }
+      seeds.push({ x: right - w / 2,
+        y: bottom - h / 2, width: w, height: h, angle: 0 });
     }
   }
   const physics = createStickerPhysics(seeds, width);
@@ -126,7 +123,7 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   document.documentElement.classList.add("auth-stickers-floating");
 
   let frame = 0, disposed = false;
-  const fadeDuration = reducedMotion ? 160 : AUTH_FORM_FADE_MS;
+  const fadeDuration = AUTH_FORM_FADE_MS;
   const started = performance.now();
   let previous = started;
   const preventScroll = (event: Event) => event.preventDefault();

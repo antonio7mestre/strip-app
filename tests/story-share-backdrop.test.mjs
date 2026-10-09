@@ -58,13 +58,12 @@ test("only the dimmer fades, never the white toolbar paint", () => {
 });
 test("beacon is action-sized with opacity-only motion and no oversized glow", () => {
   assert.match(component, /className="story-share-save-beacon" aria-hidden="true"/);
-  assert.match(css, /width: clamp\(60px, 17vw, 76px\)/);
+  assert.match(css, /width: clamp\(60px, calc\(17 \* var\(--page-vw, 1vw\)\), 76px\)/);
   assert.match(css, /left: 39%/);
   assert.match(css, /\.story-share-save-beacon\s*\{[^}]*z-index: 2147483647/);
   const frames = css.match(/@keyframes story-share-beacon-pulse\s*\{([\s\S]*?)\n\}/)[1];
   assert.doesNotMatch(frames, /scale\(|box-shadow/);
   assert.doesNotMatch(css, /\.story-share-save-beacon\s*\{[^}]*animation: none/);
   assert.match(css, /\.story-share-boundary\[data-phase="covered"\] \.story-share-save-beacon\s*\{[^}]*animation: story-share-beacon-pulse 0\.9s/);
-  // Only this cue opts out; reduced-motion dismissal remains immediate.
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.story-share-boundary\[data-phase="closing"\] \.story-share-dimmer \{ animation-duration: 0ms; \}/);
+  assert.doesNotMatch(css, /prefers-reduced-motion/);
 });
