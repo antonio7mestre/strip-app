@@ -11,20 +11,31 @@ const compiled = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
 ).outputText;
 
-function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, published = false, loaded = true, offsetTop = 0 } = {}) {
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, published = false,
+  loaded = true, complete = loaded, controlledDecode = false, offsetTop = 0 } = {}) {
   class Target {
     listeners = new Map();
-    addEventListener(name, callback) { this.listeners.set(name, callback); }
-    removeEventListener(name) { this.listeners.delete(name); }
-    emit(name) { this.listeners.get(name)?.({ target: this }); }
+    addEventListener(name, callback) {
+      if (!this.listeners.has(name)) this.listeners.set(name, new Set());
+      this.listeners.get(name).add(callback);
+    }
+    removeEventListener(name, callback) {
+      this.listeners.get(name)?.delete(callback);
+      if (this.listeners.get(name)?.size === 0) this.listeners.delete(name);
+    }
+    emit(name) { this.listeners.get(name)?.forEach(callback => callback({ target: this })); }
   }
   const frames = new Map();
   const animations = new Map();
   const contexts = [];
   const intersections = [];
   const resizes = [];
+  const decodes = [];
   let sequence = 0;
   let paints = 0;
+  let visiblePaints = 0;
   let modeLookups = 0;
   const mediaBounds = () => ({ top: offsetTop, bottom: offsetTop + 800, height: 800, width: 400 });
   class Video extends Target {
@@ -40,6 +51,24 @@ function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, publis
   class Image extends Target {
     naturalWidth = loaded ? 1000 : 0;
     naturalHeight = loaded ? 2000 : 0;
+    complete = complete;
+    src = "existing-photo.jpg";
+    currentSrc = "existing-photo-1280.webp";
+    decoded = !controlledDecode;
+    decode() {
+      const source = this.currentSrc || this.src;
+      return new Promise((resolve, reject) => {
+        const decode = { source,
+          resolve: () => {
+            if ((this.currentSrc || this.src) === source) this.decoded = true;
+            resolve();
+          },
+          reject: () => reject(new Error("Image decode unavailable")),
+        };
+        decodes.push(decode);
+        if (!controlledDecode) decode.resolve();
+      });
+    }
     getBoundingClientRect() { return mediaBounds(); }
   }
   const video = new Video();
@@ -52,7 +81,11 @@ function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, publis
     modeLookups++;
     return published && selector === ".published-mode" ? block : null;
   };
-  const context = { resetTransform() {}, clearRect() {}, setTransform() {}, drawImage() { paints++; } };
+  const context = {
+    resetTransform() {}, clearRect() {}, setTransform() {},
+    save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
+    drawImage(source) { paints++; if (!(source instanceof Image) || source.decoded) visiblePaints++; },
+  };
   const canvas = {
     width: 300, height: 150, parentElement: block,
     getContext: (type, options) => {
@@ -98,10 +131,11 @@ function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, publis
   exported.MediaEdgeExtension({ src: image ? "existing-photo.jpg" : "existing-video.mp4", cropTop: 0 });
   const cleanups = effects.map((effect) => effect());
   return {
-    video, media, document, frames, animations, canvas, block, viewport, contexts, intersections, resizes, dependencies,
+    video, media, document, frames, animations, canvas, block, viewport, contexts, intersections, resizes, dependencies, decodes,
     get intersection() { return intersections.at(-1); },
     get resized() { return resizes.at(-1); },
     paints: () => paints,
+    visiblePaints: () => visiblePaints,
     modeLookups: () => modeLookups,
     cropChanged: effects[1],
     sourceChanged: () => { cleanups[0]?.(); cleanups[0] = effects[0](); },
@@ -140,6 +174,7 @@ test(`${reader} photos loading offscreen allocate and paint their Retina edge im
   assert.equal(f.canvas.width, 300, "an unavailable source has not been painted");
   f.media.naturalWidth = 1000;
   f.media.naturalHeight = 2000;
+  f.media.complete = true;
   f.media.emit("load");
   assert.equal(f.paints(), 2);
   assert.equal(f.canvas.width, 1200);
@@ -188,6 +223,115 @@ test(`${reader} still edges respect page visibility without relying on intersect
 });
 }
 
+test("an offscreen photo repaints real pixels when decode completes after its load event", async () => {
+  const f = fixture({ image: true, loaded: false, controlledDecode: true, seamOverlap: 1, offsetTop: 2400 });
+  assert.equal(f.decodes.length, 0);
+  f.media.naturalWidth = 1000;
+  f.media.naturalHeight = 2000;
+  f.media.complete = true;
+  f.media.emit("load");
+  assert.equal(f.paints(), 2, "the immediate load paint can run before Safari exposes pixels");
+  assert.equal(f.visiblePaints(), 0);
+  assert.equal(f.decodes.length, 1);
+  assert.equal(f.media.listeners.get("load").size, 1, "one handler owns both refresh and decode");
+  f.decodes[0].resolve();
+  await tick();
+  assert.equal(f.visiblePaints(), 2, "decode completion repaints the original seam and reflected band");
+  assert.equal(f.intersections.length, 0);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  assert.equal(f.decodes.length, 1, "the decoded paint does not request another decode");
+  f.unmount();
+});
+
+test("initial decoding waits for a complete image with usable dimensions", () => {
+  for (const options of [{ loaded: true, complete: false }, { loaded: false, complete: true }]) {
+    const f = fixture({ image: true, controlledDecode: true, ...options });
+    assert.equal(f.decodes.length, 0);
+    f.unmount();
+  }
+  const ready = fixture({ image: true, controlledDecode: true });
+  assert.equal(ready.decodes.length, 1);
+  ready.unmount();
+});
+
+test("duplicate loads share one pending decode and other refreshes cannot create decode work", async () => {
+  const f = fixture({ image: true, controlledDecode: true });
+  assert.equal(f.decodes.length, 1);
+  for (let index = 0; index < 3; index++) f.media.emit("load");
+  for (const event of ["loadeddata", "playing", "pause", "seeked", "ended", "timeupdate"]) f.media.emit(event);
+  f.cropChanged();
+  f.resized.callback();
+  f.document.emit("visibilitychange");
+  assert.equal(f.decodes.length, 1);
+  const before = f.paints();
+  f.decodes[0].resolve();
+  await tick();
+  assert.equal(f.paints(), before + 1);
+  f.cropChanged();
+  f.resized.callback();
+  f.document.emit("visibilitychange");
+  assert.equal(f.decodes.length, 1);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.unmount();
+});
+
+test("a new responsive source gets its own decode and an older completion cannot paint it", async () => {
+  const f = fixture({ image: true, controlledDecode: true });
+  f.media.currentSrc = "replacement-photo-1920.webp";
+  f.media.decoded = false;
+  f.media.emit("load");
+  assert.deepEqual(f.decodes.map(decode => decode.source), [
+    "existing-photo-1280.webp", "replacement-photo-1920.webp",
+  ]);
+  const before = f.paints();
+  f.decodes[0].resolve();
+  await tick();
+  assert.equal(f.paints(), before, "the old source's decode completion is stale");
+  f.decodes[1].resolve();
+  await tick();
+  assert.equal(f.paints(), before + 1);
+  assert.equal(f.visiblePaints(), 1);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.unmount();
+});
+
+test("a rejected decode is contained and a later load can retry the same source", async () => {
+  const f = fixture({ image: true, controlledDecode: true });
+  const before = f.paints();
+  f.decodes[0].reject();
+  await tick();
+  assert.equal(f.paints(), before);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.media.emit("load");
+  assert.equal(f.decodes.length, 2);
+  f.decodes[1].resolve();
+  await tick();
+  assert.equal(f.visiblePaints(), 1);
+  assert.equal(f.decodes.length, 2);
+  f.unmount();
+});
+
+test("unmount and effect replacement reject stale pending decode paints", async () => {
+  const removed = fixture({ image: true, controlledDecode: true });
+  removed.unmount();
+  const removedPaints = removed.paints();
+  removed.decodes[0].resolve();
+  await tick();
+  assert.equal(removed.paints(), removedPaints);
+  assert.equal(removed.media.listeners.size + removed.block.listeners.size + removed.document.listeners.size, 0);
+  const replaced = fixture({ image: true, controlledDecode: true });
+  replaced.sourceChanged();
+  assert.equal(replaced.decodes.length, 2);
+  const before = replaced.paints();
+  replaced.decodes[0].resolve();
+  await tick();
+  assert.equal(replaced.paints(), before, "an old effect must not repaint through the new effect's canvas ref");
+  replaced.decodes[1].resolve();
+  await tick();
+  assert.equal(replaced.paints(), before + 1);
+  replaced.unmount();
+});
+
 test("published video retains the default context, visibility gate, and video frame callbacks", () => {
   const f = fixture({ published: true });
   assert.deepEqual(f.contexts, [{ type: "2d", options: undefined }]);
@@ -195,6 +339,7 @@ test("published video retains the default context, visibility gate, and video fr
   assert.deepEqual(f.intersection.options, { rootMargin: "160px" });
   assert.equal(f.frames.size, 1);
   assert.equal(f.animations.size, 0);
+  assert.equal(f.decodes.length, 0, "video never enters the image decode lifecycle");
   f.intersection.callback([{ isIntersecting: false }]);
   assert.equal(f.frames.size, 0);
   f.intersection.callback([{ isIntersecting: true }]);

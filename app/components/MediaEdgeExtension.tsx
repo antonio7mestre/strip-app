@@ -31,11 +31,14 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
     context.clearRect(0, 0, canvas.width, canvas.height);
 
     const video = media instanceof HTMLVideoElement ? media : null;
+    const photo = staticPhoto ? media as HTMLImageElement : null;
     const transitions = new Set<string>();
     let visible = true;
     let disposed = false;
     let animationFrame: number | null = null;
     let videoFrame: number | null = null;
+    let decodeVersion = 0;
+    let pendingDecode: { source: string; version: number } | null = null;
 
     function draw() {
       if (disposed || !visible || document.hidden) return;
@@ -64,7 +67,7 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
       if (canvas!.width !== width) canvas!.width = width;
       if (canvas!.height !== height) canvas!.height = height;
       try {
-        paintMediaEdge(context!, media!, sourceWidth, slice, width, height, {
+        paintMediaEdge(context!, media!, sourceHeight, slice, width, height, {
           height: Math.min(height - 1, Math.round(overlap * height / bounds.height)),
           sourceHeight: Math.min(
             slice.top + slice.height,
@@ -111,6 +114,28 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
       queueFrames();
     }
 
+    function decodedRefresh() {
+      if (disposed || !photo?.complete || !photo.naturalWidth || typeof photo.decode !== "function") return;
+      const source = photo.currentSrc || photo.src;
+      if (!source || pendingDecode?.source === source) return;
+      const version = ++decodeVersion;
+      pendingDecode = { source, version };
+      const finish = (decoded: boolean) => {
+        if (pendingDecode?.version === version) pendingDecode = null;
+        if (!decoded || disposed || version !== decodeVersion || (photo.currentSrc || photo.src) !== source) return;
+        refresh();
+      };
+      // Safari can fire load before drawImage can read its pixels. Repaint once
+      // decoding settles, including offscreen edges, without a scroll paint loop.
+      try { void photo.decode().then(() => finish(true), () => finish(false)); }
+      catch { finish(false); }
+    }
+
+    function onLoad() {
+      refresh();
+      decodedRefresh();
+    }
+
     function onTransition(event: TransitionEvent) {
       if (event.target !== viewport && !(event.target as Element).classList?.contains("block-crop-content")) return;
       if (event.type === "transitionrun") transitions.add(event.propertyName);
@@ -130,22 +155,27 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
       refresh();
     }, { rootMargin: "160px" });
     intersectionObserver?.observe(canvas);
-    const mediaEvents = ["load", "loadeddata", "playing", "pause", "seeked", "ended", "timeupdate"];
+    const mediaEvents = ["loadeddata", "playing", "pause", "seeked", "ended", "timeupdate"];
     mediaEvents.forEach((event) => media.addEventListener(event, refresh));
+    media.addEventListener("load", onLoad);
     block.addEventListener("transitionrun", onTransition);
     block.addEventListener("transitionend", onTransition);
     block.addEventListener("transitioncancel", onTransition);
     document.addEventListener("visibilitychange", refresh);
     refreshRef.current = refresh;
     refresh();
+    decodedRefresh();
 
     return () => {
       disposed = true;
+      decodeVersion++;
+      pendingDecode = null;
       refreshRef.current = null;
       stopFrames();
       resizeObserver.disconnect();
       intersectionObserver?.disconnect();
       mediaEvents.forEach((event) => media.removeEventListener(event, refresh));
+      media.removeEventListener("load", onLoad);
       block.removeEventListener("transitionrun", onTransition);
       block.removeEventListener("transitionend", onTransition);
       block.removeEventListener("transitioncancel", onTransition);
