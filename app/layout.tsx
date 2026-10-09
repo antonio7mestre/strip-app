@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./wide-layout.css";
+import { DesktopPresentation } from "./components/DesktopPresentation";
 import { PROFILE_RELOAD_SCRIPT } from "./lib/profile-reload";
 import { initialPageBackground } from "./server/initial-background";
 
@@ -82,7 +84,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>
-      <body>{children}</body>
+      <body><DesktopPresentation />{children}</body>
     </html>
   );
 }

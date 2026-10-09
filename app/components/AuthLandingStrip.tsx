@@ -98,7 +98,7 @@ function MovableSticker({ className, label, children, aspectRatio = 1 }: { class
         const canvas = element.closest(".auth-landing")!.getBoundingClientRect();
         element.setPointerCapture(event.pointerId);
         drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: window.scrollY, angle: parentAngle(element), origin: offset,
-          ...landingStickerBounds(rect, document.documentElement.clientWidth),
+          ...landingStickerBounds({ left: rect.left - canvas.left, right: rect.right - canvas.left, width: rect.width }, canvas.width),
           minY: Math.min(0, canvas.top - rect.top), maxY: Math.max(0, canvas.bottom - rect.bottom) };
         setDragging(true);
       }}

@@ -18,6 +18,14 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test("brand-new strips skip the content loader and open an empty editor directly", () => {
+  const create = page.slice(page.indexOf("const beginNewStrip ="), page.indexOf("const deleteDraft ="));
+  assert.match(create, /editorEntrance\.cancel\(\)/);
+  assert.match(create, /resetEditorEntry\(\)/);
+  assert.match(create, /setBlocks\(\[\]\)/);
+  assert.doesNotMatch(create, /startEditorEntry|editorEntrance\.(?:start|resolve)/);
+});
+
 // Minimal deterministic hook runner: real effects, cleanup and state, with a
 // controllable font promise and clock so no timing assertion sleeps or flakes.
 function harness({ reduced = false } = {}) {

@@ -16,9 +16,11 @@ test("only intentional tool-size changes animate, not Safari's scroll-driven doc
 });
 
 test("browser chrome cancels instantly between bottom, height and padding at every tray size", () => {
-  assert.match(css, /bottom: calc\(-180px - var\(--dock-browser-extension\)\)/);
-  assert.match(editor, /calc\(var\(--sticker-dock-visible-height\) \+ 180px \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)\)/);
-  assert.match(css, /180px \+ var\(--dock-bottom-gap\) \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)/);
+  assert.match(css, /--dock-bleed: 180px/);
+  assert.match(css, /--dock-surface-extra: 0px/);
+  assert.match(css, /bottom: calc\(-1 \* var\(--dock-bleed\) - var\(--dock-browser-extension\)\)/);
+  assert.match(editor, /calc\(var\(--sticker-dock-visible-height\) \+ var\(--dock-bleed\) \+ var\(--dock-surface-extra\) \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)\)/);
+  assert.match(css, /var\(--dock-bleed\) \+ var\(--dock-bottom-gap\) \+ env\(safe-area-inset-bottom\) \+ var\(--dock-browser-extension\)/);
   assert.match(css, /--dock-bottom-gap: 2px/);
   for (const visible of [64, 80, 320, 560, 720]) {
     for (const safeArea of [0, 21, 34]) {

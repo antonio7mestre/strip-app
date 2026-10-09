@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { POSTER_DESIGNS } from "@/app/lib/share-posters";
 import { stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
+import { StackPickerArrows } from "@/app/components/StackPickerArrows";
 
 export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_DESIGNS }: { previews: string[]; index: number; onSelect: (index: number) => void; designs?: readonly { id: string; name: string }[] }) {
   const stage = useRef<HTMLDivElement>(null);
@@ -55,7 +56,7 @@ export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_
   };
   const dragTarget = index + Math.sign(progress);
   const cornersOpacity = Math.max(1 - Math.abs(progress), dragTarget >= 0 && dragTarget < POSTER_DESIGNS.length ? Math.abs(progress) : 0);
-  return <div className={`poster-picker ${dragging ? "is-dragging" : ""}`}>
+  return <div className={`poster-picker ${dragging ? "is-dragging" : ""}`} style={{ "--picker-card-width": `${height * 9 / 16}px` } as CSSProperties}>
     <div ref={stage} className="poster-card-stage" role="listbox" aria-label="Story poster designs" aria-activedescendant={`poster-design-${index}`} tabIndex={0}
     onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={cancel}
     onKeyDown={e => {
@@ -77,6 +78,7 @@ export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_
       <span className="is-top-left" /><span className="is-top-right" />
       <span className="is-bottom-right" /><span className="is-bottom-left" />
     </div>
+    <StackPickerArrows index={index} count={designs.length} label="poster" onSelect={next => { cancel(); onSelect(next); }} />
     <nav className="cover-pagination" style={{ top: "50%" }} aria-label="Story poster options">
       {designs.map((design, i) => <button key={design.id} type="button"
         className={i === index ? "is-current" : ""} aria-current={i === index ? "true" : undefined}

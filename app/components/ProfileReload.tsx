@@ -79,11 +79,12 @@ export function useProfileReloadLayout({ ready, owner, background, view, editing
     saveProfileBackground(owner, background);
     let timer = 0;
     const capture = () => {
+      const pageBounds = page.getBoundingClientRect();
       const frames = Array.from(page.querySelectorAll<HTMLElement>(
         ".library-cover",
       )).map(element => {
         const rect = element.getBoundingClientRect();
-        return { x: rect.left + window.scrollX, y: rect.top + window.scrollY,
+        return { x: rect.left - pageBounds.left, y: rect.top - pageBounds.top,
           width: rect.width, height: rect.height,
           ...(element.classList.contains("library-cover") ? { coverId: element.closest<HTMLElement>(".library-card")?.dataset.libraryId } : {}),
         };

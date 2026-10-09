@@ -49,7 +49,8 @@ test("both page routes mount the shared footer and never duplicate its caption o
 test("reader bottom clearance matches the cover toolbar including its seam overlap", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /--dock-bottom-gap: 2px/);
-  assert.match(css, /180px \+ var\(--dock-bottom-gap\) \+ env\(safe-area-inset-bottom\)/);
+  assert.match(css, /--dock-bleed: 180px/);
+  assert.match(css, /var\(--dock-bleed\) \+ var\(--dock-bottom-gap\) \+ env\(safe-area-inset-bottom\)/);
   assert.match(css, /\.strip-end-sheet-controls.is-preview \{[^}]*repeat\(2, minmax\(0, 1fr\)\)[^}]*gap: 12px/);
   for (const safe of [0, 21, 34]) {
     const footerLayoutGap = 2 - 2 + safe;

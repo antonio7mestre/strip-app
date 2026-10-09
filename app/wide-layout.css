@@ -1,0 +1,204 @@
+/* The same mobile document, capped on wide screens. No separate desktop
+   canvas, zoom, scroll container, navigation or interaction model. */
+.desktop-wordmark,
+.sticker-transform-orbit,
+.cover-instruction-desktop { display: none; }
+
+@media (min-width: 900px) {
+  :root {
+    --page-max-width: 640px;
+    --page-vw: 6.4px;
+    --dock-bleed: 0px;
+    --desktop-pill-width: 480px;
+    --dock-surface-extra: 16px;
+    --dock-bottom-gap: 18px;
+    --desktop-dock-clearance: 124px;
+    --editor-toolbar-gap: 32px;
+  }
+  .cover-instruction-mobile { display: none; }
+  .cover-instruction-desktop { display: inline; }
+
+  .desktop-wordmark {
+    --desktop-brand-size: clamp(22px, 3.2vw, 54px);
+    display: grid;
+    position: fixed;
+    z-index: 2147483647;
+    top: 24px;
+    left: 24px;
+    width: min-content;
+    max-width: calc((100% - var(--page-max-width)) / 2 - 40px);
+    color: white;
+    mix-blend-mode: difference;
+    font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+    font-size: var(--desktop-brand-size);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.065em;
+    pointer-events: none;
+  }
+  .desktop-wordmark > span { white-space: nowrap; }
+  .desktop-wordmark p {
+    min-width: 0;
+    margin: 12px 0 0;
+    font-family: Arial, sans-serif;
+    font-size: calc(var(--desktop-brand-size) * 0.2);
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  /* Only paint the gutters. The page, loader and safe-area behavior inside
+     the column keep their original backgrounds and native scrolling. */
+  body::before,
+  body::after {
+    content: "";
+    position: fixed;
+    z-index: 2147483647;
+    top: 0;
+    bottom: 0;
+    width: calc((100% - var(--page-max-width)) / 2);
+    background-color: #282828;
+    background-color: hsl(from var(--top-safe-area-color, #000000) 0 0 calc(12 + l * 0.10));
+    transition: background-color 480ms ease;
+    pointer-events: none;
+  }
+  body::before { left: 0; }
+  body::after { right: 0; }
+
+  .app-shell,
+  .auth-signin-mode,
+  .legacy-page-transition-overlay,
+  .top-safe-area-anchor,
+  .cover-selector-frame,
+  .editor-entrance,
+  .published-bottom-pocket-sampler {
+    width: 100%;
+    max-width: var(--page-max-width);
+    margin-inline: auto;
+  }
+
+  .auth-signin-mode { right: 0; }
+
+  /* Measured transition copies retain their explicit document coordinates. */
+  .composer-dock {
+    --dock-browser-extension: 0px;
+    --dock-padding-left: 12px;
+    --dock-padding-right: 12px;
+    max-width: var(--desktop-pill-width);
+    margin-inline: auto;
+    bottom: 28px;
+    border: 0;
+    border-radius: 40px;
+    box-shadow: 0 4px 24px rgb(0 0 0 / 18%);
+  }
+
+  .composer-dock.preview-motion-dock,
+  .composer-dock.strip-entrance-dock,
+  .composer-dock.story-share-document-dock,
+  .composer-dock.auth-dock-frozen { margin-inline: 0; }
+
+  .composer-dock.is-sticker-picker-open { border-radius: 32px; }
+
+  /* Leave enough scroll runway for the last block's attached controls too. */
+  .editor-mode:not(.is-inline-preview) .strip-canvas {
+    padding-bottom: max(224px, calc(var(--desktop-dock-clearance) + 90px));
+  }
+
+  /* One clipped outer pill owns the curve, not two mismatched inner curves. */
+  .composer-dock .selector-scroll.is-gradient-mode {
+    height: auto;
+    bottom: 0;
+    border-radius: 0;
+  }
+  .composer-dock .full-gradient-picker { border-radius: 0; }
+
+  .stack-picker-arrows {
+    position: absolute;
+    z-index: 5;
+    left: calc((100% - var(--picker-card-width, 420px)) / 4);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .stack-picker-arrows button {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 30%);
+    border-radius: 50%;
+    background: #202020;
+    color: #ffffff;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .stack-picker-arrows button:disabled { opacity: .25; cursor: default; }
+  .stack-picker-arrows button:not(:disabled):hover { background: #444444; }
+  .stack-picker-arrows svg { width: 19px; height: 19px; }
+  .cover-pagination {
+    right: calc((100% - var(--picker-card-width, 420px)) / 4);
+    transform: translate(50%, -50%);
+  }
+
+  .library-add-button {
+    right: calc((100% - var(--page-max-width)) / 2 + 18px);
+    bottom: calc(var(--dock-visible-height) + 64px);
+  }
+
+  .notice,
+  .reader-mode .notice,
+  .reader-mode:has(.preview-dock) .notice,
+  .profile-save-notice.notice,
+  .cover-instruction,
+  .story-share-confirmation { bottom: var(--desktop-dock-clearance); }
+
+  .notice { max-width: calc(var(--desktop-pill-width) - 24px); }
+  .share-shell { padding-bottom: var(--desktop-dock-clearance); }
+  .share-mode:has(.notice) .notice { bottom: calc(var(--desktop-dock-clearance) + 48px); }
+  .publish-setup-mode:has(.notice) .notice { bottom: calc(var(--desktop-dock-clearance) + 32px); }
+
+  .sticker-transform-orbit {
+    display: block;
+    position: absolute;
+    inset: 0;
+    transform: rotate(var(--sticker-rotation, 0deg));
+    pointer-events: none;
+  }
+  .sticker-transform-handle {
+    position: absolute;
+    top: -34px;
+    right: -34px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 4px;
+    border: 2px solid #000;
+    border-radius: 50%;
+    background: #fff;
+    color: #000;
+    cursor: grab;
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .sticker-transform-handle:active { cursor: grabbing; }
+  .sticker-transform-handle:focus-visible { outline: 2px solid #3155ff; outline-offset: 3px; }
+  .sticker-transform-handle svg { width: 16px; height: 16px; }
+
+  /* Published and preview endings keep the full-width, in-flow phone tray. */
+  .strip-end-sheet { --dock-bottom-gap: 2px; }
+  :is(.published-mode, .preview-mode, .is-inline-preview) .strip-end-sheet { padding-bottom: 28px; }
+  :is(.published-mode, .preview-mode, .is-inline-preview) .strip-end-sheet-controls { width: min(calc(100% - 20px), 520px); }
+
+  /* These were the old wide-screen exceptions. Keep the phone composition. */
+  .landing-hero-stickers { margin-inline: auto; }
+  .landing-make-collage { margin-top: 38px; }
+}
+
+@media (min-width: 900px) and (prefers-reduced-motion: reduce) {
+  body::before, body::after { transition: none; }
+}

@@ -49,6 +49,9 @@
   .heading p { margin-top: 8px; }
   .footer { margin-top: 12px; }
 }
+@media (min-width: 900px) {
+  .screen, .picker { max-width: var(--page-max-width, 640px); margin-inline: auto; }
+}
 @media (max-width: 600px) {
   .heading { padding-top: 14px; }
   .heading h1 { font-size: 34px; }

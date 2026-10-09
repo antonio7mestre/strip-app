@@ -39,7 +39,7 @@ test("publish uses shared dock sizing in a locked, untransformed document", () =
   const rule = [...css.matchAll(/\n\.title-setup-dock \{([^}]+)\}/g)]
     .map(match => match[1]).find(body => body.includes("height: calc("));
   assert.ok(rule);
-  assert.match(rule, /height: calc\(\s*var\(--dock-visible-height\) \+ 180px \+ env\(safe-area-inset-bottom\) \+\s*var\(--dock-browser-extension\)\s*\)/);
+  assert.match(rule, /height: calc\(\s*var\(--dock-visible-height\) \+ var\(--dock-bleed\) \+ var\(--dock-surface-extra\) \+ env\(safe-area-inset-bottom\) \+\s*var\(--dock-browser-extension\)\s*\)/);
   assert.match(rule, /min-height: 0/);
   assert.match(rule, /transform: none/);
   assert.match(rule, /translate: none/);

@@ -63,12 +63,13 @@ import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/m
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
 import { EditorEntrance } from "@/app/components/EditorEntrance";
 import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
+import { StackPickerArrows } from "@/app/components/StackPickerArrows";
 import { useEditorEntrance } from "@/app/components/useEditorEntrance";
 import { getReaderImageProps } from "@/app/lib/reader-image";
 import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
 import type { StickerOrigin } from "@/app/lib/sticker-origin";
-import { resizeStickerWidth } from "@/app/lib/sticker-sizing";
+import { resizeStickerWidth, stickerHandleTransform } from "@/app/lib/sticker-sizing";
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { OnboardingBackground } from "@/app/components/OnboardingBackground";
@@ -849,9 +850,12 @@ function focusSelectedBlockWithToolbar(
   const dockIsVisible = Boolean(
     dockBounds && dockBounds.top < viewportBottom && dockBounds.bottom > viewportTop,
   );
+  const toolbarGap = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--editor-toolbar-gap"),
+  ) || 16;
   const availableBottom = Math.min(
     viewportBottom - 20,
-    dockIsVisible && dockBounds ? dockBounds.top - 16 : viewportBottom - 20,
+    dockIsVisible && dockBounds ? dockBounds.top - toolbarGap : viewportBottom - 20,
   );
   const toolbarIsFullyVisible =
     toolbarTop >= viewportTop + 12 && toolbarBottom <= availableBottom;
@@ -1940,11 +1944,17 @@ function StripStickerBlock({
     canvasHeight: number;
   } | null>(null);
   const lowerBoundaryNoticeShownRef = useRef(false);
+  const handleTransformRef = useRef<{
+    pointerId: number; centerX: number; centerY: number;
+    distance: number; angle: number; width: number; rotation: number;
+    x: number; y: number; canvasWidth: number; canvasHeight: number;
+  } | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
 
   useEffect(() => {
     if (
       activePointersRef.current.size === 0 &&
+      !handleTransformRef.current &&
       !canvasTouchTransformRef.current &&
       !canvasTouchDragRef.current
     ) {
@@ -1954,6 +1964,7 @@ function StripStickerBlock({
 
   const renderedBlock =
     activePointersRef.current.size > 0 ||
+    handleTransformRef.current ||
     canvasTouchTransformRef.current ||
     canvasTouchDragRef.current
       ? liveBlockRef.current
@@ -2109,6 +2120,20 @@ function StripStickerBlock({
     };
     previewTransform(nextTransform);
     onTransform(nextTransform);
+  };
+
+  const finishHandleTransform = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (handleTransformRef.current?.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    handleTransformRef.current = null;
+    if (stickerElementRef.current) delete stickerElementRef.current.dataset.stickerDragging;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const current = liveBlockRef.current;
+    onTransform({ x: current.x, y: current.y, width: current.width, rotation: current.rotation ?? 0 });
+    setIsTransforming(false);
   };
 
   useLayoutEffect(() => {
@@ -2619,6 +2644,76 @@ function StripStickerBlock({
           />
         )}
       </span>
+      {isEditing && isSelected ? <span className="sticker-transform-orbit">
+        <button
+          type="button"
+          className="sticker-transform-handle"
+          aria-label="Resize and rotate sticker"
+          title="Drag to resize and rotate. Arrow keys resize; Shift + arrows rotate."
+          onClick={event => event.stopPropagation()}
+          onPointerDown={event => {
+            if (!window.matchMedia("(min-width: 900px)").matches || event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const sticker = stickerElementRef.current;
+            const canvas = sticker?.closest<HTMLElement>(".strip-canvas");
+            if (!sticker || !canvas) return;
+            const bounds = sticker.getBoundingClientRect();
+            const centerX = bounds.left + bounds.width / 2;
+            const centerY = bounds.top + bounds.height / 2;
+            const current = liveBlockRef.current;
+            handleTransformRef.current = {
+              pointerId: event.pointerId, centerX, centerY,
+              distance: Math.max(1, Math.hypot(event.clientX - centerX, event.clientY - centerY)),
+              angle: Math.atan2(event.clientY - centerY, event.clientX - centerX),
+              x: current.x, y: current.y, width: current.width, rotation: current.rotation ?? 0,
+              canvasWidth: Math.max(1, canvas.getBoundingClientRect().width),
+              canvasHeight: Math.max(window.innerHeight, canvas.scrollHeight),
+            };
+            lowerBoundaryNoticeShownRef.current = false;
+            sticker.dataset.stickerDragging = "true";
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setIsTransforming(true);
+          }}
+          onPointerMove={event => {
+            const origin = handleTransformRef.current;
+            if (!origin || origin.pointerId !== event.pointerId) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const { width, rotation } = stickerHandleTransform(origin, event.clientX - origin.centerX, event.clientY - origin.centerY);
+            previewTransform({
+              x: clampStickerX(origin.x, width, rotation, origin.canvasWidth),
+              y: clampStickerY(origin.y, width, rotation, origin.canvasWidth, origin.canvasHeight),
+              width, rotation,
+            });
+          }}
+          onPointerUp={finishHandleTransform}
+          onPointerCancel={finishHandleTransform}
+          onLostPointerCapture={finishHandleTransform}
+          onKeyDown={event => {
+            if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const current = liveBlockRef.current;
+            const direction = ["ArrowUp", "ArrowRight"].includes(event.key) ? 1 : -1;
+            const width = event.shiftKey ? current.width : resizeStickerWidth(current.width + direction * 2);
+            const rotation = (current.rotation ?? 0) + (event.shiftKey ? direction * 3 : 0);
+            const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
+            if (!canvas) return;
+            const canvasWidth = Math.max(1, canvas.getBoundingClientRect().width);
+            const next = { width, rotation,
+              x: clampStickerX(current.x, width, rotation, canvasWidth),
+              y: clampStickerY(current.y, width, rotation, canvasWidth, Math.max(window.innerHeight, canvas.scrollHeight)),
+            };
+            previewTransform(next);
+            onTransform(next);
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M7 17 17 7M10 7h7v7M14 17H7v-7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </span> : null}
       {controls}
     </figure>
   );
@@ -4975,6 +5070,10 @@ export default function Home() {
 
   const beginCoverSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!event.isPrimary) return;
+    // Let desktop action cards receive their normal click. Capturing the
+    // pointer on the stage retargets the click away from the photo/color card.
+    if (event.pointerType === "mouse" && event.target instanceof Element &&
+        event.target.closest(".cover-add-option, .cover-pick-color-option")) return;
     const desktopColorCard =
       event.pointerType !== "touch" &&
       event.pointerType !== "pen" &&
@@ -5322,8 +5421,7 @@ export default function Home() {
     }
   };
 
-  const startEditorEntry = () => {
-    const request = editorEntrance.start();
+  const resetEditorEntry = () => {
     // Do not autosave an old canvas under the incoming draft's id.
     draftSaveSequenceRef.current++;
     setCurrentDraftId(null);
@@ -5339,6 +5437,11 @@ export default function Home() {
     setNotice("");
     setEditorDockEntering(false);
     setViewInstantly("edit", 0, false);
+  };
+
+  const startEditorEntry = () => {
+    const request = editorEntrance.start();
+    resetEditorEntry();
     return request;
   };
 
@@ -5351,7 +5454,9 @@ export default function Home() {
       setAuthenticationRequired(true);
       return;
     }
-    const request = startEditorEntry();
+    // An empty new Strip has no saved content to fetch or decode.
+    editorEntrance.cancel();
+    resetEditorEntry();
     const draftId = makeId();
     setCurrentDraftId(draftId);
     setCurrentDraftCreatedAt(Date.now());
@@ -5369,7 +5474,6 @@ export default function Home() {
     setActiveTextTool(null);
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
-    editorEntrance.resolve(request);
   };
 
   const deleteDraft = async (draftId: string) => {
@@ -6070,6 +6174,7 @@ export default function Home() {
       return;
     }
     const shareData: ShareData = { files: [storyAssetFile] };
+    const desktopShare = window.matchMedia("(min-width: 900px)").matches;
     const attempt = ++storyShareAttemptRef.current;
     storyShareInFlightRef.current = true;
     setStoryShareConfirmation(null);
@@ -6087,11 +6192,11 @@ export default function Home() {
         download: () => {
           if (storyShareAttemptRef.current === attempt) downloadStoryAsset();
         },
-      });
+      }, desktopShare ? { clipboard: navigator.clipboard } : navigator);
       const result = await finished;
       if (result !== "cancelled") posters.remember(storyAssetFile);
       if (storyShareAttemptRef.current === attempt) {
-        if (result !== "cancelled") setStoryInstagramFile(storyAssetFile);
+        if (result !== "cancelled" && !desktopShare) setStoryInstagramFile(storyAssetFile);
         setStoryShareConfirmation(getStoryShareConfirmation(result, null));
       }
       // A slow clipboard permission response must not leave the backdrop stuck.
@@ -6719,6 +6824,8 @@ export default function Home() {
                       ? isEditing ? { src: block.src } : getReaderImageProps(block.src)
                       : {})}
                     alt={block.alt}
+                    draggable={isEditing ? false : undefined}
+                    onDragStart={event => { if (isEditing) event.preventDefault(); }}
                     loading="eager"
                     decoding="async"
                     style={
@@ -7700,7 +7807,7 @@ export default function Home() {
           aria-label="Pick a cover"
         >
           <section className="cover-picker" aria-label="Choose a cover">
-            <div className="cover-selector-frame">
+            <div className="cover-selector-frame" style={{ "--picker-card-width": `${effectiveSelectedWidth}px` } as CSSProperties}>
               <div
                 ref={coverStageRef}
                 className={`cover-card-stage ${coverIsDragging ? "is-dragging" : ""}`}
@@ -7759,7 +7866,8 @@ export default function Home() {
                           openCoverColorPicker();
                           return;
                         }
-                        if (isSelected && choice.kind === "add") {
+                        if (choice.kind === "add" && (isSelected || window.matchMedia("(hover: hover) and (pointer: fine)").matches)) {
+                          if (!isSelected) selectCoverAt(index);
                           coverInputRef.current?.click();
                           return;
                         }
@@ -7873,6 +7981,8 @@ export default function Home() {
                   )}
                 </nav>
               ) : null}
+              <StackPickerArrows index={selectedCoverIndex} count={coverChoices.length} label="cover"
+                top={coverCenterPercent} onSelect={selectCoverAt} />
               <nav
                 className="cover-pagination"
                 style={{ top: `${coverCenterPercent}%` }}
@@ -7897,7 +8007,8 @@ export default function Home() {
           ref={coverInstructionRef}
           className={`cover-instruction ${legacyPageEnterClass}`}
         >
-          Swipe up to pick a cover
+          <span className="cover-instruction-mobile">Swipe up to pick a cover</span>
+          <span className="cover-instruction-desktop">Select cover</span>
         </p>
 
         <input
@@ -8162,7 +8273,7 @@ export default function Home() {
               : "80px"
             : "var(--dock-visible-height)",
           height:
-            "calc(var(--sticker-dock-visible-height) + 180px + env(safe-area-inset-bottom) + var(--dock-browser-extension))",
+            "calc(var(--sticker-dock-visible-height) + var(--dock-bleed) + var(--dock-surface-extra) + env(safe-area-inset-bottom) + var(--dock-browser-extension))",
           minHeight: 0,
           alignItems: stickerPickerOpen ? "flex-start" : undefined,
           transition:

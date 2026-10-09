@@ -12,6 +12,7 @@ export function EditorEntrance({ profile, revealing, profilePending = false, own
 }) {
   const [cached, setCached] = useState<ReturnType<typeof readProfilePresentation>>(null);
   const [displayPercent, setDisplayPercent] = useState(0);
+  const [stalled, setStalled] = useState(false);
   const counterRef = useRef<ReturnType<typeof startEntranceCounter> | null>(null);
   const completedRef = useRef(false);
   useLayoutEffect(() => {
@@ -20,6 +21,12 @@ export function EditorEntrance({ profile, revealing, profilePending = false, own
     return () => { counter.dispose(); counterRef.current = null; };
   }, []);
   useLayoutEffect(() => { counterRef.current?.setTarget(percent); }, [percent]);
+  useLayoutEffect(() => {
+    setStalled(false);
+    if (displayPercent === 0 || displayPercent >= 100 || revealing) return;
+    const timer = window.setTimeout(() => setStalled(true), 500);
+    return () => window.clearTimeout(timer);
+  }, [displayPercent, revealing]);
   useLayoutEffect(() => {
     if (displayPercent === 100 && !completedRef.current) { completedRef.current = true; onCountComplete?.(); }
   }, [displayPercent, onCountComplete]);
@@ -32,7 +39,7 @@ export function EditorEntrance({ profile, revealing, profilePending = false, own
       fontWeight: profileFontWeight(theme.font) ?? 600, fontSize: normalizedFontSize(theme.font, 24) }}>
       <div className={`editor-entrance-square${/^#0{3}(0{3})?$/i.test(theme.background) ? " is-outlined" : ""}`}
         style={{ backgroundColor: theme.background }} aria-hidden="true" />
-      <div className="editor-entrance-label" data-waiting={displayPercent === 0}
+      <div className="editor-entrance-label" data-waiting={!revealing && displayPercent < 100 && (displayPercent === 0 || stalled)}
         role="progressbar" aria-label="Strip loading" aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>{displayPercent}</div>
     </div>
   </section>;
