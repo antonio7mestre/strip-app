@@ -290,9 +290,10 @@ test("text-first reader reveals the real edge underneath its opaque cover surfac
   assert.doesNotMatch(anchorEffect, /publishedLoaderIsVisible|publishedContentCanReveal/);
 });
 
-test("no vibration API, native switch proxy, or selection haptic remains", () => {
+test("the published entrance has no automatic vibration or native switch proxy", () => {
   const ink = readFileSync(new URL("../app/lib/scribble-entrance.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(page + css + ink, /navigator\.vibrate|createScribbleHaptics|triggerSelectionHaptic|selection-haptic-proxy|safariHapticSwitch/);
+  // Editor tool validation can vibrate on an actual tap. Reader loading cannot.
+  assert.doesNotMatch(componentSource + css + ink, /navigator\.vibrate|createScribbleHaptics|triggerSelectionHaptic|selection-haptic-proxy|safariHapticSwitch/);
 });
 
 test("a saved editor color never leaks into public Strip startup", () => {

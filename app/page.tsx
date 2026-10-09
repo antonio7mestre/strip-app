@@ -61,7 +61,9 @@ import { prepareStickerUploads } from "@/app/lib/sticker-upload";
 import { prepareMediaFiles, mediaImportInsertionIndex, mediaImportIsLeading, MEDIA_IMPORT_BACKGROUND, withMediaImportBlock, type MediaSize } from "@/app/lib/media-import";
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
-import { preparePublishedEditorMedia, type EditorMediaStatus } from "@/app/lib/published-editor-media";
+import { EditorEntrance } from "@/app/components/EditorEntrance";
+import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
+import { useEditorEntrance } from "@/app/components/useEditorEntrance";
 import { getReaderImageProps } from "@/app/lib/reader-image";
 import { MediaImportBlock } from "@/app/components/MediaImportBlock";
 import { isCoverMedia } from "@/app/lib/cover-media";
@@ -266,6 +268,7 @@ const STANDARD_PAGE_TRANSITION_DURATION_MS = 240;
 const DOCK_TRANSITION_DURATION_MS = 300;
 const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
+const PREVIEW_MODE_NOTICE = "Preview mode, tap any block to edit";
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
 const KEYBOARD_SCROLL_RELEASE_MS = 420;
 const STICKER_MIN_VISIBLE_PX = 44;
@@ -2859,12 +2862,20 @@ export default function Home() {
         ? `draft:${currentDraftId}`
         : "none";
 
-  const preparedEditorMediaRef = useRef<{ key: string; status: EditorMediaStatus } | null>(null);
   useLayoutEffect(() => {
-    const prepared = preparedEditorMediaRef.current;
-    setMediaLoadStatus(prepared?.key === mediaLoadKey ? prepared.status : {});
-    preparedEditorMediaRef.current = null;
+    setMediaLoadStatus({});
   }, [mediaLoadKey]);
+  const editorEntrance = useEditorEntrance(blocks, mediaLoadStatus, visibleProfile.font, stripProfile.loading);
+  const imagesAreLoading = mediaImportProgress !== null || mediaBatchRevealIds.length > 0 || blocks.some(block =>
+    (block.type === "image" || block.type === "video") && mediaLoadStatus[block.id] === undefined);
+  const showEditorLoadingNotice = (message = "Strip is loading") => {
+    try { navigator.vibrate?.(12); } catch { /* Physical feedback is optional. */ }
+    showActionNotice(message);
+  };
+  useEffect(() => {
+    if (!editorEntrance.active && notice === "Strip is loading") setNotice("");
+    if (!imagesAreLoading && !mediaImportRequestRef.current && notice === "Images loading") setNotice("");
+  }, [editorEntrance.active, imagesAreLoading, notice]);
 
   const beginBlockTapGesture = (
     event: ReactPointerEvent<HTMLElement>,
@@ -3772,6 +3783,7 @@ export default function Home() {
     }
     if (
       !loaded ||
+      editorEntrance.active ||
       !libraryOwnerId ||
       !currentDraftId ||
       blocks.length === 0
@@ -3830,12 +3842,13 @@ export default function Home() {
     endingStyle,
     libraryOwnerId,
     loaded,
+    editorEntrance.active,
     stripTitle,
   ]);
 
   useEffect(() => {
     if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(""), 2600);
+    const timeout = window.setTimeout(() => setNotice(""), notice === PREVIEW_MODE_NOTICE ? 3000 : 2600);
     return () => window.clearTimeout(timeout);
   }, [notice, noticeRevision]);
 
@@ -4569,6 +4582,7 @@ export default function Home() {
     setOpeningDraftId(null);
     setLegacyPageTransition(null);
     setOpeningPublishedEditor(false);
+    editorEntrance.cancel();
     setDockTransition(null);
     setDockTransitionStarted(false);
     root.classList.remove(
@@ -4730,6 +4744,11 @@ export default function Home() {
       inlinePreviewScrollRef.current = null;
     });
   };
+
+  useEffect(() => {
+    if (inlinePreview) showActionNotice(PREVIEW_MODE_NOTICE);
+    else setNotice(current => current === PREVIEW_MODE_NOTICE ? "" : current);
+  }, [inlinePreview]);
 
   const restoreInlinePreviewExitScroll = (scrollTop: number) => {
     window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
@@ -5303,11 +5322,36 @@ export default function Home() {
     }
   };
 
+  const startEditorEntry = () => {
+    const request = editorEntrance.start();
+    // Do not autosave an old canvas under the incoming draft's id.
+    draftSaveSequenceRef.current++;
+    setCurrentDraftId(null);
+    setBlocks([]);
+    setMediaLoadStatus({});
+    setSelectedBlockId(null);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+    setHeightCropSession(null);
+    setStickerPickerOpen(false);
+    setInlinePreview(false);
+    setOpeningCover(null);
+    setNotice("");
+    setEditorDockEntering(false);
+    setViewInstantly("edit", 0, false);
+    return request;
+  };
+
+  useLayoutEffect(() => {
+    if (routeFromLocation(window.location.pathname, window.location.hostname).kind === "edit") startEditorEntry();
+  }, []);
+
   const beginNewStrip = () => {
     if (authStatus !== "signed-in") {
       setAuthenticationRequired(true);
       return;
     }
+    const request = startEditorEntry();
     const draftId = makeId();
     setCurrentDraftId(draftId);
     setCurrentDraftCreatedAt(Date.now());
@@ -5325,7 +5369,7 @@ export default function Home() {
     setActiveTextTool(null);
     setOpenedPublishedStrip(null);
     setBrowserPath(`/edit/${encodeURIComponent(draftId)}`);
-    setViewInstantly("edit");
+    editorEntrance.resolve(request);
   };
 
   const deleteDraft = async (draftId: string) => {
@@ -5366,6 +5410,7 @@ export default function Home() {
     if (!libraryOwnerId || openingDraftId || pageTransitionInFlightRef.current) return;
     setOpeningDraftId(draft.id);
     pageTransitionInFlightRef.current = true;
+    const request = startEditorEntry();
     try {
       const response = await fetch(
         `/api/drafts/${encodeURIComponent(draft.id)}`,
@@ -5373,6 +5418,7 @@ export default function Home() {
       );
       if (!response.ok) throw new Error("Draft request failed");
       const data = (await response.json()) as { draft: DraftStripDetail };
+      if (!editorEntrance.isCurrent(request)) return;
       setCurrentDraftId(data.draft.id);
       setCurrentDraftCreatedAt(data.draft.createdAt);
       setEditingPublishedStripId(data.draft.publishedStripId ?? null);
@@ -5388,12 +5434,19 @@ export default function Home() {
       setCustomCoverColors([]);
       setCoverColorShape("square");
       setBrowserPath(`/edit/${encodeURIComponent(data.draft.id)}`);
-      setViewInstantly("edit");
+      editorEntrance.resolve(request);
     } catch {
-      setNotice("Couldn’t open this draft. Try again.");
-    } finally {
+      if (!editorEntrance.isCurrent(request)) return;
       setOpeningDraftId(null);
       pageTransitionInFlightRef.current = false;
+      editorEntrance.cancel();
+      setViewInstantly("drafts", 0, false);
+      setNotice("Couldn’t open this draft. Try again.");
+    } finally {
+      if (editorEntrance.isCurrent(request)) {
+        setOpeningDraftId(null);
+        pageTransitionInFlightRef.current = false;
+      }
     }
   };
 
@@ -5638,6 +5691,7 @@ export default function Home() {
           return;
         }
         if (route.kind === "edit") {
+          const editorRequest = startEditorEntry();
           try {
             const response = await fetch(
               `/api/drafts/${encodeURIComponent(route.id)}`,
@@ -5668,11 +5722,15 @@ export default function Home() {
             setEditingTextBlockId(null);
             setActiveTextTool(null);
             setOpenedPublishedStrip(null);
-            showEditorDockEntry();
-            setView("edit");
+            editorEntrance.resolve(editorRequest);
             window.scrollTo({ top: 0, behavior: "auto" });
           } catch {
-            if (routeIsCurrent()) setNotice("Couldn’t open this draft. Try again.");
+            if (routeIsCurrent()) {
+              editorEntrance.cancel();
+              setBrowserPath("/drafts", true);
+              setView("drafts");
+              setNotice("Couldn’t open this draft. Try again.");
+            }
           }
           return;
         }
@@ -5935,6 +5993,7 @@ export default function Home() {
     const controller = new AbortController();
     publishedEditorRequestRef.current = controller;
     setOpeningPublishedEditor(true);
+    const editorRequest = startEditorEntry();
     try {
       const response = await fetch(
         `/api/strips/${encodeURIComponent(strip.id)}/draft`,
@@ -5955,11 +6014,8 @@ export default function Home() {
         window.location.assign(`${workspaceOrigin}${editorPath}`);
         return;
       }
-      const readyMedia = await preparePublishedEditorMedia(draft.blocks, controller.signal);
-      if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
-      preparedEditorMediaRef.current = { key: `draft:${draft.id}`, status: readyMedia };
-      // One editor entry, using the real saved draft and already-decoded media.
-      // No provisional content, second source swap, or second loading reset.
+      // Mount only the real draft. Its actual images, videos, stickers and
+      // fonts settle behind the entrance before the canvas can be revealed.
       setBrowserPath(editorPath);
       flushSync(() => {
         setCurrentDraftId(draft.id);
@@ -5981,11 +6037,13 @@ export default function Home() {
         setOpenedPublishedStrip(null);
         setOpeningPublishedEditor(false);
       });
-      showEditorDockEntry();
-      setViewInstantly("edit", 0, false);
+      editorEntrance.resolve(editorRequest);
     } catch {
       if (controller.signal.aborted || publishedEditorRequestRef.current !== controller) return;
       setOpeningPublishedEditor(false);
+      editorEntrance.cancel();
+      setOpenedPublishedStrip(strip);
+      setViewInstantly("published", 0, false);
       setNotice("Couldn’t open this Strip for editing. Try again.");
     } finally {
       if (publishedEditorRequestRef.current === controller) {
@@ -6836,7 +6894,7 @@ export default function Home() {
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
-            loadBeforeReveal={!isEditing}
+            loadBeforeReveal={!isEditing || editorEntrance.active}
             reservedHeight={block.height}
             intrinsicSize={importedMediaSizes[block.id]}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
@@ -6971,7 +7029,7 @@ export default function Home() {
     onNavigate: authStatus === "signed-in" && !visitingProfileHost ? navigateProfilePage : undefined,
     onNew: authStatus === "signed-in" && !visitingProfileHost ? beginNewStrip : undefined,
   };
-  if (!initialRouteReady && !needsAuthUsername) {
+  if (!initialRouteReady && !needsAuthUsername && !(view === "edit" && editorEntrance.active)) {
     return <ProfileReload {...reloadProfileProps} />;
   }
   if (profilePageIsLoading) return <ProfileReload {...reloadProfileProps} />;
@@ -7449,7 +7507,7 @@ export default function Home() {
           <footer className="composer-dock share-dock publish-flow-dock">
             <StoryShareControls
               instagramReady={storyInstagramReady}
-              shareLabel={storyAssetLoading ? "Preparing…" : "Share"}
+              shareLabel={storyAssetLoading ? <>Preparing<AnimatedEllipsis /></> : "Share"}
               disabled={storyAssetLoading || !storyAssetFile || storyShareSheetOpen}
               onBack={() => void returnToLibrary()}
               onShare={() => void shareStoryToInstagram()}
@@ -7537,7 +7595,7 @@ export default function Home() {
               disabled={publishing}
               aria-label="Publish Strip"
             >
-              {publishing ? "Publishing…" : "Publish"}
+              {publishing ? <span>Publishing<AnimatedEllipsis /></span> : "Publish"}
             </button>
           </div>
         </footer>
@@ -8031,9 +8089,20 @@ export default function Home() {
     <>
       {legacyTransitionLayer}
       <main
-        inert={openingPublishedEditor}
-        aria-busy={openingPublishedEditor || undefined}
-        className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview is-strip-reader" : ""} ${
+        aria-busy={editorEntrance.active || undefined}
+        onClickCapture={(event) => {
+          if (!editorEntrance.active && !imagesAreLoading && !mediaImportRequestRef.current) return;
+          event.preventDefault();
+          event.stopPropagation();
+          showEditorLoadingNotice(editorEntrance.active ? "Strip is loading" : "Images loading");
+        }}
+        onKeyDownCapture={(event) => {
+          if ((!editorEntrance.active && !imagesAreLoading && !mediaImportRequestRef.current) || (event.key !== "Enter" && event.key !== " ")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (!event.repeat) showEditorLoadingNotice(editorEntrance.active ? "Strip is loading" : "Images loading");
+        }}
+        className={`app-shell editor-mode ${editorEntrance.active ? `is-editor-loading${editorEntrance.phase === "revealing" ? " is-editor-revealing" : ""}` : ""} ${inlinePreview ? "is-inline-preview is-strip-reader" : ""} ${
           selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
@@ -8046,6 +8115,8 @@ export default function Home() {
       />
       <div
         className={`editor-canvas ${legacyPageEnterClass}`}
+        inert={editorEntrance.active}
+        aria-hidden={editorEntrance.active || undefined}
         onClickCapture={(event) => {
           if (!inlinePreview || !(event.target instanceof Element)) return;
           const blockElement = event.target.closest<HTMLElement>(
@@ -8060,6 +8131,11 @@ export default function Home() {
       >
         {renderStrip(!inlinePreview)}
       </div>
+
+      {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} profile={visibleProfile} profilePending={stripProfile.loading}
+        owner={authUser?.id} percent={editorEntrance.percent}
+        onCountComplete={() => editorEntrance.completeCount(editorEntrance.request!)}
+        revealing={editorEntrance.phase === "revealing"} /> : null}
 
       {!inlinePreview && !heightCropSession && selectedBlock?.type === "text" ? (
         <TextStyleSelector
@@ -8155,7 +8231,6 @@ export default function Home() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             aria-label="Add photo or video"
-            disabled={mediaImportProgress !== null}
             aria-busy={mediaImportProgress !== null || undefined}
           >
             <ImagePlus className="dock-glyph" aria-hidden="true" />

@@ -2409,6 +2409,39 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   --media-import-duration: 440ms;
   --media-import-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Editor entry owns only the canvas. The existing dock stays mounted, at its
+   normal position, throughout fetching, decoding and the crossfade. */
+.editor-mode.is-editor-loading > .editor-canvas {
+  opacity: 0;
+  transition: opacity 320ms ease;
+  pointer-events: none;
+}
+.editor-mode.is-editor-revealing > .editor-canvas { opacity: 1; }
+.editor-entrance {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  display: grid;
+  place-items: center;
+  padding: env(safe-area-inset-top) 28px calc(var(--dock-visible-height, 80px) + env(safe-area-inset-bottom));
+  opacity: 1;
+  background: #000000;
+  color: #ffffff;
+  transition: opacity 320ms ease;
+  touch-action: none;
+}
+.editor-entrance.is-revealing { opacity: 0; }
+.editor-entrance-mark { width: min(44vw, 180px); }
+.editor-entrance-square { width: 100%; aspect-ratio: 1; background: currentColor; }
+.editor-entrance-square.is-outlined { border: 2px solid #ffffff; }
+.editor-entrance-label { margin-top: 32px; text-align: right; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.editor-entrance-label[data-waiting="true"] { animation: editor-loading-pulse 900ms ease-in-out infinite alternate; }
+@keyframes editor-loading-pulse { from { opacity: .25; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .editor-entrance, .editor-mode.is-editor-loading > .editor-canvas { transition: none; }
+  .editor-entrance-label[data-waiting="true"] { animation: none; }
+}
 .editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }
 .editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }
 .editor-mode .strip-block.is-import-ready { animation: media-import-in var(--media-import-duration) var(--media-import-easing); }

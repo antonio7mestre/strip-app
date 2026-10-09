@@ -50,6 +50,17 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   frozen.querySelectorAll(FLOATING_STICKER_SELECTOR).forEach(element => element.remove());
   backdrop.append(frozen);
   const dock = document.querySelector<HTMLElement>(".auth-action-dock");
+  // Snapshot the visible region before focusing the form changes Safari's
+  // viewport. Offscreen stickers must never rise into this animation later.
+  const viewport = window.visualViewport;
+  const viewportLeft = viewport?.offsetLeft ?? 0;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportRight = viewportLeft + (viewport?.width ?? width);
+  const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+  const dockTop = dock?.getBoundingClientRect().top ?? viewportBottom;
+  const visibleBottom = Math.min(viewportBottom, dockTop);
+  const intersectsScreen = (rect: { left: number; right: number; top: number; bottom: number }, bottom = visibleBottom) =>
+    rect.right > viewportLeft && rect.left < viewportRight && rect.bottom > viewportTop && rect.top < bottom;
   if (dock) {
     const rect = dock.getBoundingClientRect(), style = getComputedStyle(dock);
     const copy = dock.cloneNode(true) as HTMLElement;
@@ -71,8 +82,9 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
     landing.querySelectorAll<HTMLElement>(FLOATING_STICKER_SELECTOR).forEach(element => {
       const rect = element.getBoundingClientRect();
       // Keep document coordinates so objects lift from their own place, never teleport into view.
-      if (!rect.width || !rect.height) return;
+      if (!rect.width || !rect.height || !intersectsScreen(rect)) return;
       const style = getComputedStyle(element);
+      if (style.visibility === "hidden" || style.opacity === "0") return;
       const sprite = document.createElement("div");
       sprite.className = "auth-floating-sticker";
       sprite.dataset.sticker = element.className;
@@ -90,15 +102,16 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
       const rect = button.getBoundingClientRect();
       const cursor = getComputedStyle(button, "::after");
       const w = parseFloat(cursor.width), h = parseFloat(cursor.height);
-      if (w > 0 && h > 0) {
+      const right = rect.right - parseFloat(cursor.right), bottom = rect.bottom - parseFloat(cursor.bottom);
+      if (w > 0 && h > 0 && intersectsScreen({ left: right - w, right, top: bottom - h, bottom }, viewportBottom)) {
         const sprite = document.createElement("div");
         sprite.className = "auth-floating-sticker";
         sprite.dataset.sticker = "cursor";
         Object.assign(sprite.style, { width: `${w}px`, height: `${h}px`, background: cursor.background, zIndex: "5" });
         stage.append(sprite);
         sprites.push(sprite);
-        seeds.push({ x: rect.right - parseFloat(cursor.right) - w / 2,
-          y: rect.bottom - parseFloat(cursor.bottom) - h / 2, width: w, height: h, angle: 0 });
+        seeds.push({ x: right - w / 2,
+          y: bottom - h / 2, width: w, height: h, angle: 0 });
       }
     }
   }

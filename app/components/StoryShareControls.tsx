@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { InstagramStoryAction } from "@/app/components/InstagramStoryAction";
 
 // Keep the tray mounted. Button tracks merge and the instructions unfold
@@ -14,7 +15,7 @@ export function StoryShareControls({
 }: {
   instagramReady: boolean;
   backLabel?: string;
-  shareLabel?: string;
+  shareLabel?: ReactNode;
   disabled: boolean;
   onBack: () => void;
   onShare: () => void;

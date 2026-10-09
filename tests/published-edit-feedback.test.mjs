@@ -21,7 +21,7 @@ const actions = find(n => ts.isFunctionDeclaration(n) && n.name?.text === "Strip
 const compiled = ts.transpileModule(`export const ${handler.getText(tree)};\nexport const ${reset.getText(tree)};\nexport ${actions.getText(tree)}`, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
-function harness({ owner = true, signedIn = true, origin = "https://antonio.striiip.com", mediaReady = Promise.resolve({ "draft-image": "loaded" }) } = {}) {
+function harness({ owner = true, signedIn = true, origin = "https://antonio.striiip.com" } = {}) {
   const events = [], requests = [], notices = [], navigations = [], paths = [], views = [], exports = {};
   const gate = { current: false };
   const prepared = { current: null };
@@ -42,11 +42,11 @@ function harness({ owner = true, signedIn = true, origin = "https://antonio.stri
     DEFAULT_STRIP_ENDING_STYLE: "white",
     pageTransitionInFlightRef: gate,
     publishedEditorRequestRef: request,
-    preparedEditorMediaRef: prepared,
-    preparePublishedEditorMedia: (blocks, signal) => {
-      events.push("prepare-media");
-      return mediaReady.then(status => { if (signal.aborted) throw new Error("Cancelled"); return status; });
+    startEditorEntry: () => {
+      state.CurrentDraftId = null; state.Blocks = [];
+      events.push("entrance-start"); views.push(["edit", 0, false]); return 1;
     },
+    editorEntrance: { resolve: () => events.push("entrance-data-ready"), cancel: () => events.push("entrance-cancel") },
     mediaImportRequestRef: { current: null },
     storyShareAttemptRef: { current: 0 }, storyShareInFlightRef: { current: false }, setStoryShareSheetOpen() {}, setStoryShareConfirmation() {},
     openingCoverRequestRef: { current: null }, setOpeningCover() {},
@@ -78,13 +78,13 @@ async function finish(h, opening) {
   h.requests[1].resolve(draftSuccess); await opening;
 }
 
-test("published Edit keeps the reader painted, then opens the actual draft once without reloading", async () => {
+test("published Edit immediately opens the loading editor, then supplies the actual draft once", async () => {
   const h = harness();
   const opening = h.editPublishedStripFromReader();
-  assert.deepEqual(h.views, []);
+  assert.deepEqual(h.views, [["edit", 0, false]]);
   assert.equal(h.pending, true);
-  assert.equal(h.state.CurrentDraftId, undefined, "autosave state is not changed before the draft exists");
-  assert.equal(h.state.Blocks, undefined, "there is no provisional public copy in the editor");
+  assert.equal(h.state.CurrentDraftId, null, "autosave has no id before the real draft exists");
+  assert.deepEqual(h.state.Blocks, [], "there is no provisional public copy in the editor");
   assert.equal(h.gate.current, true);
   assert.equal(h.navigations.length, 0);
   assert.equal(h.paths.length, 0, "the URL stays reload-safe while preparing");
@@ -93,7 +93,8 @@ test("published Edit keeps the reader painted, then opens the actual draft once 
   await h.editPublishedStripFromReader();
   assert.equal(h.requests.length, 1, "repeated taps cannot create duplicate requests");
   await finish(h, opening);
-  assert.ok(h.events.indexOf("prepare-media") < h.events.indexOf("view:edit"));
+  assert.ok(h.events.indexOf("entrance-start") < h.events.indexOf("request"));
+  assert.ok(h.events.indexOf("set:Blocks") < h.events.indexOf("entrance-data-ready"));
   assert.equal(h.requests[1].url, "/api/drafts/published-123");
   assert.equal(h.requests[1].options.cache, "no-store");
   assert.deepEqual(h.paths, ["/edit/published-123"]);
@@ -108,7 +109,7 @@ test("published Edit keeps the reader painted, then opens the actual draft once 
   assert.deepEqual(h.views, [["edit", 0, false]], "only one editor entry and one scroll reset");
 });
 
-test("failed preparation leaves the reader and its scroll untouched and permits retry", async () => {
+test("failed draft preparation returns to the reader and permits retry", async () => {
   for (const failure of ["network", "response", "json", "draft-response", "draft-json"]) {
     const h = harness();
     const opening = h.editPublishedStripFromReader();
@@ -120,8 +121,8 @@ test("failed preparation leaves the reader and its scroll untouched and permits 
     await opening;
     assert.equal(h.pending, false); assert.equal(h.gate.current, false);
     assert.equal(h.notices.length, 1); assert.equal(h.navigations.length, 0);
-    assert.deepEqual(h.views, []);
-    assert.equal(h.state.CurrentDraftId, undefined); assert.equal(h.paths.length, 0);
+    assert.deepEqual(h.views, [["edit", 0, false], ["published", 0, false]]);
+    assert.equal(h.state.CurrentDraftId, null); assert.equal(h.paths.length, 0);
     const count = h.requests.length;
     const retry = h.editPublishedStripFromReader();
     assert.equal(h.requests.length, count + 1); assert.equal(h.pending, true);
@@ -145,44 +146,39 @@ test("browser Back cancels preparation and prevents stale responses from reopeni
   assert.equal(h.requests[0].options.signal.aborted, true);
   h.requests[0].resolve(success); await opening;
   assert.equal(h.requests.length, 1); assert.equal(h.paths.length, 0);
-  assert.equal(h.state.CurrentDraftId, undefined); assert.equal(h.notices.length, 0);
+  assert.equal(h.state.CurrentDraftId, null); assert.equal(h.notices.length, 0);
+  assert.ok(h.events.includes("entrance-cancel"));
   assert.match(page, /if \(event.persisted\) resetTransientNavigationState\(\)/);
 });
 
 test("an older host forwards to the owner's canonical workspace once its draft is ready", async () => {
   const h = harness({ origin: "https://striiip.com" });
   const opening = h.editPublishedStripFromReader();
-  assert.deepEqual(h.views, []);
+  assert.deepEqual(h.views, [["edit", 0, false]]);
   await finish(h, opening);
   assert.deepEqual(h.navigations, ["https://antonio.striiip.com/edit/published-123"]);
   assert.equal(h.paths.length, 0);
-  assert.deepEqual(h.views, [], "never flash a temporary editor on the outgoing host");
+  assert.equal(h.events.includes("entrance-data-ready"), false, "only the loading shell appears before the redirect");
 });
 
-test("images must finish decoding before the editor is shown", async () => {
-  let ready;
-  const h = harness({ mediaReady: new Promise(resolve => { ready = resolve; }) });
+test("draft data mounts behind the shared entrance, without offscreen duplicate image prewarming", async () => {
+  const h = harness();
   const opening = h.editPublishedStripFromReader();
-  h.requests[0].resolve(success); await tick();
-  h.requests[1].resolve(draftSuccess); await tick();
-  assert.deepEqual(h.views, []);
-  assert.equal(h.pending, true);
-  ready({ "draft-image": "loaded" }); await opening;
+  await finish(h, opening);
   assert.deepEqual(h.views, [["edit", 0, false]]);
-  assert.equal(h.prepared.current.key, "draft:published-123");
-  assert.deepEqual({ ...h.prepared.current.status }, { "draft-image": "loaded" });
-  assert.match(page, /setMediaLoadStatus\(prepared\?\.key === mediaLoadKey \? prepared\.status : \{\}\)/);
+  assert.ok(h.events.includes("entrance-data-ready"));
+  assert.doesNotMatch(page, /preparePublishedEditorMedia|preparedEditorMediaRef/);
+  assert.match(page, /inert=\{editorEntrance.active\}/);
 });
 
-test("Back while images decode cannot open a stale editor", async () => {
-  let ready;
-  const h = harness({ mediaReady: new Promise(resolve => { ready = resolve; }) });
+test("Back while draft data arrives cannot reopen a stale editor", async () => {
+  const h = harness();
   const opening = h.editPublishedStripFromReader();
   h.requests[0].resolve(success); await tick();
-  h.requests[1].resolve(draftSuccess); await tick();
   h.resetTransientNavigationState();
-  ready({}); await opening;
-  assert.deepEqual(h.views, []); assert.deepEqual(h.paths, []); assert.deepEqual(h.notices, []);
+  h.requests[1].resolve(draftSuccess); await opening;
+  assert.deepEqual(h.paths, []); assert.deepEqual(h.notices, []);
+  assert.equal(h.events.includes("entrance-data-ready"), false);
 });
 
 test("Edit keeps the original two-button footer without an opening message", () => {
@@ -193,6 +189,6 @@ test("Edit keeps the original two-button footer without an opening message", () 
   assert.match(renderToStaticMarkup(idle), /Edit Strip/);
   assert.doesNotMatch(renderToStaticMarkup(idle), /disabled|aria-busy|strip-end-sheet-spinner/);
   assert.doesNotMatch(page, /Opening editor|primaryPending/);
-  assert.match(page, /<main\s+inert=\{openingPublishedEditor\}\s+aria-busy=\{openingPublishedEditor \|\| undefined\}\s+className=\{`app-shell editor-mode/);
+  assert.match(page, /aria-busy=\{editorEntrance.active \|\| undefined\}/);
   assert.match(page, /inert=\{!publishedContentCanReveal \|\| openingPublishedEditor\}/);
 });

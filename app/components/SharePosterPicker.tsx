@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { POSTER_DESIGNS } from "@/app/lib/share-posters";
 import { stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
+import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
 
 export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_DESIGNS }: { previews: string[]; index: number; onSelect: (index: number) => void; designs?: readonly { id: string; name: string }[] }) {
   const stage = useRef<HTMLDivElement>(null);
@@ -67,7 +68,7 @@ export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_
         cardHeight: height, cardWidth: height * 9 / 16, selectedHeight: height, stageHeight, centerPercent: 50 });
       return <div key={design.id} id={`poster-design-${i}`} role="option" aria-selected={i === index} aria-label={`${i + 1} of ${POSTER_DESIGNS.length}: ${design.name}`} data-poster-index={i}
         className="poster-option" style={{ height, width: height * 9 / 16, ...motion, visibility: Math.abs(i - index - progress) >= 2 ? "hidden" : "visible" }}>
-        {previews[i] ? <img src={previews[i]} alt={`${design.name} story poster`} draggable={false} /> : <div className="poster-preparing" aria-busy="true">Preparing…</div>}
+        {previews[i] ? <img src={previews[i]} alt={`${design.name} story poster`} draggable={false} /> : <div className="poster-preparing" aria-busy="true">Preparing<AnimatedEllipsis /></div>}
       </div>;
     })}
     </div>
