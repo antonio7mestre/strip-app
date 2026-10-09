@@ -1757,6 +1757,13 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   backface-visibility: visible;
 }
 
+/* A reached ending can follow returning Safari controls without moving the
+   document scroll position. No extra layer exists during ordinary reading. */
+.is-strip-reader .strip-end-sheet[data-reader-toolbar-lift] {
+  translate: 0 calc(-1 * var(--reader-ending-lift));
+  transition: translate var(--reader-ending-motion, 0ms) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .published-bottom-sheet-title {
   width: min(calc(100% - 20px), 344px);
   margin: 0;

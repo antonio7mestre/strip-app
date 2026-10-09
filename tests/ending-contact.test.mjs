@@ -32,6 +32,7 @@ function fixture({ gap = 100, empty = false, published = false } = {}) {
     getBoundingClientRect: () => ({ top: endingTop }),
     toggleAttribute: (name, on) => on ? attributes.add(name) : attributes.delete(name),
     removeAttribute: name => attributes.delete(name),
+    hasAttribute: name => attributes.has(name),
   };
   const canvas = { children: [...(empty ? [] : [first]), ...(!published ? [ending] : [])], classList: { contains: name => name === "strip-canvas" } };
   ending.parentElement = published ? { children: [canvas, ending], classList: { contains: () => false }, querySelector: () => canvas } : canvas;
@@ -99,6 +100,16 @@ test("ref cleanup cancels observers, listeners, and late callbacks", () => {
   assert(!f.touching());
   assert.equal(f.events.size+f.viewportEvents.size,0);
   assert(f.observers.every(observer=>observer.targets.length===0));
+});
+
+test("Safari's visual lift preserves the existing flow corner contact", () => {
+  const f = fixture({ published: true, gap: 0 });
+  try {
+    f.ending.toggleAttribute("data-reader-toolbar-lift", true);
+    f.setTop(114); f.resize(); assert(f.touching());
+    f.ending.toggleAttribute("data-reader-toolbar-lift", false);
+    f.setTop(200); f.resize(); assert(f.touching());
+  } finally { f.cleanup(); }
 });
 
 test("preview and published footers use the same contact-aware backing below the shadow", () => {

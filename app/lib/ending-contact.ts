@@ -12,6 +12,8 @@ export function installEndingContact(ending: HTMLElement | null) {
     !element.classList.contains("sticker-block"));
   const update = () => {
     if (disposed) return;
+    // Safari's temporary visual lift does not change the blocks' flow contact.
+    if (ending.hasAttribute("data-reader-toolbar-lift")) return;
     const last = flowBlocks().at(-1);
     const gap = last ? ending.getBoundingClientRect().top - last.getBoundingClientRect().bottom : Infinity;
     const touching = Number.isFinite(gap) && Math.abs(gap) <= 1;
