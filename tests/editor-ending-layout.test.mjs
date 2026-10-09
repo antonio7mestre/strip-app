@@ -16,15 +16,19 @@ function visit(node) {
 }
 visit(tree);
 
-test("short previews place the ending at the bottom; edit mode has no card", () => {
+test("reader endings follow content without editor flex space or an automatic margin", () => {
   assert.match(source, /const showsEndingCard = !isEditing && view !== "published";/);
-  assert.match(css, /\.editor-mode \.strip-canvas,\s*\.strip-canvas\.has-ending-card/);
-  assert.match(css, /\.strip-canvas\.has-ending-card \{\s*display: flex;\s*flex-direction: column;/);
-  const rule = css.match(/\.editor-mode \.strip-canvas\.has-ending-card > \.strip-ending-card \{([^}]+)\}/)?.[1];
+  assert.match(css, /\.editor-mode \.strip-canvas \{\s*display: flex;\s*flex-direction: column;/);
+  const rule = css.match(/\.is-strip-reader \.strip-canvas \{([^}]+)\}/)?.[1];
   assert.ok(rule);
-  assert.match(rule, /margin-top: auto;/);
-  assert.doesNotMatch(rule, /position:\s*(fixed|absolute|sticky)|min-height|height:|transform:/);
-  assert.match(css, /\.strip-canvas\.has-ending-card > \.strip-block:not\(\.sticker-block\) \{\s*flex: 0 0 auto;/);
+  assert.match(rule, /display: block;/);
+  assert.match(rule, /min-height: 0;/);
+  assert.match(rule, /padding-bottom: 0;/);
+  assert.match(rule, /background: var\(--black\);/);
+  assert.doesNotMatch(css, /\.strip-canvas\.has-ending-card[^}]*margin-top:\s*auto/);
+  assert.doesNotMatch(css, /\.strip-canvas\.has-ending-card\s*>\s*\.strip-ending-card/);
+  assert.match(css, /\.is-strip-reader,\s*\.is-strip-reader \.editor-canvas,\s*\.is-strip-reader \.published-strip \{\s*min-height: 0;/);
+  assert.match(css, /\.editor-mode \.strip-canvas > \.strip-block:not\(\.sticker-block\) \{\s*flex: 0 0 auto;/);
 });
 
 test("empty state shares the canvas instead of adding a second full viewport", () => {
@@ -36,15 +40,17 @@ test("empty state shares the canvas instead of adding a second full viewport", (
   assert.match(css, /\.strip-canvas \{\s*position: relative;\s*min-height: inherit;/);
 });
 
-test("stickers leave the editor's content height unchanged; previews retain their floor", () => {
+test("all three readers use only the sticker floor while the editor retains its own layout", () => {
   assert.ok(minHeight);
-  for (const inlinePreview of [false, true]) {
-    for (const stickerFloor of [1, 180, 600, 1800]) {
-      assert.equal(runInNewContext(minHeight, {stickerFloor, view: "edit", inlinePreview, isEditing: !inlinePreview}),
-        inlinePreview ? `max(var(--editor-canvas-min-height, 100lvh), ${stickerFloor}px)` : undefined);
+  for (const [view, inlinePreview] of [["edit", true], ["preview", false], ["published", false]]) {
+    for (const stickerFloor of [0, 1, 180, 600, 1800]) {
+      assert.equal(runInNewContext(minHeight, { stickerFloor, view, inlinePreview, isEditing: false }),
+        stickerFloor > 0 ? `${stickerFloor}px` : undefined);
     }
   }
-  assert.equal(runInNewContext(minHeight, {stickerFloor: 0, view: "edit", inlinePreview: false, isEditing: true}), undefined);
+  for (const stickerFloor of [0, 180, 1800]) {
+    assert.equal(runInNewContext(minHeight, { stickerFloor, view: "edit", inlinePreview: false, isEditing: true }), undefined);
+  }
 });
 
 test("published sticker floors and editor toolbar clearance stay unchanged", () => {
@@ -54,9 +60,9 @@ test("published sticker floors and editor toolbar clearance stay unchanged", () 
   assert.doesNotMatch(css, /\.editor-mode \.strip-ending-card \{/);
 });
 
-test("keyboard scroll room stays below the ending instead of collapsing its auto margin", () => {
+test("keyboard scroll room preserves the editor's content floor", () => {
   assert.match(css, /\.editor-mode \.strip-canvas \{[^}]*min-height: var\(--editor-canvas-min-height\);/);
-  const rule = css.match(/\.keyboard-settling \.editor-mode \.strip-canvas \{([^}]+)\}/)[1];
+  const rule = css.match(/\.keyboard-settling \.editor-mode:not\(\.is-strip-reader\) \.strip-canvas \{([^}]+)\}/)[1];
   assert.match(rule, /--editor-canvas-min-height: calc\(\s*200dvh \+ var\(--keyboard-inset, 0px\) \+ 32px - 148px/);
   for (const viewport of [600, 714, 852]) for (const keyboard of [0, 280, 340]) {
     const normalContentFloor = viewport - 148;

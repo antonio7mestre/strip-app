@@ -86,7 +86,8 @@ html.published-bottom-pocket-active body {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
 }
 
-html.published-bottom-sheet-canvas-active {
+html.published-bottom-sheet-canvas-active,
+html.preview-bottom-canvas-active {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
   background-image: linear-gradient(
     to bottom,
@@ -95,17 +96,9 @@ html.published-bottom-sheet-canvas-active {
   ) !important;
 }
 
-html.published-bottom-sheet-canvas-active body {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
-html.preview-bottom-canvas-active,
+html.published-bottom-sheet-canvas-active body,
 html.preview-bottom-canvas-active body {
   background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
-html.preview-bottom-canvas-active {
-  background-image: none;
 }
 
 body {
@@ -1770,10 +1763,10 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   overflow: visible;
 }
 
-.published-mode .published-bottom-sheet {
+.is-strip-reader .published-bottom-sheet {
   /* Paint the reader footer with the document, not in an offscreen graphics
-     backing that Safari can detach during a fast fling. Preview keeps its
-     existing editor transition layer. */
+     backing that Safari can detach during a fast fling. Preview's outgoing
+     toolbar keeps its separate transition surface. */
   transform: none;
   backface-visibility: visible;
 }
@@ -2128,11 +2121,11 @@ html.leading-image-inset-active .app-shell.has-leading-image {
 /* Text-first readers need the same real under-glass origin as the loader.
  * Equal padding preserves the text's original visual position. Retain both
  * after the fade: removing/re-adding scroll offsets makes Safari jump. */
-html.leading-image-inset-active:has(.published-mode.has-leading-text) {
+html.leading-image-inset-active:has(.is-strip-reader.has-leading-text) {
   min-height: calc(100lvh + var(--leading-image-inset));
 }
 
-html.leading-image-inset-active .published-mode.has-leading-text .strip-canvas {
+html.leading-image-inset-active .is-strip-reader.has-leading-text .strip-canvas {
   margin-top: 0;
   padding-top: calc(var(--leading-image-inset) + env(safe-area-inset-top));
   background: var(--top-safe-area-color);
@@ -2159,8 +2152,8 @@ html.leading-image-inset-active.leading-media-top-edge body {
 /* Keep the reader's compositor scroll policy stable for the whole visit.
    The leading-edge class still tracks the spring, but crossing its boundary
    must not switch native overscroll modes in the middle of a fast swipe. */
-html.leading-image-inset-active:has(.published-mode),
-html.leading-image-inset-active:has(.published-mode) body {
+html.leading-image-inset-active:has(.is-strip-reader),
+html.leading-image-inset-active:has(.is-strip-reader) body {
   overscroll-behavior-y: none;
 }
 
@@ -2171,25 +2164,18 @@ html.leading-image-inset-active:has(.published-mode) body {
  * Do not promote/demote the document as the bottom footer enters the viewport. */
 html.leading-image-inset-active.leading-media-return-active .has-leading-image > .editor-canvas,
 html.leading-image-inset-active.leading-media-return-active .has-leading-image > .published-strip,
-html.leading-image-inset-active.leading-media-return-active .published-mode.has-leading-text > .published-strip {
+html.leading-image-inset-active.leading-media-return-active .is-strip-reader.has-leading-text > .editor-canvas,
+html.leading-image-inset-active.leading-media-return-active .is-strip-reader.has-leading-text > .published-strip {
   translate: 0 var(--leading-media-return-y, 0px);
 }
 
-.editor-mode .strip-canvas,
-.strip-canvas.has-ending-card {
+.editor-mode .strip-canvas {
   display: flex;
   flex-direction: column;
 }
 
-.editor-mode .strip-canvas > .strip-block:not(.sticker-block),
-.strip-canvas.has-ending-card > .strip-block:not(.sticker-block) {
+.editor-mode .strip-canvas > .strip-block:not(.sticker-block) {
   flex: 0 0 auto;
-}
-
-.editor-mode .strip-canvas.has-ending-card > .strip-ending-card {
-  /* Use spare canvas space before the ending, not inside it. Once blocks
-     reach this edge, the ending follows them in normal document flow. */
-  margin-top: auto;
 }
 
 .editor-mode .strip-canvas {
@@ -2198,30 +2184,6 @@ html.leading-image-inset-active.leading-media-return-active .published-mode.has-
   padding-bottom: calc(148px + env(safe-area-inset-bottom));
   background: var(--black);
   touch-action: pan-y;
-}
-
-.editor-mode.is-inline-preview .strip-canvas {
-  --editor-canvas-min-height: 100lvh;
-  min-height: 100lvh;
-  padding-bottom: 0;
-}
-
-.editor-mode.is-inline-preview .editor-canvas {
-  /* Temporary outgoing toolbar clearance belongs to the white reader ending. */
-  background: #ffffff;
-}
-
-.editor-mode.is-inline-preview
-  .strip-canvas.has-ending-card
-  > .strip-block:not(.sticker-block) {
-  flex: 0 0 auto;
-}
-
-.editor-mode.is-inline-preview
-  .strip-canvas.has-ending-card:not(.has-trailing-media)
-  > .strip-ending-card {
-  flex: 0 0 auto;
-  margin-top: auto;
 }
 
 .image-block.is-height-cropping.has-top-crop-clearance {
@@ -2246,10 +2208,10 @@ html.profile-reload-pending body {
 .profile-reload .library-add-button:disabled { opacity: 1; }
 .is-restored-profile .is-library-card-entering { animation: none; }
 
-.editor-mode.is-typing .strip-canvas,
-.keyboard-settling .editor-mode .strip-canvas {
-  /* Extra keyboard scroll room is below the ending. It must not consume
-     the flex space that keeps a short Strip's ending at the viewport floor. */
+.editor-mode:not(.is-strip-reader).is-typing .strip-canvas,
+.keyboard-settling .editor-mode:not(.is-strip-reader) .strip-canvas {
+  /* Keyboard dismissal can outlive the switch to preview. Reserve this extra
+     scroll room only while editing, never in the clean reader layout. */
   --editor-canvas-min-height: calc(
     200dvh + var(--keyboard-inset, 0px) + 32px - 148px
   );
@@ -2258,21 +2220,24 @@ html.profile-reload-pending body {
   );
 }
 
-.preview-mode .strip-canvas {
-  padding-bottom: calc(148px + env(safe-area-inset-bottom));
-  background: var(--black);
-}
-
-.published-mode .strip-canvas {
+.is-strip-reader .strip-canvas {
+  display: block;
   min-height: 0;
   padding-bottom: 0;
   background: var(--black);
 }
 
-.published-mode,
-.published-mode .published-strip {
+.is-strip-reader,
+.is-strip-reader .editor-canvas,
+.is-strip-reader .published-strip {
   min-height: 0;
   background: var(--black);
+}
+
+html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-canvas {
+  /* The outgoing toolbar's temporary clearance continues the incoming footer.
+     The content canvas remains black, and cleanup restores the reader backing. */
+  background: #ffffff;
 }
 
 .published-mode.has-trailing-image .strip-canvas {
@@ -5065,24 +5030,18 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
 
 @media (max-width: 719px) {
   .editor-mode .strip-canvas,
-  .preview-mode .strip-canvas {
+  .is-strip-reader .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
   }
 
-  .published-mode .strip-canvas {
-    margin-top: calc(-1 * env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
-  }
-
-  .published-mode.has-leading-text .strip-canvas {
+  .is-strip-reader.has-leading-text .strip-canvas {
     margin-top: 0;
     padding-top: env(safe-area-inset-top);
   }
 
   .editor-mode.has-leading-image .strip-canvas,
-  .preview-mode.has-leading-image .strip-canvas,
-  .published-mode.has-leading-image .strip-canvas {
+  .is-strip-reader.has-leading-image .strip-canvas {
     margin-top: calc(-1 * env(safe-area-inset-top));
     margin-bottom: 0;
     padding-top: 0;

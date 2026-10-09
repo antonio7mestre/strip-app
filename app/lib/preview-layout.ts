@@ -1,4 +1,8 @@
-export type PreviewLayoutTransition = { start: (preview: boolean) => void; cancel: () => void };
+export type PreviewLayoutTransition = {
+  rebase: () => number;
+  start: (preview: boolean) => void;
+  cancel: () => void;
+};
 
 /** Hold the outgoing scroll range before React swaps editor clearance for the
  * reader footer. Release only that extra space, on the toolbar's easing clock.
@@ -9,13 +13,17 @@ export function preparePreviewLayout(
   previous: PreviewLayoutTransition | null,
   duration: number,
 ): PreviewLayoutTransition | null {
-  const outgoingHeight = canvas?.getBoundingClientRect().height ?? 0;
+  let outgoingHeight = canvas?.getBoundingClientRect().height ?? 0;
+  const outgoingTop = canvas ? canvas.getBoundingClientRect().top + window.scrollY : 0;
+  const anchor = canvas?.querySelector<HTMLElement>(".strip-block:not(.sticker-block)");
+  const outgoingOrigin = anchor ? anchor.getBoundingClientRect().top + window.scrollY : null;
   previous?.cancel();
   if (!canvas || outgoingHeight <= 0) return null;
   const root = document.documentElement;
   const originalMinimum = canvas.style.minHeight;
   let frame = 0;
   let disposed = false;
+  let rebased = false;
   let controls: HTMLElement | null = null;
   let originalOpacity = "";
   canvas.style.minHeight = `${outgoingHeight}px`;
@@ -39,15 +47,33 @@ export function preparePreviewLayout(
   };
   return {
     cancel,
+    rebase() {
+      if (disposed || rebased) return 0;
+      rebased = true;
+      if (!anchor?.isConnected || outgoingOrigin === null) return 0;
+      // Measure the actual flow origin after the reader's safe-area styles
+      // apply. Safari can report a real safe inset or use the fallback, so an
+      // inset-only estimate misses part of the shift on some devices.
+      const delta = anchor.getBoundingClientRect().top + window.scrollY - outgoingOrigin;
+      const wrapperShift = canvas.getBoundingClientRect().top + window.scrollY - outgoingTop;
+      outgoingHeight = Math.max(0, outgoingHeight + delta - wrapperShift);
+      canvas.style.minHeight = `${outgoingHeight}px`;
+      syncBoundary();
+      return delta;
+    },
     start(preview) {
       if (disposed) return;
       const strip = canvas.querySelector<HTMLElement>(".strip-canvas");
       if (!strip) { cancel(); return; }
-      const naturalHeight = Math.max(window.innerHeight, strip.getBoundingClientRect().height);
+      // The reader footer follows the content canvas, exactly as publication
+      // does. Keep its height out of sticker coordinates but in this handoff.
+      const ending = preview ? canvas.querySelector<HTMLElement>(".strip-ending-card") : null;
+      const naturalHeight = Math.max(preview ? 0 : window.innerHeight,
+        strip.getBoundingClientRect().height + (ending?.getBoundingClientRect().height ?? 0));
       const reserve = Math.max(0, outgoingHeight - naturalHeight);
       // Keep the white surface and the last block's corner fill opaque. Only
       // the incoming controls fade, so there is never a translucent edge seam.
-      controls = preview ? strip.querySelector<HTMLElement>(".strip-ending-card-inner") : null;
+      controls = preview ? canvas.querySelector<HTMLElement>(".strip-ending-card-inner") : null;
       originalOpacity = controls?.style.opacity ?? "";
       const timelineTime = document.timeline.currentTime;
       const started = typeof timelineTime === "number" ? timelineTime : performance.now();

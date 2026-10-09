@@ -126,8 +126,10 @@ test("actual renderer removes the editor card and its extra paint for empty, tex
 test("preview stays white with black buttons for every trailing block color", () => {
   for (const color of ["#000000", "#FFFFFF", "#CCFF00", "#FF8CCC", "#3155FF"]) {
     const tree = renderFixture([{ ...text(color), content: "Hello" }], false);
-    const footer = tree.props.children.at(-1);
-    assert.equal(tree.props.style.backgroundColor, "#FFFFFF");
+    const [canvas, footer] = tree.props.children;
+    assert.match(canvas.props.className, /strip-canvas/);
+    assert.equal(canvas.props.style, undefined, "the preview does not paint a white content canvas");
+    assert.doesNotMatch(JSON.stringify(canvas), /strip-ending-card/, "the footer follows the complete content canvas");
     assert.equal(footer.props.style["--ending-background"], "#FFFFFF");
     assert.equal(footer.props.style["--ending-button"], "#000000");
     assert.equal(footer.props.style["--ending-button-foreground"], "#FFFFFF");

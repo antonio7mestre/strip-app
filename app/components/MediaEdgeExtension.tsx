@@ -19,11 +19,11 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
       ".block-crop-content > img, .block-crop-content > video",
     );
     if (!canvas || !block || !viewport || !media) return;
-    const staticPublishedPhoto = media instanceof HTMLImageElement &&
-      Boolean(block.closest(".published-mode"));
+    const staticPhoto = media instanceof HTMLImageElement;
     // The tiny still-photo edge must not introduce an accelerated layer under
-    // the footer. Keep video and editable/preview edges on their existing path.
-    const context = canvas.getContext("2d", staticPublishedPhoto
+    // the footer. Preview and published readers share this path; video keeps
+    // its existing visibility and frame lifecycle.
+    const context = canvas.getContext("2d", staticPhoto
       ? { willReadFrequently: true }
       : undefined);
     if (!context) return;
@@ -122,10 +122,10 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
     resizeObserver.observe(media);
     resizeObserver.observe(viewport);
     resizeObserver.observe(canvas);
-    // A published photo is already eager-loaded. Paint its edge on load even
-    // offscreen, then leave it alone during scrolling instead of allocating or
-    // repainting the footer's backing as it enters the viewport.
-    const intersectionObserver = staticPublishedPhoto ? null : new IntersectionObserver(([entry]) => {
+    // Paint every still-photo edge on load even offscreen, then leave it alone
+    // during scrolling instead of allocating or repainting the footer's backing
+    // as it enters the viewport.
+    const intersectionObserver = staticPhoto ? null : new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       refresh();
     }, { rootMargin: "160px" });

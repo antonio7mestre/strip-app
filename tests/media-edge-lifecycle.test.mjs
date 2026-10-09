@@ -25,6 +25,7 @@ function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, publis
   const resizes = [];
   let sequence = 0;
   let paints = 0;
+  let modeLookups = 0;
   const mediaBounds = () => ({ top: offsetTop, bottom: offsetTop + 800, height: 800, width: 400 });
   class Video extends Target {
     videoWidth = 1000;
@@ -47,7 +48,10 @@ function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, publis
   const viewport = { getBoundingClientRect: () => ({ top: offsetTop, bottom: offsetTop + 800 }) };
   const block = new Target();
   block.querySelector = (selector) => selector === ".block-crop-viewport" ? viewport : media;
-  block.closest = (selector) => published && selector === ".published-mode" ? block : null;
+  block.closest = (selector) => {
+    modeLookups++;
+    return published && selector === ".published-mode" ? block : null;
+  };
   const context = { resetTransform() {}, clearRect() {}, setTransform() {}, drawImage() { paints++; } };
   const canvas = {
     width: 300, height: 150, parentElement: block,
@@ -98,19 +102,24 @@ function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, publis
     get intersection() { return intersections.at(-1); },
     get resized() { return resizes.at(-1); },
     paints: () => paints,
+    modeLookups: () => modeLookups,
     cropChanged: effects[1],
     sourceChanged: () => { cleanups[0]?.(); cleanups[0] = effects[0](); },
     unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
   };
 }
 
-test("published photos prepaint a 3x edge offscreen without intersection or frame scheduling", () => {
-  const f = fixture({ image: true, published: true, seamOverlap: 1, offsetTop: 2400 });
+for (const reader of ["inline preview", "standalone preview", "published"]) {
+  const published = reader === "published";
+
+test(`${reader} photos prepaint a 3x edge offscreen without intersection or frame scheduling`, () => {
+  const f = fixture({ image: true, published, seamOverlap: 1, offsetTop: 2400 });
   assert.deepEqual(f.contexts, [{ type: "2d", options: { willReadFrequently: true } }]);
   assert.equal(f.canvas.width, 1200);
   assert.equal(f.canvas.height, 135);
   assert.ok(f.paints() > 0, "the edge is painted even when entirely below the viewport");
   assert.equal(f.intersections.length, 0, "scroll visibility cannot allocate or repaint this edge");
+  assert.equal(f.modeLookups(), 0, "photo behavior does not depend on a reader mode class");
   assert.deepEqual(f.resized.targets, [f.media, f.viewport, f.canvas]);
   assert.deepEqual(f.dependencies, [["existing-photo.jpg"], [0, undefined]]);
 
@@ -125,8 +134,8 @@ test("published photos prepaint a 3x edge offscreen without intersection or fram
   assert.equal(f.media.listeners.size + f.block.listeners.size + f.document.listeners.size, 0);
 });
 
-test("a published photo loading offscreen allocates and paints its Retina edge immediately", () => {
-  const f = fixture({ image: true, published: true, loaded: false, seamOverlap: 1, offsetTop: 2400 });
+test(`${reader} photos loading offscreen allocate and paint their Retina edge immediately`, () => {
+  const f = fixture({ image: true, published, loaded: false, seamOverlap: 1, offsetTop: 2400 });
   assert.equal(f.paints(), 0);
   assert.equal(f.canvas.width, 300, "an unavailable source has not been painted");
   f.media.naturalWidth = 1000;
@@ -141,8 +150,8 @@ test("a published photo loading offscreen allocates and paints its Retina edge i
   f.unmount();
 });
 
-test("published photo source changes rebuild observation and repaint without adding a visibility path", () => {
-  const f = fixture({ image: true, published: true, seamOverlap: 1, offsetTop: 2400 });
+test(`${reader} photo source changes rebuild observation and repaint without adding a visibility path`, () => {
+  const f = fixture({ image: true, published, seamOverlap: 1, offsetTop: 2400 });
   const originalResize = f.resized;
   const before = f.paints();
   f.sourceChanged();
@@ -163,8 +172,8 @@ test("published photo source changes rebuild observation and repaint without add
   assert.ok(f.resizes.every((observer) => observer.disconnected));
 });
 
-test("published still edges respect page visibility without relying on intersection", () => {
-  const f = fixture({ image: true, published: true });
+test(`${reader} still edges respect page visibility without relying on intersection`, () => {
+  const f = fixture({ image: true, published });
   f.document.hidden = true;
   const before = f.paints();
   f.media.emit("load");
@@ -177,25 +186,7 @@ test("published still edges respect page visibility without relying on intersect
   assert.equal(f.frames.size + f.animations.size, 0);
   f.unmount();
 });
-
-test("editor and preview photos retain their existing context and offscreen sleep", () => {
-  const f = fixture({ image: true });
-  assert.deepEqual(f.contexts, [{ type: "2d", options: undefined }]);
-  assert.equal(f.intersections.length, 1);
-  assert.deepEqual(f.intersection.options, { rootMargin: "160px" });
-  assert.deepEqual(f.intersection.targets, [f.canvas]);
-  f.intersection.callback([{ isIntersecting: false }]);
-  const before = f.paints();
-  f.media.emit("load");
-  f.cropChanged();
-  f.resized.callback();
-  assert.equal(f.paints(), before);
-  f.intersection.callback([{ isIntersecting: true }]);
-  assert.equal(f.paints(), before + 1);
-  assert.equal(f.frames.size + f.animations.size, 0);
-  f.unmount();
-  assert.ok(f.intersection.disconnected && f.resized.disconnected);
-});
+}
 
 test("published video retains the default context, visibility gate, and video frame callbacks", () => {
   const f = fixture({ published: true });
@@ -309,6 +300,28 @@ function evaluate(source, bindings = {}) {
   });
   return exports;
 }
+
+test("media edges are mounted only for trailing non-editable reader blocks", () => {
+  const mounts = [];
+  const videoEdgeProps = [];
+  function visit(node) {
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(pageTree) === "MediaEdgeExtension") {
+      let parent = node.parent;
+      while (ts.isParenthesizedExpression(parent)) parent = parent.parent;
+      assert.ok(ts.isConditionalExpression(parent), "each edge mount has an explicit reader guard");
+      assert.equal(parent.whenFalse.getText(pageTree), "null");
+      mounts.push(parent.condition.getText(pageTree));
+    }
+    if (ts.isJsxAttribute(node) && node.name.getText(pageTree) === "extendBottomEdge") {
+      assert.ok(ts.isJsxExpression(node.initializer));
+      videoEdgeProps.push(node.initializer.expression.getText(pageTree));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(pageTree);
+  assert.deepEqual(mounts.sort(), ["!isEditing && trailingFlowBlock?.id === block.id", "extendBottomEdge"]);
+  assert.deepEqual(videoEdgeProps, ["!isEditing && trailingFlowBlock?.id === block.id"]);
+});
 
 test("preview Publish enters cover setup without selecting an editor block", () => {
   const handler = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(pageTree) === "handlePreviewEndingPublish");

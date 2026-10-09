@@ -284,10 +284,22 @@ test("preview uses the published entry, full-exit and toolbar-resize boundaries"
   assert.equal(f.window.listeners.size + f.visual.listeners.size, 0);
 });
 
-test("preview paint covers both root and body, and removes the top-color gradient", () => {
+test("preview and published paint share independent top and bottom Safari colors", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /html\.preview-bottom-canvas-active,\s*html\.preview-bottom-canvas-active body\s*\{\s*background-color: var\(--bottom-safe-area-color, var\(--black\)\) !important;/);
-  assert.match(css, /html\.preview-bottom-canvas-active \{\s*background-image: none;/);
+  const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  const declarationsFor = selector => rules
+    .filter(([, selectors]) => selectors.split(",").some(value => value.trim() === selector))
+    .map(([, , declarations]) => declarations).join("\n");
+  const publishedRoot = declarationsFor("html.published-bottom-sheet-canvas-active");
+  const previewRoot = declarationsFor("html.preview-bottom-canvas-active");
+  assert.equal(previewRoot, publishedRoot, "both reader modes use the same root paint declarations");
+  assert.match(previewRoot, /background-color: var\(--bottom-safe-area-color, var\(--black\)\) !important/);
+  assert.match(previewRoot, /background-image: linear-gradient\(\s*to bottom,\s*var\(--bottom-safe-area-color, var\(--black\)\) 0 50%,\s*var\(--top-safe-area-color, var\(--black\)\) 50% 100%\s*\) !important/);
+  assert.doesNotMatch(previewRoot, /background-image: none/);
+  assert.equal(declarationsFor("html.preview-bottom-canvas-active body"),
+    declarationsFor("html.published-bottom-sheet-canvas-active body"));
+  assert.match(declarationsFor("html.preview-bottom-canvas-active body"),
+    /background-color: var\(--bottom-safe-area-color, var\(--black\)\) !important/);
   for (const options of [{ view: "edit" }, { view: "library", inlinePreview: true }, { view: "edit", inlinePreview: true, hasSheet: false }]) {
     const f = fixture({ ...options, top: 740 });
     assert(!f.active());

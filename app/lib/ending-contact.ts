@@ -3,8 +3,8 @@ export function installEndingContact(ending: HTMLElement | null) {
   const canvas = ending?.parentElement;
   if (!ending || !canvas) return;
   let disposed = false;
-  // Published content is grouped in its own canvas; inline preview owns its
-  // footer inside that canvas. Both use the last real block, not its wrapper.
+  // Reader content is grouped in its own canvas. Resolve the last real block,
+  // not its wrapper; retain support for an ending nested in a legacy canvas.
   const blockParent = () => canvas.classList.contains("strip-canvas")
     ? canvas : canvas.querySelector(".strip-canvas") ?? canvas;
   const flowBlocks = () => Array.from(blockParent().children).filter((element) =>

@@ -2800,6 +2800,7 @@ export default function Home() {
   const pageTransitionInFlightRef = useRef(false);
   const libraryScrollInsetRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
+  const leadingLayoutRef = useRef<{ view: string; inlinePreview: boolean } | null>(null);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
   const blockReorderFrameRef = useRef<number | null>(null);
   const blockReorderReleaseFrameRef = useRef<number | null>(null);
@@ -2980,10 +2981,6 @@ export default function Home() {
       COVER_DOCK_DROP_MS,
     );
   };
-  useLayoutEffect(() => {
-    if (view === "edit") previewLayoutRef.current?.start(inlinePreview);
-    else { previewLayoutRef.current?.cancel(); previewLayoutRef.current = null; }
-  }, [inlinePreview, view]);
   useEffect(() => () => { previewLayoutRef.current?.cancel(); }, []);
 
   const authFormIsVisible = needsAuthUsername ||
@@ -3215,7 +3212,8 @@ export default function Home() {
 
       if (
         !stripIsVisible ||
-        !(landingIsVisible || hasLeadingImage || (view === "published" && hasLeadingText)) ||
+        !(landingIsVisible || hasLeadingImage || (hasLeadingText &&
+          (view === "published" || view === "preview" || (view === "edit" && inlinePreview)))) ||
         !isIOS ||
         window.screen.height / window.screen.width <= 2
       ) {
@@ -3243,6 +3241,10 @@ export default function Home() {
     };
 
     const offset = calculateLeadingImageOffset();
+    const previousLayout = leadingLayoutRef.current;
+    const switchingInlineReader = view === "edit" && previousLayout?.view === "edit" &&
+      previousLayout.inlinePreview !== inlinePreview;
+    leadingLayoutRef.current = { view, inlinePreview };
     leadingImageInsetRef.current = offset;
     const ownsReloadScroll =
       initialRouteReady &&
@@ -3254,15 +3256,38 @@ export default function Home() {
 
     const removeLeadingMediaTop = installLeadingMediaTop({
       inset: offset,
-      resetScroll: !skipInitialAnchor && (offset > 0 || ownsReloadScroll),
+      resetScroll: !switchingInlineReader && !skipInitialAnchor && (offset > 0 || ownsReloadScroll),
       ownsReloadScroll,
     });
+    // Rebase the existing handoff against the real content origin, after all
+    // reader safe-area styles apply. Extend its held scroll range first so a
+    // text-first Strip at the bottom cannot clamp before the footer settles.
+    const originChange = switchingInlineReader ? previewLayoutRef.current?.rebase() ?? 0 : 0;
+    if (originChange !== 0) {
+      if (inlinePreviewScrollRef.current !== null) {
+        inlinePreviewScrollRef.current = Math.max(0, inlinePreviewScrollRef.current + originChange);
+      }
+      if (inlinePreviewExitLockRef.current) {
+        inlinePreviewExitLockRef.current.scrollTop = Math.max(0, inlinePreviewExitLockRef.current.scrollTop + originChange);
+      }
+      const target = inlinePreviewScrollRef.current ?? inlinePreviewExitLockRef.current?.scrollTop;
+      if (target !== undefined && target !== null) {
+        window.scrollTo({ top: target, left: 0, behavior: "auto" });
+      }
+    }
 
     return () => {
       removeLeadingMediaTop();
       leadingImageInsetRef.current = 0;
     };
-  }, [authenticationRequired, authStatus, authStep, hasLeadingImage, hasLeadingText, initialRouteReady, view]);
+  }, [authenticationRequired, authStatus, authStep, hasLeadingImage, hasLeadingText, initialRouteReady, inlinePreview, view]);
+
+  // Measure after the leading inset is updated, so text-first readers include
+  // their final safe-area geometry before the toolbar clearance settles.
+  useLayoutEffect(() => {
+    if (view === "edit") previewLayoutRef.current?.start(inlinePreview);
+    else { previewLayoutRef.current?.cancel(); previewLayoutRef.current = null; }
+  }, [inlinePreview, view]);
 
   useEffect(
     () => () => {
@@ -5692,7 +5717,7 @@ export default function Home() {
           setEditingTextBlockId(null);
           setActiveTextTool(null);
         });
-        restoreInlinePreviewExitScroll(scrollTop);
+        restoreInlinePreviewExitScroll(inlinePreviewExitLockRef.current?.scrollTop ?? scrollTop);
         settleInlinePreviewExitLock();
         return;
       }
@@ -6404,7 +6429,7 @@ export default function Home() {
     const shouldLoadMedia = (blockId: string) => {
       if (importedMediaSizes[blockId]) return true;
       const mediaIndex = mediaBlockIds.indexOf(blockId);
-      if (!isEditing && view === "published") return mediaIndex >= 0;
+      if (!isEditing) return mediaIndex >= 0;
       return (
         mediaIndex >= 0 &&
         mediaBlockIds
@@ -6426,19 +6451,12 @@ export default function Home() {
       showsEndingCard &&
       (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
     const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
-    const canvasMinHeight = !isEditing && stickerFloor > 0
-      ? view !== "published"
-        ? `max(var(--editor-canvas-min-height, ${inlinePreview ? "100lvh" : "100dvh"}), ${stickerFloor}px)`
-        : `${stickerFloor}px`
-      : undefined;
+    const canvasMinHeight = !isEditing && stickerFloor > 0 ? `${stickerFloor}px` : undefined;
     const importingFirst = isEditing && mediaImportProgress?.visible
       ? sourceBlocks.find(block => block.id === mediaBatchRevealIds[0]) : undefined;
     const importingHeight = importingFirst?.height;
     const canvasStyle = {
       ...(canvasMinHeight ? { minHeight: canvasMinHeight } : {}),
-      ...(showsEndingCard
-        ? { backgroundColor: "#FFFFFF" }
-        : {}),
       ...(importingHeight ? {
         "--media-import-offset": `${240 - importingHeight}px`,
         "--media-import-scale": 240 / importingHeight,
@@ -6446,6 +6464,7 @@ export default function Home() {
     } as CSSProperties;
 
     return (
+      <>
       <div
         ref={stripCanvasRef}
         className={`strip-canvas ${importingFirst ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""} ${
@@ -6462,7 +6481,7 @@ export default function Home() {
         {withMediaImportBlock(sourceBlocks, sourceBlocks.map((block, index) => {
         const heightCrop =
           block.type === "image" || block.type === "video"
-            ? resolveBlockHeightCrop(block, heightCropSession)
+            ? resolveBlockHeightCrop(block, isEditing ? heightCropSession : null)
             : null;
         if (block.type === "text") {
           const textIsBeingEdited = isEditing && editingTextBlockId === block.id;
@@ -6644,7 +6663,7 @@ export default function Home() {
                     style={
                       mediaLoadStatus[block.id] === "error"
                         ? { display: "none" }
-                        : view === "published"
+                        : !isEditing
                           ? undefined
                           : {
                               aspectRatio: importedMediaSizes[block.id]
@@ -6814,7 +6833,7 @@ export default function Home() {
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
-            loadBeforeReveal={!isEditing && view === "published"}
+            loadBeforeReveal={!isEditing}
             reservedHeight={block.height}
             intrinsicSize={importedMediaSizes[block.id]}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
@@ -6848,6 +6867,7 @@ export default function Home() {
           />
         );
         }), isEditing && mediaImportProgress?.visible ? <MediaImportBlock key="pending-media-import" progress={mediaImportProgress} handoff={mediaBatchRevealIds.length ? (mediaBatchRevealStarted ? "revealing" : "waiting") : undefined} /> : null, mediaImportProgress?.afterId, mediaBatchRevealIds[0])}
+      </div>
         {showsEndingCard ? (
           <StripEndingSheet
             preview
@@ -6863,7 +6883,7 @@ export default function Home() {
             />
           </StripEndingSheet>
         ) : null}
-      </div>
+      </>
     );
   };
 
@@ -7912,7 +7932,7 @@ export default function Home() {
           {coverEntranceLayer}
           {legacyTransitionLayer}
           <main
-            className={`app-shell reader-mode published-mode ${
+            className={`app-shell reader-mode published-mode is-strip-reader ${
               hasLeadingImage ? "has-leading-image" : ""
             } ${hasLeadingText ? "has-leading-text" : ""}`}
           >
@@ -7965,9 +7985,9 @@ export default function Home() {
       <>
         {legacyTransitionLayer}
         <main
-          className={`app-shell reader-mode ${
-            isPublished ? "published-mode" : "preview-mode"
-          } ${hasLeadingImage ? "has-leading-image" : ""}`}
+          className={`app-shell reader-mode preview-mode is-strip-reader ${
+            hasLeadingImage ? "has-leading-image" : ""
+          } ${hasLeadingText ? "has-leading-text" : ""}`}
         >
         <div
           className={`top-safe-area-anchor ${legacyPageEnterClass}`}
@@ -7995,50 +8015,9 @@ export default function Home() {
             </button>
           </header>
         ) : null}
-
         <article className={`published-strip ${legacyPageEnterClass}`}>
-          {isPublished ? (
-            <header className="strip-byline">
-              <div className="avatar" aria-hidden="true">
-                A
-              </div>
-              <div>
-                <strong>{openedPublishedStrip?.username ?? "STRIP"}</strong>
-                <span>just stripped</span>
-              </div>
-            </header>
-          ) : null}
           {renderStrip(false, publishedBlocks)}
         </article>
-        {!isPublished || dockTransition ? (
-          <footer
-            key="persistent-composer-dock"
-            className="composer-dock preview-dock"
-          >
-            {dockTransitionLayer}
-            {!isPublished ? (
-              <div className={currentDockControlsClass} key={`dock-controls:${view}`}>
-                <button
-                  className="dock-icon-button"
-                  type="button"
-                  onClick={() => changeViewWithDockTransition("edit")}
-                  aria-label="Return to editing"
-                >
-                  <Pencil className="dock-glyph" aria-hidden="true" />
-                </button>
-                <span className="dock-divider" aria-hidden="true" />
-                <HapticActionButton
-                  className="dock-icon-button publish-icon-button publish-strip-button"
-                  onClick={continueToPublish}
-                  feedback={!hasRequiredContent}
-                  label="Continue to cover"
-                >
-                  Continue
-                </HapticActionButton>
-              </div>
-            ) : null}
-          </footer>
-        ) : null}
         {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
         </main>
       </>
@@ -8051,11 +8030,11 @@ export default function Home() {
       <main
         inert={openingPublishedEditor}
         aria-busy={openingPublishedEditor || undefined}
-        className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview" : ""} ${
+        className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview is-strip-reader" : ""} ${
           selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
-        } ${heightCropSession ? "is-height-cropping" : ""}`}
+        } ${inlinePreview && hasLeadingText ? "has-leading-text" : ""} ${heightCropSession ? "is-height-cropping" : ""}`}
       >
       <div
         className={`top-safe-area-anchor ${legacyPageEnterClass}`}
