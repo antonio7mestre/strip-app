@@ -19,7 +19,13 @@
   --white: #ffffff;
   --top-safe-area-color: #000000;
   --bottom-safe-area-color: #000000;
-  --iphone-panel-radius: 44px;
+  /* Mirror the broad portrait-phone corner across every full-width tray.
+     One responsive radius also sizes the reflected-photo corner backing.
+     The device clips the lower edge; do not add a second bottom radius. */
+  --iphone-panel-radius: clamp(48px, 15vw, 64px);
+  /* Use Safari's rounded contour everywhere, including browsers that support
+     corner-shape, so Chromium does not render a tighter, square-like tray. */
+  --iphone-panel-corner-shape: round;
   --dock-visible-height: 64px;
   --bottom-action-tray-max-width: 212px;
   --dock-bottom-gap: 2px;
@@ -832,10 +838,7 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 }
 
 .auth-action-dock.composer-dock {
-  --auth-device-curve: clamp(44px, 13vw, 54px);
   z-index: 40;
-  border-radius: var(--auth-device-curve) var(--auth-device-curve) 0 0;
-  corner-shape: squircle;
 }
 
 .auth-action-controls.dock-controls {
@@ -1644,8 +1647,6 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 .app-navigation-dock.composer-dock {
   z-index: 42;
   border-top: 0;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
-  corner-shape: squircle;
 }
 
 .app-navigation-controls {
@@ -1710,7 +1711,7 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
     max(18px, env(safe-area-inset-left));
   border: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
-  corner-shape: squircle;
+  corner-shape: var(--iphone-panel-corner-shape);
   /* The footer paints its own opaque base with the document. Its decorative
      surface still owns the existing shadow and fractional-pixel overlap. */
   background: var(--ending-background, #ffffff);
@@ -2908,6 +2909,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   border: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
+  corner-shape: var(--iphone-panel-corner-shape);
   background: #ffffff;
   box-shadow: var(--bottom-bar-shadow);
   transition:
@@ -4570,7 +4572,6 @@ html:has(.story-share-boundary) body {
   justify-content: flex-start;
   gap: 0;
   overflow: hidden;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
   transform: translateY(125%);
   opacity: 0;
   pointer-events: none;
@@ -4775,6 +4776,7 @@ html:has(.story-share-boundary) body {
   margin: 0;
   padding: 0;
   border-radius: var(--iphone-panel-radius) 0 0 0;
+  corner-shape: var(--iphone-panel-corner-shape);
 }
 
 .selector-dock.is-gradient-picker .selector-leading {
@@ -4845,6 +4847,7 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
   flex: 1 1 auto;
   overflow: hidden;
   border-radius: var(--iphone-panel-radius) 0 0 0;
+  corner-shape: var(--iphone-panel-corner-shape);
   background:
     linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent 54%, rgba(255, 255, 255, 0.92)),
     linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);

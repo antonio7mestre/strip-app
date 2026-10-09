@@ -242,7 +242,7 @@ test("the footer paint fix preserves the existing shape, contact fill, shadow an
   assert.match(shared, /justify-content: center/);
   assert.match(shared, /padding: 12px max\(18px, env\(safe-area-inset-right\)\)\s*calc\(var\(--dock-bottom-gap\) - var\(--ending-paint-overlap\) \+ env\(safe-area-inset-bottom\)\)\s*max\(18px, env\(safe-area-inset-left\)\)/);
   assert.match(shared, /border-radius: var\(--iphone-panel-radius\) var\(--iphone-panel-radius\) 0 0/);
-  assert.match(shared, /corner-shape: squircle/);
+  assert.match(shared, /corner-shape: var\(--iphone-panel-corner-shape\)/);
   assert.match(shared, /isolation: isolate/);
   assert.match(rule(".strip-end-sheet[data-touches-block] > .strip-end-sheet-corner-fill"), /background: var\(--ending-corner-color, transparent\)/);
   const surface = rule(".strip-end-sheet-surface");

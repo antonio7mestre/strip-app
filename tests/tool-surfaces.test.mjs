@@ -10,6 +10,42 @@ function rule(selector) {
   return css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start));
 }
 
+test("every bottom tray uses the same responsive phone corner", () => {
+  assert.match(rule(":root"), /--iphone-panel-radius: clamp\(48px, 15vw, 64px\)/);
+  assert.match(rule(":root"), /--iphone-panel-corner-shape: round/);
+  for (const selector of [".composer-dock", ".strip-end-sheet"]) {
+    assert.match(rule(selector), /border-radius: var\(--iphone-panel-radius\) var\(--iphone-panel-radius\) 0 0/);
+    assert.match(rule(selector), /corner-shape: var\(--iphone-panel-corner-shape\)/);
+  }
+  assert.doesNotMatch(css, /--auth-device-curve/);
+});
+
+test("home, edit, publish and transition trays cannot override the shared curve", () => {
+  for (const selector of [
+    ".app-navigation-dock.composer-dock", ".auth-action-dock.composer-dock",
+    ".profile-editor-dock.composer-dock", ".selector-dock",
+    ".composer-dock.selector-dock", ".composer-dock.shape-selector-dock",
+    ".composer-dock.preview-motion-dock", ".composer-dock.story-share-document-dock",
+    ".title-setup-dock", ".published-bottom-sheet",
+  ]) {
+    assert.doesNotMatch(rule(selector), /border(?:-top|-bottom)?-(?:left-|right-)?radius:|corner-shape:|--iphone-panel-radius:/, selector);
+  }
+});
+
+test("rainbow surfaces match their tray corner without a mismatched inner arc", () => {
+  for (const selector of [".selector-scroll.is-gradient-mode", ".full-gradient-picker"]) {
+    assert.match(rule(selector), /border-radius: var\(--iphone-panel-radius\) 0 0 0/);
+    assert.match(rule(selector), /corner-shape: var\(--iphone-panel-corner-shape\)/);
+  }
+});
+
+test("the reflected photo and text fill continue behind the full shared corner", () => {
+  assert.match(rule(".strip-end-sheet-corner-fill"), /height: var\(--iphone-panel-radius\)/);
+  assert.match(rule(".media-edge-extension"), /height: calc\(var\(--iphone-panel-radius\) \+ var\(--media-edge-overlap\)\)/);
+  assert.match(rule(".strip-end-sheet-surface"), /border-radius: inherit/);
+  assert.match(rule(".strip-end-sheet-surface"), /corner-shape: inherit/);
+});
+
 test("text controls have an opaque, nonanimated join outside the reveal layer", () => {
   assert.match(page, /\{onTextTool \? \(\s*<span className="block-controls-text-join" style=\{style\} aria-hidden="true" \/>\s*\) : null\}\s*<div\s*className=\{`block-controls-reveal/);
   const join = rule(".block-controls-text-join");
