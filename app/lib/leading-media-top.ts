@@ -1,4 +1,5 @@
 const TOP_RETURN_FREQUENCY = 18;
+const TOP_PULL_INTENT_DISTANCE = 8;
 
 /** Analytic critical damping keeps the same curve at 60 and 120 Hz. */
 export function sampleLeadingMediaReturn(distance: number, elapsedSeconds: number, initialVelocity = 0) {
@@ -44,7 +45,9 @@ export function installLeadingMediaTop({
   let armed = resetScroll;
   let touchCount = 0;
   let caughtReturn = false;
+  let touchStartY = 0;
   let lastTouchY = 0;
+  let pullIntent: "undecided" | "native" | "pull" = "undecided";
   let returnDistance = 0;
   let ownsPull = false;
   let rawPullDistance = 0;
@@ -156,6 +159,8 @@ export function installLeadingMediaTop({
     armed = true;
     touchCount = event.touches.length;
     lastTouchY = event.touches[0]?.clientY ?? 0;
+    touchStartY = lastTouchY;
+    pullIntent = "undecided";
     lastMoveAt = performance.now();
     pullVelocity = 0;
     // Safari changes innerHeight as its controls move. One gesture must keep
@@ -179,6 +184,18 @@ export function installLeadingMediaTop({
     const elapsed = Math.max(8, now - lastMoveAt);
     lastMoveAt = now;
     if (!ownsPull) {
+      // Tiny initial finger wobble is not a top pull. Decide from the finger's
+      // displacement, not the gap left by an interrupted native return.
+      if (pullIntent === "native") return;
+      if (pullIntent === "undecided") {
+        const displacement = y - touchStartY;
+        if (displacement <= -TOP_PULL_INTENT_DISTANCE) {
+          pullIntent = "native";
+          return;
+        }
+        if (displacement < TOP_PULL_INTENT_DISTANCE) return;
+        pullIntent = "pull";
+      }
       // Leave all scrolling below the anchor native. Claim only a pull that
       // crosses the leading edge, before Safari starts its own rubber band.
       if (delta <= 0 || window.scrollY - delta > inset || !event.cancelable) return;

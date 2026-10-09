@@ -37,6 +37,64 @@ test("normal page scrolling remains native until a cancelable drag reaches the a
   f.cleanup();
 });
 
+test("subpixel wobble during a native return cannot capture a fast upward swipe", () => {
+  const f = fixture({ scrollY: 500, inset: 62, resetScroll: false });
+  f.emit("touchstart", [100]);
+  f.emit("touchend");
+  f.window.scrollY = 38;
+  f.emit("scroll");
+  assert.equal(f.writes.at(-1).behavior, "smooth");
+
+  f.emit("touchstart", [100]);
+  const before = f.writes.length;
+  assert.equal(f.emit("touchmove", [100 + 1 / 3]).defaultPrevented, false);
+  assert.equal(f.writes.length, before, "the existing 24px inset gap is not finger intent");
+  assert.equal(f.styles.has("--leading-media-return-y"), false);
+  for (const [fingerY, nativeScrollY] of [[70, 84], [-100, 302], [-350, 706]]) {
+    assert.equal(f.emit("touchmove", [fingerY]).defaultPrevented, false);
+    f.window.scrollY = nativeScrollY;
+    f.emit("scroll");
+    assert.equal(f.writes.length, before, "the upward swipe stays entirely native");
+    assert.equal(f.styles.has("--leading-media-return-y"), false);
+  }
+  f.emit("touchend");
+  assert.equal(f.writes.length, before);
+  f.cleanup();
+});
+
+test("the first deliberate upward direction stays native until the gesture ends", () => {
+  const f = fixture();
+  f.frame();
+  f.emit("touchstart", [100]);
+  const before = f.writes.length;
+  assert.equal(f.emit("touchmove", [92]).defaultPrevented, false);
+  assert.equal(f.emit("touchmove", [150]).defaultPrevented, false,
+    "later downward motion cannot capture an already native gesture");
+  assert.equal(f.writes.length, before);
+  f.emit("touchend");
+
+  f.emit("touchstart", [100]);
+  assert.equal(f.emit("touchmove", [108]).defaultPrevented, true,
+    "a new deliberate downward pull still owns its own gesture");
+  assert.ok(Math.abs(f.visualY() - (-59 + f.rubberBand(8, 800))) < 1e-7);
+  f.cleanup();
+});
+
+test("only deliberate finger displacement can start a fresh pull", () => {
+  for (const scrollY of [0, 38, 59]) {
+    const f = fixture({ scrollY, resetScroll: false });
+    f.emit("touchstart", [100]);
+    for (const distance of [1 / 3, 1, 4, 7.99]) {
+      assert.equal(f.emit("touchmove", [100 + distance]).defaultPrevented, false);
+      assert.equal(f.writes.length, 0);
+      assert.equal(f.styles.has("--leading-media-return-y"), false);
+    }
+    assert.equal(f.emit("touchmove", [108]).defaultPrevented, true);
+    assert.equal(f.window.scrollY, 59);
+    f.cleanup();
+  }
+});
+
 test("an extra-long pull keeps the same resistance while Safari resizes its controls", () => {
   const f = fixture();
   f.frame();
@@ -248,8 +306,8 @@ test("a photo-first page is genuinely scrolled under the safe area, not moved ab
   }
 });
 
-test("deep top pulls keep one real anchor and return in one continuous spring", () => {
-  for (const depth of [1, 60, 250, 1200]) {
+test("deliberate top pulls keep one real anchor and return in one continuous spring", () => {
+  for (const depth of [32, 60, 250, 1200]) {
     for (const fps of [30, 60, 120]) {
       const f = fixture();
       f.frame();
@@ -331,6 +389,9 @@ test("catching a return freezes it in place and releasing resumes from that exac
   f.emit("touchstart", [250]);
   f.frame(500);
   assert.equal(f.visualY(), caught);
+  assert.equal(f.emit("touchmove", [250 + 1 / 3]).defaultPrevented, true,
+    "a caught real spring already owns the gesture, without a new intent threshold");
+  assert.ok(f.visualY() > caught);
   assert.equal(f.emit("touchmove", [300]).defaultPrevented, true);
   assert.ok(f.visualY() > caught);
   const released = f.visualY();
@@ -341,7 +402,7 @@ test("catching a return freezes it in place and releasing resumes from that exac
   f.cleanup();
 });
 
-test("reversing a caught return hands the remaining upward drag back to scrolling", () => {
+test("reversing a caught return preserves the owned drag until touchend", () => {
   const f = fixture();
   f.frame();
   f.emit("touchstart", [100]);
@@ -350,11 +411,20 @@ test("reversing a caught return hands the remaining upward drag back to scrollin
   f.emit("touchend");
   f.frame(200);
   f.emit("touchstart", [400]);
-  f.emit("touchmove", [0]);
-  assert.ok(f.window.scrollY > 59);
-  assert.equal(f.styles.has("--leading-media-return-y"), false);
+  let previous = f.window.scrollY;
+  for (const fingerY of [0, -100, -250]) {
+    assert.equal(f.emit("touchmove", [fingerY]).defaultPrevented, true,
+      "a cancelled touch sequence cannot assume a mid-gesture native handoff");
+    assert.ok(f.window.scrollY > previous);
+    assert.equal(f.styles.has("--leading-media-return-y"), false);
+    previous = f.window.scrollY;
+  }
   f.emit("touchend");
   assert.equal(f.frames.size, 0);
+  const before = f.writes.length;
+  f.emit("touchstart", [400]);
+  assert.equal(f.emit("touchmove", [100]).defaultPrevented, false);
+  assert.equal(f.writes.length, before, "the next fresh upward gesture is native again");
   f.cleanup();
 });
 

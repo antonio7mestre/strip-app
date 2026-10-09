@@ -89,14 +89,16 @@ export function installFooterSafeAreaColor({
     const movement = previousTop === null ? 0 : bounds.top - previousTop;
     const elapsed = now - previousTime;
     // Safari can advance its scrolling layer before delivering the next event.
-    // Prepare about three frames ahead during a fast approach, with a hard cap.
+    // Prepare about three frames ahead during a fast approach, capped at one
+    // painted viewport without reducing the existing 256px minimum ceiling.
     // Keep that lead while approaching so deceleration cannot flash it back off.
     // Reversing away immediately restores the normal, fully-offscreen exit edge.
     if (movement > 0.5 || (elapsed > 120 && active !== true)) {
       approachLead = 48;
     }
     if (movement < -0.5 && elapsed > 0 && elapsed <= 120) {
-      approachLead = Math.max(approachLead, Math.min(256, -movement / Math.max(8, elapsed) * 60));
+      const maximumApproachLead = Math.max(256, painted.bottom - painted.top);
+      approachLead = Math.max(approachLead, Math.min(maximumApproachLead, -movement / Math.max(8, elapsed) * 60));
     }
     if (movement !== 0 || previousTop === null) {
       previousTop = bounds.top;

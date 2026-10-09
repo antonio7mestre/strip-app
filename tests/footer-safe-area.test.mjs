@@ -382,7 +382,7 @@ test("a fast approach prepares the color before Safari advances across the edge"
   f.advance();
   f.moveTo(1120);
   f.window.emit("scroll");
-  assert.equal(f.active(), false, "look-ahead is capped even for a very fast approach");
+  assert.equal(f.active(), false, "the existing 60ms projection does not reach the footer yet");
   f.advance();
   f.moveTo(1040);
   f.window.emit("scroll");
@@ -398,6 +398,62 @@ test("a fast approach prepares the color before Safari advances across the edge"
   f.window.emit("scroll");
   assert.equal(f.active(), false, "reversing away uses the normal exit edge, not the predictive lead");
   f.cleanup();
+});
+
+test("a measured native fast approach prepares color beyond the former 256px ceiling", () => {
+  const f = fixture({ top: 1420, largeHeight: 754 });
+  f.window.innerHeight = 714;
+  f.root.clientHeight = 714;
+  assert.equal(shouldUseFooterSafeAreaColor(footer(1021), { top: 0, bottom: 754 }, false, 256), false,
+    "the prior ceiling misses this measured native approach");
+  f.advance(37);
+  f.moveTo(1021);
+  f.window.emit("scroll");
+  assert.equal(f.active(), true, "399px in 37ms projects about 647px ahead within the painted viewport");
+  assert.equal(f.writes.at(-1), "#FFFFFF");
+  assert.equal(f.frames.size, 0, "the existing event writes immediately, without another frame");
+
+  const writes = f.writes.length;
+  f.visual.emit("resize");
+  f.advance(16);
+  f.moveTo(1019);
+  f.window.emit("scroll");
+  f.advance(500);
+  f.window.emit("scroll");
+  assert.equal(f.active(), true, "duplicate events, deceleration and idle preserve the prepared color");
+  assert.equal(f.writes.length, writes, "unchanged state does not rewrite the theme");
+
+  f.advance(16);
+  f.moveTo(1021);
+  f.window.emit("scroll");
+  assert.equal(f.active(), false, "reversal still immediately restores the normal exit margin");
+  assert.equal(f.writes.at(-1), "#3333ff");
+  f.cleanup();
+  const cleanedWrites = f.writes.length;
+  f.observers.forEach(observer => observer.callback());
+  assert.equal(f.writes.length, cleanedWrites);
+  assert.equal(f.window.listeners.size + f.visual.listeners.size, 0);
+});
+
+test("fast-approach preparation is capped at one painted viewport with the existing minimum ceiling", () => {
+  for (const paintedHeight of [800, 920, 200]) {
+    const ceiling = Math.max(256, paintedHeight);
+    const threshold = paintedHeight + ceiling;
+    const f = fixture({ top: threshold + 1001, largeHeight: paintedHeight });
+    f.window.innerHeight = paintedHeight;
+    f.root.clientHeight = paintedHeight;
+    f.visual.height = paintedHeight;
+    f.advance(16);
+    f.moveTo(threshold + 1);
+    f.window.emit("scroll");
+    assert.equal(f.active(), false, "a huge velocity cannot prepare beyond the viewport-relative ceiling");
+    f.advance(16);
+    f.moveTo(threshold);
+    f.window.emit("scroll");
+    assert.equal(f.active(), true, "the bounded lead is retained while approaching more slowly");
+    assert.equal(f.frames.size, 0);
+    f.cleanup();
+  }
 });
 
 test("slow approaches keep the small entry gap and layout jumps do not create fling speed", () => {

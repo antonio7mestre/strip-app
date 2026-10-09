@@ -1718,7 +1718,9 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   border: 0;
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
   corner-shape: squircle;
-  background: transparent;
+  /* The footer paints its own opaque base with the document. Its decorative
+     surface still owns the existing shadow and fractional-pixel overlap. */
+  background: var(--ending-background, #ffffff);
   color: var(--ending-foreground, #000000);
   isolation: isolate;
   overflow: visible;
@@ -1757,8 +1759,7 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 }
 
 .published-bottom-sheet {
-  /* Keep this small surface composited from mount, not first intersection.
-   * Promoting the entire long Strip instead can churn Safari's scroll tiles. */
+  /* Keep the opaque base attached to the footer's own compositor surface. */
   transform: translateZ(0);
   backface-visibility: hidden;
   content-visibility: visible;
@@ -1767,6 +1768,14 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   gap: 12px;
   /* Keep the shared shadow outside the rounded surface and clipping masks. */
   overflow: visible;
+}
+
+.published-mode .published-bottom-sheet {
+  /* Paint the reader footer with the document, not in an offscreen graphics
+     backing that Safari can detach during a fast fling. Preview keeps its
+     existing editor transition layer. */
+  transform: none;
+  backface-visibility: visible;
 }
 
 .published-bottom-sheet-title {
@@ -2144,6 +2153,14 @@ html.leading-image-inset-active body {
  * underneath a second JavaScript spring. Elsewhere Safari keeps its bounce. */
 html.leading-image-inset-active.leading-media-top-edge,
 html.leading-image-inset-active.leading-media-top-edge body {
+  overscroll-behavior-y: none;
+}
+
+/* Keep the reader's compositor scroll policy stable for the whole visit.
+   The leading-edge class still tracks the spring, but crossing its boundary
+   must not switch native overscroll modes in the middle of a fast swipe. */
+html.leading-image-inset-active:has(.published-mode),
+html.leading-image-inset-active:has(.published-mode) body {
   overscroll-behavior-y: none;
 }
 

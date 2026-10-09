@@ -18,8 +18,15 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
     const media = block?.querySelector<HTMLImageElement | HTMLVideoElement>(
       ".block-crop-content > img, .block-crop-content > video",
     );
-    const context = canvas?.getContext("2d");
-    if (!canvas || !block || !viewport || !media || !context) return;
+    if (!canvas || !block || !viewport || !media) return;
+    const staticPublishedPhoto = media instanceof HTMLImageElement &&
+      Boolean(block.closest(".published-mode"));
+    // The tiny still-photo edge must not introduce an accelerated layer under
+    // the footer. Keep video and editable/preview edges on their existing path.
+    const context = canvas.getContext("2d", staticPublishedPhoto
+      ? { willReadFrequently: true }
+      : undefined);
+    if (!context) return;
     context.resetTransform();
     context.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -115,11 +122,14 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
     resizeObserver.observe(media);
     resizeObserver.observe(viewport);
     resizeObserver.observe(canvas);
-    const intersectionObserver = new IntersectionObserver(([entry]) => {
+    // A published photo is already eager-loaded. Paint its edge on load even
+    // offscreen, then leave it alone during scrolling instead of allocating or
+    // repainting the footer's backing as it enters the viewport.
+    const intersectionObserver = staticPublishedPhoto ? null : new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
       refresh();
     }, { rootMargin: "160px" });
-    intersectionObserver.observe(canvas);
+    intersectionObserver?.observe(canvas);
     const mediaEvents = ["load", "loadeddata", "playing", "pause", "seeked", "ended", "timeupdate"];
     mediaEvents.forEach((event) => media.addEventListener(event, refresh));
     block.addEventListener("transitionrun", onTransition);
@@ -134,7 +144,7 @@ export function MediaEdgeExtension({ src, cropTop, cropHeight }: {
       refreshRef.current = null;
       stopFrames();
       resizeObserver.disconnect();
-      intersectionObserver.disconnect();
+      intersectionObserver?.disconnect();
       mediaEvents.forEach((event) => media.removeEventListener(event, refresh));
       block.removeEventListener("transitionrun", onTransition);
       block.removeEventListener("transitionend", onTransition);

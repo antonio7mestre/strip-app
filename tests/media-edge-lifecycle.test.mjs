@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } },
 ).outputText;
 
-function fixture({ frameCallbacks = true, seamOverlap = 0 } = {}) {
+function fixture({ frameCallbacks = true, seamOverlap = 0, image = false, published = false, loaded = true, offsetTop = 0 } = {}) {
   class Target {
     listeners = new Map();
     addEventListener(name, callback) { this.listeners.set(name, callback); }
@@ -20,38 +20,53 @@ function fixture({ frameCallbacks = true, seamOverlap = 0 } = {}) {
   }
   const frames = new Map();
   const animations = new Map();
+  const contexts = [];
+  const intersections = [];
+  const resizes = [];
   let sequence = 0;
   let paints = 0;
+  const mediaBounds = () => ({ top: offsetTop, bottom: offsetTop + 800, height: 800, width: 400 });
   class Video extends Target {
     videoWidth = 1000;
     videoHeight = 2000;
     readyState = 2;
     paused = false;
     ended = false;
-    getBoundingClientRect() { return { top: 0, bottom: 800, height: 800, width: 400 }; }
+    getBoundingClientRect() { return mediaBounds(); }
     requestVideoFrameCallback(callback) { frames.set(++sequence, callback); return sequence; }
     cancelVideoFrameCallback(id) { frames.delete(id); }
   }
+  class Image extends Target {
+    naturalWidth = loaded ? 1000 : 0;
+    naturalHeight = loaded ? 2000 : 0;
+    getBoundingClientRect() { return mediaBounds(); }
+  }
   const video = new Video();
   if (!frameCallbacks) video.requestVideoFrameCallback = undefined;
-  const viewport = { getBoundingClientRect: () => ({ top: 0, bottom: 800 }) };
+  const media = image ? new Image() : video;
+  const viewport = { getBoundingClientRect: () => ({ top: offsetTop, bottom: offsetTop + 800 }) };
   const block = new Target();
-  block.querySelector = (selector) => selector === ".block-crop-viewport" ? viewport : video;
+  block.querySelector = (selector) => selector === ".block-crop-viewport" ? viewport : media;
+  block.closest = (selector) => published && selector === ".published-mode" ? block : null;
+  const context = { resetTransform() {}, clearRect() {}, setTransform() {}, drawImage() { paints++; } };
   const canvas = {
     width: 300, height: 150, parentElement: block,
-    getContext: () => ({ resetTransform() {}, clearRect() {}, setTransform() {}, drawImage() { paints++; } }),
-    getBoundingClientRect: () => ({ top: 800 - seamOverlap, width: 400, height: 44 + seamOverlap }),
+    getContext: (type, options) => {
+      contexts.push({ type, options: options && { ...options } });
+      return context;
+    },
+    getBoundingClientRect: () => ({ top: offsetTop + 800 - seamOverlap, width: 400, height: 44 + seamOverlap }),
   };
   const document = new Target();
   document.hidden = false;
   const effects = [];
+  const dependencies = [];
   let refs = 0;
-  let intersection;
-  let resized;
   const exported = {};
   class Observer {
     disconnected = false;
-    observe() {}
+    targets = [];
+    observe(target) { this.targets.push(target); }
     disconnect() { this.disconnected = true; }
   }
   runInNewContext(compiled, {
@@ -59,29 +74,143 @@ function fixture({ frameCallbacks = true, seamOverlap = 0 } = {}) {
     require: (name) => {
       if (name === "react") return {
         useRef: () => ({ current: refs++ === 0 ? canvas : null }),
-        useLayoutEffect: (effect) => effects.push(effect),
+        useLayoutEffect: (effect, deps) => { effects.push(effect); dependencies.push([...deps]); },
       };
       if (name === "react/jsx-runtime") return { jsx: () => null };
       if (name === "@/app/lib/media-edge") return edge;
       throw new Error(name);
     },
+    HTMLImageElement: Image,
     HTMLVideoElement: Video,
-    window: { devicePixelRatio: 3 },
+    window: { devicePixelRatio: 3, innerHeight: 800 },
     document,
-    ResizeObserver: class extends Observer { constructor(callback) { super(); resized = this; this.callback = callback; } },
-    IntersectionObserver: class extends Observer { constructor(callback) { super(); intersection = this; this.callback = callback; } },
+    ResizeObserver: class extends Observer { constructor(callback) { super(); resizes.push(this); this.callback = callback; } },
+    IntersectionObserver: class extends Observer {
+      constructor(callback, options) { super(); intersections.push(this); this.callback = callback; this.options = { ...options }; }
+    },
     requestAnimationFrame: (callback) => { animations.set(++sequence, callback); return sequence; },
     cancelAnimationFrame: (id) => animations.delete(id),
   });
-  exported.MediaEdgeExtension({ src: "existing-video.mp4", cropTop: 0 });
+  exported.MediaEdgeExtension({ src: image ? "existing-photo.jpg" : "existing-video.mp4", cropTop: 0 });
   const cleanups = effects.map((effect) => effect());
   return {
-    video, document, frames, animations, canvas, block, intersection, resized,
+    video, media, document, frames, animations, canvas, block, viewport, contexts, intersections, resizes, dependencies,
+    get intersection() { return intersections.at(-1); },
+    get resized() { return resizes.at(-1); },
     paints: () => paints,
     cropChanged: effects[1],
+    sourceChanged: () => { cleanups[0]?.(); cleanups[0] = effects[0](); },
     unmount: () => cleanups.forEach((cleanup) => cleanup?.()),
   };
 }
+
+test("published photos prepaint a 3x edge offscreen without intersection or frame scheduling", () => {
+  const f = fixture({ image: true, published: true, seamOverlap: 1, offsetTop: 2400 });
+  assert.deepEqual(f.contexts, [{ type: "2d", options: { willReadFrequently: true } }]);
+  assert.equal(f.canvas.width, 1200);
+  assert.equal(f.canvas.height, 135);
+  assert.ok(f.paints() > 0, "the edge is painted even when entirely below the viewport");
+  assert.equal(f.intersections.length, 0, "scroll visibility cannot allocate or repaint this edge");
+  assert.deepEqual(f.resized.targets, [f.media, f.viewport, f.canvas]);
+  assert.deepEqual(f.dependencies, [["existing-photo.jpg"], [0, undefined]]);
+
+  for (const refresh of [() => f.media.emit("load"), f.cropChanged, () => f.resized.callback()]) {
+    const before = f.paints();
+    refresh();
+    assert.equal(f.paints(), before + 2, "source and reflected seam pixels stay current");
+    assert.equal(f.frames.size + f.animations.size, 0, "a still photo does not start a paint loop");
+  }
+  f.unmount();
+  assert.ok(f.resized.disconnected);
+  assert.equal(f.media.listeners.size + f.block.listeners.size + f.document.listeners.size, 0);
+});
+
+test("a published photo loading offscreen allocates and paints its Retina edge immediately", () => {
+  const f = fixture({ image: true, published: true, loaded: false, seamOverlap: 1, offsetTop: 2400 });
+  assert.equal(f.paints(), 0);
+  assert.equal(f.canvas.width, 300, "an unavailable source has not been painted");
+  f.media.naturalWidth = 1000;
+  f.media.naturalHeight = 2000;
+  f.media.emit("load");
+  assert.equal(f.paints(), 2);
+  assert.equal(f.canvas.width, 1200);
+  assert.equal(f.canvas.height, 135);
+  assert.equal(f.intersections.length, 0);
+  assert.equal(f.contexts.length, 1, "the initial non-accelerated context is reused on load");
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.unmount();
+});
+
+test("published photo source changes rebuild observation and repaint without adding a visibility path", () => {
+  const f = fixture({ image: true, published: true, seamOverlap: 1, offsetTop: 2400 });
+  const originalResize = f.resized;
+  const before = f.paints();
+  f.sourceChanged();
+  assert.ok(originalResize.disconnected);
+  assert.notEqual(f.resized, originalResize);
+  assert.equal(f.paints(), before + 2);
+  assert.deepEqual(f.contexts, [
+    { type: "2d", options: { willReadFrequently: true } },
+    { type: "2d", options: { willReadFrequently: true } },
+  ]);
+  assert.equal(f.intersections.length, 0);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.unmount();
+  const after = f.paints();
+  f.resized.callback();
+  f.cropChanged();
+  assert.equal(f.paints(), after, "late callbacks cannot paint a disposed edge");
+  assert.ok(f.resizes.every((observer) => observer.disconnected));
+});
+
+test("published still edges respect page visibility without relying on intersection", () => {
+  const f = fixture({ image: true, published: true });
+  f.document.hidden = true;
+  const before = f.paints();
+  f.media.emit("load");
+  f.cropChanged();
+  f.resized.callback();
+  assert.equal(f.paints(), before);
+  f.document.hidden = false;
+  f.document.emit("visibilitychange");
+  assert.equal(f.paints(), before + 1);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.unmount();
+});
+
+test("editor and preview photos retain their existing context and offscreen sleep", () => {
+  const f = fixture({ image: true });
+  assert.deepEqual(f.contexts, [{ type: "2d", options: undefined }]);
+  assert.equal(f.intersections.length, 1);
+  assert.deepEqual(f.intersection.options, { rootMargin: "160px" });
+  assert.deepEqual(f.intersection.targets, [f.canvas]);
+  f.intersection.callback([{ isIntersecting: false }]);
+  const before = f.paints();
+  f.media.emit("load");
+  f.cropChanged();
+  f.resized.callback();
+  assert.equal(f.paints(), before);
+  f.intersection.callback([{ isIntersecting: true }]);
+  assert.equal(f.paints(), before + 1);
+  assert.equal(f.frames.size + f.animations.size, 0);
+  f.unmount();
+  assert.ok(f.intersection.disconnected && f.resized.disconnected);
+});
+
+test("published video retains the default context, visibility gate, and video frame callbacks", () => {
+  const f = fixture({ published: true });
+  assert.deepEqual(f.contexts, [{ type: "2d", options: undefined }]);
+  assert.equal(f.intersections.length, 1);
+  assert.deepEqual(f.intersection.options, { rootMargin: "160px" });
+  assert.equal(f.frames.size, 1);
+  assert.equal(f.animations.size, 0);
+  f.intersection.callback([{ isIntersecting: false }]);
+  assert.equal(f.frames.size, 0);
+  f.intersection.callback([{ isIntersecting: true }]);
+  assert.equal(f.frames.size, 1);
+  f.unmount();
+  assert.equal(f.frames.size, 0);
+});
 
 test("video edge stays synchronized, sleeps offscreen, and cleans up on unmount", () => {
   const f = fixture();
