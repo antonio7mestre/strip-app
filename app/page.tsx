@@ -97,6 +97,7 @@ import {
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
+import { installReaderBottomAnchor } from "@/app/lib/reader-bottom-anchor";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { installPublishKeyboardDock } from "@/app/lib/publish-keyboard-dock";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
@@ -3484,6 +3485,10 @@ export default function Home() {
       ? "preview-bottom-canvas-active"
       : "published-bottom-sheet-canvas-active",
   }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, endingSurfaceColor]);
+
+  useLayoutEffect(() => installReaderBottomAnchor(
+    (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
+  ), [view, publishedContentCanReveal, cleanViewBottomSurfaceColor]);
 
   // The onboarding canvas owns both Safari edges, after inactive footer cleanup.
   // Keep this scoped to signup so published and editor dock behavior is unchanged.

@@ -284,6 +284,7 @@ test("published and both preview mains opt into reader parity without changing n
     const expression = attribute.initializer.expression.getText(tree);
     return new Set(runInNewContext(expression, {
       inlinePreview, hasLeadingImage, hasLeadingText,
+      editorEntrance: { active: false },
       selectedBlockIndex: -1, editingTextBlockId: null, heightCropSession: null,
     }).split(/\s+/).filter(Boolean));
   };
