@@ -161,6 +161,7 @@ test("Preview uses a light top status pill separate from bottom errors", () => {
   assert.match(html, /Tap any block to edit/);
   assert.doesNotMatch(html, /<svg|progressbar|aria-valuenow|class="notice/);
   assert.match(css, /\.top-status-copy\s*\{[^}]*display: flex;[^}]*white-space: nowrap/);
+  assert.match(css, /\.top-status-copy > span\s*\{ font-size: 14px; font-weight: 400; color: inherit;/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*top: calc\(env\(safe-area-inset-top, 0px\) \+ 16px\)/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*background: #ffffff/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*pointer-events: none/);

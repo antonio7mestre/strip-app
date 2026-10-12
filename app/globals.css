@@ -2452,7 +2452,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .top-status-copy strong,
 .top-status-label,
 .top-status-progress { font-size: 14px; font-weight: 700; }
-.top-status-copy > span { font-size: 12px; color: #555555; }
+.top-status-copy > span { font-size: 14px; font-weight: 400; color: inherit; }
 .top-status-label { white-space: nowrap; }
 .top-status-progress {
   margin-left: auto;
