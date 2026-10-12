@@ -10,6 +10,7 @@ import * as profile from "../app/lib/profile.ts";
 import * as sizing from "../app/lib/font-sizing.ts";
 import * as profileReload from "../app/lib/profile-reload.ts";
 import * as stripEntrance from "../app/lib/strip-entrance.ts";
+import * as scribbleEntrance from "../app/lib/scribble-entrance.ts";
 
 const require = createRequire(import.meta.url);
 const hookSource = readFileSync(new URL("../app/components/useEditorEntrance.ts", import.meta.url), "utf8");
@@ -173,6 +174,7 @@ test("loader shares the top pill with animated dots and a right-side theme-font 
   runInNewContext(ts.transpileModule(component, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText,
     { exports, require: name => name === "@/app/lib/profile" ? profile : name === "@/app/lib/font-sizing" ? sizing
       : name === "@/app/lib/profile-reload" ? profileReload : name === "@/app/lib/strip-entrance" ? stripEntrance
+      : name === "@/app/lib/scribble-entrance" ? scribbleEntrance
       : name === "./TopStatusPill" ? topStatus : require(name) });
   const html = renderToStaticMarkup(createElement(exports.EditorEntrance, {
     profile: { ...profile.DEFAULT_PROFILE, background: "#BFFF00", font: "shrikhand" }, revealing: false,
@@ -185,9 +187,27 @@ test("loader shares the top pill with animated dots and a right-side theme-font 
   assert.match(html, /data-waiting="true"/);
   assert.ok(html.indexOf("top-status-label") < html.indexOf("top-status-progress"), "number follows the label on the right");
   assert.match(css, /\.top-status-progress\s*\{[^}]*margin-left: auto;[^}]*text-align: right/);
-  assert.match(css, /\.editor-mode\.is-editor-loading > \.editor-canvas\s*\{[^}]*opacity: 0/);
+  assert.match(css, /\.editor-mode\.is-editor-loading > \.editor-canvas\s*\{[^}]*pointer-events: none/);
   assert.match(page, /if \(!editorEntrance.active && !imagesAreLoading && !mediaImportRequestRef.current\) return;/);
   assert.match(page, /showEditorLoadingNotice\(editorEntrance.active \? "Strip is loading" : "Images loading"\)/);
   assert.match(page, /onKeyDownCapture=\{\(event\) => \{\s*if \(\(!editorEntrance.active/);
   assert.match(page, /!loaded \|\|\s*editorEntrance.active \|\|/, "autosave waits for the real draft");
+});
+
+test("editor reveal is one under-glass fade, with no canvas or top-anchor handoff", () => {
+  const component = readFileSync(new URL("../app/components/EditorEntrance.tsx", import.meta.url), "utf8");
+  assert.match(component, /installScribbleSurface\(surface, \(\) => \{\}\)/);
+  assert.match(component, /<section ref=\{surfaceRef\}/);
+  const entranceCss = css.slice(css.indexOf("/* Paint the real editor"), css.indexOf(".top-status-pill {"));
+  assert.doesNotMatch(entranceCss, /editor-canvas\s*\{[^}]*opacity/);
+  assert.match(entranceCss, /position: absolute/);
+  assert.match(entranceCss, /transition: opacity 320ms ease/);
+  assert.match(entranceCss, /\.editor-entrance.is-revealing \{ opacity: 0; \}/);
+  const bounds = scribbleEntrance.scribbleSurfaceBounds({
+    viewportHeight: 720, screenWidth: 393, screenHeight: 852,
+    landscape: false, isPhone: true, safeTop: 0, scrollY: 61,
+  });
+  assert.ok(bounds.top - 61 < 0, "black cover begins above the visible viewport");
+  assert.ok(bounds.height >= 860, "one surface covers the physical glass and rounding overscan");
+  assert.doesNotMatch(component, /setProperty.*safe-area|setAttribute.*theme|scrollTo/, "the loader does not switch colors or scroll on unmount");
 });

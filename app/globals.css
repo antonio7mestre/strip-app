@@ -2405,17 +2405,20 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   --media-import-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Editor entry owns only the canvas. The existing dock stays mounted, at its
-   normal position, throughout fetching, decoding and the crossfade. */
+/* Paint the real editor, including its leading safe-area pixels, behind one
+   opaque surface. Only that surface fades: a separate canvas-opacity layer
+   makes Safari repaint its top edge when it is promoted/demoted. The existing
+   dock stays mounted above the surface throughout loading and reveal. */
 .editor-mode.is-editor-loading > .editor-canvas {
-  opacity: 0;
-  transition: opacity 320ms ease;
   pointer-events: none;
 }
-.editor-mode.is-editor-revealing > .editor-canvas { opacity: 1; }
 .editor-entrance {
-  position: fixed;
-  inset: 0;
+  --entrance-safe-top: env(safe-area-inset-top, 0px);
+  position: absolute;
+  top: calc(-1 * env(safe-area-inset-top, 0px));
+  right: 0;
+  left: 0;
+  height: calc(100lvh + env(safe-area-inset-top, 0px) + 8px);
   z-index: 29;
   opacity: 1;
   background: #000000;
