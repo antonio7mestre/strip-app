@@ -144,7 +144,6 @@ test("every reader loads all media immediately without editor visibility or deco
     }
     const renderedVideo = ofType(root, "reader-video")[0];
     assert.equal(renderedVideo.props.shouldLoad, true);
-    assert.equal(renderedVideo.props.loadBeforeReveal, true);
     assert.equal(renderedVideo.props.extendBottomEdge, true);
     assert.equal(renderedVideo.props.controls, null);
     assert.equal(ofType(root, "editor-controls").length, 0);
@@ -154,16 +153,15 @@ test("every reader loads all media immediately without editor visibility or deco
   assert.equal(images[0].props.src, "/photo.jpg");
   assert.equal(images[1].props.src, undefined, "editor media still waits for preceding media to settle");
   assert.equal(images[0].props.style.visibility, "hidden");
-  assert.equal(ofType(root, "reader-video")[0].props.loadBeforeReveal, false);
   assert.equal(ofType(root, "reader-video")[0].props.shouldLoad, false);
   assert.equal(footer(root), undefined);
   assert.equal(ofType(root, "editor-controls").length, 2);
 });
 
-test("every actual reader selects bounded image variants while editing retains the original source", () => {
+test("standalone readers use bounded variants while inline preview retains the editor's decoded source", () => {
   const source = "/api/strips/1791303521563-plsa2g/media/photo-001";
   const media = { ...photo, src: source, cropTop: 70, cropBottom: 90 };
-  for (const mode of readerModes) {
+  for (const mode of ["standalone", "published"]) {
     const { root } = fixture(mode, [media]);
     const image = ofType(root, "img")[0];
     const expected = getReaderImageProps(source);
@@ -173,11 +171,64 @@ test("every actual reader selects bounded image variants while editing retains t
     assert.equal(all(root, node => hasClass(node, "block-crop-viewport"))[0].props.style.height, "640px");
     assert.equal(all(root, node => hasClass(node, "block-crop-content"))[0].props.style.transform, "translateY(-70px)");
   }
-  const { root } = fixture("editor", [media]);
-  const image = ofType(root, "img")[0];
-  assert.equal(image.props.src, source);
-  assert.equal(image.props.srcSet, undefined);
-  assert.equal(image.props.sizes, undefined);
+  for (const mode of ["editor", "inline"]) {
+    const { root } = fixture(mode, [media]);
+    const image = ofType(root, "img")[0];
+    assert.equal(image.props.src, source);
+    assert.equal(image.props.srcSet, undefined);
+    assert.equal(image.props.sizes, undefined);
+  }
+});
+
+test("repeated editor/preview switches keep loaded source attributes despite earlier pending media", () => {
+  const original = "/api/drafts/draft-001/media/photo-001";
+  const items = [{ ...photo, id: "pending", src: "/pending.jpg" }, { ...photo, src: original }, video, sticker];
+  for (const status of ["loaded", "error"]) {
+    let previous;
+    for (const mode of ["editor", "inline", "editor", "inline", "editor"]) {
+      const { root } = fixture(mode, items, { mediaLoadStatus: { photo: status, video: "loaded" } });
+      const image = ofType(root, "img")[1];
+      const current = { src: image.props.src, srcSet: image.props.srcSet, sizes: image.props.sizes };
+      assert.equal(current.src, original, "already-loaded photos cannot have their src removed or replaced");
+      if (previous) assert.deepEqual(current, previous);
+      previous = current;
+      const clip = ofType(root, "reader-video")[0];
+      assert.equal(clip.props.shouldLoad, true, "already-loaded clips ignore the pending block before them");
+      assert.equal(clip.props.block.src, video.src);
+      assert.equal(clip.props.isLoaded, true);
+      assert.deepEqual(signature(ofType(root, "reader-sticker")[0].props.block), sticker);
+    }
+  }
+});
+
+test("video preview and sound changes preserve the player resource instead of calling load again", () => {
+  const videoSource = find(node => ts.isFunctionDeclaration(node) && node.name?.text === "StripVideoBlock").getText(tree);
+  const exports = {}, dependencies = [];
+  const player = { muted: true, readyState: 1, load() { assert.fail("switching modes cannot restart a pending video"); },
+    play: () => Promise.resolve(), pause() {}, getBoundingClientRect: () => ({ top: 0, bottom: 100 }) };
+  const react = { useRef: () => ({ current: player }), useEffect(callback, deps) { dependencies.push(deps); callback(); } };
+  runInNewContext(ts.transpileModule("export " + videoSource, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+  } }).outputText, {
+    exports, require: () => ({ jsx, jsxs: jsx }), ...react,
+    window: { innerHeight: 800 }, HTMLMediaElement: { HAVE_CURRENT_DATA: 2 },
+    IntersectionObserver: class { observe() {} disconnect() {} },
+    BlockHeightReporter: "height-reporter", MediaEdgeExtension: "media-edge-extension",
+  });
+  let previous;
+  for (const [isEditing, muted] of [[true, true], [false, false], [true, true], [false, true]]) {
+    const root = exports.StripVideoBlock({ block: video, isEditing, muted, shouldLoad: true,
+      isSelected: false, isLoaded: true, loadSettled: true, onLoadSettled() {}, onSelect() {} });
+    const clip = ofType(root, "video")[0];
+    const current = { src: clip.props.src, preload: clip.props.preload, visibility: clip.props.style.visibility };
+    assert.equal(current.preload, "auto");
+    assert.equal(current.visibility, "visible");
+    if (previous) assert.deepEqual(current, previous);
+    previous = current;
+    assert.equal(player.muted, muted);
+  }
+  assert.doesNotMatch(videoSource, /video\.load\(\)/);
+  assert.ok(dependencies.every(deps => !deps.includes("preview")));
 });
 
 test("saved photo and video crops match across readers despite an active editor crop session", () => {
@@ -233,7 +284,6 @@ test("reader media retain settled and error handling without inheriting editor-o
       assert.equal(renderedVideo.props.isLoaded, status === "loaded");
       assert.equal(renderedVideo.props.loadSettled, true);
       assert.equal(renderedVideo.props.shouldLoad, true);
-      assert.equal(renderedVideo.props.loadBeforeReveal, true);
     }
   }
 });

@@ -8,6 +8,7 @@ import { automaticStripEndingStyle, readStripContent, writeStripContent } from "
 import { profileFontWeight } from "../app/lib/profile.ts";
 import { normalizedFontSize } from "../app/lib/font-sizing.ts";
 import { getReaderImageProps } from "../app/lib/reader-image.ts";
+import { normalizeTextAlignment } from "../app/lib/text-alignment.ts";
 
 const black = { backgroundColor: "#000000", buttonColor: "#FFFFFF" };
 const white = { backgroundColor: "#FFFFFF", buttonColor: "#000000" };
@@ -91,7 +92,7 @@ function renderFixture(blocks, isEditing) {
   runInNewContext(code, {
     exports,
     require: () => ({ jsx: (type, props) => type === StripEndingSheet ? type(props) : ({ type, props }), jsxs: (type, props) => type === StripEndingSheet ? type(props) : ({ type, props }) }),
-    StripEndingSheet, authUser: { username: "antonio" },
+    StripEndingSheet, normalizeTextAlignment, authUser: { username: "antonio" },
     blocks, visibleEndingStyle: automaticStripEndingStyle(blocks),
     view: "edit", inlinePreview: !isEditing, hasRequiredContent: true,
     stripCanvasRef: { current: null },

@@ -1709,7 +1709,6 @@ function StripVideoBlock({
   shouldLoad,
   isLoaded,
   loadSettled,
-  loadBeforeReveal,
   reservedHeight,
   intrinsicSize,
   entering = false,
@@ -1736,7 +1735,6 @@ function StripVideoBlock({
   shouldLoad: boolean;
   isLoaded: boolean;
   loadSettled: boolean;
-  loadBeforeReveal: boolean;
   reservedHeight?: number;
   intrinsicSize?: MediaSize;
   entering?: boolean;
@@ -1768,10 +1766,9 @@ function StripVideoBlock({
     const video = videoRef.current;
     if (!video || !shouldLoad) return;
     video.muted = muted;
-    if (loadBeforeReveal && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-      video.load();
-    }
-  }, [block.src, loadBeforeReveal, muted, shouldLoad]);
+    // Changing preview mode or sound must never restart the media resource.
+    // The stable src/autoplay/preload attributes own its loading lifecycle.
+  }, [block.src, muted, shouldLoad]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1864,7 +1861,7 @@ function StripVideoBlock({
             controls={false}
             disablePictureInPicture
             controlsList="nodownload nofullscreen noremoteplayback"
-            preload={shouldLoad ? (loadBeforeReveal ? "auto" : "metadata") : "none"}
+            preload={shouldLoad ? "auto" : "none"}
             draggable={false}
             style={{
               display: loadSettled && !isLoaded ? "none" : undefined,
@@ -6698,7 +6695,9 @@ export default function Home() {
       block.type === "image" || block.type === "video" ? [block.id] : [],
     );
     const shouldLoadMedia = (blockId: string) => {
-      if (importedMediaSizes[blockId]) return true;
+      // Once a resource has settled, never detach its src because another
+      // block is pending or the same editor canvas changes presentation mode.
+      if (mediaLoadStatus[blockId] !== undefined || importedMediaSizes[blockId]) return true;
       const mediaIndex = mediaBlockIds.indexOf(blockId);
       if (!isEditing) return mediaIndex >= 0;
       return (
@@ -6914,11 +6913,13 @@ export default function Home() {
                       : undefined
                   }
                 >
+                  {/* Inline preview keeps this editing session's decoded
+                      original. Standalone readers still use bounded variants. */}
                   <img
                     width={importedMediaSizes[block.id]?.width}
                     height={importedMediaSizes[block.id]?.height}
                     {...(shouldLoadMedia(block.id)
-                      ? isEditing ? { src: block.src } : getReaderImageProps(block.src)
+                      ? view === "edit" ? { src: block.src } : getReaderImageProps(block.src)
                       : {})}
                     alt={block.alt}
                     draggable={isEditing ? false : undefined}
@@ -7102,7 +7103,6 @@ export default function Home() {
             shouldLoad={shouldLoadMedia(block.id)}
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
-            loadBeforeReveal={!isEditing || editorEntrance.active}
             reservedHeight={block.height}
             intrinsicSize={importedMediaSizes[block.id]}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
