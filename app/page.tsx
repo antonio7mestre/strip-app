@@ -56,6 +56,7 @@ import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
 import { TextStickerVisual } from "@/app/components/TextStickerVisual";
+import { TextStickerEditor } from "@/app/components/TextStickerEditor";
 import { EMPTY_TEXT_STICKER_SRC, normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleVisiblePageColor } from "@/app/lib/page-color-sampler";
@@ -923,6 +924,7 @@ function BlockControls({
   onRemove,
   onTextTool,
   isTextSticker = false,
+  onConfirmStickerText,
   activeTextTool,
   onHeightCrop,
   onVideoAudio,
@@ -940,6 +942,7 @@ function BlockControls({
   onRemove?: () => void;
   onTextTool?: (tool: TextTool) => void;
   isTextSticker?: boolean;
+  onConfirmStickerText?: () => void;
   activeTextTool?: TextTool | null;
   onHeightCrop?: () => void;
   onVideoAudio?: () => void;
@@ -1035,11 +1038,12 @@ function BlockControls({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              onRemove?.();
+              if (onConfirmStickerText) onConfirmStickerText();
+              else onRemove?.();
             }}
-            aria-label="Delete sticker"
+            aria-label={onConfirmStickerText ? "Done typing sticker" : "Delete sticker"}
           >
-            <Trash2 className="block-glyph" aria-hidden="true" />
+            {onConfirmStickerText ? <Check className="block-glyph" aria-hidden="true" /> : <Trash2 className="block-glyph" aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -2156,7 +2160,7 @@ function StripStickerBlock({
   };
 
   const settleStickerWithinBounds = () => {
-    if (!isEditing) return;
+    if (!isEditing || textTyping) return;
     const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
     if (!canvas) return;
     const current = liveBlockRef.current;
@@ -2483,11 +2487,12 @@ function StripStickerBlock({
   };
 
   return (
+    <>
     <figure
       ref={stickerElementRef}
       className={`strip-block sticker-block ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
-      } ${isEditing && isTransforming ? "is-transforming" : ""} ${
+      } ${isEditing && textTyping ? "is-text-composing" : ""} ${isEditing && isTransforming ? "is-transforming" : ""} ${
         isEditing && isOverlappingSelection ? "is-overlapping-selection" : ""
       }`}
       data-block-id={block.id}
@@ -2500,6 +2505,7 @@ function StripStickerBlock({
           "--sticker-counter-rotation": `${-(renderedBlock.rotation ?? 0)}deg`,
         } satisfies StickerBlockStyle
       }
+      aria-hidden={isEditing && textTyping || undefined}
       onPointerDown={(event) => {
         if (!isEditing) return;
         event.stopPropagation();
@@ -2686,7 +2692,7 @@ function StripStickerBlock({
       }
     >
       <span className="sticker-visual">
-        {block.textSticker ? <TextStickerVisual value={block.textSticker} typing={isEditing && textTyping}
+        {block.textSticker ? <TextStickerVisual value={block.textSticker} typing={false}
           onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()}
           onSettled={loaded => { if (loaded) settleStickerWithinBounds(); onLoadSettled?.(loaded); }} /> : block.mediaType === "video" ? (
           <video
@@ -2796,6 +2802,9 @@ function StripStickerBlock({
       </span> : null}
       {controls}
     </figure>
+    {isEditing && textTyping && block.textSticker ? <TextStickerEditor value={block.textSticker}
+      onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()} controls={controls} /> : null}
+    </>
   );
 }
 
@@ -4195,7 +4204,11 @@ export default function Home() {
       setNotice("Add a text or image block before adding a sticker.");
       return;
     }
-    const placement = stickerPlacementRef.current ?? captureStickerPlacement();
+    // Start typing in the upper third, before the keyboard covers the page.
+    // Image/pack stickers keep their existing centered placement.
+    const placement = textSticker
+      ? captureStickerPlacement(0.3) ?? stickerPlacementRef.current
+      : stickerPlacementRef.current ?? captureStickerPlacement();
     if (!placement) {
       setNotice("Add a text or image block before adding a sticker.");
       return;
@@ -6617,6 +6630,9 @@ export default function Home() {
         }
         onRemove={() => setPendingDeleteId(block.id)}
         isTextSticker={block.type === "sticker" && Boolean(block.textSticker)}
+        onConfirmStickerText={block.type === "sticker" && typingTextStickerId === block.id ? () => {
+          setActiveTextTool(null); finishTextSticker(block.id);
+        } : undefined}
         onTextTool={
           block.type === "text" || (block.type === "sticker" && block.textSticker)
             ? (tool) => {

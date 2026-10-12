@@ -9,6 +9,7 @@ export function stickerPlacementInView({
   viewportTop,
   viewportHeight,
   dockTop,
+  verticalAnchor = 0.5,
 }: {
   canvasTop: number;
   canvasWidth: number;
@@ -17,12 +18,13 @@ export function stickerPlacementInView({
   viewportTop: number;
   viewportHeight: number;
   dockTop?: number;
+  verticalAnchor?: number;
 }): StickerPlacement {
   const viewportBottom = viewportTop + viewportHeight;
   const visibleBottom = dockTop !== undefined && dockTop > viewportTop
     ? Math.min(viewportBottom, dockTop)
     : viewportBottom;
-  const center = (viewportTop + visibleBottom) / 2;
+  const center = viewportTop + (visibleBottom - viewportTop) * verticalAnchor;
   return {
     x: 50,
     y: Math.max(contentTop, Math.min(contentBottom, center)) - canvasTop,
@@ -30,7 +32,7 @@ export function stickerPlacementInView({
   };
 }
 
-export function captureStickerPlacement(): StickerPlacement | null {
+export function captureStickerPlacement(verticalAnchor = 0.5): StickerPlacement | null {
   const canvas = document.querySelector<HTMLElement>(".editor-mode .strip-canvas");
   if (!canvas) return null;
   const flow = Array.from(canvas.children).filter(
@@ -48,5 +50,6 @@ export function captureStickerPlacement(): StickerPlacement | null {
     viewportTop: viewport?.offsetTop ?? 0,
     viewportHeight: viewport?.height ?? window.innerHeight,
     dockTop: document.querySelector(".main-composer-dock")?.getBoundingClientRect().top,
+    verticalAnchor,
   });
 }

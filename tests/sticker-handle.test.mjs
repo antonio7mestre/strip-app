@@ -11,7 +11,8 @@ test("desktop handle scales and rotates from the initial center without cumulati
 
 test("desktop handle respects existing resize bounds and wraps rotation", () => {
   const origin = { width: 30, rotation: 170, distance: 100, angle: 0 };
-  assert.deepEqual(stickerHandleTransform(origin, 0, 1000), { width: 92, rotation: -100 });
+  assert.deepEqual(stickerHandleTransform(origin, 0, 1000), { width: 300, rotation: -100 });
+  assert.deepEqual(stickerHandleTransform(origin, 0, 2000), { width: 400, rotation: -100 });
   assert.deepEqual(stickerHandleTransform(origin, 0, 0), { width: 10, rotation: 170 });
   assert.equal(stickerHandleTransform(origin, 86.625, 0).width, 25.9875);
 });

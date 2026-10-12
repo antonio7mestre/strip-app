@@ -1,5 +1,7 @@
 /** Sticker widths are percentages of the same Strip canvas in every view. */
-export const STICKER_MAX_WIDTH = 92;
+// Allow oversized stickers to bleed beyond the page. The shared safety bound
+// applies to gestures and storage so publishing never shrinks the result.
+export const STICKER_MAX_WIDTH = 400;
 export const STICKER_MIN_RESIZE_WIDTH = 10;
 // Preserve older saved stickers that predate the editor's 10% pinch minimum.
 const STICKER_MIN_SAVED_WIDTH = 8;

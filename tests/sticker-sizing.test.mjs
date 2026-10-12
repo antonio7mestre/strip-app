@@ -12,12 +12,12 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8"
 const source = read("app/page.tsx");
 
 test("every allowed editor width survives saving exactly, including enlarged frames and fractions", () => {
-  assert.equal(STICKER_MAX_WIDTH, 92);
+  assert.equal(STICKER_MAX_WIDTH, 400);
   assert.equal(STICKER_MIN_RESIZE_WIDTH, 10);
-  for (const width of [8, 9.5, 10, 32, 79.875, 80, 80.001, 86.625, 90, 91.99999, 92]) {
+  for (const width of [8, 9.5, 10, 32, 79.875, 80, 80.001, 86.625, 90, 91.99999, 92, 100, 150.25, 240, 399.5, 400]) {
     assert.equal(normalizeStickerWidth(width), width);
   }
-  for (let step = 0; step <= 1000; step++) {
+  for (let step = 0; step <= 3000; step++) {
     const width = resizeStickerWidth(step / 7);
     assert.equal(normalizeStickerWidth(width), width, "autosave and publish accept all pinch sizes unchanged");
   }
@@ -26,10 +26,11 @@ test("every allowed editor width survives saving exactly, including enlarged fra
 test("invalid inputs stay bounded and legacy numeric values still behave the same", () => {
   for (const input of [undefined, NaN, Infinity, -Infinity, "bad", {}]) assert.equal(normalizeStickerWidth(input), 30);
   for (const input of [-20, 0, null, "", 7]) assert.equal(normalizeStickerWidth(input), 8);
-  for (const input of [93, 100, 1000000]) assert.equal(normalizeStickerWidth(input), 92);
+  for (const input of [401, 500, 1000000]) assert.equal(normalizeStickerWidth(input), 400);
   assert.equal(normalizeStickerWidth("86.625"), 86.625);
   assert.equal(resizeStickerWidth(0), 10);
-  assert.equal(resizeStickerWidth(200), 92);
+  assert.equal(resizeStickerWidth(200), 200);
+  assert.equal(resizeStickerWidth(900), 400);
   assert.equal(resizeStickerWidth(86.625), 86.625);
 });
 
@@ -55,7 +56,7 @@ test("the actual sticker renderer uses identical fractional geometry in editor, 
     packStickerForSource: () => undefined,
     StickerImage: props => React.createElement("img", props),
   });
-  for (const width of [80.001, 86.625, 90, 92]) {
+  for (const width of [80.001, 86.625, 90, 92, 150.25, 240, 400]) {
     const styles = [true, false, false].map(isEditing => {
       const html = renderToStaticMarkup(React.createElement(exports.StripStickerBlock, {
         block: { id: "frame-qa", type: "sticker", src: "/frame.webp", x: 47.125, y: 524.5, width, rotation: -17.25 },

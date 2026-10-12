@@ -2720,12 +2720,6 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 
 .text-sticker-visual { display: block; position: relative; width: 100%; }
 .text-sticker-visual canvas { display: block; pointer-events: none; }
-.sticker-block.is-selected .text-sticker-visual::after {
-  content: ""; position: absolute; top: 0; bottom: 0;
-  left: var(--text-sticker-box-left); width: var(--text-sticker-box-width);
-  box-sizing: border-box; border: 3px dashed #fff;
-  outline: 1px solid rgba(0, 0, 0, 0.3); border-radius: 0; pointer-events: none;
-}
 .text-sticker-input {
   position: absolute; inset: 0 auto auto 0; display: block; width: 100%;
   margin: 0; min-height: 1em; border: 0; outline: 0; border-radius: 0;
@@ -2735,6 +2729,28 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   caret-color: currentColor;
 }
 .text-sticker-input::placeholder { color: currentColor; opacity: 0.65; }
+.text-sticker-input:focus-visible { outline: 0; box-shadow: none; }
+.sticker-block.is-text-composing { opacity: 0; visibility: hidden; pointer-events: none; }
+.text-sticker-editor-backdrop {
+  position: fixed; z-index: 29; inset: 0;
+  background: rgba(0, 0, 0, 0.22); pointer-events: none;
+  animation: text-sticker-dim-in 180ms ease-out both;
+}
+@keyframes text-sticker-dim-in { from { opacity: 0; } to { opacity: 1; } }
+.text-sticker-editor-layer {
+  position: fixed; z-index: 60; left: 0; width: 100%;
+  background: transparent; touch-action: none;
+}
+.text-sticker-editor-panel {
+  position: absolute; transform: translate(-50%, -50%);
+  --sticker-rotation: 0deg; --sticker-counter-rotation: 0deg;
+}
+.text-sticker-editor-scroll {
+  overflow: auto; overscroll-behavior: contain; padding: 2px;
+  scrollbar-width: none; touch-action: pan-y;
+}
+.text-sticker-editor-scroll::-webkit-scrollbar { display: none; }
+html.page-color-picking :is(.text-sticker-editor-layer, .text-sticker-editor-backdrop) { visibility: hidden; }
 .text-sticker-typing-background {
   position: absolute; top: 0; left: var(--text-sticker-box-left); width: var(--text-sticker-box-width);
   pointer-events: none; border-radius: 0;

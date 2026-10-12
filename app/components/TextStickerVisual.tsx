@@ -8,9 +8,10 @@ import { TEXT_STICKER_MAX_LENGTH, TEXT_STICKER_WIDTH, type TextSticker } from "@
 
 /** The editor draws the same transparent artwork that gets saved as a sticker.
  * Typing remains native, directly on the canvas, with no separate dialog. */
-export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled }: {
+export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled, finishOnBlur = true }: {
   value: TextSticker; typing: boolean; onChange: (content: string) => void;
   onFinish: () => void; onSettled: (loaded: boolean) => void;
+  finishOnBlur?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -59,7 +60,7 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
     input.style.height = `${input.scrollHeight}px`;
   }, [value.content, value.fontStyle, value.fontSize, width, typing, padding.top, padding.bottom]);
   const scale = width / TEXT_STICKER_WIDTH;
-  return <span ref={wrapperRef} className={`text-sticker-visual ${typing ? "is-typing" : ""}`}
+  return <span ref={wrapperRef} className={`text-sticker-visual ${typing ? "is-typing" : ""} ${value.backgroundColor ? "has-background" : ""}`}
     style={{ "--text-sticker-color": value.textColor,
       "--text-sticker-box-left": `${background.x * scale}px`,
       "--text-sticker-box-width": `${background.width * scale}px` } as CSSProperties}>
@@ -77,11 +78,13 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
         textAlign: value.textAlign, color: value.textColor }}
       onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}
       onChange={event => onChange(event.target.value)}
-      onBlur={() => callbacks.current.onFinish()}
+      onBlur={() => { if (finishOnBlur) callbacks.current.onFinish(); }}
       onKeyDown={event => {
         event.stopPropagation();
         if (event.key === "Escape" || (event.key === "Enter" && (event.metaKey || event.ctrlKey))) {
-          event.preventDefault(); event.currentTarget.blur();
+          event.preventDefault();
+          if (!finishOnBlur) callbacks.current.onFinish();
+          event.currentTarget.blur();
         }
       }} /> : null}
   </span>;

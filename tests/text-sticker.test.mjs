@@ -120,8 +120,9 @@ test("text shares the sticker transforms and style picker, with a single pill an
   assert.match(page, /isTextSticker=\{block.type === "sticker"/);
   assert.doesNotMatch(page, /aria-label="Edit sticker text"/);
   assert.match(page, /textTap && !cancelled && !textTap.moved\) onTextEdit\?\.\(\)/);
-  assert.match(css, /\.sticker-block\.is-selected \.text-sticker-visual::after\s*\{[^}]*border: 3px dashed/s);
-  for (const selector of [".sticker-block.is-selected .text-sticker-visual::after", ".text-sticker-typing-background"]) {
+  assert.doesNotMatch(css, /\.text-sticker-visual[^\{]*::after/);
+  assert.match(css, /\.text-sticker-input:focus-visible\s*\{\s*outline: 0;/);
+  for (const selector of [".text-sticker-typing-background"]) {
     const rule = css.slice(css.indexOf(selector)).split("}")[0];
     assert.ok(rule.includes("left: var(--text-sticker-box-left)"));
     assert.ok(rule.includes("width: var(--text-sticker-box-width)"));
@@ -133,4 +134,25 @@ test("text shares the sticker transforms and style picker, with a single pill an
   assert.match(css, /\.sticker-delete-anchor\.has-text-tools\s*\{[^}]*border-radius: 999px;/s);
   assert.match(css, /\.sticker-delete-control\s*\{[^}]*rotate\(var\(--sticker-counter-rotation/s);
   assert.match(read("app/components/TextStickerVisual.tsx"), /aria-label="Sticker text"/);
+});
+
+test("typing is temporary, does not move the saved sticker, and keeps the same tools with an explicit checkmark", () => {
+  const page = read("app/page.tsx");
+  const editor = read("app/components/TextStickerEditor.tsx");
+  assert.match(editor, /createPortal/);
+  assert.match(editor, /viewport\?\.addEventListener\("resize"/);
+  assert.match(editor, /typing finishOnBlur=\{false\}/);
+  assert.match(editor, /className="text-sticker-editor-backdrop" aria-hidden="true"/);
+  const backdrop = read("app/globals.css").split(".text-sticker-editor-backdrop {")[1].split("}")[0];
+  assert.match(backdrop, /z-index: 29/); // Above the canvas, below the existing tool docks.
+  assert.match(backdrop, /background: rgba\(0, 0, 0, 0.22\)/);
+  assert.match(backdrop, /pointer-events: none/);
+  assert.doesNotMatch(editor, /onTransform|setBlocks/);
+  assert.match(page, /onConfirmStickerText \? "Done typing sticker" : "Delete sticker"/);
+  assert.match(page, /if \(!isEditing \|\| textTyping\) return/);
+  assert.match(page, /isEditing && textTyping && block.textSticker \? <TextStickerEditor/);
+  assert.match(read("app/globals.css"), /\.sticker-block\.is-text-composing\s*\{ opacity: 0;/);
+  const visual = read("app/components/TextStickerVisual.tsx");
+  assert.match(visual, /value.backgroundColor \? "has-background"/);
+  assert.match(visual, /if \(finishOnBlur\) callbacks.current.onFinish\(\)/);
 });

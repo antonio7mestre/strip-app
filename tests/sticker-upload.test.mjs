@@ -92,7 +92,7 @@ test("enlarged frame stickers keep their exact editor width on both saving and p
   const frame = STICKER_PACK.find(asset => asset.id === "instant-frame");
   assert.ok(frame);
   const prepare = client(async src => imageResponse(src));
-  for (const width of [80.001, 86.625, 90, 92]) {
+  for (const width of [80.001, 86.625, 90, 92, 150.25, 240, 400]) {
     const original = { ...sticker(frame), width };
     const uploaded = await prepare([original]);
     const saved = draft("owner-qa", "draft-qa", uploaded);

@@ -15,6 +15,14 @@ test("placement accounts for Safari panning and keeps a short strip within conte
   assert.equal(stickerPlacementInView({ ...view, contentBottom: 120 }).y + view.canvasTop, 120);
   assert.equal(stickerPlacementInView({ ...view, dockTop: undefined }).y + view.canvasTop, 377);
 });
+test("new text starts higher in the visible page, with the same content bounds on mobile and desktop", () => {
+  for (const canvasWidth of [390, 402, 640]) {
+    const result = stickerPlacementInView({ ...view, canvasWidth, verticalAnchor: 0.3 });
+    assert.equal(result.y + view.canvasTop, 207);
+  }
+  assert.equal(stickerPlacementInView({ ...view, verticalAnchor: 0.3, viewportTop: 40, dockTop: 700 }).y + view.canvasTop, 238);
+  assert.equal(stickerPlacementInView({ ...view, verticalAnchor: 0.3, contentBottom: 120 }).y + view.canvasTop, 120);
+});
 test("stickers cannot trigger toolbar reveal scrolling or inflate the editor canvas", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const focus = page.slice(page.indexOf("function focusSelectedBlockWithToolbar"), page.indexOf("function caretOffsetAtPoint"));
