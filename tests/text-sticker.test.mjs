@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import * as jsxRuntime from "react/jsx-runtime";
 import * as profile from "../app/lib/profile.ts";
 import * as alignment from "../app/lib/text-alignment.ts";
 import * as sizing from "../app/lib/font-sizing.ts";
@@ -11,7 +12,7 @@ const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8"
 function compile(path, imports = {}, globals = {}) {
   const exports = {};
   runInNewContext(ts.transpileModule(read(path), { compilerOptions: {
-    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } }).outputText, { exports, Intl, ...globals, require: name => {
     assert.ok(name in imports, `Unexpected import ${name}`);
     return imports[name];
@@ -33,9 +34,9 @@ test("focus scales the complete layout without changing its font-to-width ratio 
   }
   assert.equal(focus.focusedTextSticker({ ...base, fontSize: 24 }).fontSize, 24,
     "intentional size changes use the same layout while typing and after completion");
-  assert.ok(Math.abs(focus.textStickerFocusWidth(390, 390) - 319.8) < 0.001);
-  assert.equal(focus.textStickerFocusWidth(640, 1440), 480);
-  assert.ok(focus.textStickerFocusWidth(640, 320) <= 288);
+  assert.ok(Math.abs(focus.textStickerFocusWidth(390, 390) - 358.8) < 0.001);
+  assert.equal(focus.textStickerFocusWidth(640, 1440), 560);
+  assert.ok(focus.textStickerFocusWidth(640, 320) <= 296);
 });
 
 function scrollEnvironment(top, left = 0) {
@@ -222,11 +223,7 @@ test("text shares the sticker transforms and style picker, with a single pill an
   assert.match(page, /textTap && !cancelled && !textTap.moved\) onTextEdit\?\.\(\)/);
   assert.doesNotMatch(css, /\.text-sticker-visual[^\{]*::after/);
   assert.match(css, /\.text-sticker-input:focus-visible\s*\{\s*outline: 0;/);
-  for (const selector of [".text-sticker-typing-background"]) {
-    const rule = css.slice(css.indexOf(selector)).split("}")[0];
-    assert.ok(rule.includes("left: var(--text-sticker-box-left)"));
-    assert.ok(rule.includes("width: var(--text-sticker-box-width)"));
-  }
+  assert.doesNotMatch(css, /\.text-sticker-typing-background/);
   assert.match(page, /Choose sticker background/);
   assert.match(page, /allowTransparentBackground transparentBackground=/);
   assert.match(page, /No sticker background/);
@@ -241,7 +238,7 @@ test("typing is temporary, does not move the saved sticker, and keeps the same t
   const editor = read("app/components/TextStickerEditor.tsx");
   assert.match(editor, /createPortal/);
   assert.match(editor, /viewport\?\.addEventListener\("resize"/);
-  assert.match(editor, /typing finishOnBlur=\{false\}/);
+  assert.match(editor, /typing finishOnBlur\s/);
   assert.match(editor, /focusedTextSticker\(value\)/);
   assert.doesNotMatch(editor, /initialFontSize/);
   assert.match(editor, /TextStickerVisual value=\{focusedValue\}/);
@@ -262,10 +259,80 @@ test("typing is temporary, does not move the saved sticker, and keeps the same t
   assert.match(visual, /if \(finishOnBlur\) callbacks.current.onFinish\(\)/);
 });
 
+
+
+test("focused and placed text share one rendered artwork, including its sharp background", () => {
+  const { TextStickerVisual } = compile("app/components/TextStickerVisual.tsx", {
+    "react": { useLayoutEffect() {}, useRef: value => ({ current: value }), useState: value => [value, () => {}] },
+    "react/jsx-runtime": jsxRuntime,
+    "@/app/lib/font-sizing": sizing, "@/app/lib/profile": profile,
+    "@/app/lib/text-sticker-render": { paintTextSticker() {} },
+    "@/app/lib/text-sticker": data,
+  });
+  for (const font of profile.PROFILE_FONTS) for (const textAlign of ["left", "center", "right"]) {
+    const value = { ...base, fontStyle: font.id, textAlign, backgroundColor: "#FF0066" };
+    const make = typing => TextStickerVisual({ value, typing, onChange() {}, onFinish() {}, onSettled() {} });
+    const focused = make(true).props.children, placed = make(false).props.children;
+    assert.equal(focused.props.className, "text-sticker-artwork");
+    assert.deepEqual(focused.props.style, placed.props.style);
+    const [focusCanvas, input] = focused.props.children, [placedCanvas] = placed.props.children;
+    assert.deepEqual(focusCanvas.props.style, placedCanvas.props.style);
+    assert.equal(focusCanvas.props.style.opacity, 1);
+    assert.equal(focusCanvas.props["aria-hidden"], true, "typing has a single accessible native input");
+    assert.equal(input.props.style.fontSize, sizing.normalizedFontSize(font.id, base.fontSize));
+    assert.equal(input.props.style.textAlign, textAlign);
+  }
+  const css = read("app/globals.css"), visual = read("app/components/TextStickerVisual.tsx");
+  assert.match(css, /color: transparent; -webkit-text-fill-color: transparent;/);
+  assert.match(css, /caret-color: var\(--text-sticker-color\)/);
+  assert.doesNotMatch(visual, /visibility: typing|setWidth\(element.offsetWidth|fontSize:.*\* scale/);
+});
+
+test("focus handoff preserves fractional dimensions instead of rounding the sticker", () => {
+  const { textStickerLayoutSize } = compile("app/lib/text-sticker-motion.ts", {}, {
+    getComputedStyle: () => ({ width: "397.4375px", height: "121.21875px" }),
+  });
+  const size = textStickerLayoutSize({ offsetWidth: 397, offsetHeight: 121 });
+  assert.equal(size.width, 397.4375);
+  assert.equal(size.height, 121.21875);
+});
+
+test("keyboard Done commits text through blur, while Return still adds a line", () => {
+  let finishes = 0;
+  const { TextStickerVisual } = compile("app/components/TextStickerVisual.tsx", {
+    "react": { useLayoutEffect() {}, useRef: value => ({ current: value }), useState: value => [value, () => {}] },
+    "react/jsx-runtime": jsxRuntime,
+    "@/app/lib/font-sizing": sizing,
+    "@/app/lib/profile": profile,
+    "@/app/lib/text-sticker-render": { paintTextSticker() {} },
+    "@/app/lib/text-sticker": data,
+  });
+  const visual = TextStickerVisual({ value: base, typing: true, finishOnBlur: true,
+    onChange() {}, onFinish: () => finishes++, onSettled() {} });
+  const input = visual.props.children.props.children.find(child => child?.type === "textarea");
+  assert.ok(input);
+  input.props.onBlur();
+  assert.equal(finishes, 1, "native keyboard Done uses the same finish callback");
+  const key = { key: "Enter", metaKey: false, ctrlKey: false,
+    stopPropagation() {}, preventDefault() { throw new Error("Return must remain a newline"); },
+    currentTarget: { blur: () => input.props.onBlur() } };
+  input.props.onKeyDown(key);
+  assert.equal(finishes, 1);
+  for (const shortcut of [{ key: "Escape" }, { key: "Enter", metaKey: true }, { key: "Enter", ctrlKey: true }]) {
+    const before = finishes;
+    input.props.onKeyDown({ ...key, ...shortcut, preventDefault() {} });
+    assert.equal(finishes, before + 1, "keyboard shortcuts finish once via blur");
+  }
+  const editor = read("app/components/TextStickerEditor.tsx");
+  assert.match(editor, /typing finishOnBlur\s+onChange=\{onChange\} onFinish=\{finish\}/);
+  assert.match(editor, /if \(closingRef.current\) return;/, "programmatic blur cannot restart the return animation");
+  assert.ok(editor.indexOf("closingRef.current = true") < editor.indexOf('querySelector<HTMLTextAreaElement>("textarea")?.blur()'));
+});
+
 test("typing eases from its placed geometry and returns before handing control back", () => {
   const editor = read("app/components/TextStickerEditor.tsx");
   assert.match(editor, /source.getBoundingClientRect\(\)/);
-  assert.match(editor, /source.offsetWidth \/ Math.max\(1, panel.offsetWidth\)/);
+  assert.match(editor, /textStickerLayoutSize\(source\).width \/ Math.max\(1, textStickerLayoutSize\(panel\).width\)/);
   assert.doesNotMatch(editor, /value.fontSize \/ focusedValue.fontSize/);
   assert.match(editor, /getPropertyValue\("--sticker-rotation"\)/);
   assert.match(editor, /onConfirmStickerText: \(\) => finish\(\)/);
@@ -314,15 +381,18 @@ test("text tool frames follow scaled artwork without scaling the pill or its ico
   assert.match(css, /\.is-text-composing\[data-text-returning\] \.sticker-delete-orbit \{ visibility: hidden;/);
 });
 
-test("every typing tool completes placement before opening its selector in the same handoff", () => {
+test("typing tools open as the keyboard drops, independently of placement motion", () => {
   const editor = read("app/components/TextStickerEditor.tsx");
   assert.match(editor, /onConfirmStickerText: \(\) => finish\(\)/);
   assert.match(editor, /onTextTool: tool => finish\(\(\) => controls.props.onTextTool\?\.\(tool\)\)/);
-  assert.match(editor, /if \(closingRef.current\) return;\s*afterFinishRef.current = afterFinish \?\? null/);
+  assert.match(editor, /if \(closingRef.current\) return;\s*toolRequestedRef.current = Boolean\(openTool && value.content.trim\(\)\)/);
   assert.match(editor, /querySelector<HTMLTextAreaElement>\("textarea"\)\?\.blur\(\)/);
   const handoff = editor.split("completeRef.current = () => {")[1].split("const paintTools")[0];
-  assert.ok(handoff.indexOf("onFinish();") < handoff.indexOf("afterFinishRef.current?.()"));
-  assert.match(handoff, /if \(value.content.trim\(\)\) afterFinishRef.current\?\.\(\)/);
+  assert.match(handoff, /!toolRequestedRef.current && isValidElement/);
+  assert.doesNotMatch(handoff, /openTool|afterFinish/);
+  const finish = editor.split("const finish = (openTool?")[1].split("const typingControls")[0];
+  assert.ok(finish.indexOf(".blur()") < finish.indexOf("openTool?.()"));
+  assert.ok(finish.indexOf("openTool?.()") < finish.indexOf("wakeRef.current()"));
 });
 
 test("text motion stays continuous when the keyboard retargets it, without overshoot", () => {

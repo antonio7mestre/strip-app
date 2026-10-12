@@ -6,7 +6,7 @@ export function focusedTextSticker(value: TextSticker): TextSticker {
 }
 
 export function textStickerFocusWidth(canvasWidth: number, viewportWidth: number) {
-  return Math.max(180, Math.min(480, canvasWidth * .82, viewportWidth - 32));
+  return Math.max(180, Math.min(560, canvasWidth * .92, viewportWidth - 24));
 }
 
 /** The floating input moves, never the document underneath it. Do not lock

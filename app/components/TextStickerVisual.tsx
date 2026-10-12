@@ -20,13 +20,12 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
   callbacks.current = { onSettled, onFinish };
   const [width, setWidth] = useState(TEXT_STICKER_WIDTH);
   const [height, setHeight] = useState(66);
-  const [background, setBackground] = useState({ x: 0, width: TEXT_STICKER_WIDTH });
   const [padding, setPadding] = useState({ top: 12, bottom: 12 });
   const displayContent = value.content || (typing ? "Type something" : "");
   useLayoutEffect(() => {
     const element = wrapperRef.current;
     if (!element) return;
-    const measure = () => setWidth(element.offsetWidth || TEXT_STICKER_WIDTH);
+    const measure = () => setWidth(parseFloat(getComputedStyle(element).width) || TEXT_STICKER_WIDTH);
     measure();
     const observer = new ResizeObserver(measure); observer.observe(element);
     return () => observer.disconnect();
@@ -36,12 +35,12 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
     let settledFrame = 0;
     // Draw offscreen so a stale font request cannot repaint the live canvas.
     const drawing = document.createElement("canvas");
-    void paintTextSticker(drawing, { ...value, content: displayContent }).then(({height, paddingTop, paddingBottom, backgroundX, backgroundWidth}) => {
+    void paintTextSticker(drawing, { ...value, content: displayContent }).then(({height, paddingTop, paddingBottom}) => {
       if (cancelled || !canvasRef.current) return;
       const canvas = canvasRef.current;
       canvas.width = drawing.width; canvas.height = drawing.height;
       canvas.getContext("2d")?.drawImage(drawing, 0, 0);
-      setHeight(height); setBackground({ x: backgroundX, width: backgroundWidth });
+      setHeight(height);
       setPadding({ top: paddingTop, bottom: paddingBottom });
       settledFrame = requestAnimationFrame(() => { if (!cancelled) callbacks.current.onSettled(true); });
     }).catch(() => { if (!cancelled) callbacks.current.onSettled(false); });
@@ -63,21 +62,21 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
   }, [typing]);
   const scale = width / TEXT_STICKER_WIDTH;
   return <span ref={wrapperRef} className={`text-sticker-visual ${typing ? "is-typing" : ""} ${value.backgroundColor ? "has-background" : ""}`}
-    style={{ "--text-sticker-color": value.textColor,
-      "--text-sticker-box-left": `${background.x * scale}px`,
-      "--text-sticker-box-width": `${background.width * scale}px` } as CSSProperties}>
-    <canvas ref={canvasRef} role="img" aria-label={value.content || "Text sticker"}
-      style={{ width: "100%", height: height * scale, visibility: typing ? "hidden" : "visible" }} />
-    {typing && value.backgroundColor ? <span aria-hidden="true" className="text-sticker-typing-background"
-      style={{ backgroundColor: value.backgroundColor, height: height * scale }} /> : null}
+    style={{ "--text-sticker-color": value.textColor, height: height * scale } as CSSProperties}>
+    {/* One 320px typography plane in both modes. The native input supplies
+        caret, selection and keyboard behavior; the same canvas paints the
+        words and background throughout typing, motion and placement. */}
+    <span className="text-sticker-artwork" style={{ width: TEXT_STICKER_WIDTH, transform: `scale(${scale})` }}>
+    <canvas ref={canvasRef} role="img" aria-hidden={typing || undefined} aria-label={value.content || "Text sticker"}
+      style={{ width: TEXT_STICKER_WIDTH, height, opacity: typing && !value.content ? .65 : 1 }} />
     {typing ? <textarea ref={inputRef} className="text-sticker-input" aria-label="Sticker text"
       placeholder="Type something" value={value.content} maxLength={TEXT_STICKER_MAX_LENGTH}
       spellCheck autoCapitalize="sentences"
       style={{ fontFamily: profileFontInfo(value.fontStyle).family, fontWeight: profileFontWeight(value.fontStyle) ?? 450,
-        fontSize: normalizedFontSize(value.fontStyle, value.fontSize) * scale,
-        lineHeight: `${Math.max(value.fontSize * 1.22, normalizedFontSize(value.fontStyle, value.fontSize) * 1.12) * scale}px`,
-        padding: `${padding.top * scale}px ${12 * scale}px ${padding.bottom * scale}px`,
-        textAlign: value.textAlign, color: value.textColor }}
+        fontSize: normalizedFontSize(value.fontStyle, value.fontSize),
+        lineHeight: `${Math.max(value.fontSize * 1.22, normalizedFontSize(value.fontStyle, value.fontSize) * 1.12)}px`,
+        padding: `${padding.top}px 12px ${padding.bottom}px`,
+        textAlign: value.textAlign }}
       onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}
       onChange={event => onChange(event.target.value)}
       onBlur={() => { if (finishOnBlur) callbacks.current.onFinish(); }}
@@ -89,5 +88,6 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
           event.currentTarget.blur();
         }
       }} /> : null}
+    </span>
   </span>;
 }

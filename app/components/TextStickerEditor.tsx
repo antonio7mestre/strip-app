@@ -5,7 +5,7 @@ import { createPortal, flushSync } from "react-dom";
 import { TextStickerVisual } from "./TextStickerVisual";
 import type { TextSticker } from "@/app/lib/text-sticker";
 import { focusedTextSticker, installTextStickerScrollAnchor, textStickerFocusWidth } from "@/app/lib/text-sticker-focus";
-import { stepTextStickerSpring, textStickerToolFrame, type SpringAxis } from "@/app/lib/text-sticker-motion";
+import { stepTextStickerSpring, textStickerLayoutSize, textStickerToolFrame, type SpringAxis } from "@/app/lib/text-sticker-motion";
 
 type Pose = { x: number; y: number; scale: number; rotation: number };
 type Motion = { [Key in keyof Pose]: SpringAxis };
@@ -26,7 +26,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   const panelRef = useRef<HTMLDivElement>(null);
   const toolsRef = useRef<HTMLDivElement>(null);
   const initialToolsStyleRef = useRef<CSSProperties | null>(null);
-  const afterFinishRef = useRef<(() => void) | null>(null);
+  const toolRequestedRef = useRef(false);
   const motionRef = useRef<Motion | null>(null);
   const frameRef = useRef(0);
   const previousFrameRef = useRef(0);
@@ -52,10 +52,11 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       const source = sourceRef.current;
       if (source && !initialToolsStyleRef.current) {
         const from = source.getBoundingClientRect();
+        const size = textStickerLayoutSize(source);
         initialToolsStyleRef.current = textStickerToolFrame({
           x: from.left + from.width / 2, y: from.top + from.height / 2, scale: 1,
           rotation: parseFloat(source.style.getPropertyValue("--sticker-rotation")) || 0,
-        }, source.offsetWidth, source.offsetHeight);
+        }, size.width, size.height);
       }
       const bounds = document.querySelector(".editor-mode .strip-canvas")?.getBoundingClientRect();
       const viewportTop = viewport?.offsetTop ?? 0;
@@ -101,7 +102,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     const panel = panelRef.current;
     if (!source || !panel) return { x: layoutRef.current?.left ?? 0, y: layoutRef.current?.top ?? 0, scale: .94, rotation: 0 };
     const from = source.getBoundingClientRect();
-    const scale = source.offsetWidth / Math.max(1, panel.offsetWidth);
+    const scale = textStickerLayoutSize(source).width / Math.max(1, textStickerLayoutSize(panel).width);
     const rotation = parseFloat(source.style.getPropertyValue("--sticker-rotation")) || 0;
     return { x: from.left + from.width / 2, y: from.top + from.height / 2, scale, rotation };
   };
@@ -112,19 +113,18 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     // Removing the floating copy and releasing is-text-composing must be one
     // commit. Keep the placed copy visible until the unmount cleanup runs.
     flushSync(() => {
-      if (isValidElement<TypingControls>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
+      // A styling tool is already open while the sticker returns. Finish
+      // typing without resetting that selector at the placement handoff.
+      if (!toolRequestedRef.current && isValidElement<TypingControls>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
       else onFinish();
-      // Finish placement before opening the requested selector. Both state
-      // changes share the handoff commit so the tools never briefly reset.
-      if (value.content.trim()) afterFinishRef.current?.();
-      afterFinishRef.current = null;
     });
   };
   const paintTools = (pose: Pose) => {
     const tools = toolsRef.current;
     const panel = panelRef.current;
     if (!tools || !panel) return;
-    const frame = textStickerToolFrame(pose, panel.offsetWidth, panel.offsetHeight);
+    const size = textStickerLayoutSize(panel);
+    const frame = textStickerToolFrame(pose, size.width, size.height);
     tools.style.width = `${frame.width}px`;
     tools.style.height = `${frame.height}px`;
     tools.style.transform = frame.transform;
@@ -180,12 +180,15 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     startedRef.current = performance.now();
     tick(startedRef.current);
   };
-  const finish = (afterFinish?: () => void) => {
+  const finish = (openTool?: () => void) => {
     if (closingRef.current) return;
-    afterFinishRef.current = afterFinish ?? null;
+    toolRequestedRef.current = Boolean(openTool && value.content.trim());
     closingRef.current = true;
     setClosing(true);
     panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.blur();
+    // Begin revealing the selector in the same event that drops the keyboard,
+    // not after the independent artwork return animation.
+    if (toolRequestedRef.current) openTool?.();
     const source = sourceRef.current;
     if (source) source.dataset.textReturning = "true";
     if (!motionRef.current) { completeRef.current(); return; }
@@ -212,7 +215,9 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       <div ref={panelRef} className="text-sticker-editor-panel" data-ready={ready || undefined}
         style={{ width: layout.width, transform: initialTransformRef.current }}>
         <div className="text-sticker-editor-scroll" style={{ maxHeight: layout.maxHeight }}>
-          <TextStickerVisual value={focusedValue} typing finishOnBlur={false}
+          {/* Safari's keyboard Done button blurs the input. Use the same
+              guarded finish path as the pill check and styling buttons. */}
+          <TextStickerVisual value={focusedValue} typing finishOnBlur
             onChange={onChange} onFinish={finish} onSettled={enter} />
         </div>
       </div>

@@ -1,5 +1,11 @@
 export type SpringAxis = { value: number; velocity: number };
 
+/** offsetWidth/Height round away fractions and cause a tiny handoff jump. */
+export function textStickerLayoutSize(element: HTMLElement) {
+  const style = getComputedStyle(element);
+  return { width: parseFloat(style.width) || element.offsetWidth, height: parseFloat(style.height) || element.offsetHeight };
+}
+
 /** Follow the artwork's geometry, but never scale the controls or their icons. */
 export function textStickerToolFrame(
   pose: { x: number; y: number; scale: number; rotation: number },
