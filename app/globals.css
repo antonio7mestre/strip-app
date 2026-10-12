@@ -2436,9 +2436,9 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 264px;
+  width: max-content;
   max-width: calc(100 * var(--page-vw, 1vw) - 32px);
-  min-height: 60px;
+  min-height: 48px;
   padding: 12px 20px;
   border: 1px solid rgba(0, 0, 0, .08);
   border-radius: 999px;
@@ -2447,11 +2447,13 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   box-shadow: 0 4px 20px rgba(0, 0, 0, .16);
   pointer-events: none;
 }
-.top-status-icon { flex: 0 0 auto; }
-.top-status-copy { display: grid; gap: 3px; text-align: left; line-height: 1.2; }
-.top-status-copy strong { font-size: 14px; font-weight: 700; }
+.top-status-pill.is-loading { width: 264px; }
+.top-status-copy { display: flex; align-items: baseline; gap: 4px; text-align: left; line-height: 1.2; white-space: nowrap; }
+.top-status-copy strong,
+.top-status-label,
+.top-status-progress { font-size: 14px; font-weight: 700; }
 .top-status-copy > span { font-size: 12px; color: #555555; }
-.top-status-label { font-size: 15px; font-weight: 650; white-space: nowrap; }
+.top-status-label { white-space: nowrap; }
 .top-status-progress {
   margin-left: auto;
   min-width: 3ch;

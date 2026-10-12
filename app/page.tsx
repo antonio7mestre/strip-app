@@ -8410,8 +8410,7 @@ export default function Home() {
         {renderStrip(!inlinePreview)}
       </div>
 
-      {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} profile={visibleProfile} profilePending={stripProfile.loading}
-        owner={authUser?.id} percent={editorEntrance.percent}
+      {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} percent={editorEntrance.percent}
         onCountComplete={() => editorEntrance.completeCount(editorEntrance.request!)}
         revealing={editorEntrance.phase === "revealing"} /> : null}
 

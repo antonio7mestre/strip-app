@@ -7,8 +7,6 @@ import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as profile from "../app/lib/profile.ts";
-import * as sizing from "../app/lib/font-sizing.ts";
-import * as profileReload from "../app/lib/profile-reload.ts";
 import * as stripEntrance from "../app/lib/strip-entrance.ts";
 import * as scribbleEntrance from "../app/lib/scribble-entrance.ts";
 
@@ -161,25 +159,28 @@ test("Preview uses a light top status pill separate from bottom errors", () => {
   assert.match(html, /top-status-pill is-temporary/);
   assert.match(html, /Preview mode/);
   assert.match(html, /Tap any block to edit/);
-  assert.doesNotMatch(html, /progressbar|aria-valuenow|class="notice/);
+  assert.doesNotMatch(html, /<svg|progressbar|aria-valuenow|class="notice/);
+  assert.match(css, /\.top-status-copy\s*\{[^}]*display: flex;[^}]*white-space: nowrap/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*top: calc\(env\(safe-area-inset-top, 0px\) \+ 16px\)/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*background: #ffffff/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*pointer-events: none/);
   assert.match(page, /notice === PREVIEW_MODE_NOTICE \? <TopStatusPill/);
 });
 
-test("loader shares the top pill with animated dots and a right-side theme-font count, leaving tools outside the fade", () => {
+test("loader shares Preview typography with animated dots and a right-side count, leaving tools outside the fade", () => {
   const component = readFileSync(new URL("../app/components/EditorEntrance.tsx", import.meta.url), "utf8");
   const exports = {};
   runInNewContext(ts.transpileModule(component, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText,
-    { exports, require: name => name === "@/app/lib/profile" ? profile : name === "@/app/lib/font-sizing" ? sizing
-      : name === "@/app/lib/profile-reload" ? profileReload : name === "@/app/lib/strip-entrance" ? stripEntrance
+    { exports, require: name => name === "@/app/lib/strip-entrance" ? stripEntrance
       : name === "@/app/lib/scribble-entrance" ? scribbleEntrance
       : name === "./TopStatusPill" ? topStatus : require(name) });
   const html = renderToStaticMarkup(createElement(exports.EditorEntrance, {
-    profile: { ...profile.DEFAULT_PROFILE, background: "#BFFF00", font: "shrikhand" }, revealing: false,
+    revealing: false,
   }));
-  assert.match(html, /Shrikhand/);
+  assert.doesNotMatch(component, /profileFont|readProfilePresentation|normalizedFontSize|progressStyle/);
+  assert.doesNotMatch(html, /font-family|font-size/);
+  assert.doesNotMatch(html, /<svg|top-status-spinner/);
+  assert.match(css, /\.top-status-copy strong,\s*\.top-status-label,\s*\.top-status-progress\s*\{ font-size: 14px; font-weight: 700;/);
   assert.match(html, /top-status-pill is-loading/);
   assert.match(html, /Strip loading<span class="media-import-dots"/);
   assert.doesNotMatch(html, /editor-entrance-square|%/);
