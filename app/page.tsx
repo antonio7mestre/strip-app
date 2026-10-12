@@ -69,6 +69,7 @@ import { prepareMediaFiles, mediaImportInsertionIndex, type MediaSize } from "@/
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
 import { EditorEntrance } from "@/app/components/EditorEntrance";
+import { TopStatusPill } from "@/app/components/TopStatusPill";
 import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
 import { StackPickerArrows } from "@/app/components/StackPickerArrows";
 import { useEditorEntrance } from "@/app/components/useEditorEntrance";
@@ -8350,7 +8351,8 @@ export default function Home() {
         <article className={`published-strip ${legacyPageEnterClass}`}>
           {renderStrip(false, publishedBlocks)}
         </article>
-        {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
+        {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} /> :
+          notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
         </main>
       </>
     );
@@ -8589,7 +8591,8 @@ export default function Home() {
           }}
         />
       ) : null}
-      {notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
+      {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} /> :
+        notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
       </main>
     </>
   );

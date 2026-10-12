@@ -143,19 +143,48 @@ test("the same crossfade completes even when the device requests reduced motion"
   h.advance(320); assert.equal(h.value.active, false);
 });
 
-test("loader uses the selected theme color and face, right-aligns text, and leaves tools outside the fade", () => {
+function renderComponentModule(file, imports = {}) {
+  const source = readFileSync(new URL(`../app/components/${file}.tsx`, import.meta.url), "utf8");
+  const exports = {};
+  runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText,
+    { exports, require: name => imports[name] ?? require(name) });
+  return exports;
+}
+
+const topStatus = renderComponentModule("TopStatusPill", {
+  "./AnimatedEllipsis": renderComponentModule("AnimatedEllipsis"),
+});
+
+test("Preview uses a light top status pill separate from bottom errors", () => {
+  const html = renderToStaticMarkup(createElement(topStatus.TopStatusPill));
+  assert.match(html, /top-status-pill is-temporary/);
+  assert.match(html, /Preview mode/);
+  assert.match(html, /Tap any block to edit/);
+  assert.doesNotMatch(html, /progressbar|aria-valuenow|class="notice/);
+  assert.match(css, /\.top-status-pill\s*\{[^}]*top: calc\(env\(safe-area-inset-top, 0px\) \+ 16px\)/);
+  assert.match(css, /\.top-status-pill\s*\{[^}]*background: #ffffff/);
+  assert.match(css, /\.top-status-pill\s*\{[^}]*pointer-events: none/);
+  assert.match(page, /notice === PREVIEW_MODE_NOTICE \? <TopStatusPill/);
+});
+
+test("loader shares the top pill with animated dots and a right-side theme-font count, leaving tools outside the fade", () => {
   const component = readFileSync(new URL("../app/components/EditorEntrance.tsx", import.meta.url), "utf8");
   const exports = {};
   runInNewContext(ts.transpileModule(component, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText,
     { exports, require: name => name === "@/app/lib/profile" ? profile : name === "@/app/lib/font-sizing" ? sizing
-      : name === "@/app/lib/profile-reload" ? profileReload : name === "@/app/lib/strip-entrance" ? stripEntrance : require(name) });
+      : name === "@/app/lib/profile-reload" ? profileReload : name === "@/app/lib/strip-entrance" ? stripEntrance
+      : name === "./TopStatusPill" ? topStatus : require(name) });
   const html = renderToStaticMarkup(createElement(exports.EditorEntrance, {
     profile: { ...profile.DEFAULT_PROFILE, background: "#BFFF00", font: "shrikhand" }, revealing: false,
   }));
-  assert.match(html, /background-color:#BFFF00/); assert.match(html, /Shrikhand/);
-  assert.doesNotMatch(html, />Loading(?: Strip)?</);
+  assert.match(html, /Shrikhand/);
+  assert.match(html, /top-status-pill is-loading/);
+  assert.match(html, /Strip loading<span class="media-import-dots"/);
+  assert.doesNotMatch(html, /editor-entrance-square|%/);
   assert.match(html, /aria-valuenow="0"/);
-  assert.match(css, /\.editor-entrance-label\s*\{[^}]*text-align: right/);
+  assert.match(html, /data-waiting="true"/);
+  assert.ok(html.indexOf("top-status-label") < html.indexOf("top-status-progress"), "number follows the label on the right");
+  assert.match(css, /\.top-status-progress\s*\{[^}]*margin-left: auto;[^}]*text-align: right/);
   assert.match(css, /\.editor-mode\.is-editor-loading > \.editor-canvas\s*\{[^}]*opacity: 0/);
   assert.match(page, /if \(!editorEntrance.active && !imagesAreLoading && !mediaImportRequestRef.current\) return;/);
   assert.match(page, /showEditorLoadingNotice\(editorEntrance.active \? "Strip is loading" : "Images loading"\)/);

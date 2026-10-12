@@ -2417,9 +2417,6 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   position: fixed;
   inset: 0;
   z-index: 29;
-  display: grid;
-  place-items: center;
-  padding: env(safe-area-inset-top) 28px calc(var(--dock-visible-height, 80px) + env(safe-area-inset-bottom));
   opacity: 1;
   background: #000000;
   color: #ffffff;
@@ -2427,11 +2424,45 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   touch-action: none;
 }
 .editor-entrance.is-revealing { opacity: 0; }
-.editor-entrance-mark { width: min(calc(44 * var(--page-vw, 1vw)), 180px); }
-.editor-entrance-square { width: 100%; aspect-ratio: 1; background: currentColor; }
-.editor-entrance-square.is-outlined { border: 2px solid #ffffff; }
-.editor-entrance-label { margin-top: 32px; text-align: right; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.editor-entrance-label[data-waiting="true"] { animation: editor-loading-pulse 900ms ease-in-out infinite alternate; }
+.top-status-pill {
+  position: fixed;
+  z-index: 70;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 264px;
+  max-width: calc(100 * var(--page-vw, 1vw) - 32px);
+  min-height: 60px;
+  padding: 12px 20px;
+  border: 1px solid rgba(0, 0, 0, .08);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #171717;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .16);
+  pointer-events: none;
+}
+.top-status-icon { flex: 0 0 auto; }
+.top-status-copy { display: grid; gap: 3px; text-align: left; line-height: 1.2; }
+.top-status-copy strong { font-size: 14px; font-weight: 700; }
+.top-status-copy > span { font-size: 12px; color: #555555; }
+.top-status-label { font-size: 15px; font-weight: 650; white-space: nowrap; }
+.top-status-progress {
+  margin-left: auto;
+  min-width: 3ch;
+  text-align: right;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.top-status-progress[data-waiting="true"] { animation: editor-loading-pulse 900ms ease-in-out infinite alternate; }
+.top-status-pill.is-temporary { animation: top-status-notice 3000ms ease both; }
+@keyframes top-status-notice {
+  0% { opacity: 0; transform: translate(-50%, -6px); }
+  7%, 88% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
 @keyframes editor-loading-pulse { from { opacity: .25; } to { opacity: 1; } }
 .editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }
 .editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }
