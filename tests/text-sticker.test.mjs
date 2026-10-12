@@ -161,11 +161,12 @@ test("typing is temporary, does not move the saved sticker, and keeps the same t
   assert.match(editor, /typing finishOnBlur=\{false\}/);
   assert.match(editor, /const \[initialFontSize\] = useState\(value.fontSize\)/);
   assert.match(editor, /TextStickerVisual value=\{focusedValue\}/);
-  assert.match(read("app/layout.tsx"), /className="page-dimmer" aria-hidden="true"/);
+  assert.match(read("app/layout.tsx"), /<PageDimmer \/>/);
   const backdrop = read("app/globals.css").split(".page-dimmer {")[1].split("}")[0];
   assert.match(backdrop, /z-index: 29/); // Above the canvas, below the existing tool docks.
   assert.match(backdrop, /opacity: var\(--page-dim-opacity\)/);
-  assert.match(backdrop, /top: env\(safe-area-inset-top\)/);
+  assert.match(backdrop, /position: absolute/);
+  assert.doesNotMatch(backdrop, /position: fixed|safe-area-inset-top/);
   assert.match(backdrop, /pointer-events: none/);
   assert.doesNotMatch(editor, /onTransform|setBlocks/);
   assert.match(page, /onConfirmStickerText \? "Done typing sticker" : "Delete sticker"/);
@@ -183,7 +184,30 @@ test("typing eases from its placed geometry and returns before handing control b
   assert.match(editor, /value.fontSize \/ focusedValue.fontSize/);
   assert.match(editor, /getPropertyValue\("--sticker-rotation"\)/);
   assert.match(editor, /cloneElement\(controls, \{ onConfirmStickerText: finish \}\)/);
-  assert.match(editor, /finished.then\(complete\)/);
-  assert.match(editor, /duration: 280/);
+  assert.match(editor, /stepTextStickerSpring/);
+  assert.match(editor, /targetRef.current\(\)/);
+  assert.match(editor, /elapsed >= 440/);
+  assert.match(editor, /completeRef.current\(\)/);
+  assert.doesNotMatch(editor, /\.animate\(|getComputedStyle\(panel\)/);
   assert.doesNotMatch(editor, /--top-safe-area-color|theme-color|scrollTo|documentElement.style|document.body.style/);
+});
+
+test("text motion stays continuous when the keyboard retargets it, without overshoot", () => {
+  const { stepTextStickerSpring: step } = compile("app/lib/text-sticker-motion.ts");
+  let axis = { value: 700, velocity: 0 };
+  for (let i = 0; i < 12; i++) axis = step(axis, 450, 1000 / 60);
+  const previous = axis;
+  axis = step(axis, 260, 1000 / 60);
+  assert.ok(axis.value < previous.value && axis.value > 260);
+  assert.ok(Math.abs(axis.value - previous.value) < 30, "retargeting does not snap to the keyboard position");
+  for (let i = 0; i < 90; i++) {
+    const next = step(axis, 260, 1000 / 60);
+    assert.ok(next.value >= 260 - .001);
+    axis = next;
+  }
+  assert.ok(Math.abs(axis.value - 260) < .001);
+  const one = step({ value: 0, velocity: 0 }, 400, 32);
+  const two = step(step({ value: 0, velocity: 0 }, 400, 16), 400, 16);
+  assert.ok(Math.abs(one.value - two.value) < 1e-9, "motion is independent of frame rate");
+  assert.match(read("app/page.tsx"), /closest\("\.auth-shell, \.title-setup-mode, \.text-sticker-editor-layer"\)/);
 });

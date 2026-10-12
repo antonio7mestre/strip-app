@@ -3618,7 +3618,7 @@ export default function Home() {
       const activeElement = document.activeElement;
       // Fixed forms do not need the editor canvas's delayed scroll restoration.
       // A second scroll during keyboard dismissal can move their covered dock.
-      if (activeElement?.closest(".auth-shell, .title-setup-mode")) return false;
+      if (activeElement?.closest(".auth-shell, .title-setup-mode, .text-sticker-editor-layer")) return false;
       return (
         (activeElement instanceof HTMLElement && activeElement.isContentEditable) ||
         activeElement instanceof HTMLTextAreaElement ||

@@ -2731,22 +2731,23 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .text-sticker-input::placeholder { color: currentColor; opacity: 0.65; }
 .text-sticker-input:focus-visible { outline: 0; box-shadow: none; }
 .sticker-block.is-text-composing { opacity: 0; visibility: hidden; pointer-events: none; }
-/* Dim only existing surfaces. Never recolor the root or add a top safe-area
-   band. The dock's own overlay reaches its full under-Safari painted extension. */
-:root { --page-dim-opacity: 0; --page-dim-duration: 280ms; }
-html:has(.text-sticker-editor-layer:not(.is-closing)) { --page-dim-opacity: .22; }
+/* Dim the document only. Fixed black paint is interpreted as a header by
+   Safari and extended into its top chrome. Leave the bottom tools untouched. */
+:root { --page-dim-opacity: 0; --page-dim-duration: 380ms; }
+html:has(.text-sticker-editor-layer:not(.is-closing)) { --page-dim-opacity: .6; }
 html:has(.confirmation-backdrop) { --page-dim-opacity: .6; }
 html:has(.media-import-popup.is-revealing):not(:has(.confirmation-backdrop:not(.media-import-popup))) { --page-dim-opacity: 0; }
 html.page-color-picking { --page-dim-opacity: 0; }
 .page-dimmer {
-  position: fixed; z-index: 29;
-  top: env(safe-area-inset-top); right: 0; bottom: 0; left: 0;
-  background: #000; opacity: var(--page-dim-opacity); pointer-events: none;
-  transition: opacity var(--page-dim-duration) ease;
-}
-.composer-dock::after {
-  content: ""; position: absolute; z-index: 99; inset: 0;
-  border-radius: inherit; background: #000;
+  position: absolute; z-index: 29;
+  top: 0; right: 0; height: 0; left: 0;
+  --page-dim-feather: clamp(96px, 18svh, 160px);
+  background: linear-gradient(to bottom,
+    rgb(0 0 0 / 0) 0,
+    rgb(0 0 0 / .08) calc(var(--page-dim-feather) * .25),
+    rgb(0 0 0 / .35) calc(var(--page-dim-feather) * .5),
+    rgb(0 0 0 / .75) calc(var(--page-dim-feather) * .75),
+    #000 var(--page-dim-feather));
   opacity: var(--page-dim-opacity); pointer-events: none;
   transition: opacity var(--page-dim-duration) ease;
 }
@@ -2755,18 +2756,16 @@ html.page-color-picking { --page-dim-opacity: 0; }
   background: transparent; touch-action: none;
 }
 .text-sticker-editor-panel {
-  position: absolute; transform: translate(-50%, -50%);
+  position: absolute; top: 0; left: 0; transform: translate(-50%, -50%);
   --sticker-rotation: 0deg; --sticker-counter-rotation: 0deg;
-  transition: top 240ms cubic-bezier(.22, 1, .36, 1), left 240ms cubic-bezier(.22, 1, .36, 1);
+  will-change: transform;
 }
 .text-sticker-editor-panel:not([data-ready]) { opacity: 0; }
 .text-sticker-editor-layer.is-closing { pointer-events: none; }
 .sticker-block.is-text-composing[data-text-returning] {
-  visibility: visible; opacity: 1;
-  animation: text-sticker-return 280ms linear both;
+  visibility: visible; opacity: var(--text-sticker-return-opacity, 0);
 }
 .sticker-block.is-text-composing[data-text-returning] .block-controls-reveal { visibility: hidden; }
-@keyframes text-sticker-return { 0%, 60% { opacity: 0; } 100% { opacity: 1; } }
 .text-sticker-editor-scroll {
   overflow: auto; overscroll-behavior: contain; padding: 2px;
   scrollbar-width: none; touch-action: pan-y;

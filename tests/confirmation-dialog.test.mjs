@@ -59,19 +59,25 @@ test("all dialog text is centered and shares the profile discard sizing and pill
   assert.doesNotMatch(css, /\.delete-modal|\.profile-discard-card|\.modal-backdrop/);
 });
 
-test("typing, delete and media overlays dim the dock's full painted extension without a top band", () => {
+test("typing, delete and media overlays dim document paint, leaving top chrome and bottom tools alone", () => {
   const css = read("app/globals.css");
   assert.match(css, /html:has\(\.confirmation-backdrop\) \{ --page-dim-opacity: .6;/);
-  assert.match(css, /html:has\(\.text-sticker-editor-layer:not\(\.is-closing\)\) \{ --page-dim-opacity: .22;/);
+  assert.match(css, /html:has\(\.text-sticker-editor-layer:not\(\.is-closing\)\) \{ --page-dim-opacity: .6;/);
   const dim = css.split(".page-dimmer {")[1].split("}")[0];
-  const dock = css.split(".composer-dock::after {")[1].split("}")[0];
-  assert.match(dim, /top: env\(safe-area-inset-top\)/);
-  for (const rule of [dim, dock]) {
+  assert.match(dim, /position: absolute/);
+  assert.match(dim, /background: linear-gradient\(to bottom,/);
+  assert.match(dim, /rgb\(0 0 0 \/ 0\) 0,/);
+  assert.match(dim, /--page-dim-feather: clamp\(96px, 18svh, 160px\)/);
+  assert.doesNotMatch(dim, /position: fixed|safe-area-inset-top/);
+  for (const rule of [dim]) {
     assert.match(rule, /opacity: var\(--page-dim-opacity\)/);
     assert.match(rule, /transition: opacity var\(--page-dim-duration\)/);
     assert.match(rule, /pointer-events: none/);
   }
-  assert.match(dock, /inset: 0/);
+  assert.doesNotMatch(css, /\.composer-dock::after/);
+  const paint = read("app/components/PageDimmer.tsx");
+  assert.match(paint, /window.scrollY \+ \(viewport\?\.offsetTop/);
+  assert.doesNotMatch(paint, /--top-safe-area-color|theme-color|scrollTo|documentElement.style|document.body.style/);
   assert.match(css, /\.confirmation-backdrop \{[^}]*background: transparent;/s);
   assert.match(css, /html.page-color-picking \{ --page-dim-opacity: 0;/);
 });

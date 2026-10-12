@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import "./wide-layout.css";
 import { DesktopPresentation } from "./components/DesktopPresentation";
+import { PageDimmer } from "./components/PageDimmer";
 import { PROFILE_RELOAD_SCRIPT } from "./lib/profile-reload";
 import { initialPageBackground } from "./server/initial-background";
 
@@ -84,7 +85,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>
-      <body><DesktopPresentation /><div className="page-dimmer" aria-hidden="true" />{children}</body>
+      <body><DesktopPresentation /><PageDimmer />{children}</body>
     </html>
   );
 }

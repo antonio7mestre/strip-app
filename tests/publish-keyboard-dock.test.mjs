@@ -257,7 +257,7 @@ test("twenty keyboard cycles never mutate the resting layer or accumulate an off
 });
 
 test("title input does not queue the editor's delayed smooth scroll on blur", () => {
-  assert.match(page, /activeElement\?\.closest\("\.auth-shell, \.title-setup-mode"\)/);
+  assert.match(page, /activeElement\?\.closest\("\.auth-shell, \.title-setup-mode, \.text-sticker-editor-layer"\)/);
 });
 
 test("no keyboard event applies extra document pan compensation to the title tools", () => {
