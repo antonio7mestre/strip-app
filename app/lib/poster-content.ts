@@ -2,6 +2,7 @@ import { normalizedFontSize } from "./font-sizing";
 import { profileFontInfo, profileFontWeight } from "./profile";
 import { normalizeStickerWidth } from "./sticker-sizing";
 import { normalizeStickerRotation } from "./sticker-rotation";
+import { normalizeTextAlignment } from "./text-alignment";
 import { posterColor, posterInk, type PosterBlock, type PosterPhoto, type PosterTile } from "./share-posters";
 
 export const POSTER_REFERENCE_WIDTH = 390;
@@ -69,7 +70,10 @@ export function createPosterTextTile(block: PosterBlock, index: number, top: num
   context.fillRect(0,0,POSTER_REFERENCE_WIDTH,flowHeight);
   context.font=`${style.weight} ${style.size}px ${style.font}`;
   context.fillStyle=style.ink;context.textBaseline="top";
-  lines.forEach((line,i)=>context.fillText(line,16,16+i*style.leading));
+  context.textAlign=normalizeTextAlignment(block.textAlign);
+  const textX=context.textAlign==="center" ? POSTER_REFERENCE_WIDTH/2
+    : context.textAlign==="right" ? POSTER_REFERENCE_WIDTH-16 : 16;
+  lines.forEach((line,i)=>context.fillText(line,textX,16+i*style.leading));
   return {id:block.id ?? String(index),type:"text",source:canvas,width:canvas.width,height:canvas.height,
     flowHeight,top,color:style.background};
 }

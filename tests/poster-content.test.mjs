@@ -8,6 +8,7 @@ import * as sizing from "../app/lib/sticker-sizing.ts";
 import * as rotation from "../app/lib/sticker-rotation.ts";
 import * as fonts from "../app/lib/font-sizing.ts";
 import * as posters from "../app/lib/share-posters.ts";
+import * as alignment from "../app/lib/text-alignment.ts";
 
 class Canvas {
   constructor(){this.width=300;this.height=150;this.commands=[];this.context={
@@ -21,7 +22,7 @@ const source=readFileSync(new URL("../app/lib/poster-content.ts",import.meta.url
 runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
   exports,document:{createElement:tag=>{assert.equal(tag,"canvas");return new Canvas();}},
   require:id=>({"./font-sizing":fonts,"./profile":profile,"./sticker-sizing":sizing,
-    "./sticker-rotation":rotation,"./share-posters":posters})[id],
+    "./sticker-rotation":rotation,"./share-posters":posters,"./text-alignment":alignment})[id],
 });
 const {posterStickerGeometry,posterParagraphLines,posterTextStyle,posterRasterWidth,
   createPosterTextTile,createPosterMediaTile,paintPosterSticker}=exports;
@@ -89,6 +90,14 @@ test("published text heights preserve the approved layout and sticker coordinate
     if(height===625) {
       assert(tile.source.commands.some(c=>c[0]==="translate"&&c[1]===234&&Math.abs(c[2]-284.63)<1e-7));
     }
+  }
+});
+
+test("poster text preserves left, center and right alignment with the same block padding",()=>{
+  for (const [textAlign,x] of [["left",16],["center",195],["right",374],[undefined,16]]) {
+    const tile=createPosterTextTile({id:"text",type:"text",content:"hello\nworld",textAlign},0,0,390);
+    assert.equal(tile.source.context.textAlign,textAlign ?? "left");
+    assert.ok(tile.source.commands.filter(c=>c[0]==="fillText").every(c=>c[2]===x));
   }
 });
 test("media uses its real ratio, with saved top/bottom crops applied before layouts",()=>{

@@ -12,6 +12,9 @@ import type {
   RefObject,
 } from "react";
 import {
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
@@ -106,6 +109,8 @@ import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { DEFAULT_PROFILE, PROFILE_FONTS, PROFILE_FONT_CATALOG, profileFontWeight, profileCoverOutline, profileTitle, profileTextColor, type ProfileFont, type StripProfile } from "@/app/lib/profile";
 import { normalizedFontSize } from "@/app/lib/font-sizing";
+import { normalizeTextAlignment, type TextAlignment } from "@/app/lib/text-alignment";
+import { scrollPickerOnSelect } from "@/app/lib/picker-scroll";
 import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout, useProfileReloadPresentation } from "@/app/components/ProfileReload";
 import { ProfileNavigation, type ProfileView } from "@/app/components/ProfileNavigation";
@@ -124,6 +129,7 @@ type TextBlock = {
   textColor?: string;
   fontStyle?: FontStyle;
   fontSize?: number;
+  textAlign?: TextAlignment;
   editedAt?: number;
 };
 
@@ -1390,7 +1396,8 @@ function TextStyleSelector({
     >
       <div
         ref={selectorScrollRef}
-        className={`selector-scroll ${gradientMode === tool ? "is-gradient-mode" : ""}`}
+        onClickCapture={scrollPickerOnSelect}
+        className={`selector-scroll ${tool === "font" ? "is-font-mode" : ""} ${gradientMode === tool ? "is-gradient-mode" : ""}`}
         role="group"
         aria-label={
           tool === "font"
@@ -1443,11 +1450,26 @@ function TextStyleSelector({
                   <Plus aria-hidden="true" />
                 </button>
               </div>,
+              <div className="text-alignment-picker" role="group" aria-label="Text alignment" key="text-alignment">
+                {([
+                  { value: "left", label: "Align text left", Icon: AlignLeft },
+                  { value: "center", label: "Center text", Icon: AlignCenter },
+                  { value: "right", label: "Align text right", Icon: AlignRight },
+                ] as const).map(({ value, label, Icon }) => (
+                  <button key={value} type="button" aria-label={label}
+                    className="selector-option"
+                    aria-pressed={normalizeTextAlignment(block.textAlign) === value}
+                    tabIndex={visible ? 0 : -1} onClick={() => onChange({ textAlign: value })}>
+                    <Icon aria-hidden="true" />
+                  </button>
+                ))}
+              </div>,
               ...FONT_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   data-font={option.value}
+                  data-picker-option
                   style={{ fontFamily: option.family, fontWeight: option.weight, fontSize: normalizedFontSize(option.value, 16) }}
                   className={`selector-option font-selector-option ${
                     fontStyle === option.value ? "is-selected" : ""
@@ -1471,6 +1493,7 @@ function TextStyleSelector({
                   key={option.value}
                   type="button"
                   className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
+                  data-picker-option
                   style={swatchStyle(option.value)}
                   onClick={() => {
                     setPageColorMode(null);
@@ -1527,6 +1550,7 @@ function TextStyleSelector({
                   key={option.value}
                   type="button"
                   className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
+                  data-picker-option
                   style={swatchStyle(option.value)}
                   onClick={() => {
                     setPageColorMode(null);
@@ -4008,6 +4032,7 @@ export default function Home() {
         textColor: inheritedStyle?.textColor ?? contrastColor(backgroundColor),
         fontStyle: inheritedStyle?.fontStyle ?? "sans",
         fontSize: inheritedStyle?.fontSize ?? DEFAULT_FONT_SIZE,
+        textAlign: normalizeTextAlignment(inheritedStyle?.textAlign),
         editedAt: Date.now(),
       });
       return next;
@@ -6665,6 +6690,7 @@ export default function Home() {
               style={{
                 backgroundColor,
                 color: textColor,
+                textAlign: normalizeTextAlignment(block.textAlign),
                 fontFamily: FONT_STACKS[block.fontStyle ?? "sans"],
                 "--text-font-weight": block.fontStyle ? profileFontWeight(block.fontStyle) : undefined,
                 "--text-base-size": `${block.fontSize ?? DEFAULT_FONT_SIZE}px`,

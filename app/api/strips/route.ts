@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { normalizeStickerWidth } from "@/app/lib/sticker-sizing";
+import { normalizeTextAlignment, type TextAlignment } from "@/app/lib/text-alignment";
 import {
   readStripContent,
   writeStripContent,
@@ -52,6 +53,7 @@ type PublishBlock =
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;
+      textAlign?: TextAlignment;
       editedAt?: number;
   }
   | {
@@ -217,6 +219,7 @@ function prepareContentBlocks(
         textColor: block.textColor,
         fontStyle: block.fontStyle,
         fontSize: block.fontSize,
+        textAlign: normalizeTextAlignment(block.textAlign),
         editedAt: block.editedAt,
       });
       continue;

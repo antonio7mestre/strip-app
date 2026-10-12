@@ -75,6 +75,7 @@ export function cascadePosterTiles(count: number) {
 export type PosterBlock = {
   id?: string; type: string; mediaType?: string; src?: string; content?: string;
   backgroundColor?: string; textColor?: string; fontStyle?: string; fontSize?: number;
+  textAlign?: "left" | "center" | "right";
   height?: number; cropTop?: number; cropBottom?: number;
   x?: number; y?: number; width?: number; rotation?: number;
 };

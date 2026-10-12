@@ -11,6 +11,7 @@ import { samplePageColorAtPoint as sampleProfilePageColor } from "@/app/lib/page
 import { GradientColorPicker } from "./GradientColorPicker";
 import { HapticActionButton } from "./HapticActionButton";
 import { ConfirmationDialog } from "./ConfirmationDialog";
+import { scrollPickerOnSelect } from "@/app/lib/picker-scroll";
 
 type ProfileController = ReturnType<typeof useStripProfile>;
 type Props = { controller: ProfileController; username: string | null; publicProfile?: StripProfile; displayProfile?: StripProfile; loading?: boolean };
@@ -132,14 +133,14 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
   return <div className={`profile-tools ${wheel ? "is-gradient-picker" : ""}`} aria-label="Edit your profile">
     {controller.error && typeof document !== "undefined" ? createPortal(<p className={`notice profile-save-notice${controller.errorRepeated ? " is-repeated" : ""}`} role="alert" key={controller.errorRevision}>{controller.error}</p>, document.body) : null}
     {tool ? <div className="profile-selector-row" id="profile-tools-panel" aria-label={tool === "font" ? "Typeface selector" : `${colorLabel} color selector`}>
-      <div ref={selectorScrollRef} className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${colorLabel} color choices`}>
-        {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id}
+      <div ref={selectorScrollRef} onClickCapture={scrollPickerOnSelect} className={`selector-scroll profile-selector-scroll ${wheel ? "is-gradient-mode" : ""}`} role="group" aria-label={tool === "font" ? "Typeface choices" : `${colorLabel} color choices`}>
+        {tool === "font" ? PROFILE_FONTS.map((font) => <button key={font.id} type="button" data-font={font.id} data-picker-option
           className={`selector-option font-selector-option ${profile.font === font.id ? "is-selected" : ""}`}
           style={{ fontFamily: font.family, fontWeight: profileFontWeight(font.id), fontSize: normalizedFontSize(font.id, 16) }} aria-label={`${font.label} typeface`} aria-pressed={profile.font === font.id}
           disabled={pending} onClick={() => update({ font: font.id })}>Aa</button>) : wheel ? <GradientColorPicker
           color={activeColor} onChange={changeColor} label={`Choose any ${colorLabel} color`} /> : <>{colorChoices.map((color) => {
           const selected = activeColor === color.value;
-          return <button key={color.value} type="button" className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
+          return <button key={color.value} type="button" data-picker-option className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
             style={{ backgroundColor: color.value, color: profileInk(color.value), "--swatch-foreground": profileInk(color.value) } as CSSProperties}
             aria-label={`${color.name} ${colorLabel}`} aria-pressed={selected} disabled={pending}
             onClick={() => { setPickingPage(false); changeColor(color.value); }}>{selected ? <Check className="swatch-check" aria-hidden="true" /> : null}</button>;

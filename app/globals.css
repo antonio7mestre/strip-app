@@ -2305,6 +2305,7 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 
 .text-block textarea,
 .text-block p {
+  text-align: inherit;
   width: 100%;
   min-height: calc(var(--text-base-size, 18px) * 1.22);
   margin: 0;
@@ -4628,6 +4629,24 @@ html:has(.story-share-boundary) body {
   background: rgba(0, 0, 0, 0.05);
   color: rgba(0, 0, 0, 0.88);
 }
+
+.text-alignment-picker {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  height: 44px;
+}
+
+.text-alignment-picker svg { width: 19px; height: 19px; }
+
+.text-alignment-picker .selector-option:active {
+  background: #080808;
+  color: #ffffff;
+}
+
+.selector-scroll.is-font-mode { gap: 10px; }
+.is-font-mode .font-size-stepper { width: 108px; flex-basis: 108px; grid-template-columns: 34px 40px 34px; }
+.is-font-mode .font-size-stepper button { width: 34px; }
 
 @media (max-width: 430px) {
   .main-composer-dock .dock-icon-button:not(.publish-strip-button):not(.publish-flow-button) {

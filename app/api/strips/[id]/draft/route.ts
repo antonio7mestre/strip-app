@@ -19,6 +19,7 @@ type StoredBlock =
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;
+      textAlign?: "left" | "center" | "right";
       editedAt?: number;
     }
   | {

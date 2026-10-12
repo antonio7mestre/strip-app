@@ -9,6 +9,7 @@ import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { normalizeStickerWidth } from "@/app/lib/sticker-sizing";
+import { normalizeTextAlignment, type TextAlignment } from "@/app/lib/text-alignment";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ type DraftBlock =
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;
+      textAlign?: TextAlignment;
       editedAt?: number;
   }
   | {
@@ -201,6 +203,7 @@ function prepareDraftBlocks(
         textColor: block.textColor,
         fontStyle: block.fontStyle,
         fontSize: block.fontSize,
+        textAlign: normalizeTextAlignment(block.textAlign),
         editedAt: block.editedAt,
       });
       continue;

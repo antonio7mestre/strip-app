@@ -8,6 +8,7 @@ import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { profileFontWeight } from "../app/lib/profile.ts";
 import { normalizedFontSize } from "../app/lib/font-sizing.ts";
 import { getReaderImageProps } from "../app/lib/reader-image.ts";
+import { normalizeTextAlignment } from "../app/lib/text-alignment.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -56,6 +57,7 @@ function fixture(mode, blocks, overrides = {}) {
   runInNewContext(code, {
     exports, require: () => ({ jsx, jsxs: jsx, Fragment: fragment }),
     blocks, publishedBlocks: blocks, view, inlinePreview,
+    normalizeTextAlignment,
     authUser: { username: "antonio" }, openedPublishedStrip: { username: "antonio" },
     publishedContentCanReveal: true, openingPublishedEditor: false, publishedViewerCanEdit: false,
     legacyPageEnterClass: "", topSafeAreaColor: "#000000", hasRequiredContent: true,
@@ -118,6 +120,16 @@ test("actual reader routes render identical content and exactly one sibling endi
       assert.deepEqual(contentTree, expectedContent, `${mode}: content rendering matches the other reader routes`);
       assert.equal(ending.props.style["--ending-background"], "#FFFFFF");
       assert.equal(ending.props.style["--ending-corner-color"], blocks.findLast(block => block.type !== "sticker")?.type === "text" ? "#9772FF" : "transparent");
+    }
+  }
+});
+
+test("alignment is identical in editing, inline preview, standalone preview and published text", () => {
+  for (const textAlign of ["left", "center", "right", undefined]) {
+    for (const mode of ["editor", ...readerModes]) {
+      const { root } = fixture(mode, [{ ...text, textAlign }]);
+      const block = all(root, node => hasClass(node, "text-block"))[0];
+      assert.equal(block.props.style.textAlign, textAlign ?? "left", mode);
     }
   }
 });

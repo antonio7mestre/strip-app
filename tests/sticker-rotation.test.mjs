@@ -9,6 +9,7 @@ import * as sizing from "../app/lib/sticker-sizing.ts";
 import * as origin from "../app/lib/sticker-origin.ts";
 import * as ending from "../app/lib/strip-ending.ts";
 import * as profile from "../app/lib/profile.ts";
+import * as alignment from "../app/lib/text-alignment.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function compile(path, imports) {
@@ -64,6 +65,7 @@ function fixture() {
     "cloudflare:workers": { env },
     "@/app/lib/sticker-origin": origin, "@/app/lib/sticker-rotation": rotation,
     "@/app/lib/sticker-sizing": sizing,
+    "@/app/lib/text-alignment": alignment,
     "@/app/lib/strip-ending": ending, "@/app/lib/profile": profile,
     "@/app/server/auth": {
       isSameOrigin: () => true,
@@ -130,5 +132,30 @@ test("old content with no rotation reloads at zero rather than breaking either r
       const result = await (await f.api(path).GET(request(), context("legacy-qa"))).json();
       assert.equal(result[key].blocks[0].rotation, 0);
     }
+  } finally { f.db.close(); }
+});
+
+test("text alignment survives draft save, reload, publish, clone and republish", async () => {
+  const f = fixture();
+  try {
+    const id = "alignment-strip-qa";
+    const blocks = ["left", "center", "right", undefined, "invalid"].map((textAlign, index) => ({
+      id: `text-block-${index}`, type: "text", content: `Line ${index}`, textAlign,
+    }));
+    const expected = ["left", "center", "right", "left", "left"];
+    const drafts=f.api("drafts"), draftRead=f.api("drafts/[id]"), publish=f.api("strips"), publicRead=f.api("strips/[id]");
+    const cover={kind:"color",color:"#304DFF",shape:"square"};
+    assert.equal((await drafts.POST(request({id,blocks}))).status,200);
+    const restored=(await (await draftRead.GET(request(),context(id))).json()).draft.blocks;
+    assert.deepEqual(restored.map(b=>b.textAlign),expected);
+    assert.equal((await publish.POST(request({id,draftId:id,cover,blocks:restored}))).status,201);
+    const published=(await (await publicRead.GET(request(),context(id))).json()).strip.blocks;
+    assert.deepEqual(published.map(b=>b.textAlign),expected);
+    await draftRead.DELETE(request(),context(id));
+    assert.equal((await f.api("strips/[id]/draft").POST(request({}),context(id))).status,201);
+    const edited=(await (await draftRead.GET(request(),context(id))).json()).draft.blocks;
+    assert.deepEqual(edited.map(b=>b.textAlign),expected);
+    assert.equal((await publish.POST(request({id,draftId:id,cover,blocks:edited}))).status,200);
+    assert.deepEqual((await (await publicRead.GET(request(),context(id))).json()).strip.blocks.map(b=>b.textAlign),expected);
   } finally { f.db.close(); }
 });

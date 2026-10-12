@@ -13,6 +13,7 @@ import {
 import styles from "./StickerPicker.module.css";
 import { StickerImage } from "./StickerImage";
 import { installStickerTrayScroll } from "@/app/lib/sticker-tray-scroll";
+import { scrollPickerOnSelect } from "@/app/lib/picker-scroll";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import {
   SHAPE_STICKERS, SHAPE_STICKER_COLORS,
@@ -254,11 +255,11 @@ function StickerPickerDialog({
                 <X aria-hidden="true" />
               </button>
             </header>
-            <div ref={categoriesRef} className={styles.categories}>
+            <div ref={categoriesRef} className={styles.categories} onClickCapture={scrollPickerOnSelect}>
               <div className={styles.categoryTabs} role="tablist" aria-label="Sticker categories">
               {categories.map(item => (
                 <button key={item} className={category === item ? styles.activeCategory : ""}
-                  type="button" role="tab" aria-selected={category === item}
+                  type="button" role="tab" data-picker-option aria-selected={category === item}
                   onClick={() => {
                     setCategory(item);
                     setShapePaletteOpen(false);
@@ -303,7 +304,7 @@ function StickerPickerDialog({
         <footer className={`composer-dock selector-dock shape-selector-dock ${shapeWheelOpen ? "is-gradient-picker" : ""} ${shapePaletteOpen ? "is-visible" : ""}`}
           aria-label="Shape color selector" aria-hidden={!shapePaletteOpen} inert={!shapePaletteOpen}>
           <div ref={paletteScrollRef} className={`selector-scroll ${shapeWheelOpen ? "is-gradient-mode" : ""}`}
-            role="group" aria-label="Shape color choices">
+            onClickCapture={scrollPickerOnSelect} role="group" aria-label="Shape color choices">
               {shapeWheelOpen ? <div className="full-gradient-picker" role="slider" tabIndex={0}
                 aria-label="Choose any shape color" aria-valuenow={Math.round(position.lightness)}
                 aria-valuemin={0} aria-valuemax={100} aria-valuetext={shapeColor}
@@ -323,7 +324,7 @@ function StickerPickerDialog({
                 {SHAPE_STICKER_COLORS.map((color) => {
                   const selected = color.value === shapeColor;
                   const ink = shapeColorInk(color.value);
-                  return <button key={color.value} type="button"
+                  return <button key={color.value} type="button" data-picker-option
                     className={`selector-option color-selector-option color-swatch-option ${selected ? "is-selected" : ""}`}
                     style={{ backgroundColor: color.value, color: ink,
                       "--swatch-foreground": ink } as CSSProperties}
