@@ -1,14 +1,15 @@
 "use client";
 
-import { cloneElement, isValidElement, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { cloneElement, isValidElement, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { TextStickerVisual } from "./TextStickerVisual";
 import type { TextSticker } from "@/app/lib/text-sticker";
 import { focusedTextSticker, installTextStickerScrollAnchor, textStickerFocusWidth } from "@/app/lib/text-sticker-focus";
-import { stepTextStickerSpring, type SpringAxis } from "@/app/lib/text-sticker-motion";
+import { stepTextStickerSpring, textStickerToolFrame, type SpringAxis } from "@/app/lib/text-sticker-motion";
 
 type Pose = { x: number; y: number; scale: number; rotation: number };
 type Motion = { [Key in keyof Pose]: SpringAxis };
+type TypingControls = { onConfirmStickerText?: () => void; onTextTool?: (tool: "font" | "color" | "background") => void };
 const axes = ["x", "y", "scale", "rotation"] as const;
 
 /** A temporary typing surface. It never changes the sticker's placed transform. */
@@ -23,6 +24,9 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   // ratio so every line and its background match the placed sticker.
   const focusedValue = focusedTextSticker(value);
   const panelRef = useRef<HTMLDivElement>(null);
+  const toolsRef = useRef<HTMLDivElement>(null);
+  const initialToolsStyleRef = useRef<CSSProperties | null>(null);
+  const afterFinishRef = useRef<(() => void) | null>(null);
   const motionRef = useRef<Motion | null>(null);
   const frameRef = useRef(0);
   const previousFrameRef = useRef(0);
@@ -45,6 +49,14 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     const viewport = window.visualViewport;
     let frame = 0;
     const measure = () => {
+      const source = sourceRef.current;
+      if (source && !initialToolsStyleRef.current) {
+        const from = source.getBoundingClientRect();
+        initialToolsStyleRef.current = textStickerToolFrame({
+          x: from.left + from.width / 2, y: from.top + from.height / 2, scale: 1,
+          rotation: parseFloat(source.style.getPropertyValue("--sticker-rotation")) || 0,
+        }, source.offsetWidth, source.offsetHeight);
+      }
       const bounds = document.querySelector(".editor-mode .strip-canvas")?.getBoundingClientRect();
       const viewportTop = viewport?.offsetTop ?? 0;
       const viewportHeight = viewport?.height ?? window.innerHeight;
@@ -76,7 +88,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       viewport?.removeEventListener("scroll", queue);
       window.removeEventListener("resize", queue);
     };
-  }, []);
+  }, [sourceRef]);
   useLayoutEffect(() => () => {
     cancelAnimationFrame(frameRef.current);
     if (sourceRef.current) {
@@ -100,9 +112,23 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     // Removing the floating copy and releasing is-text-composing must be one
     // commit. Keep the placed copy visible until the unmount cleanup runs.
     flushSync(() => {
-      if (isValidElement<{ onConfirmStickerText?: () => void }>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
+      if (isValidElement<TypingControls>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
       else onFinish();
+      // Finish placement before opening the requested selector. Both state
+      // changes share the handoff commit so the tools never briefly reset.
+      if (value.content.trim()) afterFinishRef.current?.();
+      afterFinishRef.current = null;
     });
+  };
+  const paintTools = (pose: Pose) => {
+    const tools = toolsRef.current;
+    const panel = panelRef.current;
+    if (!tools || !panel) return;
+    const frame = textStickerToolFrame(pose, panel.offsetWidth, panel.offsetHeight);
+    tools.style.width = `${frame.width}px`;
+    tools.style.height = `${frame.height}px`;
+    tools.style.transform = frame.transform;
+    tools.style.setProperty("--sticker-counter-rotation", frame["--sticker-counter-rotation"]);
   };
   // One compositor transform owns the whole journey. A changing keyboard
   // target keeps the current position and velocity instead of restarting CSS
@@ -123,12 +149,14 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     }
     const { x, y, scale, rotation } = motion;
     panel.style.transform = `translate3d(${x.value}px, ${y.value}px, 0) translate(-50%, -50%) rotate(${rotation.value}deg) scale(${scale.value})`;
+    paintTools({ x: x.value, y: y.value, scale: scale.value, rotation: rotation.value });
     const elapsed = now - startedRef.current;
     panel.style.opacity = String(closingRef.current ? 1 : Math.min(1, .6 + elapsed / 350));
     if (closingRef.current && elapsed >= 440 && (settled || elapsed >= 1000)) {
       // Make before break: align both copies, then allow the placed canvas
       // two paint opportunities while the moving copy remains fully opaque.
       panel.style.transform = `translate3d(${target.x}px, ${target.y}px, 0) translate(-50%, -50%) rotate(${target.rotation}deg) scale(${target.scale})`;
+      paintTools(target);
       sourceRef.current?.style.setProperty("--text-sticker-return-opacity", "1");
       if (handoffFramesRef.current >= 2) completeRef.current();
       else {
@@ -152,18 +180,23 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     startedRef.current = performance.now();
     tick(startedRef.current);
   };
-  const finish = () => {
+  const finish = (afterFinish?: () => void) => {
     if (closingRef.current) return;
+    afterFinishRef.current = afterFinish ?? null;
     closingRef.current = true;
     setClosing(true);
+    panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.blur();
     const source = sourceRef.current;
     if (source) source.dataset.textReturning = "true";
     if (!motionRef.current) { completeRef.current(); return; }
     startedRef.current = performance.now();
     wakeRef.current();
   };
-  const typingControls = isValidElement<{ onConfirmStickerText?: () => void }>(controls)
-    ? cloneElement(controls, { onConfirmStickerText: finish }) : controls;
+  const typingControls = isValidElement<TypingControls>(controls)
+    ? cloneElement(controls, {
+      onConfirmStickerText: () => finish(),
+      onTextTool: tool => finish(() => controls.props.onTextTool?.(tool)),
+    }) : controls;
   if (!layout) return null;
   // Native focus must see an on-screen input, not a box at (-50%, -50%).
   // Keep this initial React style stable; the spring owns it after entry.
@@ -182,6 +215,8 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
           <TextStickerVisual value={focusedValue} typing finishOnBlur={false}
             onChange={onChange} onFinish={finish} onSettled={enter} />
         </div>
+      </div>
+      <div ref={toolsRef} className="text-sticker-editor-tools" style={initialToolsStyleRef.current ?? undefined}>
         {typingControls}
       </div>
     </div>, document.body,

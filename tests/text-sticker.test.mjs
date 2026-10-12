@@ -268,7 +268,7 @@ test("typing eases from its placed geometry and returns before handing control b
   assert.match(editor, /source.offsetWidth \/ Math.max\(1, panel.offsetWidth\)/);
   assert.doesNotMatch(editor, /value.fontSize \/ focusedValue.fontSize/);
   assert.match(editor, /getPropertyValue\("--sticker-rotation"\)/);
-  assert.match(editor, /cloneElement\(controls, \{ onConfirmStickerText: finish \}\)/);
+  assert.match(editor, /onConfirmStickerText: \(\) => finish\(\)/);
   assert.match(editor, /stepTextStickerSpring/);
   assert.match(editor, /targetRef.current\(\)/);
   assert.match(editor, /elapsed >= 440/);
@@ -290,6 +290,39 @@ test("returning text stays opaque until the placed copy is painted and typing cl
     "the placed copy must not be hidden while React still considers it composing");
   assert.match(editor, /useLayoutEffect\(\(\) => \(\) => \{[\s\S]*?delete sourceRef.current.dataset.textReturning/,
     "temporary visibility is released only during the synchronous unmount");
+});
+
+
+
+test("text tool frames follow scaled artwork without scaling the pill or its icons", () => {
+  const { textStickerToolFrame } = compile("app/lib/text-sticker-motion.ts");
+  for (const scale of [.1, .4, .88, 1, 1.6, 4]) {
+    for (const rotation of [-45, 0, 30, 180]) {
+      const frame = textStickerToolFrame({ x: 250, y: 320, scale, rotation }, 400, 120);
+      assert.equal(frame.width, 400 * scale);
+      assert.equal(frame.height, 120 * scale);
+      assert.equal(frame["--sticker-counter-rotation"], String(-rotation) + "deg");
+      assert.doesNotMatch(frame.transform, /scale/, "only the orbit geometry changes, not the controls");
+    }
+  }
+  const editor = read("app/components/TextStickerEditor.tsx"), css = read("app/globals.css");
+  assert.match(editor, /<div ref=\{toolsRef\} className="text-sticker-editor-tools"/);
+  assert.match(editor, /paintTools\(target\)/);
+  assert.match(editor, /initialToolsStyleRef.current = textStickerToolFrame/);
+  assert.doesNotMatch(css.split(".text-sticker-editor-tools {")[1].split("}")[0], /opacity|scale\(/);
+  assert.match(css, /\.is-text-composing \{[^}]*transition: none/);
+  assert.match(css, /\.is-text-composing\[data-text-returning\] \.sticker-delete-orbit \{ visibility: hidden;/);
+});
+
+test("every typing tool completes placement before opening its selector in the same handoff", () => {
+  const editor = read("app/components/TextStickerEditor.tsx");
+  assert.match(editor, /onConfirmStickerText: \(\) => finish\(\)/);
+  assert.match(editor, /onTextTool: tool => finish\(\(\) => controls.props.onTextTool\?\.\(tool\)\)/);
+  assert.match(editor, /if \(closingRef.current\) return;\s*afterFinishRef.current = afterFinish \?\? null/);
+  assert.match(editor, /querySelector<HTMLTextAreaElement>\("textarea"\)\?\.blur\(\)/);
+  const handoff = editor.split("completeRef.current = () => {")[1].split("const paintTools")[0];
+  assert.ok(handoff.indexOf("onFinish();") < handoff.indexOf("afterFinishRef.current?.()"));
+  assert.match(handoff, /if \(value.content.trim\(\)\) afterFinishRef.current\?\.\(\)/);
 });
 
 test("text motion stays continuous when the keyboard retargets it, without overshoot", () => {

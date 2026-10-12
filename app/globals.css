@@ -2730,7 +2730,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 }
 .text-sticker-input::placeholder { color: currentColor; opacity: 0.65; }
 .text-sticker-input:focus-visible { outline: 0; box-shadow: none; }
-.sticker-block.is-text-composing { opacity: 0; visibility: hidden; pointer-events: none; }
+.sticker-block.is-text-composing { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 /* Dim the document only. Fixed black paint is interpreted as a header by
    Safari and extended into its top chrome. Leave the bottom tools untouched. */
 :root { --page-dim-opacity: 0; --page-dim-duration: 380ms; }
@@ -2760,11 +2760,18 @@ html.page-color-picking { --page-dim-opacity: 0; }
   will-change: transform;
 }
 .text-sticker-editor-panel:not([data-ready]) { opacity: 0; }
+.text-sticker-editor-tools {
+  position: absolute; top: 0; left: 0;
+  --sticker-rotation: 0deg;
+  pointer-events: none; will-change: transform;
+}
 .text-sticker-editor-layer.is-closing { pointer-events: none; }
+.text-sticker-editor-layer.is-closing .sticker-delete-control { pointer-events: none; }
 .sticker-block.is-text-composing[data-text-returning] {
   visibility: visible; opacity: var(--text-sticker-return-opacity, 0);
 }
 .sticker-block.is-text-composing[data-text-returning] .block-controls-reveal { visibility: hidden; }
+.sticker-block.is-text-composing[data-text-returning] .sticker-delete-orbit { visibility: hidden; }
 .text-sticker-editor-scroll {
   overflow: auto; overscroll-behavior: contain; padding: 0;
   scrollbar-width: none; touch-action: pan-y;
