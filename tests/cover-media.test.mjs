@@ -8,6 +8,7 @@ import { SHAPE_STICKERS } from "../app/lib/shape-stickers.ts";
 import * as origin from "../app/lib/sticker-origin.ts";
 import * as rotation from "../app/lib/sticker-rotation.ts";
 import * as profile from "../app/lib/profile.ts";
+import * as alignment from "../app/lib/text-alignment.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function compile(path, imports = {}) {
@@ -23,6 +24,7 @@ function compile(path, imports = {}) {
 const { isCoverMedia } = compile("app/lib/cover-media.ts", {
   "./sticker-pack": { STICKER_PACK }, "./shape-stickers": { SHAPE_STICKERS },
 });
+const textStickers = compile("app/lib/text-sticker.ts", { "./profile": profile, "./text-alignment": alignment });
 
 test("every pack sticker and generated shape is excluded before and after its source is saved", () => {
   for (const asset of STICKER_PACK) {
@@ -49,7 +51,7 @@ test("uploaded photos and photo stickers remain covers, including uploads with c
 });
 
 test("draft and published reads retain the sticker's origin after storage URLs replace its source", async () => {
-  const blocks = ["pack", "shape", "upload", undefined, "invalid"].map((stickerOrigin, index) => ({
+  const blocks = ["pack", "shape", "upload", undefined, "invalid", "text"].map((stickerOrigin, index) => ({
     id: `sticker-${index}`, type: "sticker", alt: "Example", objectKey: `media/${index}`,
     mediaType: "image", stickerOrigin, x: 50, y: 400, width: 32,
   }));
@@ -59,6 +61,7 @@ test("draft and published reads retain the sticker's origin after storage URLs r
     "@/app/lib/sticker-origin": origin,
     "@/app/lib/sticker-rotation": rotation,
     "@/app/lib/profile": profile,
+    "@/app/lib/text-sticker": textStickers,
     "@/app/lib/strip-ending": { readStripContent: () => ({ blocks }) },
     "@/app/server/auth": { requireAuthUser: async () => ({ user: { id: "owner-qa" } }), getAuthUser: async () => null },
     "@/app/lib/username": { usernameFromHostname: () => null },
@@ -68,10 +71,11 @@ test("draft and published reads retain the sticker's origin after storage URLs r
     const api = compile(path, imports);
     const result = await (await api.GET(new Request("https://strip.local/api/test"), { params: Promise.resolve({ id: "draft-qa" }) })).json();
     const returned = (result.draft ?? result.strip).blocks;
-    assert.deepEqual(returned.map(block => block.stickerOrigin), ["pack", "shape", "upload", undefined, undefined]);
+    assert.deepEqual(returned.map(block => block.stickerOrigin), ["pack", "shape", "upload", undefined, undefined, "text"]);
     assert.equal(isCoverMedia(returned[0]), false);
     assert.equal(isCoverMedia(returned[1]), false);
     assert.equal(isCoverMedia(returned[2]), true);
+    assert.equal(isCoverMedia(returned[5]), false);
   }
 });
 

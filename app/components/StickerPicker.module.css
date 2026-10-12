@@ -22,8 +22,10 @@
 .packTray .header { grid-template-columns: 32px 1fr 32px; min-height: 40px; }
 .packTray .iconButton { width: 32px; height: 32px; background: transparent; }
 .packTray .iconButton svg { width: 19px; height: 19px; }
-.sourceChoices { display: grid; grid-template-columns: 40px repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 8px; padding: 0; }
-.sourceBackChoice { display: grid; width: 40px; min-width: 0; place-items: center; padding: 0; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; }
+.sourceChoices { display: grid; grid-template-columns: 36px repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 8px; padding: 0; }
+.sourceChoices .sourceChoice { flex-direction: column; gap: 4px; padding: 5px; font-size: 11px; text-align: center; }
+.sourceChoices .sourceChoice svg { width: 23px; height: 23px; }
+.sourceBackChoice { display: grid; width: 36px; min-width: 0; place-items: center; padding: 0; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; }
 .sourceBackChoice svg { width: 20px; height: 20px; }
 .sourceChoice { display: flex; height: 64px; min-width: 0; align-items: center; justify-content: center; gap: 9px; padding: 10px; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; font-size: 14px; font-weight: 650; line-height: 1.15; text-align: left; transition: transform 150ms cubic-bezier(.2,.8,.2,1), background-color 150ms ease; }
 .sourceChoice svg { width: 2.3em; height: 2.3em; flex: none; }

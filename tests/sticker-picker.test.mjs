@@ -76,7 +76,7 @@ test("new tall pack stickers also start at a manageable size without resizing ex
     assert.ok(width * sticker.height / sticker.width <= 396 + 0.001);
   }
   assert.equal(initialPackStickerWidth(132), 132, "custom photo and video stickers retain their placement");
-  assert.match(page, /width: initialPackStickerWidth\(placement.width, packStickerForSource\(src\)\)/);
+  assert.match(page, /width: textSticker \? 72 : initialPackStickerWidth\(placement.width, packStickerForSource\(src\)\)/);
 });
 
 test("the sticker action offers the pack or the existing camera-roll flow", () => {
@@ -112,7 +112,8 @@ test("the pack is a dense, scrollable masonry sheet", () => {
   assert.match(css, /\.stickerLarge\s*\{\s*width:\s*100%;\s*\}/);
   assert.match(css, /\.stickerMedium\s*\{\s*width:\s*84%;\s*\}/);
   assert.match(css, /\.stickerSmall\s*\{\s*width:\s*68%;\s*\}/);
-  assert.match(css, /\.sourceChoices\s*\{[^}]*grid-template-columns:\s*40px repeat\(2,/s);
+  assert.match(css, /\.sourceChoices\s*\{[^}]*grid-template-columns:\s*36px repeat\(3,/s);
+  assert.match(picker, /aria-label="Add text sticker"/);
   assert.match(css, /\.sourceChoice\s*\{[^}]*height:\s*64px;/s);
   assert.match(css, /\.sourceChoice\s*\{[^}]*background:\s*#f0f0ed;/s);
   assert.doesNotMatch(css + picker, /packChoice/);

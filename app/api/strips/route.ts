@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { normalizeStickerWidth } from "@/app/lib/sticker-sizing";
@@ -74,6 +75,7 @@ type PublishBlock =
       alt: string;
       mediaType?: "image" | "video";
       stickerOrigin?: StickerOrigin;
+      textSticker?: TextSticker;
       x: number;
       y: number;
       width: number;
@@ -101,6 +103,7 @@ type StoredContentBlock =
       mediaType?: "image" | "video";
       stickerOrigin?: StickerOrigin;
       x: number;
+      textSticker?: TextSticker;
       y: number;
       width: number;
       rotation?: number;
@@ -257,6 +260,7 @@ function prepareContentBlocks(
         alt: String(block.alt ?? "").slice(0, 160),
         mediaType: block.mediaType === "video" ? "video" : "image",
         stickerOrigin: normalizeStickerOrigin(block.stickerOrigin),
+        textSticker: normalizeTextSticker(block.textSticker),
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
         width: normalizeStickerWidth(block.width),

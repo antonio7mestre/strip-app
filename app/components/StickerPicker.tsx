@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, ImagePlus, Palette, Pipette, Sticker, X } from "lucide-react";
+import { ArrowLeft, Check, ImagePlus, Palette, Pipette, Sticker, Type, X } from "lucide-react";
 import {
   STICKER_CATEGORIES,
   stickersByCategory,
@@ -52,6 +52,7 @@ export function StickerPicker({
   open,
   onClose,
   onPhotoVideo,
+  onText,
   onSticker,
   onShape,
   shapeColor,
@@ -62,6 +63,7 @@ export function StickerPicker({
   open: boolean;
   onClose: () => void;
   onPhotoVideo: () => void;
+  onText: () => void;
   onSticker: (sticker: StickerAsset) => void;
   onShape: (shape: ShapeSticker, color: string) => void;
   shapeColor: string;
@@ -74,6 +76,7 @@ export function StickerPicker({
     <StickerPickerDialog
       onClose={onClose}
       onPhotoVideo={onPhotoVideo}
+      onText={onText}
       onSticker={onSticker}
       onShape={onShape}
       shapeColor={shapeColor}
@@ -87,6 +90,7 @@ export function StickerPicker({
 function StickerPickerDialog({
   onClose,
   onPhotoVideo,
+  onText,
   onSticker,
   onShape,
   shapeColor,
@@ -96,6 +100,7 @@ function StickerPickerDialog({
 }: {
   onClose: () => void;
   onPhotoVideo: () => void;
+  onText: () => void;
   onSticker: (sticker: StickerAsset) => void;
   onShape: (shape: ShapeSticker, color: string) => void;
   shapeColor: string;
@@ -241,6 +246,9 @@ function StickerPickerDialog({
               <button className={styles.sourceChoice} type="button" onClick={onPhotoVideo}>
                 <ImagePlus aria-hidden="true" />
                 <span>Photo or<br />video</span>
+              </button>
+              <button className={styles.sourceChoice} type="button" onClick={onText} aria-label="Add text sticker">
+                <Type aria-hidden="true" /><span>Text</span>
               </button>
             </div>
         ) : (

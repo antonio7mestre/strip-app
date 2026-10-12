@@ -12,6 +12,7 @@ import * as profile from "../app/lib/profile.ts";
 import * as alignment from "../app/lib/text-alignment.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const textStickers = compile("app/lib/text-sticker.ts", { "./profile": profile, "./text-alignment": alignment });
 function compile(path, imports) {
   const exports = {};
   runInNewContext(ts.transpileModule(read(path), { compilerOptions: {
@@ -66,6 +67,7 @@ function fixture() {
     "@/app/lib/sticker-origin": origin, "@/app/lib/sticker-rotation": rotation,
     "@/app/lib/sticker-sizing": sizing,
     "@/app/lib/text-alignment": alignment,
+    "@/app/lib/text-sticker": textStickers,
     "@/app/lib/strip-ending": ending, "@/app/lib/profile": profile,
     "@/app/server/auth": {
       isSameOrigin: () => true,
@@ -132,6 +134,38 @@ test("old content with no rotation reloads at zero rather than breaking either r
       const result = await (await f.api(path).GET(request(), context("legacy-qa"))).json();
       assert.equal(result[key].blocks[0].rotation, 0);
     }
+  } finally { f.db.close(); }
+});
+
+test("editable text stickers and sharp backgrounds survive save, publish, clone and re-edit without changing geometry", async () => {
+  const f = fixture();
+  try {
+    const id = "text-sticker-qa";
+    const value = { content: "Long first line\nShort", fontStyle: "shrikhand", fontSize: 35,
+      textColor: "#FFFFFF", textAlign: "right", backgroundColor: "#304DFF" };
+    const blocks = [{ id: "words-qa", type: "sticker", stickerOrigin: "text", textSticker: value,
+      mediaType: "image", src: "data:image/png;base64,AA==", alt: value.content,
+      x: 38, y: 390, width: 52.5, rotation: -17.75 }];
+    const drafts = f.api("drafts"), read = f.api("drafts/[id]"), publish = f.api("strips"), publicRead = f.api("strips/[id]");
+    assert.equal((await drafts.POST(request({ id, blocks }))).status, 200);
+    const restored = (await (await read.GET(request(), context(id))).json()).draft.blocks;
+    assert.deepEqual(restored[0].textSticker, value);
+    const cover = { kind: "color", color: "#304DFF", shape: "square" };
+    assert.equal((await publish.POST(request({ id, draftId: id, cover, blocks: restored }))).status, 201);
+    const published = (await (await publicRead.GET(request(), context(id))).json()).strip.blocks;
+    assert.deepEqual(published[0].textSticker, value);
+    assert.deepEqual(transforms(published), transforms(blocks));
+    await read.DELETE(request(), context(id));
+    assert.equal((await f.api("strips/[id]/draft").POST(request({}), context(id))).status, 201);
+    const edited = (await (await read.GET(request(), context(id))).json()).draft.blocks;
+    assert.deepEqual(edited[0].textSticker, value);
+    edited[0].textSticker = { ...value, content: "Changed words", backgroundColor: undefined };
+    edited[0].src = "data:image/png;base64,AQ==";
+    assert.equal((await publish.POST(request({ id, draftId: id, cover, blocks: edited }))).status, 200);
+    const final = (await (await publicRead.GET(request(), context(id))).json()).strip.blocks;
+    assert.equal(final[0].textSticker.content, "Changed words");
+    assert.equal(final[0].textSticker.backgroundColor, undefined);
+    assert.deepEqual(transforms(final), transforms(blocks));
   } finally { f.db.close(); }
 });
 

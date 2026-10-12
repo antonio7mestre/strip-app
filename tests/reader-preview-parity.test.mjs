@@ -64,7 +64,7 @@ function fixture(mode, blocks, overrides = {}) {
     stripCanvasRef: { current: null }, mediaLoadStatus: {}, importedMediaSizes: {},
     mediaBatchRevealIds: [], mediaBatchRevealStarted: false, mediaImportProgress: null,
     editorEntrance: { active: false },
-    selectedBlockId: null, editingTextBlockId: null, heightCropSession: null,
+    selectedBlockId: null, editingTextBlockId: null, typingTextStickerId: null, heightCropSession: null,
     overlappingStickerIds: [], selectedBlock: null, audibleVideoId: null, videoAudioPresence: {},
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,
     renderBlockControls: () => ({ type: "editor-controls", props: {} }),

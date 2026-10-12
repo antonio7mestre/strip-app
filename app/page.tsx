@@ -34,6 +34,7 @@ import {
   Pipette,
   Plus,
   Send,
+  Slash,
   Sticker,
   Trash2,
   Type,
@@ -54,6 +55,8 @@ import { StripEndingSheet } from "@/app/components/StripEndingSheet";
 import { StripEntrance } from "@/app/components/StripEntrance";
 import { PreviewDock } from "@/app/components/PreviewDock";
 import { StickerPicker } from "@/app/components/StickerPicker";
+import { TextStickerVisual } from "@/app/components/TextStickerVisual";
+import { EMPTY_TEXT_STICKER_SRC, normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleVisiblePageColor } from "@/app/lib/page-color-sampler";
 import { initialPackStickerWidth, packStickerForSource, type StickerAsset } from "@/app/lib/sticker-pack";
@@ -162,6 +165,7 @@ type StickerBlock = {
   alt: string;
   mediaType?: "image" | "video";
   stickerOrigin?: StickerOrigin;
+  textSticker?: TextSticker;
   x: number;
   y: number;
   width: number;
@@ -918,6 +922,7 @@ function BlockControls({
   onMove,
   onRemove,
   onTextTool,
+  isTextSticker = false,
   activeTextTool,
   onHeightCrop,
   onVideoAudio,
@@ -934,6 +939,7 @@ function BlockControls({
   onMove?: (direction: -1 | 1) => void;
   onRemove?: () => void;
   onTextTool?: (tool: TextTool) => void;
+  isTextSticker?: boolean;
   activeTextTool?: TextTool | null;
   onHeightCrop?: () => void;
   onVideoAudio?: () => void;
@@ -1011,7 +1017,18 @@ function BlockControls({
         className="sticker-delete-orbit"
         aria-label="Sticker controls"
       >
-        <div className="sticker-delete-anchor">
+        <div className={`sticker-delete-anchor ${isTextSticker ? "has-text-tools" : ""}`}>
+          {isTextSticker ? <>
+            <button className="sticker-delete-control" type="button" aria-label="Choose sticker typeface"
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onClick={event => { event.stopPropagation(); onTextTool?.("font"); }}><CaseUpper className="block-glyph" aria-hidden="true" /></button>
+            <button className="sticker-delete-control" type="button" aria-label="Choose sticker text color"
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onClick={event => { event.stopPropagation(); onTextTool?.("color"); }}><Baseline className="block-glyph" aria-hidden="true" /></button>
+            <button className="sticker-delete-control" type="button" aria-label="Choose sticker background"
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onClick={event => { event.stopPropagation(); onTextTool?.("background"); }}><PaintBucket className="block-glyph" aria-hidden="true" /></button>
+          </> : null}
           <button
             className="sticker-delete-control"
             type="button"
@@ -1163,6 +1180,8 @@ function TextStyleSelector({
   backgroundOptions = BACKGROUND_COLORS,
   doneDisabled = false,
   startInGradientMode = false,
+  allowTransparentBackground = false,
+  transparentBackground = false,
 }: {
   block: TextBlock;
   tool: TextTool;
@@ -1172,6 +1191,8 @@ function TextStyleSelector({
   backgroundOptions?: typeof BACKGROUND_COLORS;
   doneDisabled?: boolean;
   startInGradientMode?: boolean;
+  allowTransparentBackground?: boolean;
+  transparentBackground?: boolean;
 }) {
   const background = block.backgroundColor ?? DEFAULT_BACKGROUND;
   const textColor = block.textColor ?? DEFAULT_TEXT;
@@ -1485,9 +1506,17 @@ function TextStyleSelector({
             ]
           : null}
 
+        {gradientMode !== tool && tool === "background" && allowTransparentBackground ? (
+          <button type="button" className={`selector-option color-selector-option color-swatch-option ${transparentBackground ? "is-selected" : ""}`}
+            data-picker-option style={swatchStyle("#FFFFFF")} aria-label="No sticker background"
+            aria-pressed={transparentBackground} tabIndex={visible ? 0 : -1}
+            onClick={() => { setPageColorMode(null); onChange({ backgroundColor: undefined }); }}>
+            <Slash aria-hidden="true" />
+          </button>
+        ) : null}
         {gradientMode !== tool && tool === "background"
           ? backgroundOptions.map((option) => {
-              const selected = background.toUpperCase() === option.value.toUpperCase();
+              const selected = !transparentBackground && background.toUpperCase() === option.value.toUpperCase();
               return (
                 <button
                   key={option.value}
@@ -1890,6 +1919,10 @@ function StripStickerBlock({
   onLowerBoundaryAttempt,
   onLoadSettled,
   controls,
+  textTyping = false,
+  onTextChange,
+  onTextFinish,
+  onTextEdit,
 }: {
   block: StickerBlock;
   isEditing: boolean;
@@ -1907,6 +1940,10 @@ function StripStickerBlock({
   onLowerBoundaryAttempt: () => void;
   onLoadSettled?: (loaded: boolean) => void;
   controls?: ReactNode;
+  textTyping?: boolean;
+  onTextChange?: (content: string) => void;
+  onTextFinish?: () => void;
+  onTextEdit?: () => void;
 }) {
   const stickerElementRef = useRef<HTMLElement>(null);
   const packAsset = packStickerForSource(block.src);
@@ -1965,6 +2002,7 @@ function StripStickerBlock({
     canvasHeight: number;
   } | null>(null);
   const lowerBoundaryNoticeShownRef = useRef(false);
+  const textEditTapRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
   const handleTransformRef = useRef<{
     pointerId: number; centerX: number; centerY: number;
     distance: number; angle: number; width: number; rotation: number;
@@ -2014,11 +2052,11 @@ function StripStickerBlock({
   ) => {
     const safeCanvasWidth = Math.max(1, canvasWidth);
     const stickerWidth = (width / 100) * safeCanvasWidth;
-    const media = stickerElementRef.current?.querySelector("img, video");
+    const media = stickerElementRef.current?.querySelector("img, video, canvas");
     const intrinsicWidth =
-      media instanceof HTMLVideoElement ? media.videoWidth : media?.naturalWidth;
+      media instanceof HTMLVideoElement ? media.videoWidth : media instanceof HTMLCanvasElement ? media.width : media instanceof HTMLImageElement ? media.naturalWidth : 0;
     const intrinsicHeight =
-      media instanceof HTMLVideoElement ? media.videoHeight : media?.naturalHeight;
+      media instanceof HTMLVideoElement ? media.videoHeight : media instanceof HTMLCanvasElement ? media.height : media instanceof HTMLImageElement ? media.naturalHeight : 0;
     const aspectRatio =
       intrinsicWidth && intrinsicHeight
         ? intrinsicWidth / intrinsicHeight
@@ -2178,6 +2216,7 @@ function StripStickerBlock({
 
     const beginCanvasTransform = (event: TouchEvent) => {
       if (event.touches.length < 2 || canvasTouchTransformRef.current) return;
+      textEditTapRef.current = null;
       const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
       if (!canvas) return;
       lowerBoundaryNoticeShownRef.current = false;
@@ -2361,6 +2400,8 @@ function StripStickerBlock({
     event: ReactPointerEvent<HTMLElement>,
     cancelled = false,
   ) => {
+    const textTap = textEditTapRef.current?.pointerId === event.pointerId ? textEditTapRef.current : null;
+    if (textTap) textEditTapRef.current = null;
     const selectionTap = selectionTapRef.current;
     if (selectionTap?.pointerId === event.pointerId) {
       selectionTapRef.current = null;
@@ -2438,6 +2479,7 @@ function StripStickerBlock({
     } else {
       dragRef.current = null;
     }
+    if (textTap && !cancelled && !textTap.moved) onTextEdit?.();
   };
 
   return (
@@ -2461,6 +2503,10 @@ function StripStickerBlock({
       onPointerDown={(event) => {
         if (!isEditing) return;
         event.stopPropagation();
+        if (block.textSticker && isSelected && !textTyping) {
+          textEditTapRef.current = activePointersRef.current.size === 0
+            ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false } : null;
+        }
 
         if (!isSelected) {
           selectionTapRef.current = {
@@ -2526,6 +2572,8 @@ function StripStickerBlock({
         setIsTransforming(true);
       }}
       onPointerMove={(event) => {
+        const textTap = textEditTapRef.current;
+        if (textTap?.pointerId === event.pointerId && Math.hypot(event.clientX - textTap.x, event.clientY - textTap.y) > 8) textTap.moved = true;
         const selectionTap = selectionTapRef.current;
         if (selectionTap?.pointerId === event.pointerId) {
           if (
@@ -2620,6 +2668,15 @@ function StripStickerBlock({
         if (activePointersRef.current.size === 0) delete event.currentTarget.dataset.stickerDragging;
       }}
       onContextMenu={(event) => event.preventDefault()}
+      onDoubleClick={(event) => {
+        if (isEditing && block.textSticker) { event.stopPropagation(); onTextEdit?.(); }
+      }}
+      tabIndex={isEditing && block.textSticker ? 0 : undefined}
+      onKeyDown={event => {
+        if (isEditing && block.textSticker && event.target === event.currentTarget && event.key === "Enter") {
+          event.preventDefault(); onSelect(); onTextEdit?.();
+        }
+      }}
       aria-label={
         isEditing
           ? isSelected
@@ -2629,7 +2686,9 @@ function StripStickerBlock({
       }
     >
       <span className="sticker-visual">
-        {block.mediaType === "video" ? (
+        {block.textSticker ? <TextStickerVisual value={block.textSticker} typing={isEditing && textTyping}
+          onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()}
+          onSettled={loaded => { if (loaded) settleStickerWithinBounds(); onLoadSettled?.(loaded); }} /> : block.mediaType === "video" ? (
           <video
             src={block.src}
             aria-label={block.alt ? `Video sticker: ${block.alt}` : "Video sticker"}
@@ -2865,6 +2924,7 @@ export default function Home() {
   const [inlinePreview, setInlinePreview] = useState(false);
   useEffect(() => () => { mediaImportRequestRef.current?.abort(); }, [currentDraftId, view, inlinePreview, authStatus]);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [typingTextStickerId, setTypingTextStickerId] = useState<string | null>(null);
   const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack" | "page-color">("source");
   const [shapeStickerColor, setShapeStickerColor] = useState(() => {
     if (typeof window === "undefined") return SHAPE_STICKER_DEFAULT_COLOR;
@@ -2875,6 +2935,7 @@ export default function Home() {
   });
   const stickerPlacementRef = useRef<StickerPlacement | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  useEffect(() => { setTypingTextStickerId(id => id === selectedBlockId ? id : null); }, [selectedBlockId]);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const [activeTextTool, setActiveTextTool] = useState<TextTool | null>(null);
   const [lastTextTool, setLastTextTool] = useState<TextTool>("font");
@@ -4128,6 +4189,7 @@ export default function Home() {
     alt: string,
     mediaType: "image" | "video" = "image",
     stickerOrigin: StickerOrigin = "upload",
+    textSticker?: TextSticker,
   ) => {
     if (!hasStickerAnchorBlock) {
       setNotice("Add a text or image block before adding a sticker.");
@@ -4149,13 +4211,15 @@ export default function Home() {
         alt,
         mediaType,
         stickerOrigin,
+        ...(textSticker ? { textSticker } : {}),
         ...placement,
         // Keep newly added tall pack objects proportional on the canvas, too.
         // Existing user-resized stickers retain their saved dimensions.
-        width: initialPackStickerWidth(placement.width, packStickerForSource(src)),
+        width: textSticker ? 72 : initialPackStickerWidth(placement.width, packStickerForSource(src)),
       },
     ]);
     setSelectedBlockId(id);
+    if (textSticker) setTypingTextStickerId(id);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
   };
@@ -4191,6 +4255,24 @@ export default function Home() {
   const addStickerFromPack = (sticker: StickerAsset) => {
     placeSticker(sticker.src, sticker.name, "image", "pack");
     setStickerPickerOpen(false);
+  };
+
+  const addTextSticker = () => {
+    const value = normalizeTextSticker({ content: "", fontStyle: visibleProfile.font,
+      fontSize: 32, textColor: profileTextColor(visibleProfile), textAlign: "center" })!;
+    placeSticker(EMPTY_TEXT_STICKER_SRC, "Text sticker", "image", "text", value);
+    setStickerPickerOpen(false);
+  };
+
+  const updateTextSticker = (id: string, change: Partial<TextSticker>) => {
+    setBlocks(current => current.map(block => block.id === id && block.type === "sticker" && block.textSticker
+      ? { ...block, textSticker: normalizeTextSticker({ ...block.textSticker, ...change })!,
+          alt: (change.content ?? block.textSticker.content).slice(0, 160) || "Text sticker" } : block));
+  };
+
+  const finishTextSticker = (id: string) => {
+    setTypingTextStickerId(current => current === id ? null : current);
+    setBlocks(current => current.filter(block => block.id !== id || block.type !== "sticker" || !block.textSticker || block.textSticker.content.trim()));
   };
 
   const addStickerFromShape = async (shape: ShapeSticker, color: string) => {
@@ -6534,8 +6616,9 @@ export default function Home() {
             : (direction) => moveBlock(index, direction)
         }
         onRemove={() => setPendingDeleteId(block.id)}
+        isTextSticker={block.type === "sticker" && Boolean(block.textSticker)}
         onTextTool={
-          block.type === "text"
+          block.type === "text" || (block.type === "sticker" && block.textSticker)
             ? (tool) => {
                 setLastTextTool(tool);
                 setActiveTextTool(tool);
@@ -6895,6 +6978,10 @@ export default function Home() {
             <StripStickerBlock
               key={block.id}
               block={block}
+              textTyping={typingTextStickerId === block.id}
+              onTextChange={content => updateTextSticker(block.id, { content })}
+              onTextFinish={() => finishTextSticker(block.id)}
+              onTextEdit={() => { setTypingTextStickerId(block.id); setSelectedBlockId(block.id); setActiveTextTool(null); }}
               isEditing={isEditing}
               isSelected={selectedBlockId === block.id}
               isOverlappingSelection={overlappingStickerIds.includes(block.id)}
@@ -8318,6 +8405,14 @@ export default function Home() {
           onBack={() => setActiveTextTool(null)}
         />
       ) : null}
+      {!inlinePreview && !heightCropSession && selectedBlock?.type === "sticker" && selectedBlock.textSticker ? (
+        <TextStyleSelector block={{ id: selectedBlock.id, type: "text", ...selectedBlock.textSticker,
+          backgroundColor: selectedBlock.textSticker.backgroundColor ?? visibleProfile.background }}
+          allowTransparentBackground transparentBackground={!selectedBlock.textSticker.backgroundColor}
+          tool={activeTextTool ?? lastTextTool} visible={activeTextTool !== null}
+          onChange={change => updateTextSticker(selectedBlock.id, change)}
+          onBack={() => setActiveTextTool(null)} />
+      ) : null}
 
       <PreviewDock preview={inlinePreview}>
       <footer
@@ -8383,6 +8478,7 @@ export default function Home() {
               stickerInputRef.current?.click();
             }}
             onSticker={addStickerFromPack}
+            onText={addTextSticker}
             onShape={(shape, color) => void addStickerFromShape(shape, color)}
             shapeColor={shapeStickerColor}
             onShapeColorChange={setShapeStickerColor}

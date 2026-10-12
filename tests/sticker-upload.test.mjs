@@ -7,6 +7,8 @@ import { STICKER_PACK } from "../app/lib/sticker-pack.ts";
 import * as stickerOrigin from "../app/lib/sticker-origin.ts";
 import * as stickerRotation from "../app/lib/sticker-rotation.ts";
 import * as stickerSizing from "../app/lib/sticker-sizing.ts";
+import * as profile from "../app/lib/profile.ts";
+import * as alignment from "../app/lib/text-alignment.ts";
 
 const root = new URL("../", import.meta.url);
 function compile(source, globals = {}) {
@@ -17,9 +19,12 @@ function compile(source, globals = {}) {
   return exports;
 }
 const security = compile(readFileSync(new URL("app/server/media-security.ts", root), "utf8"));
+const textStickers = compile(readFileSync(new URL("app/lib/text-sticker.ts", root), "utf8"), {
+  require: id => id === "./profile" ? profile : alignment,
+});
 function validator(route, name) {
   return compile(readFileSync(new URL(`app/api/${route}/route.ts`, root), "utf8") + `\nexports.validate = ${name};`, {
-    require: (id) => id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : id.endsWith("sticker-rotation") ? stickerRotation : id.endsWith("sticker-sizing") ? stickerSizing : {},
+    require: (id) => id.endsWith("text-sticker") ? textStickers : id.endsWith("text-alignment") ? alignment : id.endsWith("media-security") ? security : id.endsWith("sticker-origin") ? stickerOrigin : id.endsWith("sticker-rotation") ? stickerRotation : id.endsWith("sticker-sizing") ? stickerSizing : {},
   }).validate;
 }
 const draft = validator("drafts", "prepareDraftBlocks");

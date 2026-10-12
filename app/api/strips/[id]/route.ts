@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
 import { readStripContent } from "@/app/lib/strip-ending";
@@ -41,6 +42,7 @@ type StoredBlock =
       alt: string;
       mediaType?: "image" | "video";
       stickerOrigin?: StickerOrigin;
+      textSticker?: TextSticker;
       x: number;
       y: number;
       width: number;
@@ -159,6 +161,7 @@ export async function GET(
         ? {
             mediaType: block.mediaType === "video" ? "video" : "image",
             stickerOrigin: normalizeStickerOrigin(block.stickerOrigin),
+            textSticker: normalizeTextSticker(block.textSticker),
             x: block.x,
             y: block.y,
             width: block.width,

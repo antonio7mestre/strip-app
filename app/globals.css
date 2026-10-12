@@ -2718,6 +2718,35 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   transform-origin: center;
 }
 
+.text-sticker-visual { display: block; position: relative; width: 100%; }
+.text-sticker-visual canvas { display: block; pointer-events: none; }
+.sticker-block.is-selected .text-sticker-visual::after {
+  content: ""; position: absolute; top: 0; bottom: 0;
+  left: var(--text-sticker-box-left); width: var(--text-sticker-box-width);
+  box-sizing: border-box; border: 3px dashed #fff;
+  outline: 1px solid rgba(0, 0, 0, 0.3); border-radius: 0; pointer-events: none;
+}
+.text-sticker-input {
+  position: absolute; inset: 0 auto auto 0; display: block; width: 100%;
+  margin: 0; min-height: 1em; border: 0; outline: 0; border-radius: 0;
+  box-sizing: border-box; background: transparent; resize: none; overflow: hidden;
+  white-space: pre-wrap; overflow-wrap: anywhere; letter-spacing: 0;
+  -webkit-user-select: text; user-select: text; pointer-events: auto; touch-action: auto;
+  caret-color: currentColor;
+}
+.text-sticker-input::placeholder { color: currentColor; opacity: 0.65; }
+.text-sticker-typing-background {
+  position: absolute; top: 0; left: var(--text-sticker-box-left); width: var(--text-sticker-box-width);
+  pointer-events: none; border-radius: 0;
+}
+.sticker-delete-anchor.has-text-tools {
+  display: flex; gap: 0; padding: 4px 6px; border: 2px solid #000; border-radius: 999px;
+  background: #fff; box-shadow: none; white-space: nowrap;
+}
+.sticker-delete-anchor.has-text-tools .sticker-delete-control {
+  flex: 0 0 40px; width: 40px; height: 40px; border: 0; background: transparent;
+}
+
 .sticker-image-reveal[data-sticker-ready="false"] { opacity: 0; }
 .sticker-image-reveal[data-sticker-ready="true"] { animation: sticker-image-in 180ms ease-out backwards; }
 @keyframes sticker-image-in { from { opacity: 0; } to { opacity: 1; } }

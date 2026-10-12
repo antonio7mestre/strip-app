@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import {
   readStripContent,
   writeStripContent,
@@ -46,6 +47,7 @@ type DraftBlock =
       alt: string;
       mediaType?: "image" | "video";
       stickerOrigin?: StickerOrigin;
+      textSticker?: TextSticker;
       x: number;
       y: number;
       width: number;
@@ -73,6 +75,7 @@ type StoredDraftBlock =
       mediaType?: "image" | "video";
       stickerOrigin?: StickerOrigin;
       x: number;
+      textSticker?: TextSticker;
       y: number;
       width: number;
       rotation?: number;
@@ -232,6 +235,7 @@ function prepareDraftBlocks(
         alt: String(block.alt ?? "").slice(0, 160),
         mediaType: block.mediaType === "video" ? "video" : "image",
         stickerOrigin: normalizeStickerOrigin(block.stickerOrigin),
+        textSticker: normalizeTextSticker(block.textSticker),
         x: finiteNumber(block.x, 50),
         y: Math.max(0, finiteNumber(block.y, 0)),
         width: normalizeStickerWidth(block.width),

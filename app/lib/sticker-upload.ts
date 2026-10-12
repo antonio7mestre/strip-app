@@ -1,4 +1,6 @@
 import { STICKER_PACK } from "./sticker-pack";
+import { normalizeTextSticker, type TextSticker } from "./text-sticker";
+import { renderTextSticker } from "./text-sticker-render";
 
 const packSources = new Set(STICKER_PACK.map((sticker) => sticker.src));
 const uploads = new Map<string, Promise<string>>();
@@ -34,10 +36,14 @@ function stickerUploadSource(src: string) {
 
 /** Upload the bundled cutout through the normal media path. Never replace the
  * editor's displayed source, which would make Safari decode/paint it again. */
-export async function prepareStickerUploads<T extends { type: string; src?: string }>(
+export async function prepareStickerUploads<T extends { type: string; src?: string; textSticker?: TextSticker }>(
   blocks: readonly T[],
 ): Promise<T[]> {
-  return Promise.all(blocks.map(async (block) => {
+  return Promise.all(blocks.filter(block => !block.textSticker || block.textSticker.content.trim()).map(async (block) => {
+    if (block.type === "sticker" && block.textSticker) {
+      const textSticker = normalizeTextSticker(block.textSticker)!;
+      return { ...block, textSticker, stickerOrigin: "text", src: await renderTextSticker(textSticker) };
+    }
     if (block.type !== "sticker" || !block.src || !packSources.has(block.src)) {
       return block;
     }
