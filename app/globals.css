@@ -2731,12 +2731,25 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .text-sticker-input::placeholder { color: currentColor; opacity: 0.65; }
 .text-sticker-input:focus-visible { outline: 0; box-shadow: none; }
 .sticker-block.is-text-composing { opacity: 0; visibility: hidden; pointer-events: none; }
-.text-sticker-editor-backdrop {
-  position: fixed; z-index: 29; inset: 0;
-  background: rgba(0, 0, 0, 0.22); pointer-events: none;
-  animation: text-sticker-dim-in 180ms ease-out both;
+/* Dim only existing surfaces. Never recolor the root or add a top safe-area
+   band. The dock's own overlay reaches its full under-Safari painted extension. */
+:root { --page-dim-opacity: 0; --page-dim-duration: 280ms; }
+html:has(.text-sticker-editor-layer:not(.is-closing)) { --page-dim-opacity: .22; }
+html:has(.confirmation-backdrop) { --page-dim-opacity: .6; }
+html:has(.media-import-popup.is-revealing):not(:has(.confirmation-backdrop:not(.media-import-popup))) { --page-dim-opacity: 0; }
+html.page-color-picking { --page-dim-opacity: 0; }
+.page-dimmer {
+  position: fixed; z-index: 29;
+  top: env(safe-area-inset-top); right: 0; bottom: 0; left: 0;
+  background: #000; opacity: var(--page-dim-opacity); pointer-events: none;
+  transition: opacity var(--page-dim-duration) ease;
 }
-@keyframes text-sticker-dim-in { from { opacity: 0; } to { opacity: 1; } }
+.composer-dock::after {
+  content: ""; position: absolute; z-index: 99; inset: 0;
+  border-radius: inherit; background: #000;
+  opacity: var(--page-dim-opacity); pointer-events: none;
+  transition: opacity var(--page-dim-duration) ease;
+}
 .text-sticker-editor-layer {
   position: fixed; z-index: 60; left: 0; width: 100%;
   background: transparent; touch-action: none;
@@ -2744,13 +2757,22 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 .text-sticker-editor-panel {
   position: absolute; transform: translate(-50%, -50%);
   --sticker-rotation: 0deg; --sticker-counter-rotation: 0deg;
+  transition: top 240ms cubic-bezier(.22, 1, .36, 1), left 240ms cubic-bezier(.22, 1, .36, 1);
 }
+.text-sticker-editor-panel:not([data-ready]) { opacity: 0; }
+.text-sticker-editor-layer.is-closing { pointer-events: none; }
+.sticker-block.is-text-composing[data-text-returning] {
+  visibility: visible; opacity: 1;
+  animation: text-sticker-return 280ms linear both;
+}
+.sticker-block.is-text-composing[data-text-returning] .block-controls-reveal { visibility: hidden; }
+@keyframes text-sticker-return { 0%, 60% { opacity: 0; } 100% { opacity: 1; } }
 .text-sticker-editor-scroll {
   overflow: auto; overscroll-behavior: contain; padding: 2px;
   scrollbar-width: none; touch-action: pan-y;
 }
 .text-sticker-editor-scroll::-webkit-scrollbar { display: none; }
-html.page-color-picking :is(.text-sticker-editor-layer, .text-sticker-editor-backdrop) { visibility: hidden; }
+html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
 .text-sticker-typing-background {
   position: absolute; top: 0; left: var(--text-sticker-box-left); width: var(--text-sticker-box-width);
   pointer-events: none; border-radius: 0;
@@ -4957,7 +4979,7 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: #0009;
+  background: transparent;
 }
 
 .confirmation-card {

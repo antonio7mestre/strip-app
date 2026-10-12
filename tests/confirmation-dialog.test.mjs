@@ -58,3 +58,20 @@ test("all dialog text is centered and shares the profile discard sizing and pill
   assert.match(css, /\.confirmation-actions button \{[^}]*min-height: 44px;[^}]*border-radius: 999px;/);
   assert.doesNotMatch(css, /\.delete-modal|\.profile-discard-card|\.modal-backdrop/);
 });
+
+test("typing, delete and media overlays dim the dock's full painted extension without a top band", () => {
+  const css = read("app/globals.css");
+  assert.match(css, /html:has\(\.confirmation-backdrop\) \{ --page-dim-opacity: .6;/);
+  assert.match(css, /html:has\(\.text-sticker-editor-layer:not\(\.is-closing\)\) \{ --page-dim-opacity: .22;/);
+  const dim = css.split(".page-dimmer {")[1].split("}")[0];
+  const dock = css.split(".composer-dock::after {")[1].split("}")[0];
+  assert.match(dim, /top: env\(safe-area-inset-top\)/);
+  for (const rule of [dim, dock]) {
+    assert.match(rule, /opacity: var\(--page-dim-opacity\)/);
+    assert.match(rule, /transition: opacity var\(--page-dim-duration\)/);
+    assert.match(rule, /pointer-events: none/);
+  }
+  assert.match(dock, /inset: 0/);
+  assert.match(css, /\.confirmation-backdrop \{[^}]*background: transparent;/s);
+  assert.match(css, /html.page-color-picking \{ --page-dim-opacity: 0;/);
+});

@@ -84,7 +84,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
       </head>
-      <body><DesktopPresentation />{children}</body>
+      <body><DesktopPresentation /><div className="page-dimmer" aria-hidden="true" />{children}</body>
     </html>
   );
 }

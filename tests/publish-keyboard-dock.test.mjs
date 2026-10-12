@@ -9,7 +9,8 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const tree = ts.createSourceFile("page.tsx", page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function findTitleStep(node = tree) {
-  if (ts.isIfStatement(node) && node.expression.getText(tree) === 'view === "title-setup"') return node;
+  if (ts.isIfStatement(node) && node.expression.getText(tree) === 'view === "title-setup"' &&
+      node.thenStatement.getText(tree).includes('className="app-shell title-setup-mode title-dock-canvas"')) return node;
   return ts.forEachChild(node, findTitleStep);
 }
 const step = findTitleStep();

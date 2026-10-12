@@ -2803,6 +2803,7 @@ function StripStickerBlock({
       {controls}
     </figure>
     {isEditing && textTyping && block.textSticker ? <TextStickerEditor value={block.textSticker}
+      sourceRef={stickerElementRef}
       onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()} controls={controls} /> : null}
     </>
   );
