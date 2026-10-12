@@ -1,9 +1,8 @@
 import type { TextSticker } from "./text-sticker";
 
-/** A temporary, width-relative typing size. Never save this presentation value. */
-export function focusedTextSticker(value: TextSticker, initialFontSize: number): TextSticker {
-  const initial = Number.isFinite(initialFontSize) && initialFontSize > 0 ? initialFontSize : 32;
-  return { ...value, fontSize: Math.min(72, Math.max(14, 32 * value.fontSize / initial)) };
+/** Scale the whole sticker to the focus width, never reflow its typography. */
+export function focusedTextSticker(value: TextSticker): TextSticker {
+  return { ...value };
 }
 
 export function textStickerFocusWidth(canvasWidth: number, viewportWidth: number) {

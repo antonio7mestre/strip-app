@@ -19,10 +19,9 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   controls: ReactNode;
   sourceRef: RefObject<HTMLElement | null>;
 }) {
-  // Normalize the opening view, without writing its temporary size to the
-  // sticker. Explicit font-size changes still scale naturally while typing.
-  const [initialFontSize] = useState(value.fontSize);
-  const focusedValue = focusedTextSticker(value, initialFontSize);
+  // The focus width scales the entire artwork. Keep the same font-to-width
+  // ratio so every line and its background match the placed sticker.
+  const focusedValue = focusedTextSticker(value);
   const panelRef = useRef<HTMLDivElement>(null);
   const motionRef = useRef<Motion | null>(null);
   const frameRef = useRef(0);
@@ -85,7 +84,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     const panel = panelRef.current;
     if (!source || !panel) return { x: layoutRef.current?.left ?? 0, y: layoutRef.current?.top ?? 0, scale: .94, rotation: 0 };
     const from = source.getBoundingClientRect();
-    const scale = source.offsetWidth / Math.max(1, panel.offsetWidth) * value.fontSize / focusedValue.fontSize;
+    const scale = source.offsetWidth / Math.max(1, panel.offsetWidth);
     const rotation = parseFloat(source.style.getPropertyValue("--sticker-rotation")) || 0;
     return { x: from.left + from.width / 2, y: from.top + from.height / 2, scale, rotation };
   };

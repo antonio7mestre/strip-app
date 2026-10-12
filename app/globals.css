@@ -2767,7 +2767,7 @@ html.page-color-picking { --page-dim-opacity: 0; }
 }
 .sticker-block.is-text-composing[data-text-returning] .block-controls-reveal { visibility: hidden; }
 .text-sticker-editor-scroll {
-  overflow: auto; overscroll-behavior: contain; padding: 2px;
+  overflow: auto; overscroll-behavior: contain; padding: 0;
   scrollbar-width: none; touch-action: pan-y;
 }
 .text-sticker-editor-scroll::-webkit-scrollbar { display: none; }

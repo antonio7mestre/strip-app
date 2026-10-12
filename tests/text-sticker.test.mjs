@@ -22,17 +22,17 @@ const data = compile("app/lib/text-sticker.ts", { "./profile": profile, "./text-
 const base = { content: "Hello\nhi", fontStyle: "letter", fontSize: 32, textColor: "#FFFFFF", textAlign: "center" };
 const focus = compile("app/lib/text-sticker-focus.ts");
 
-test("focused text has a standard width-relative size without changing saved typography or placement", () => {
+test("focus scales the complete layout without changing its font-to-width ratio or line wrapping", () => {
   for (const fontSize of [14, 20, 32, 48, 72]) {
     const saved = Object.freeze({ ...base, fontSize });
-    const focused = focus.focusedTextSticker(saved, fontSize);
-    assert.equal(focused.fontSize, 32);
+    const focused = focus.focusedTextSticker(saved);
+    assert.equal(focused.fontSize, fontSize);
     assert.equal(saved.fontSize, fontSize);
     for (const key of ["content", "fontStyle", "textColor", "textAlign"]) assert.equal(focused[key], saved[key]);
-    assert.equal(focus.focusedTextSticker({ ...saved, content: "Edited words" }, fontSize).fontSize, 32);
+    assert.equal(focus.focusedTextSticker({ ...saved, content: "Edited words" }).fontSize, fontSize);
   }
-  assert.equal(focus.focusedTextSticker({ ...base, fontSize: 24 }, 20).fontSize, 38.4,
-    "intentional size changes remain visible during the temporary focus zoom");
+  assert.equal(focus.focusedTextSticker({ ...base, fontSize: 24 }).fontSize, 24,
+    "intentional size changes use the same layout while typing and after completion");
   assert.ok(Math.abs(focus.textStickerFocusWidth(390, 390) - 319.8) < 0.001);
   assert.equal(focus.textStickerFocusWidth(640, 1440), 480);
   assert.ok(focus.textStickerFocusWidth(640, 320) <= 288);
@@ -159,7 +159,8 @@ test("typing is temporary, does not move the saved sticker, and keeps the same t
   assert.match(editor, /createPortal/);
   assert.match(editor, /viewport\?\.addEventListener\("resize"/);
   assert.match(editor, /typing finishOnBlur=\{false\}/);
-  assert.match(editor, /const \[initialFontSize\] = useState\(value.fontSize\)/);
+  assert.match(editor, /focusedTextSticker\(value\)/);
+  assert.doesNotMatch(editor, /initialFontSize/);
   assert.match(editor, /TextStickerVisual value=\{focusedValue\}/);
   assert.match(read("app/layout.tsx"), /<PageDimmer \/>/);
   const backdrop = read("app/globals.css").split(".page-dimmer {")[1].split("}")[0];
@@ -181,7 +182,8 @@ test("typing is temporary, does not move the saved sticker, and keeps the same t
 test("typing eases from its placed geometry and returns before handing control back", () => {
   const editor = read("app/components/TextStickerEditor.tsx");
   assert.match(editor, /source.getBoundingClientRect\(\)/);
-  assert.match(editor, /value.fontSize \/ focusedValue.fontSize/);
+  assert.match(editor, /source.offsetWidth \/ Math.max\(1, panel.offsetWidth\)/);
+  assert.doesNotMatch(editor, /value.fontSize \/ focusedValue.fontSize/);
   assert.match(editor, /getPropertyValue\("--sticker-rotation"\)/);
   assert.match(editor, /cloneElement\(controls, \{ onConfirmStickerText: finish \}\)/);
   assert.match(editor, /stepTextStickerSpring/);
