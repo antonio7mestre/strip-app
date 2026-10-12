@@ -1023,13 +1023,13 @@ function BlockControls({
         <div className={`sticker-delete-anchor ${isTextSticker ? "has-text-tools" : ""}`}>
           {isTextSticker ? <>
             <button className="sticker-delete-control" type="button" aria-label="Choose sticker typeface"
-              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (onConfirmStickerText) onTextTool?.("font"); }}
               onClick={event => { event.stopPropagation(); onTextTool?.("font"); }}><CaseUpper className="block-glyph" aria-hidden="true" /></button>
             <button className="sticker-delete-control" type="button" aria-label="Choose sticker text color"
-              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (onConfirmStickerText) onTextTool?.("color"); }}
               onClick={event => { event.stopPropagation(); onTextTool?.("color"); }}><Baseline className="block-glyph" aria-hidden="true" /></button>
             <button className="sticker-delete-control" type="button" aria-label="Choose sticker background"
-              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (onConfirmStickerText) onTextTool?.("background"); }}
               onClick={event => { event.stopPropagation(); onTextTool?.("background"); }}><PaintBucket className="block-glyph" aria-hidden="true" /></button>
           </> : null}
           <button

@@ -2771,7 +2771,7 @@ html.page-color-picking { --page-dim-opacity: 0; }
   pointer-events: none; will-change: transform;
 }
 .text-sticker-editor-layer.is-closing { pointer-events: none; }
-.text-sticker-editor-layer.is-closing .sticker-delete-control { pointer-events: none; }
+.text-sticker-editor-layer.is-closing .text-sticker-input { pointer-events: none; }
 .sticker-block.is-text-composing[data-text-returning] {
   visibility: visible; opacity: var(--text-sticker-return-opacity, 0);
 }

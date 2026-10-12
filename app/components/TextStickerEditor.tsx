@@ -181,14 +181,19 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     tick(startedRef.current);
   };
   const finish = (openTool?: () => void) => {
-    if (closingRef.current) return;
-    toolRequestedRef.current = Boolean(openTool && value.content.trim());
-    closingRef.current = true;
-    setClosing(true);
-    panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.blur();
+    const alreadyClosing = closingRef.current;
+    if (!alreadyClosing) {
+      closingRef.current = true;
+      setClosing(true);
+      panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.blur();
+    }
     // Begin revealing the selector in the same event that drops the keyboard,
-    // not after the independent artwork return animation.
-    if (toolRequestedRef.current) openTool?.();
+    // even if Safari already blurred the input before delivering this tap.
+    if (openTool && value.content.trim()) {
+      toolRequestedRef.current = true;
+      openTool();
+    }
+    if (alreadyClosing) return;
     const source = sourceRef.current;
     if (source) source.dataset.textReturning = "true";
     if (!motionRef.current) { completeRef.current(); return; }

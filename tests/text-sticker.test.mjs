@@ -325,7 +325,7 @@ test("keyboard Done commits text through blur, while Return still adds a line", 
   }
   const editor = read("app/components/TextStickerEditor.tsx");
   assert.match(editor, /typing finishOnBlur\s+onChange=\{onChange\} onFinish=\{finish\}/);
-  assert.match(editor, /if \(closingRef.current\) return;/, "programmatic blur cannot restart the return animation");
+  assert.match(editor, /if \(alreadyClosing\) return;/, "programmatic blur cannot restart the return animation");
   assert.ok(editor.indexOf("closingRef.current = true") < editor.indexOf('querySelector<HTMLTextAreaElement>("textarea")?.blur()'));
 });
 
@@ -385,14 +385,54 @@ test("typing tools open as the keyboard drops, independently of placement motion
   const editor = read("app/components/TextStickerEditor.tsx");
   assert.match(editor, /onConfirmStickerText: \(\) => finish\(\)/);
   assert.match(editor, /onTextTool: tool => finish\(\(\) => controls.props.onTextTool\?\.\(tool\)\)/);
-  assert.match(editor, /if \(closingRef.current\) return;\s*toolRequestedRef.current = Boolean\(openTool && value.content.trim\(\)\)/);
+  assert.match(editor, /const alreadyClosing = closingRef.current/);
   assert.match(editor, /querySelector<HTMLTextAreaElement>\("textarea"\)\?\.blur\(\)/);
   const handoff = editor.split("completeRef.current = () => {")[1].split("const paintTools")[0];
   assert.match(handoff, /!toolRequestedRef.current && isValidElement/);
   assert.doesNotMatch(handoff, /openTool|afterFinish/);
   const finish = editor.split("const finish = (openTool?")[1].split("const typingControls")[0];
-  assert.ok(finish.indexOf(".blur()") < finish.indexOf("openTool?.()"));
-  assert.ok(finish.indexOf("openTool?.()") < finish.indexOf("wakeRef.current()"));
+  assert.ok(finish.indexOf(".blur()") < finish.indexOf("openTool();"));
+  assert.ok(finish.indexOf("openTool();") < finish.indexOf("if (alreadyClosing) return;"));
+  assert.ok(finish.indexOf("openTool();") < finish.indexOf("wakeRef.current()"));
+  assert.doesNotMatch(read("app/globals.css"), /\.is-closing \.sticker-delete-control\s*\{\s*pointer-events: none/);
+  for (const tool of ["font", "color", "background"]) {
+    assert.ok(read("app/page.tsx").includes('if (onConfirmStickerText) onTextTool?.("' + tool + '");'),
+      "typing tool intent is handled on pointer down, before native keyboard dismissal");
+  }
+});
+
+test("blur-first and tap-first tool switches both survive the return handoff", () => {
+  const editorSource = read("app/components/TextStickerEditor.tsx");
+  const finishBody = editorSource.split("const finish = (openTool?: () => void) => {")[1].split("  const typingControls")[0];
+  const completeBody = editorSource.split("completeRef.current = () => {")[1].split("  const paintTools")[0];
+  for (const sequence of [["blur", "font"], ["font", "blur"], ["blur", "font", "color", "background"]]) {
+    const calls = [];
+    const context = {
+      closingRef: { current: false }, toolRequestedRef: { current: false },
+      value: { content: "Keep these words" }, motionRef: { current: {} },
+      sourceRef: { current: { dataset: {} } }, startedRef: { current: 0 },
+      performance: { now: () => 0 }, setClosing: () => calls.push("closing"),
+      wakeRef: { current: () => calls.push("motion") },
+      completeRef: { current: null }, flushSync: callback => callback(),
+      isValidElement: () => true,
+      controls: { props: { onConfirmStickerText: () => calls.push("reset tools") } },
+      onFinish: () => calls.push("finish typing"),
+    };
+    context.panelRef = { current: { querySelector: () => ({ blur: () => context.finish() }) } };
+    runInNewContext(ts.transpileModule("finish = (openTool) => {" + finishBody +
+      "\ncompleteRef.current = () => {" + completeBody, { compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+      } }).outputText, context);
+    for (const action of sequence) context.finish(action === "blur" ? undefined : () => calls.push(action));
+    assert.equal(calls.filter(call => call === "closing").length, 1);
+    assert.equal(calls.filter(call => call === "motion").length, 1, "changing tools never restarts placement");
+    for (const action of sequence.filter(action => action !== "blur")) {
+      assert.ok(calls.includes(action), action + " opens before the return completes");
+    }
+    context.completeRef.current();
+    assert.equal(calls.at(-1), "finish typing");
+    assert.ok(!calls.includes("reset tools"), "placement never closes the selected tool");
+  }
 });
 
 test("text motion stays continuous when the keyboard retargets it, without overshoot", () => {
