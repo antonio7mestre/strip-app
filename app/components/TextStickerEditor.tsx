@@ -1,7 +1,7 @@
 "use client";
 
 import { cloneElement, isValidElement, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { TextStickerVisual } from "./TextStickerVisual";
 import type { TextSticker } from "@/app/lib/text-sticker";
 import { focusedTextSticker, textStickerFocusWidth } from "@/app/lib/text-sticker-focus";
@@ -32,6 +32,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   const completeRef = useRef<() => void>(() => {});
   const enteredRef = useRef(false);
   const closingRef = useRef(false);
+  const handoffFramesRef = useRef(0);
   const [ready, setReady] = useState(false);
   const [closing, setClosing] = useState(false);
   const [layout, setLayout] = useState<{ left: number; top: number; width: number; maxHeight: number; viewportTop: number; layerHeight: number } | null>(null);
@@ -92,13 +93,12 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     x: layoutRef.current?.left ?? 0, y: layoutRef.current?.top ?? 0, scale: 1, rotation: 0,
   };
   completeRef.current = () => {
-    const source = sourceRef.current;
-    if (source) {
-      delete source.dataset.textReturning;
-      source.style.removeProperty("--text-sticker-return-opacity");
-    }
-    if (isValidElement<{ onConfirmStickerText?: () => void }>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
-    else onFinish();
+    // Removing the floating copy and releasing is-text-composing must be one
+    // commit. Keep the placed copy visible until the unmount cleanup runs.
+    flushSync(() => {
+      if (isValidElement<{ onConfirmStickerText?: () => void }>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
+      else onFinish();
+    });
   };
   // One compositor transform owns the whole journey. A changing keyboard
   // target keeps the current position and velocity instead of restarting CSS
@@ -120,11 +120,17 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     const { x, y, scale, rotation } = motion;
     panel.style.transform = `translate3d(${x.value}px, ${y.value}px, 0) translate(-50%, -50%) rotate(${rotation.value}deg) scale(${scale.value})`;
     const elapsed = now - startedRef.current;
-    const handoff = closingRef.current ? Math.max(0, Math.min(1, (elapsed - 300) / 140)) : 0;
-    panel.style.opacity = String(closingRef.current ? 1 - handoff : Math.min(1, .6 + elapsed / 350));
-    if (closingRef.current && sourceRef.current) sourceRef.current.style.setProperty("--text-sticker-return-opacity", String(handoff));
+    panel.style.opacity = String(closingRef.current ? 1 : Math.min(1, .6 + elapsed / 350));
     if (closingRef.current && elapsed >= 440 && (settled || elapsed >= 1000)) {
-      completeRef.current();
+      // Make before break: align both copies, then allow the placed canvas
+      // two paint opportunities while the moving copy remains fully opaque.
+      panel.style.transform = `translate3d(${target.x}px, ${target.y}px, 0) translate(-50%, -50%) rotate(${target.rotation}deg) scale(${target.scale})`;
+      sourceRef.current?.style.setProperty("--text-sticker-return-opacity", "1");
+      if (handoffFramesRef.current >= 2) completeRef.current();
+      else {
+        handoffFramesRef.current += 1;
+        frameRef.current = requestAnimationFrame(tick);
+      }
       return;
     }
     if (!settled || elapsed < 440) frameRef.current = requestAnimationFrame(tick);

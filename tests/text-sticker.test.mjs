@@ -194,6 +194,21 @@ test("typing eases from its placed geometry and returns before handing control b
   assert.doesNotMatch(editor, /--top-safe-area-color|theme-color|scrollTo|documentElement.style|document.body.style/);
 });
 
+test("returning text stays opaque until the placed copy is painted and typing closes in one commit", () => {
+  const editor = read("app/components/TextStickerEditor.tsx");
+  assert.match(editor, /createPortal, flushSync/);
+  assert.match(editor, /panel.style.opacity = String\(closingRef.current \? 1 :/);
+  assert.doesNotMatch(editor, /1 - handoff|\(elapsed - 300\) \/ 140/);
+  assert.match(editor, /setProperty\("--text-sticker-return-opacity", "1"\)/);
+  assert.match(editor, /handoffFramesRef.current >= 2/);
+  const complete = editor.split("completeRef.current = () => {")[1].split("// One compositor")[0];
+  assert.match(complete, /flushSync\(\(\) =>/);
+  assert.doesNotMatch(complete, /delete source.dataset.textReturning|removeProperty/,
+    "the placed copy must not be hidden while React still considers it composing");
+  assert.match(editor, /useLayoutEffect\(\(\) => \(\) => \{[\s\S]*?delete sourceRef.current.dataset.textReturning/,
+    "temporary visibility is released only during the synchronous unmount");
+});
+
 test("text motion stays continuous when the keyboard retargets it, without overshoot", () => {
   const { stepTextStickerSpring: step } = compile("app/lib/text-sticker-motion.ts");
   let axis = { value: 700, velocity: 0 };
