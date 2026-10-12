@@ -100,6 +100,7 @@ import { StoryShareControls } from "@/app/components/StoryShareControls";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
+import { installPreviewNoticeDismiss } from "@/app/lib/preview-notice";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
@@ -4036,6 +4037,12 @@ export default function Home() {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(""), notice === PREVIEW_MODE_NOTICE ? 3000 : 2600);
     return () => window.clearTimeout(timeout);
+  }, [notice, noticeRevision]);
+
+  useEffect(() => {
+    if (notice !== PREVIEW_MODE_NOTICE) return;
+    return installPreviewNoticeDismiss(() =>
+      setNotice(current => current === PREVIEW_MODE_NOTICE ? "" : current));
   }, [notice, noticeRevision]);
 
   useEffect(() => {
