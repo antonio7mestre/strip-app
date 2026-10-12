@@ -1,5 +1,5 @@
-/** Nudge choices near an edge just enough to reveal their neighbors. Choices
- * already comfortably visible stay put. Never scroll the editor or keyboard. */
+/** Bring later choices toward the middle, revealing the next half of the rail
+ * without pinning the selection left. Never scroll the editor or keyboard. */
 export function revealPickerOption(rail: HTMLElement, option: HTMLElement) {
   const max = Math.max(0, rail.scrollWidth - rail.clientWidth);
   if (!max || !rail.contains(option)) return;
@@ -10,7 +10,7 @@ export function revealPickerOption(rail: HTMLElement, option: HTMLElement) {
   if (!scale) return;
   const optionLeft = (optionBox.left - railBox.left) / scale - rail.clientLeft;
   const optionRight = optionLeft + optionBox.width / scale;
-  const trailingRoom = Math.min(72, Math.round(rail.clientWidth * 0.22));
+  const trailingRoom = Math.round(rail.clientWidth * 0.5);
   const delta = optionLeft < 8
     ? optionLeft - 8
     : Math.max(0, optionRight - (rail.clientWidth - trailingRoom));

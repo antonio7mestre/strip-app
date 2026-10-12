@@ -12,18 +12,19 @@ function fixture({ left=0, width=260, total=1000, optionLeft=180, optionWidth=44
   return {rail,option,calls};
 }
 
-test("selecting an edge choice nudges it slightly, not all the way to the left",()=>{
+test("selection moves a medium amount between the old full jump and gentle nudge",()=>{
   const f=fixture();revealPickerOption(f.rail,f.option);
-  assert.deepEqual(f.calls,[{left:21,behavior:"smooth"}]);
+  assert.deepEqual(f.calls,[{left:94,behavior:"smooth"}]);
+  assert.ok(f.calls[0].left>21 && f.calls[0].left<174);
   assert.equal(f.rail.scrollLeft,0,"no direct scroll or page-position writes");
 });
 test("selection uses the existing offset and scales correctly on desktop",()=>{
   const f=fixture({left:200,optionLeft:200,scale:1.7});revealPickerOption(f.rail,f.option);
-  assert.deepEqual(f.calls,[{left:241,behavior:"smooth"}]);
+  assert.deepEqual(f.calls,[{left:314,behavior:"smooth"}]);
 });
 test("comfortable selections and repeat taps stay still at both viewport scales",()=>{
   for(const scale of [1,1.7]) {
-    for(const optionLeft of [8,80,130,159]) {
+    for(const optionLeft of [8,50,80,86]) {
       const f=fixture({left:100,optionLeft,scale});revealPickerOption(f.rail,f.option);
       assert.deepEqual(f.calls,[]);
     }
@@ -31,8 +32,8 @@ test("comfortable selections and repeat taps stay still at both viewport scales"
 });
 test("wide desktop rails preserve context and leave room for the next option",()=>{
   const f=fixture({width:600,optionLeft:530});revealPickerOption(f.rail,f.option);
-  assert.deepEqual(f.calls,[{left:46,behavior:"smooth"}]);
-  assert.ok(530-f.calls[0].left>400,"selected option remains on the right");
+  assert.deepEqual(f.calls,[{left:274,behavior:"smooth"}]);
+  assert.equal(530-f.calls[0].left,256,"selected option stays near the middle, not the left edge");
 });
 test("ends clamp, first choices stay still, and short rails never move",()=>{
   for(const [options,expected] of [[{left:700,optionLeft:200},740],[{left:100,optionLeft:-180},0],
