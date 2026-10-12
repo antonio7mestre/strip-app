@@ -2734,7 +2734,6 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 /* Dim the document only. Fixed black paint is interpreted as a header by
    Safari and extended into its top chrome. Leave the bottom tools untouched. */
 :root { --page-dim-opacity: 0; --page-dim-duration: 380ms; }
-html:has(.text-sticker-editor-layer:not(.is-closing)) { --page-dim-opacity: .6; }
 html:has(.confirmation-backdrop) { --page-dim-opacity: .6; }
 html:has(.media-import-popup.is-revealing):not(:has(.confirmation-backdrop:not(.media-import-popup))) { --page-dim-opacity: 0; }
 html.page-color-picking { --page-dim-opacity: 0; }

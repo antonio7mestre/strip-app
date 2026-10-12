@@ -48,17 +48,19 @@ export function TextStickerVisual({ value, typing, onChange, onFinish, onSettled
     return () => { cancelled = true; cancelAnimationFrame(settledFrame); };
   }, [value.content, value.fontStyle, value.fontSize, value.textColor, value.textAlign, value.backgroundColor, displayContent]);
   useLayoutEffect(() => {
-    if (!typing) return;
-    const input = inputRef.current;
-    input?.focus({ preventScroll: true });
-    input?.setSelectionRange(input.value.length, input.value.length);
-  }, [typing]);
-  useLayoutEffect(() => {
     const input = inputRef.current;
     if (!input) return;
     input.style.height = "0px";
     input.style.height = `${input.scrollHeight}px`;
   }, [value.content, value.fontStyle, value.fontSize, width, typing, padding.top, padding.bottom]);
+  useLayoutEffect(() => {
+    if (!typing) return;
+    const input = inputRef.current;
+    // Size and select before focus, so moving the caret cannot ask Safari
+    // for a second reveal after preventScroll has already been applied.
+    input?.setSelectionRange(input.value.length, input.value.length);
+    input?.focus({ preventScroll: true });
+  }, [typing]);
   const scale = width / TEXT_STICKER_WIDTH;
   return <span ref={wrapperRef} className={`text-sticker-visual ${typing ? "is-typing" : ""} ${value.backgroundColor ? "has-background" : ""}`}
     style={{ "--text-sticker-color": value.textColor,

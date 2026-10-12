@@ -4,7 +4,7 @@ import { cloneElement, isValidElement, useLayoutEffect, useRef, useState, type R
 import { createPortal, flushSync } from "react-dom";
 import { TextStickerVisual } from "./TextStickerVisual";
 import type { TextSticker } from "@/app/lib/text-sticker";
-import { focusedTextSticker, textStickerFocusWidth } from "@/app/lib/text-sticker-focus";
+import { focusedTextSticker, installTextStickerScrollAnchor, textStickerFocusWidth } from "@/app/lib/text-sticker-focus";
 import { stepTextStickerSpring, type SpringAxis } from "@/app/lib/text-sticker-motion";
 
 type Pose = { x: number; y: number; scale: number; rotation: number };
@@ -33,10 +33,14 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   const enteredRef = useRef(false);
   const closingRef = useRef(false);
   const handoffFramesRef = useRef(0);
+  const initialTransformRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [closing, setClosing] = useState(false);
   const [layout, setLayout] = useState<{ left: number; top: number; width: number; maxHeight: number; viewportTop: number; layerHeight: number } | null>(null);
   const layoutRef = useRef(layout);
+  // The first render has no input yet. Capture the page anchor before the
+  // measured render mounts and focuses it, including Safari's later pan.
+  useLayoutEffect(installTextStickerScrollAnchor, []);
   useLayoutEffect(() => {
     const viewport = window.visualViewport;
     let frame = 0;
@@ -161,6 +165,9 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   const typingControls = isValidElement<{ onConfirmStickerText?: () => void }>(controls)
     ? cloneElement(controls, { onConfirmStickerText: finish }) : controls;
   if (!layout) return null;
+  // Native focus must see an on-screen input, not a box at (-50%, -50%).
+  // Keep this initial React style stable; the spring owns it after entry.
+  initialTransformRef.current ??= `translate3d(${layout.left}px, ${layout.top}px, 0) translate(-50%, -50%)`;
   return createPortal(
     <div className={`text-sticker-editor-layer${closing ? " is-closing" : ""}`} role="group" aria-label="Type on your Strip"
       style={{ top: 0, height: layout.viewportTop + layout.layerHeight }}
@@ -170,7 +177,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       }}
       onClick={event => event.stopPropagation()}>
       <div ref={panelRef} className="text-sticker-editor-panel" data-ready={ready || undefined}
-        style={{ width: layout.width }}>
+        style={{ width: layout.width, transform: initialTransformRef.current }}>
         <div className="text-sticker-editor-scroll" style={{ maxHeight: layout.maxHeight }}>
           <TextStickerVisual value={focusedValue} typing finishOnBlur={false}
             onChange={onChange} onFinish={finish} onSettled={enter} />

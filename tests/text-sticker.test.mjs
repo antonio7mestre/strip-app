@@ -37,6 +37,89 @@ test("focus scales the complete layout without changing its font-to-width ratio 
   assert.equal(focus.textStickerFocusWidth(640, 1440), 480);
   assert.ok(focus.textStickerFocusWidth(640, 320) <= 288);
 });
+
+function scrollEnvironment(top, left = 0) {
+  const target = () => {
+    const listeners = new Map();
+    return {
+      addEventListener(type, callback) {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type).add(callback);
+      },
+      removeEventListener: (type, callback) => listeners.get(type)?.delete(callback),
+      dispatch: type => listeners.get(type)?.forEach(callback => callback()),
+      listenerCount: () => [...listeners.values()].reduce((count, callbacks) => count + callbacks.size, 0),
+    };
+  };
+  const viewport = target(), calls = [];
+  const window = { ...target(), visualViewport: viewport, scrollX: left, scrollY: top,
+    scrollTo(options) {
+      calls.push({ ...options });
+      this.scrollX = options.left;
+      this.scrollY = options.top;
+      this.dispatch("scroll");
+    },
+  };
+  const document = { documentElement: { scrollHeight: 2200, clientHeight: 800 } };
+  const { installTextStickerScrollAnchor } = compile("app/lib/text-sticker-focus.ts", {}, { window, document });
+  return { window, viewport, document, calls, installTextStickerScrollAnchor };
+}
+
+test("typing holds the original page position through focus and keyboard changes then releases it", () => {
+  for (const top of [0, 62, 450]) {
+    const env = scrollEnvironment(top, 3);
+    const release = env.installTextStickerScrollAnchor();
+    env.window.scrollY = top + 200;
+    env.window.dispatch("focusin");
+    assert.deepEqual(env.calls[0], { left: 3, top, behavior: "instant" });
+    env.window.scrollY = top + 100;
+    env.viewport.dispatch("resize");
+    env.window.scrollY = top + 80;
+    env.viewport.dispatch("scroll");
+    env.window.scrollY = top + 50;
+    env.window.dispatch("scroll");
+    assert.equal(env.window.scrollY, top);
+    assert.equal(env.calls.length, 4);
+    env.viewport.dispatch("resize");
+    env.window.dispatch("scroll");
+    assert.equal(env.calls.length, 4, "stable pages and textarea-only scrolling need no correction");
+    release();
+    assert.equal(env.window.listenerCount() + env.viewport.listenerCount(), 0);
+    env.window.scrollY = top + 200;
+    env.window.dispatch("scroll");
+    assert.equal(env.window.scrollY, top + 200, "ordinary scrolling returns immediately after typing");
+    assert.equal(env.calls.length, 4);
+  }
+});
+
+test("the typing anchor clamps shrinking documents and overscroll without changing safe-area styles", () => {
+  const env = scrollEnvironment(1300);
+  const release = env.installTextStickerScrollAnchor();
+  env.document.documentElement.scrollHeight = 1000;
+  env.viewport.dispatch("resize");
+  assert.equal(env.window.scrollY, 200);
+  assert.equal(env.calls.length, 1, "clamped scroll events cannot cause a restore loop");
+  release();
+  const overscroll = scrollEnvironment(-30);
+  const stop = overscroll.installTextStickerScrollAnchor();
+  overscroll.window.dispatch("focusin");
+  assert.equal(overscroll.window.scrollY, 0);
+  stop();
+  assert.doesNotMatch(read("app/lib/text-sticker-focus.ts"), /\.style|theme-color|--top-safe-area|setInterval/,
+    "the anchor does not change document paint or lock body layout");
+});
+
+test("typing is sized and positioned before focus and the leading-edge spring yields to it", () => {
+  const editor = read("app/components/TextStickerEditor.tsx");
+  assert.match(editor, /useLayoutEffect\(installTextStickerScrollAnchor, \[\]\)/);
+  assert.match(editor, /transform: initialTransformRef.current/);
+  const visual = read("app/components/TextStickerVisual.tsx");
+  assert.ok(visual.indexOf('input.style.height = "0px"') < visual.indexOf("input?.focus"));
+  assert.ok(visual.indexOf("input?.setSelectionRange") < visual.indexOf("input?.focus"));
+  assert.match(visual, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(read("app/lib/leading-media-top.ts"), /\.text-sticker-editor-layer/);
+});
+
 function renderer() {
   const drawings = [];
   const makeCanvas = () => {

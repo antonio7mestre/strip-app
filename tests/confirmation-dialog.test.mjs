@@ -59,10 +59,10 @@ test("all dialog text is centered and shares the profile discard sizing and pill
   assert.doesNotMatch(css, /\.delete-modal|\.profile-discard-card|\.modal-backdrop/);
 });
 
-test("typing, delete and media overlays dim document paint, leaving top chrome and bottom tools alone", () => {
+test("delete and media overlays dim document paint but typing leaves the page undimmed", () => {
   const css = read("app/globals.css");
   assert.match(css, /html:has\(\.confirmation-backdrop\) \{ --page-dim-opacity: .6;/);
-  assert.match(css, /html:has\(\.text-sticker-editor-layer:not\(\.is-closing\)\) \{ --page-dim-opacity: .6;/);
+  assert.doesNotMatch(css, /html:has\(\.text-sticker-editor-layer[^\n]*--page-dim-opacity/);
   const dim = css.split(".page-dimmer {")[1].split("}")[0];
   assert.match(dim, /position: absolute/);
   assert.match(dim, /background: linear-gradient\(to bottom,/);

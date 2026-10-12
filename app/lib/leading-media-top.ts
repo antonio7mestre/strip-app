@@ -99,7 +99,7 @@ export function installLeadingMediaTop({
   };
   const editorOwnsPosition = () => Boolean(document.querySelector(
     "html.inline-preview-exit-locked, html.keyboard-open, html.keyboard-settling, html.sticker-tray-open, html.page-color-dragging, " +
-    ".editor-mode.is-typing, .image-block.is-height-cropping, .sticker-block.is-transforming, .sticker-block[data-sticker-dragging], .landing-sticker-button.is-dragging",
+    ".editor-mode.is-typing, .text-sticker-editor-layer, .image-block.is-height-cropping, .sticker-block.is-transforming, .sticker-block[data-sticker-dragging], .landing-sticker-button.is-dragging",
   ));
   const startReturn = (initialVelocity = 0) => {
     if (inset <= 0 || !armed || touchCount > 0 || returnFrame !== null || nativeReturnActive || editorOwnsPosition()) return;
