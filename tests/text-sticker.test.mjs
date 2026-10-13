@@ -251,7 +251,7 @@ test("typing is temporary, does not move the saved sticker, and keeps the same t
   assert.match(backdrop, /pointer-events: none/);
   assert.doesNotMatch(editor, /onTransform|setBlocks/);
   assert.match(page, /onConfirmStickerText \? "Done typing sticker" : "Delete sticker"/);
-  assert.match(page, /if \(!isEditing \|\| textTyping\) return/);
+  assert.doesNotMatch(page, /settleStickerWithinBounds/, "decoding cannot mutate placement, including while typing");
   assert.match(page, /isEditing && textTyping && block.textSticker \? <TextStickerEditor/);
   assert.match(read("app/globals.css"), /\.sticker-block\.is-text-composing\s*\{ opacity: 0;/);
   const visual = read("app/components/TextStickerVisual.tsx");

@@ -2158,32 +2158,6 @@ function StripStickerBlock({
     return Math.min(maximumCenter, Math.max(minimumCenter, y));
   };
 
-  const settleStickerWithinBounds = () => {
-    if (!isEditing || textTyping) return;
-    const canvas = stickerElementRef.current?.closest<HTMLElement>(".strip-canvas");
-    if (!canvas) return;
-    const current = liveBlockRef.current;
-    const canvasWidth = Math.max(1, canvas.getBoundingClientRect().width);
-    const canvasHeight = Math.max(window.innerHeight, canvas.scrollHeight);
-    const y = clampStickerY(
-      current.y,
-      current.width,
-      current.rotation ?? 0,
-      canvasWidth,
-      canvasHeight,
-      false,
-    );
-    if (Math.abs(y - current.y) < 0.5) return;
-    const nextTransform = {
-      x: current.x,
-      y,
-      width: current.width,
-      rotation: current.rotation ?? 0,
-    };
-    previewTransform(nextTransform);
-    onTransform(nextTransform);
-  };
-
   const finishHandleTransform = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (handleTransformRef.current?.pointerId !== event.pointerId) return;
     event.preventDefault();
@@ -2197,17 +2171,6 @@ function StripStickerBlock({
     onTransform({ x: current.x, y: current.y, width: current.width, rotation: current.rotation ?? 0 });
     setIsTransforming(false);
   };
-
-  useLayoutEffect(() => {
-    if (!isEditing) return;
-    const frame = window.requestAnimationFrame(settleStickerWithinBounds);
-    const handleResize = () => settleStickerWithinBounds();
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [block.id, isEditing]);
 
   useEffect(() => {
     if (!isEditing || !isSelected) {
@@ -2693,7 +2656,7 @@ function StripStickerBlock({
       <span className="sticker-visual">
         {block.textSticker ? <TextStickerVisual value={block.textSticker} typing={false}
           onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()}
-          onSettled={loaded => { if (loaded) settleStickerWithinBounds(); onLoadSettled?.(loaded); }} /> : block.mediaType === "video" ? (
+          onSettled={loaded => onLoadSettled?.(loaded)} /> : block.mediaType === "video" ? (
           <video
             src={block.src}
             aria-label={block.alt ? `Video sticker: ${block.alt}` : "Video sticker"}
@@ -2706,10 +2669,7 @@ function StripStickerBlock({
             controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
             preload="auto"
             draggable={false}
-            onLoadedData={() => {
-              settleStickerWithinBounds();
-              onLoadSettled?.(true);
-            }}
+            onLoadedData={() => onLoadSettled?.(true)}
             onError={() => onLoadSettled?.(false)}
           />
         ) : (
@@ -2722,10 +2682,9 @@ function StripStickerBlock({
             decoding="async"
             draggable={false}
             style={block.src.startsWith("/sticker-pack/") ? { filter: "brightness(1.06)" } : undefined}
-            onSettled={(loaded) => {
-              if (loaded) settleStickerWithinBounds();
-              onLoadSettled?.(loaded);
-            }}
+            // Decoding must never rewrite authored coordinates. The canvas
+            // can still be incomplete here; only direct gestures constrain it.
+            onSettled={(loaded) => onLoadSettled?.(loaded)}
           />
         )}
       </span>

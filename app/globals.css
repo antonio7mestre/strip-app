@@ -2121,6 +2121,12 @@ html.leading-image-inset-active .is-strip-reader.has-leading-text .strip-canvas 
   background: var(--top-safe-area-color);
 }
 
+/* Absolute stickers must follow the same added reader origin as flow blocks.
+ * This is a presentation offset only, never a change to saved coordinates. */
+html.leading-image-inset-active .is-strip-reader.has-leading-text .strip-canvas > .sticker-block {
+  margin-top: var(--leading-image-inset);
+}
+
 html.leading-image-inset-active .has-leading-image .strip-canvas {
   margin-top: 0;
   padding-top: 0;
