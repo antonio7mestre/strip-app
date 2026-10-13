@@ -2924,6 +2924,7 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [noticeRevision, setNoticeRevision] = useState(0);
+  const previewNoticeRef = useRef<HTMLDivElement>(null);
   const [noticeShakeMessage, setNoticeShakeMessage] = useState("");
   const showActionNotice = (message: string) => {
     setNoticeShakeMessage(notice === message ? message : "");
@@ -4042,7 +4043,7 @@ export default function Home() {
   useEffect(() => {
     if (notice !== PREVIEW_MODE_NOTICE) return;
     return installPreviewNoticeDismiss(() =>
-      setNotice(current => current === PREVIEW_MODE_NOTICE ? "" : current));
+      setNotice(current => current === PREVIEW_MODE_NOTICE ? "" : current), previewNoticeRef.current);
   }, [notice, noticeRevision]);
 
   useEffect(() => {
@@ -8358,7 +8359,7 @@ export default function Home() {
         <article className={`published-strip ${legacyPageEnterClass}`}>
           {renderStrip(false, publishedBlocks)}
         </article>
-        {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} /> :
+        {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} pillRef={previewNoticeRef} /> :
           notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
         </main>
       </>
@@ -8597,7 +8598,7 @@ export default function Home() {
           }}
         />
       ) : null}
-      {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} /> :
+      {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} pillRef={previewNoticeRef} /> :
         notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
       </main>
     </>

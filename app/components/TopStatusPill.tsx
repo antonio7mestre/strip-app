@@ -1,11 +1,12 @@
 import { AnimatedEllipsis } from "./AnimatedEllipsis";
+import type { RefObject } from "react";
 
 /** Informational status stays separate from the bottom action/error notices. */
-export function TopStatusPill({ progress, waiting = false }: {
-  progress?: number; waiting?: boolean;
+export function TopStatusPill({ progress, waiting = false, pillRef }: {
+  progress?: number; waiting?: boolean; pillRef?: RefObject<HTMLDivElement | null>;
 }) {
   const loading = progress !== undefined;
-  return <div className={`top-status-pill${loading ? " is-loading" : " is-temporary"}`}
+  return <div ref={pillRef} className={`top-status-pill${loading ? " is-loading" : " is-temporary"}`}
     role="status" aria-label={loading ? "Strip loading" : undefined}>
     {loading ? <>
       <span className="top-status-label">Strip loading<AnimatedEllipsis /></span>
