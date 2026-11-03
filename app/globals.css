@@ -2502,14 +2502,17 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-canva
 }
 
 .text-block-texture {
+  /* Keep the toolbar's virtual image tail in every view, even when the
+     controls are absent. Selecting or previewing must never change the crop. */
+  --texture-image-tail: var(--texture-controls-extension, 55px);
   position: absolute;
   inset: 0;
   width: 100%;
-  height: calc(100% + var(--texture-controls-extension, 0px));
+  height: calc(100% + var(--texture-image-tail));
   max-height: none;
   object-fit: cover;
   object-position: center top;
-  clip-path: inset(0 0 var(--texture-controls-extension, 0px));
+  clip-path: inset(0 0 var(--texture-image-tail));
   pointer-events: none;
   user-select: none;
 }

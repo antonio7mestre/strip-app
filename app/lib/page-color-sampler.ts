@@ -1,7 +1,8 @@
 type Pixel = readonly [number, number, number, number];
-type Media = HTMLImageElement | HTMLVideoElement;
+type Media = HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
 
 const TOOLS = ".selector-dock, .profile-editor-dock, .page-color-picker-indicator, .profile-editor-hint, .block-controls, .sticker-delete-control";
+const ARTWORK = ".sticker-block img, .sticker-block video, .sticker-block canvas, .image-block img, .video-block video, .text-block-texture";
 
 /** Map the untransformed content box into the pixels actually painted by object-fit. */
 export function mediaSourcePoint(x: number, y: number, width: number, height: number,
@@ -63,8 +64,8 @@ function mediaPixel(media: Media, clientX: number, clientY: number,
   frames?: WeakMap<HTMLVideoElement, HTMLCanvasElement>): Pixel | null {
   const frozen = media instanceof HTMLVideoElement ? frames?.get(media) : undefined;
   const source = frozen ?? media;
-  const sourceWidth = frozen?.width ?? (media instanceof HTMLImageElement ? media.naturalWidth : media.videoWidth);
-  const sourceHeight = frozen?.height ?? (media instanceof HTMLImageElement ? media.naturalHeight : media.videoHeight);
+  const sourceWidth = frozen?.width ?? (media instanceof HTMLImageElement ? media.naturalWidth : media instanceof HTMLVideoElement ? media.videoWidth : media.width);
+  const sourceHeight = frozen?.height ?? (media instanceof HTMLImageElement ? media.naturalHeight : media instanceof HTMLVideoElement ? media.videoHeight : media.height);
   if (!sourceWidth || !sourceHeight) return null;
   const bounds = media.getBoundingClientRect(), style = getComputedStyle(media);
   const width = parseFloat(style.width), height = parseFloat(style.height);
@@ -98,6 +99,85 @@ function mediaPixel(media: Media, clientX: number, clientY: number,
   }
 }
 
+type TextRun = { text: string; x: number; y: number; width: number; height: number };
+type TextPaint = { key: string; runs: TextRun[]; mask?: { run: TextRun; canvas: HTMLCanvasElement } };
+const textPaints = new WeakMap<Text, TextPaint>();
+
+/** Use DOM line breaks and font metrics, then test the actual lettering. A
+ * paragraph's rectangular hit area also contains spaces and holes in letters;
+ * those must still sample the texture/photo behind it, not its text color. */
+function textPixel(element: Element, clientX: number, clientY: number): Pixel | null {
+  if (!(element instanceof HTMLElement)) return null;
+  const nodes = Array.from(element.childNodes).filter((node): node is Text => node.nodeType === Node.TEXT_NODE && !!node.textContent?.trim());
+  if (!nodes.length) return null;
+  const style = getComputedStyle(element), bounds = element.getBoundingClientRect();
+  const opacity = effectiveOpacity(element);
+  const ink = backgroundPixel(style.webkitTextFillColor || style.color, opacity) ?? backgroundPixel(style.color, opacity);
+  if (!ink || ink[3] <= 0 || !bounds.width || !bounds.height) return null;
+  const scaleX = bounds.width / (element.offsetWidth || bounds.width);
+  const scaleY = bounds.height / (element.offsetHeight || bounds.height);
+  const x = (clientX - bounds.left) / scaleX, y = (clientY - bounds.top) / scaleY;
+  const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  for (const node of nodes) {
+    const key = [node.data, font, style.letterSpacing, style.wordSpacing, style.lineHeight,
+      style.textAlign, style.textTransform, style.direction, style.whiteSpace,
+      element.offsetWidth, element.offsetHeight, document.fonts.status].join("|");
+    let paint = textPaints.get(node);
+    if (paint?.key !== key) {
+      const runs: TextRun[] = [], range = document.createRange();
+      const append = (text: string, box: DOMRect) => {
+        if (style.textTransform === "uppercase") text = text.toLocaleUpperCase();
+        else if (style.textTransform === "lowercase") text = text.toLocaleLowerCase();
+        else if (style.textTransform === "capitalize") text = text[0].toLocaleUpperCase() + text.slice(1);
+        runs.push({ text, x: (box.left - bounds.left) / scaleX, y: (box.top - bounds.top) / scaleY,
+          width: box.width / scaleX, height: box.height / scaleY });
+      };
+      for (const match of node.data.matchAll(/\S+/gu)) {
+        const start = match.index;
+        range.setStart(node, start); range.setEnd(node, start + match[0].length);
+        const boxes = range.getClientRects();
+        if (boxes.length === 1) append(match[0], boxes[0]);
+        else {
+          // Very long words can wrap anywhere. Keep each real line fragment
+          // intact so ligatures and kerning stay consistent with the browser.
+          let fragment = "", box: DOMRect | undefined;
+          for (const part of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(match[0])) {
+            range.setStart(node, start + part.index); range.setEnd(node, start + part.index + part.segment.length);
+            const next = range.getBoundingClientRect();
+            if (box && Math.abs(next.top - box.top) > .5) { append(fragment, box); fragment = ""; box = undefined; }
+            fragment += part.segment;
+            box = box ? new DOMRect(Math.min(box.left, next.left), box.top,
+              Math.max(box.right, next.right) - Math.min(box.left, next.left), box.height) : next;
+          }
+          if (box) append(fragment, box);
+        }
+      }
+      paint = { key, runs }; textPaints.set(node, paint);
+    }
+    for (const run of paint.runs) {
+      if (x < run.x || x >= run.x + run.width || y < run.y || y >= run.y + run.height) continue;
+      if (paint.mask?.run !== run) {
+        // Cache only the currently touched word, not a huge paragraph bitmap.
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.ceil(run.width)); canvas.height = Math.max(1, Math.ceil(run.height));
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) continue;
+        context.font = font; context.letterSpacing = style.letterSpacing;
+        context.direction = style.direction === "rtl" ? "rtl" : "ltr";
+        context.textAlign = "left"; context.textBaseline = "alphabetic";
+        const metrics = context.measureText(run.text), size = parseFloat(style.fontSize);
+        const ascent = metrics.fontBoundingBoxAscent ?? size * .8;
+        const descent = metrics.fontBoundingBoxDescent ?? size * .2;
+        context.fillText(run.text, 0, (run.height - ascent - descent) / 2 + ascent);
+        paint.mask = { run, canvas };
+      }
+      const context = paint.mask.canvas.getContext("2d", { willReadFrequently: true });
+      if (context && context.getImageData(Math.floor(x - run.x), Math.floor(y - run.y), 1, 1).data[3] > 16) return ink;
+    }
+  }
+  return null;
+}
+
 export function samplePageColorAtPoint(clientX: number, clientY: number,
   frames?: WeakMap<HTMLVideoElement, HTMLCanvasElement>) {
   // Artwork deliberately ignores pointer events for editing. Temporarily include
@@ -106,7 +186,7 @@ export function samplePageColorAtPoint(clientX: number, clientY: number,
   const restored: Array<{ media: Media; value: string; priority: string }> = [];
   let elements: Element[];
   try {
-    document.querySelectorAll<Media>(".sticker-block img, .sticker-block video, .image-block img, .video-block video").forEach(media => {
+    document.querySelectorAll<Media>(ARTWORK).forEach(media => {
       const box = media.getBoundingClientRect();
       if (clientX < box.left || clientX > box.right || clientY < box.top || clientY > box.bottom) return;
       restored.push({ media, value: media.style.getPropertyValue("pointer-events"), priority: media.style.getPropertyPriority("pointer-events") });
@@ -127,8 +207,10 @@ export function samplePageColorAtPoint(clientX: number, clientY: number,
   };
   for (const element of elements) {
     if (element.closest(TOOLS)) continue;
-    if (element instanceof HTMLImageElement || element instanceof HTMLVideoElement) {
+    if (element instanceof HTMLImageElement || element instanceof HTMLVideoElement || element instanceof HTMLCanvasElement) {
       add(mediaPixel(element, clientX, clientY, frames));
+    } else {
+      add(textPixel(element, clientX, clientY));
     }
     if (remaining <= 1 / 255) break;
     add(backgroundPixel(getComputedStyle(element).backgroundColor, effectiveOpacity(element)));

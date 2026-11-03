@@ -18,18 +18,38 @@ test('all 25 choices have optimized full images and square thumbnails', () => {
   assert(bytes<300000);
   for (const id of [undefined,null,1,{},'../../../secret','https://example.com/image.png']) assert.equal(normalizeTextTexture(id),undefined);
 });
-test('texture selections use centered contrast checks without loading icons or selected rings', () => {
+test('texture loading becomes a centered contrast check without a selected ring', () => {
   const picker=readFileSync(new URL('../app/components/TexturePicker.tsx',import.meta.url),'utf8');
   const css=readFileSync(new URL('../app/components/TexturePicker.module.css',import.meta.url),'utf8');
   assert.match(picker,/color: texture\.checkColor/);
-  assert.doesNotMatch(picker,/styles\.loading/);
-  assert.match(picker,/aria-label="Done choosing textures" onClick=\{onClose\}><Check/);
+  assert.match(picker,/LoaderCircle className=\{`\$\{styles\.loading\}/);
+  assert.match(picker,/selected === texture.id && pending !== texture.id \? styles.visible/);
+  assert.match(picker,/aria-label="Done choosing textures" onClick=\{onDone\} disabled=\{Boolean\(pending\)\}/);
   assert.match(css,/\.check \{[^}]*inset: 0;[^}]*place-items: center;/);
+  assert.match(css,/\.check svg \{[^}]*grid-area: 1 \/ 1/);
   assert.doesNotMatch(css,/\.option\[aria-pressed/);
   assert.match(css,/\.none\[aria-pressed=true\] \{ outline: 3px solid #000/);
   assert.match(picker,/aria-label="No texture"[\s\S]*?onClick=\{\(\) => void choose\(\)\}><Slash/);
   assert.equal(TEXT_TEXTURES.find(t=>t.id==='01-blonde-plywood').checkColor,'#000000');
   assert.equal(TEXT_TEXTURES.find(t=>t.id==='03-dark-walnut').checkColor,'#FFFFFF');
+});
+test('texture tray paints in the document and Done closes the entire color picker', () => {
+  const picker=readFileSync(new URL('../app/components/TexturePicker.tsx',import.meta.url),'utf8');
+  const page=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+  assert.doesNotMatch(picker,/showModal\(|<dialog|node.close\(/);
+  assert.match(picker,/role="dialog" aria-modal="true"/);
+  assert.match(picker,/installStickerPickerDismiss\(\(\) => \[tray.current\]/);
+  assert.match(picker,/installStickerTrayScroll\(\(\) => null, \(\) => \[row.current\]\)/);
+  assert.match(picker,/if \(keyboard && origin\?/);
+  assert.match(page,/const finishStyleSelection = \(\) => \{\s*setTextureOpen\(false\)/);
+  assert.match(page,/onClose=\{\(\) => setTextureOpen\(false\)\} onDone=\{finishStyleSelection\}/);
+});
+test('unselected, preview, and published textures reserve the same toolbar image tail', () => {
+  const css=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');
+  const rule=css.match(/\.text-block-texture\s*\{([^}]+)\}/)[1];
+  assert.match(rule,/--texture-image-tail: var\(--texture-controls-extension, 55px\)/);
+  assert.match(rule,/height: calc\(100% \+ var\(--texture-image-tail\)\)/);
+  assert.match(rule,/clip-path: inset\(0 0 var\(--texture-image-tail\)\)/);
 });
 test('all color circle selections use checks instead of a selection outline', () => {
   const css=readFileSync(new URL('../app/globals.css',import.meta.url),'utf8');

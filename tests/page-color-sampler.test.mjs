@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { compositePagePixels, mediaSourcePoint } from "../app/lib/page-color-sampler.ts";
 
 test("opaque stickers win over media and background underneath", () => {
@@ -21,4 +22,15 @@ test("covered and offset photos sample their visible crop, not their entire imag
   assert.deepEqual(mediaSourcePoint(0, 50, 100, 100, 200, 100, "cover"), { x: 50, y: 50 });
   assert.deepEqual(mediaSourcePoint(0, 50, 100, 100, 200, 100, "cover", "100% 50%"), { x: 100, y: 50 });
   assert.equal(mediaSourcePoint(10, 10, 0, 100, 200, 100, "contain"), null);
+});
+test("top-aligned textures include the toolbar extension in the visible crop", () => {
+  assert.deepEqual(mediaSourcePoint(10, 120, 320, 295, 160, 320, "cover", "50% 0%"), { x: 5, y: 60 });
+  assert.deepEqual(mediaSourcePoint(10, 220, 320, 295, 160, 320, "cover", "50% 0%"), { x: 5, y: 110 });
+});
+test("shared sampler includes texture and canvas artwork, then checks text before backgrounds", () => {
+  const source = readFileSync(new URL("../app/lib/page-color-sampler.ts", import.meta.url), "utf8");
+  assert.match(source, /const ARTWORK = "[^"\n]*\.sticker-block canvas[^"\n]*\.text-block-texture/);
+  assert.match(source, /element instanceof HTMLCanvasElement/);
+  assert(source.indexOf("add(textPixel(element") < source.indexOf("add(backgroundPixel(getComputedStyle(element)"));
+  assert.match(source, /const textPaints = new WeakMap<Text, TextPaint>/);
 });

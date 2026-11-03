@@ -1,6 +1,9 @@
 .tray {
   --sticker-tray-edge: max(34px, calc((100% - 536px) / 2));
   position: fixed;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
   inset: auto 0 0;
   width: 100%;
   max-width: 100%;
@@ -17,20 +20,21 @@
   transform: translateY(100%);
   transition: transform 240ms cubic-bezier(.22,.86,.28,1);
 }
-.tray[open] { display: flex; flex-direction: column; }
-.tray::backdrop { background: #0003; opacity: 0; transition: opacity 240ms ease; }
+.tray[aria-hidden=true] { pointer-events: none; }
 .shown { transform: translateY(0); }
-.shown::backdrop { opacity: 1; }
 .header { flex: 0 0 auto; }
 .row { display: grid; grid-auto-flow: column; grid-auto-columns: 96px; grid-template-rows: 96px; flex: 0 0 auto; gap: 10px; padding: 12px 12px 4px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .row::-webkit-scrollbar { display: none; }
-.tray button { touch-action: manipulation; }
+.tray button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .option { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 0; overflow: hidden; border: 0; border-radius: 14px; background: #eee; color: #000; cursor: pointer; }
 .option img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .option > svg { width: 28px; height: 28px; }
 .none[aria-pressed=true] { outline: 3px solid #000; outline-offset: -3px; }
 .option:focus-visible { outline: 3px solid #304dff; outline-offset: -3px; }
 .check { position: absolute; inset: 0; display: grid; place-items: center; color: inherit; pointer-events: none; }
-.check svg { width: 28px; height: 28px; stroke-width: 2.4; }
+.check svg { grid-area: 1 / 1; width: 28px; height: 28px; stroke-width: 2.4; opacity: 0; scale: .8; transition: opacity 140ms ease, scale 140ms ease; }
+.check svg.visible { opacity: 1; scale: 1; }
+.loading.visible { animation: texture-loading 700ms linear infinite; }
+@keyframes texture-loading { to { rotate: 360deg; } }
 .error { margin: 0; padding: 0 20px; font: 14px/1.4 Arial, sans-serif; }
 .error:empty { display: none; }

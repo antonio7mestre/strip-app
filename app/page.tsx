@@ -1400,6 +1400,7 @@ function TextStyleSelector({
     );
   };
   const finishStyleSelection = () => {
+    setTextureOpen(false);
     setGradientMode(null);
     setPageColorMode(null);
     setPageColorDragging(false);
@@ -1648,7 +1649,7 @@ function TextStyleSelector({
       </footer>
       {allowTextures ? <TexturePicker open={visible && tool === "background" && textureOpen}
         selected={block.backgroundTexture} onSelect={backgroundTexture => onChange({ backgroundTexture })}
-        onClose={() => setTextureOpen(false)} /> : null}
+        onClose={() => setTextureOpen(false)} onDone={finishStyleSelection} /> : null}
       {pageColorPickerActive && pageColorPoint && typeof document !== "undefined"
         ? createPortal(
             <span
