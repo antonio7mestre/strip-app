@@ -6,6 +6,7 @@ import { readStripContent } from "@/app/lib/strip-ending";
 import { getAuthUser } from "@/app/server/auth";
 import { recordStripView } from "@/app/server/view-history";
 import { publishedProfileTheme } from "@/app/lib/profile";
+import { publishedMediaPath } from "@/app/lib/published-media";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ type StoredBlock =
       cropTop?: number;
       cropBottom?: number;
       backgroundColor?: string;
+      backgroundTexture?: string;
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;
@@ -50,14 +52,6 @@ type StoredBlock =
     };
 
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,128}$/;
-
-function mediaPath(stripId: string, blockId: string) {
-  return `/api/strips/${encodeURIComponent(stripId)}/media/${encodeURIComponent(blockId)}`;
-}
-
-function coverPath(stripId: string) {
-  return `/api/strips/${encodeURIComponent(stripId)}/cover`;
-}
 
 function textColorForBackground(color: string) {
   const match = /^#([0-9A-F]{6})$/i.exec(color);
@@ -138,7 +132,7 @@ export async function GET(
     blocks.push({
       id: block.id,
       type: block.type,
-      src: mediaPath(id, block.id),
+      src: publishedMediaPath(id, block.id, row.published_at),
       alt: block.alt ?? "",
       ...("height" in block && typeof block.height === "number"
         ? { height: block.height }
@@ -177,7 +171,7 @@ export async function GET(
             {
               id: `cover-${row.id}`,
               type: "image" as const,
-              src: coverPath(id),
+              src: publishedMediaPath(id, null, row.published_at),
               alt: row.cover_alt ?? "Strip cover",
             },
           ]
@@ -208,7 +202,7 @@ export async function GET(
         row.cover_kind === "image"
           ? {
               kind: "image" as const,
-              src: coverPath(id),
+              src: publishedMediaPath(id, null, row.published_at),
               alt: row.cover_alt ?? "Strip cover",
             }
           : {

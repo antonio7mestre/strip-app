@@ -30,9 +30,9 @@ export function installStickerTrayScroll(
     const touch = event.touches[0];
     if (event.touches.length === 1 && touch && last && startPoint) {
       const x = touch.clientX ?? 0, y = touch.clientY;
-      // Ignore initial finger jitter before deciding the gesture direction.
-      if (!gestureAxis && Math.max(Math.abs(startPoint.x - x), Math.abs(startPoint.y - y)) < 4 &&
-        (canScroll(gestureTarget, 0, "x") || canScroll(gestureTarget, 0, "y"))) return;
+      // Preserve taps on every surface, including the header/close buttons and
+      // categories that do not overflow. Cancel only an actual scroll gesture.
+      if (!gestureAxis && Math.max(Math.abs(startPoint.x - x), Math.abs(startPoint.y - y)) < 8) return;
       gestureAxis ??= Math.abs(startPoint.x - x) > Math.abs(startPoint.y - y) ? "x" : "y";
       const delta = gestureAxis === "x" ? last.x - x : last.y - y;
       last = { x, y };

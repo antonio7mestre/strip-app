@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { normalizeTextTexture } from "@/app/lib/text-textures";
 import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import {
   readStripContent,
@@ -23,6 +24,7 @@ type DraftBlock =
       cropTop?: number;
       cropBottom?: number;
       backgroundColor?: string;
+      backgroundTexture?: string;
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;
@@ -203,6 +205,7 @@ function prepareDraftBlocks(
           ? { cropBottom: Math.min(20_000, finiteNumber(block.cropBottom, 0)) }
           : {}),
         backgroundColor: block.backgroundColor,
+        backgroundTexture: normalizeTextTexture(block.backgroundTexture),
         textColor: block.textColor,
         fontStyle: block.fontStyle,
         fontSize: block.fontSize,
@@ -333,11 +336,6 @@ export async function POST(request: Request) {
   if (inputBlocks.length === 0) {
     return Response.json({ error: "Empty drafts are not stored." }, { status: 400 });
   }
-  const prepared = prepareDraftBlocks(ownerId, id, inputBlocks);
-  if (!prepared) {
-    return Response.json({ error: "Invalid draft content." }, { status: 400 });
-  }
-
   const existing = await env.DB.prepare(
     `SELECT owner_id, content_json, created_at
      FROM drafts
@@ -347,6 +345,19 @@ export async function POST(request: Request) {
     .first<{ owner_id: string; content_json: string; created_at: number }>();
   if (existing && existing.owner_id !== ownerId) {
     return Response.json({ error: "Draft already exists." }, { status: 409 });
+  }
+  const prepared = prepareDraftBlocks(ownerId, id, inputBlocks);
+  if (!prepared) {
+    return Response.json({ error: "Invalid draft content." }, { status: 400 });
+  }
+  const inlineKeys = new Set(prepared.uploads.map(upload => upload.objectKey));
+  for (const block of prepared.storedBlocks) {
+    if (block.type === "text" || inlineKeys.has(block.objectKey)) continue;
+    const object = await env.STRIP_MEDIA.head(block.objectKey);
+    const expectedType = block.type === "video" || (block.type === "sticker" && block.mediaType === "video") ? "video" : "image";
+    if (!object || !isAllowedStoredMediaContentType(object.httpMetadata?.contentType, expectedType)) {
+      return Response.json({ error: "A file has not finished uploading. Keep this page open and try again." }, { status: 409 });
+    }
   }
 
   const now = Date.now();

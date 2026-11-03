@@ -17,6 +17,7 @@ type StoredBlock =
       content: string;
       height?: number;
       backgroundColor?: string;
+      backgroundTexture?: string;
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;

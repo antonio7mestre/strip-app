@@ -3,8 +3,9 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { entranceLoadPercent, startEntranceCounter } from "@/app/lib/strip-entrance";
-import { getReaderImageProps } from "@/app/lib/reader-image";
+import { getReaderPreviewSrc } from "@/app/lib/reader-image";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
+import { freezeCoverProfile, lockCoverInput } from "@/app/lib/cover-profile-handoff";
 import { profileFontInfo, profileFontWeight, profileInk, type ProfileFont } from "@/app/lib/profile";
 import { COVER_MOVE_MS, coverEntranceLayout, fitCoverTitle, dropCoverDock, fadeCoverEntrance, fadeInCover, watchCoverImage, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 
@@ -43,6 +44,7 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
     : cover.kind === "image" ? cover.aspectRatio ?? 1
       : cover.shape === "portrait" ? 4 / 5 : cover.shape === "landscape" ? 3 / 2 : 1);
   const [displayPercent, setDisplayPercent] = useState(0);
+  const [stalled, setStalled] = useState(false);
   const mounted = useRef(false);
   const settledCallback = useRef(onCoverSettled);
   const completeCallback = useRef(onExitComplete);
@@ -60,6 +62,8 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
     const host = surfaceRef.current;
     if (!host) return;
     const removeSurface = installScribbleSurface(host, () => syncStageRef.current());
+    const releaseInput = lockCoverInput(host);
+    const restoreProfile = initialOrigin ? freezeCoverProfile(document.querySelector(".library-mode.is-opening-strip")) : () => {};
     const theme = document.getElementById("strip-theme-color");
     const name = theme?.getAttribute("name");
     if (name) theme?.removeAttribute("name");
@@ -70,12 +74,14 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
     root.classList.add("cover-entrance-active");
     return () => {
       removeSurface();
+      releaseInput();
+      restoreProfile();
       root.classList.remove("cover-entrance-active");
       if (previousBackground) root.style.setProperty("--cover-entrance-background", previousBackground, previousPriority);
       else root.style.removeProperty("--cover-entrance-background");
       if (name && !theme?.hasAttribute("name")) theme?.setAttribute("name", name);
     };
-  }, [initialBackground]);
+  }, [initialBackground, initialOrigin]);
 
   // Install the clicked cover's existing pixels before the browser can paint.
   // Keep this same canvas through the reader handoff, with no second image load.
@@ -190,6 +196,13 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
   useLayoutEffect(() => { counterRef.current?.setTarget(centered && coverVisible ? loadPercent : 0); }, [loadPercent, centered, coverVisible]);
 
   useLayoutEffect(() => {
+    setStalled(false);
+    if (displayPercent === 0 || displayPercent >= 100 || revealing) return;
+    const timer = window.setTimeout(() => setStalled(true), 500);
+    return () => window.clearTimeout(timer);
+  }, [displayPercent, revealing]);
+
+  useLayoutEffect(() => {
     const host = surfaceRef.current;
     if (!host || !revealing || displayPercent !== 100 || !centered || requestPending || !dockDropped || !coverVisible) return;
     return fadeCoverEntrance(host, () => completeCallback.current());
@@ -212,13 +225,13 @@ export function StripEntrance({ cover, title = "Untitled", settledAssets, totalA
             role="img" aria-label={cover.kind === "image" ? cover.alt ?? "Strip cover" : "Strip cover"} />
           : cover.kind === "image" && (!coverUnavailable || initialOrigin) ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img ref={coverRef} {...getReaderImageProps(cover.src, "74vw")} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
+            <img ref={coverRef} src={getReaderPreviewSrc(cover.src)} alt={cover.alt ?? "Strip cover"} fetchPriority="high" decoding="sync" />
           ) : null}
         </div>
       </div>
       <div ref={progressRef} className="strip-entrance-progress" role="progressbar" aria-label="Strip loading"
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}>
-        <span className="strip-entrance-percent" data-value={displayPercent} data-waiting={displayPercent === 0} aria-hidden="true">
+        <span className="strip-entrance-percent" data-value={displayPercent} data-waiting={!revealing && displayPercent < 100 && (displayPercent === 0 || stalled)} aria-hidden="true">
           <span className="strip-entrance-percent-value">{displayPercent}</span>
         </span>
       </div>

@@ -2,6 +2,7 @@ import { STORY_WIDTH, STORY_HEIGHT, posterColor, posterInk, posterPalette, type 
 import { blurPosterPixels } from "./poster-blur";
 import { profileFontInfo, profileFontWeight } from "./profile";
 import { fontVisualScale } from "./font-sizing";
+import { textTexture } from "./text-textures";
 import { createPosterMediaTile, createPosterTextTile, paintPosterSticker, posterRasterWidth } from "./poster-content";
 
 const cancelled = () => new DOMException("Cancelled", "AbortError");
@@ -81,7 +82,15 @@ export async function preparePosterAssets(strip: PosterStrip, signal: AbortSigna
       if (signal.aborted) throw cancelled();
       if (block.type==="sticker") continue;
       let tile: PosterTile;
-      if (block.type==="text") tile=createPosterTextTile(block,index,top,rasterWidth);
+      if (block.type==="text") {
+        const texture=textTexture(block.backgroundTexture);
+        if (texture) {
+          active=await readMedia(texture.src,false,signal,1280);
+          if (!active) throw signal.aborted ? cancelled() : new Error("Texture unavailable");
+        }
+        tile=createPosterTextTile(block,index,top,rasterWidth,active);
+        free(active);active=null;
+      }
       else {
         if (!block.src) throw new Error("Media source missing");
         active=await readMedia(block.src,block.type==="video",signal);

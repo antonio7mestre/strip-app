@@ -44,30 +44,30 @@ export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_
   };
   const move = (event: PointerEvent<HTMLDivElement>) => {
     if (!drag.current || drag.current.pointer !== event.pointerId) return;
-    const next = stackSwipeProgress(drag.current.y, event.clientY, drag.current.index, POSTER_DESIGNS.length);
+    const next = stackSwipeProgress(drag.current.y, event.clientY, drag.current.index, designs.length);
     drag.current.progress = next; setProgress(next);
   };
   const up = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
     if (!current || current.pointer !== event.pointerId) return;
-    onSelect(stackSwipeTarget(current.index, current.progress, POSTER_DESIGNS.length));
+    onSelect(stackSwipeTarget(current.index, current.progress, designs.length));
     cancel();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
   const dragTarget = index + Math.sign(progress);
-  const cornersOpacity = Math.max(1 - Math.abs(progress), dragTarget >= 0 && dragTarget < POSTER_DESIGNS.length ? Math.abs(progress) : 0);
+  const cornersOpacity = Math.max(1 - Math.abs(progress), dragTarget >= 0 && dragTarget < designs.length ? Math.abs(progress) : 0);
   return <div className={`poster-picker ${dragging ? "is-dragging" : ""}`} style={{ "--picker-card-width": `${height * 9 / 16}px` } as CSSProperties}>
     <div ref={stage} className="poster-card-stage" role="listbox" aria-label="Story poster designs" aria-activedescendant={`poster-design-${index}`} tabIndex={0}
     onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={cancel}
     onKeyDown={e => {
       if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) {
-        e.preventDefault(); onSelect(e.key === "Home" ? 0 : e.key === "End" ? POSTER_DESIGNS.length - 1 : index + (["ArrowDown", "PageDown"].includes(e.key) ? 1 : -1));
+        e.preventDefault(); onSelect(e.key === "Home" ? 0 : e.key === "End" ? designs.length - 1 : index + (["ArrowDown", "PageDown"].includes(e.key) ? 1 : -1));
       }
     }}>
     {designs.map((design, i) => {
       const motion = stackCardStyle({ relativePosition: i - index, dragProgress: progress,
         cardHeight: height, cardWidth: height * 9 / 16, selectedHeight: height, stageHeight, centerPercent: 50 });
-      return <div key={design.id} id={`poster-design-${i}`} role="option" aria-selected={i === index} aria-label={`${i + 1} of ${POSTER_DESIGNS.length}: ${design.name}`} data-poster-index={i}
+      return <div key={design.id} id={`poster-design-${i}`} role="option" aria-selected={i === index} aria-label={`${i + 1} of ${designs.length}: ${design.name}`} data-poster-index={i}
         className="poster-option" style={{ height, width: height * 9 / 16, ...motion, visibility: Math.abs(i - index - progress) >= 2 ? "hidden" : "visible" }}>
         {previews[i] ? <img src={previews[i]} alt={`${design.name} story poster`} draggable={false} /> : <div className="poster-preparing" aria-busy="true">Preparing<AnimatedEllipsis /></div>}
       </div>;
@@ -82,7 +82,7 @@ export function SharePosterPicker({ previews, index, onSelect, designs = POSTER_
     <nav className="cover-pagination" style={{ top: "50%" }} aria-label="Story poster options">
       {designs.map((design, i) => <button key={design.id} type="button"
         className={i === index ? "is-current" : ""} aria-current={i === index ? "true" : undefined}
-        aria-label={`Show story poster ${i + 1} of ${POSTER_DESIGNS.length}`}
+        aria-label={`Show story poster ${i + 1} of ${designs.length}`}
         onClick={() => { cancel(); onSelect(i); }} />)}
     </nav>
   </div>;

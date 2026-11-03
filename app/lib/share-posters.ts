@@ -15,12 +15,8 @@ export const SAVED_LINK_PANEL_ROUNDNESS = 34 / 106;
 export const POSTER_DESIGNS = [
   { id: "masonry-wall", name: "Masonry wall", mode: "masonry", x: 350, y: 590, width: 620, size: 80, gap: 28, front: "label", darkness: .12, linkAlign: "right" },
   { id: "after-hours-grid", name: "After-hours grid", mode: "night-grid", x: 210, y: 420, width: 670, size: 96, gap: 30, front: "naked", darkness: .72, linkAlign: "left" },
-  { id: "portrait-atmosphere", name: "Portrait atmosphere", mode: "portrait-hero", x: 80, y: 410, width: 690, size: 80, gap: 32, front: "label", darkness: .5, linkAlign: "left" },
-  { id: "photo-diptych", name: "Photo diptych", mode: "diptych", x: 230, y: 435, width: 630, size: 86, gap: 32, front: "paper", darkness: 0, linkAlign: "left" },
   { id: "sidecar-strip", name: "Sidecar Strip", mode: "sidecar", x: 414, y: 450, width: 560, size: 82, gap: 34, front: "label", darkness: 0, linkAlign: "right" },
-  { id: "diagonal-cascade", name: "Diagonal cascade", mode: "cascade", x: 240, y: 550, width: 580, size: 82, gap: 30, front: "paper", darkness: .12, linkAlign: "left" },
   { id: "soft-memory", name: "Soft memory", mode: "soft-stack", x: 110, y: 330, width: 850, size: 90, gap: 38, front: "naked", darkness: .48, linkAlign: "right" },
-  { id: "stepped-blocks", name: "Stepped blocks", mode: "steps", x: 90, y: 470, width: 710, size: 82, gap: 30, front: "paper", darkness: 0, linkAlign: "left" },
 ] as const;
 
 /** Gapless masonry. Each column fills the canvas, with staggered horizontal seams. */
@@ -75,6 +71,7 @@ export function cascadePosterTiles(count: number) {
 export type PosterBlock = {
   id?: string; type: string; mediaType?: string; src?: string; content?: string;
   backgroundColor?: string; textColor?: string; fontStyle?: string; fontSize?: number;
+  backgroundTexture?: string;
   textAlign?: "left" | "center" | "right";
   height?: number; cropTop?: number; cropBottom?: number;
   x?: number; y?: number; width?: number; rotation?: number;
@@ -271,6 +268,23 @@ export function posterLinkBounds(c: CanvasRenderingContext2D, address: string, a
   return { x: alignedPosterX(width, anchor), y: LINK_STICKER_TARGET.y + 4, width, height: 85 };
 }
 
+/** Preview-only type fitting. Keep letter proportions and the cover's edges;
+ * the saved Instagram instruction panel does not use this address. */
+export function posterLinkFontSize(c: CanvasRenderingContext2D, address: string, anchor?: PosterCoverAnchor) {
+  const textWidth = Math.max(1, c.measureText(address).width);
+  const available = Math.max(1, Math.min(LINK_STICKER_TARGET.width, anchor?.width ?? STORY_WIDTH) - 48);
+  return 36 * Math.min(1, available / textWidth);
+}
+
+/** A fixed-width window onto a proportionally scaled Strip. Short Strips fill
+ * the height and expose their right edge; long Strips keep the original scale. */
+export function sidecarPosterLayout(heights: readonly number[]) {
+  const naturalHeight = heights.reduce((sum, height) => sum + (Number.isFinite(height) ? Math.max(0, height) : 0), 0);
+  const scale = Math.max(334 / 390, naturalHeight > 0 ? STORY_HEIGHT / naturalHeight : 0);
+  const width = 390 * scale;
+  return { x: 334 - width, width, height: naturalHeight * scale, scale };
+}
+
 function wrapPosterText(c: CanvasRenderingContext2D, text: string, width: number) {
   const lines: string[] = [];
   let line = "";
@@ -300,11 +314,11 @@ export function posterCoverBounds(assets: PosterAssets, index: number) {
   return { x: design.x, y: design.y, width: boxWidth, height, imageWidth: width };
 }
 
-/** One foreground edge contract, including an existing paper frame when present. */
+/** Title labels and link cues align to the same foreground cover edge. */
 export function posterCoverAnchor(assets: PosterAssets, index: number): PosterCoverAnchor {
   const design = POSTER_DESIGNS[index] ?? POSTER_DESIGNS[0];
-  const bounds = posterCoverBounds(assets, index), frame = design.front === "paper" ? 28 : 0;
-  return { x: bounds.x - frame, width: bounds.width + frame * 2, side: design.linkAlign };
+  const bounds = posterCoverBounds(assets, index);
+  return { x: bounds.x, width: bounds.width, side: design.linkAlign };
 }
 
 function drawFitted(c: CanvasRenderingContext2D, photo: PosterPhoto,
@@ -363,46 +377,18 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
       break;
     }
     case "night-grid": grid(); break;
-    case "steps":
-      steppedPosterTiles(tiles.map(p => p.flowHeight)).forEach(cell =>
-        tile(cell.index, cell.x, cell.y, cell.width, cell.height));
-      break;
-    case "portrait-hero": {
-      const photos=tiles.map((p,i)=>({p,i})).filter(({p})=>p.type!=="text");
-      const hero=photos[1] ?? photos[0];
-      if (hero) drawFitted(c,hero.p,0,0,1080,1920);
-      const others=tiles.map((_,i)=>i).filter(i=>i!==hero?.i);
-      const slots=[[690,60,330,495],[0,0,450,180],[0,1260,530,240],
-        [720,1410,360,510],[0,1500,700,130],[0,1630,700,290]];
-      if (others.length<=slots.length) others.forEach((i,j)=>{const [x,y,w,h]=slots[j];tile(i,x,y,w,h);});
-      else others.forEach((i,j)=>{const h=1920/Math.ceil(others.length/2);
-        tile(i,j%2?750:0,Math.floor(j/2)*h,j%2?330:450,h);});
-      break;
-    }
-    case "diptych": {
-      if (tiles.length===7) {
-        [[0,0,540,780],[0,780,540,220],[540,0,540,780],[540,780,540,220],
-          [0,1000,540,920],[540,1000,540,220],[540,1220,540,700]]
-          .forEach(([x,y,w,h],i)=>tile(i,x,y,w,h));
-      } else grid(0);
-      break;
-    }
     case "sidecar": {
-      // Keep the current width and authored proportions. Never stretch the
-      // bounded, flattened flow canvas to fill the poster's height.
+      // Scale both axes together, then crop at the fixed window edges. Draw
+      // each original tile so the bounded flow raster cannot squash long Strips.
+      const layout = sidecarPosterLayout(tiles.map(p => p.flowHeight));
       c.save();c.beginPath();c.rect(0,0,334,STORY_HEIGHT);c.clip();
       let y=0;
       for (const p of tiles) {
-        const height=p.flowHeight*334/390;
-        c.drawImage(p.source,0,0,p.width,p.height,0,y,334,height);
+        const height=p.flowHeight*layout.scale;
+        c.drawImage(p.source,0,0,p.width,p.height,layout.x,y,layout.width,height);
         y+=height;
       }
       c.restore();break;
-    }
-    case "cascade": {
-      cascadePosterTiles(tiles.length).forEach(cell =>
-        tile(cell.index,cell.x,cell.y,cell.width,cell.height,cell.rotation));
-      break;
     }
     case "soft-stack": {
       // Blur is baked once into shared pixels, not an unsupported Safari filter.
@@ -431,7 +417,6 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   const titleHeight=lines.length*lineHeight,titleY=bounds.y-design.gap-titleHeight;
   const dark=design.front==="naked";
   const darkPanel=posterInk(theme.ink)==="#FFFFFF" ? theme.ink : "#000000";
-  if (design.front==="paper") fill(mat,bounds.x-28,titleY-28,bounds.width+56,bounds.y+bounds.height+28-titleY+28);
   if (design.front==="label" && title) fill(mat,bounds.x,titleY-12,bounds.width,titleHeight+24);
   if (cover) {
     c.drawImage(cover.source,0,0,cover.width,cover.height,
@@ -450,10 +435,12 @@ export function drawPoster(c: CanvasRenderingContext2D, assets: PosterAssets, in
   } else {
     const address=assets.address || "striiip.com";
     c.font=`${theme.weight} 36px ${theme.font}`;
+    const linkSize=posterLinkFontSize(c,address,anchor);
+    c.font=`${theme.weight} ${linkSize}px ${theme.font}`;
     const badge=posterLinkBounds(c,address,anchor);
     fill(dark?darkPanel:mat,badge.x,badge.y,badge.width,badge.height);
     c.fillStyle=dark?"#FFFFFF":theme.ink;c.textAlign="center";c.textBaseline="top";
-    c.fillText(address,badge.x+badge.width/2,badge.y+20,badge.width-48);
+    c.fillText(address,badge.x+badge.width/2,badge.y+20+(36-linkSize)/2);
   }
   c.restore();
 }

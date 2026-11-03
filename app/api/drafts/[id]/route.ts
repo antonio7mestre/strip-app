@@ -16,6 +16,7 @@ type StoredDraftBlock =
       cropTop?: number;
       cropBottom?: number;
       backgroundColor?: string;
+      backgroundTexture?: string;
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;

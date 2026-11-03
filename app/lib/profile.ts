@@ -131,7 +131,7 @@ export function profileColorChoices(profile: StripProfile, tool: "background" | 
 }
 
 /** Preserve a cover's edge when it blends into the profile canvas. */
-export function profileCoverOutline(cover: string, background: string) {
+export function profileCoverOutline(cover: string, background: string, textColor: string) {
   const channels = (color: string) => {
     const hex = color.trim().replace(/^#/, "");
     const full = hex.length === 3 ? [...hex].map((digit) => digit + digit).join("") : hex;
@@ -140,7 +140,7 @@ export function profileCoverOutline(cover: string, background: string) {
   };
   const a = channels(cover), b = channels(background);
   if (!a || !b || a.some((channel, index) => Math.abs(channel - b[index]) > 16)) return undefined;
-  return profileInk(`#${b.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`);
+  return textColor;
 }
 
 export function profileTitle(profile: Pick<StripProfile, "title">, username: string | null | undefined) {

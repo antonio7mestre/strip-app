@@ -12,26 +12,32 @@
 }
 
 .sourceTray { height: auto; flex: none; justify-content: center; }
-.packTray { height: 100%; }
-.header { display: grid; grid-template-columns: 44px 1fr 44px; min-height: 48px; align-items: center; }
-.header h2 { grid-column: 2; margin: 0; text-align: center; font-size: 20px; font-weight: 850; letter-spacing: -.035em; }
+.tray button { touch-action: manipulation; }
+.packTray {
+  --sticker-tray-edge: max(34px, calc((100% - 536px) / 2));
+  width: 100%;
+  height: 100%;
+}
+.header, .packHeader { display: grid; grid-template-columns: 44px 1fr 44px; min-height: 48px; align-items: center; }
+.header h2, .packHeader h2 { grid-column: 2; margin: 0; text-align: center; font-size: 20px; font-weight: 850; letter-spacing: -.035em; }
 .header > :only-child { grid-column: 3; }
-.iconButton { display: grid; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #e9e9e4; color: #090909; }
-.iconButton svg { width: 22px; height: 22px; }
-.header .iconButton:last-child { grid-column: 3; }
-.packTray .header { grid-template-columns: 32px 1fr 32px; min-height: 40px; }
-.packTray .iconButton { width: 32px; height: 32px; background: transparent; }
-.packTray .iconButton svg { width: 19px; height: 19px; }
-.sourceChoices { display: grid; grid-template-columns: 36px repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 8px; padding: 0; }
+.iconButton, .packIconButton { display: grid; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #e9e9e4; color: #090909; }
+.iconButton svg, .packIconButton svg { width: 22px; height: 22px; }
+.header .iconButton:last-child, .packHeader .packIconButton:last-child { grid-column: 3; }
+.packTray .header, .packHeader { grid-template-columns: 32px 1fr 32px; min-height: 40px; margin-inline: var(--sticker-tray-edge); }
+.packTray .iconButton, .packIconButton { width: 32px; height: 32px; background: transparent; }
+.packTray .iconButton svg, .packIconButton svg { width: 19px; height: 19px; }
+.sourceChoices { display: grid; grid-template-columns: 24px repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 8px; padding: 0; }
 .sourceChoices .sourceChoice { flex-direction: column; gap: 4px; padding: 5px; font-size: 11px; text-align: center; }
 .sourceChoices .sourceChoice svg { width: 23px; height: 23px; }
-.sourceBackChoice { display: grid; width: 36px; min-width: 0; place-items: center; padding: 0; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; }
+.sourceBackChoice { display: grid; width: 24px; min-width: 0; place-items: center; padding: 0; border: 0; border-radius: 0; background: transparent; color: #090909; }
 .sourceBackChoice svg { width: 20px; height: 20px; }
 .sourceChoice { display: flex; height: 64px; min-width: 0; align-items: center; justify-content: center; gap: 9px; padding: 10px; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; font-size: 14px; font-weight: 650; line-height: 1.15; text-align: left; transition: transform 150ms cubic-bezier(.2,.8,.2,1), background-color 150ms ease; }
 .sourceChoice svg { width: 2.3em; height: 2.3em; flex: none; }
 .sourceChoice:active { transform: scale(.965); }
 .categories { display: flex; flex-wrap: nowrap; flex: none; gap: 5px; padding: 8px 0 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .categories::-webkit-scrollbar { display: none; }
+.categoryContent { display: flex; flex: 0 0 auto; gap: inherit; padding-inline: var(--sticker-tray-edge); }
 .categoryTabs { display: flex; flex: 0 0 auto; gap: inherit; }
 .categories button { flex: 0 0 auto; min-width: 0; min-height: 36px; padding: 0 14px; border: 1.5px solid #d5d5cf; border-radius: 99px; background: transparent; color: #393936; font-size: 13px; font-weight: 750; white-space: nowrap; }
 .categories button.activeCategory { border-color: #000000; background: #000000; color: #ffffff; }
@@ -39,7 +45,7 @@
 .scrollArea::-webkit-scrollbar { display: none; }
 /* Auto-height columns grow down inside a separate, bounded native scroller.
    Putting columns on the fixed-height scroller creates extra columns sideways. */
-.masonry { padding: 2px 2px 30px; columns: 3; column-gap: 10px; }
+.masonry { padding: 2px 12px 30px; columns: 3; column-gap: 10px; }
 .stickerButton { display: block; width: 100%; margin: 0 0 12px; padding: 0; break-inside: avoid; border: 0; background: transparent; -webkit-tap-highlight-color: transparent; }
 .stickerLarge { width: 100%; }
 .stickerMedium { width: 84%; }
@@ -59,6 +65,7 @@
 .sourceChoice:focus-visible,
 .sourceBackChoice:focus-visible,
 .iconButton:focus-visible,
+.packIconButton:focus-visible,
 .categories button:focus-visible,
 .stickerButton:focus-visible,
 .shapeButton:focus-visible,

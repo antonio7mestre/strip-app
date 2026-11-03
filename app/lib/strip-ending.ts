@@ -3,6 +3,11 @@ export type StripEndingStyle = {
   buttonColor: string;
 };
 
+/** Preview and share surfaces retain their existing gray. */
+export const STRIP_FOOTER_BACKGROUND = "#FFFFFF";
+/** Published footer, backing, and the existing bottom color transition. */
+export const PUBLISHED_STRIP_FOOTER_BACKGROUND = "#FFFFFF";
+
 export const DEFAULT_STRIP_ENDING_STYLE: StripEndingStyle = {
   backgroundColor: "#000000",
   buttonColor: "#FFFFFF",

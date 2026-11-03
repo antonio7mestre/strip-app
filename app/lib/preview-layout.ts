@@ -1,25 +1,79 @@
+import { STRIP_FOOTER_BACKGROUND } from "./strip-ending";
+import { easePreviewHandoff } from "./preview-motion";
+
 export type PreviewLayoutTransition = {
   rebase: () => number;
   start: (preview: boolean) => void;
   cancel: () => void;
 };
 
+const bottomPaintOwners = new WeakMap<HTMLElement, number>();
+
+/** The layout and toolbar hand the same bottom paint to each other. Neither may
+ * expose the root canvas until the other has finished, including a reversal. */
+export function retainPreviewBottomPaint() {
+  const root = document.documentElement;
+  const alreadyHeld = bottomPaintOwners.has(root);
+  const initialColor = root.matches(".preview-bottom-canvas-active, .published-bottom-sheet-canvas-active")
+    ? STRIP_FOOTER_BACKGROUND : "#FFFFFF";
+  bottomPaintOwners.set(root, (bottomPaintOwners.get(root) ?? 0) + 1);
+  root.classList.add("preview-bottom-handoff-active");
+  const theme = document.querySelector<HTMLMetaElement>("#strip-theme-color");
+  // A second owner or a fast reversal must keep the currently painted shade.
+  if (!alreadyHeld) paintPreviewBottom(initialColor);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const remaining = (bottomPaintOwners.get(root) ?? 1) - 1;
+    if (remaining > 0) { bottomPaintOwners.set(root, remaining); return; }
+    bottomPaintOwners.delete(root);
+    root.classList.remove("preview-bottom-handoff-active");
+    root.style.removeProperty("--preview-handoff-color");
+    const readerOwnsBottom = root.matches(".preview-bottom-canvas-active, .published-bottom-sheet-canvas-active");
+    root.style.setProperty("--bottom-safe-area-color", readerOwnsBottom ? STRIP_FOOTER_BACKGROUND : "#000000");
+    theme?.setAttribute("content", readerOwnsBottom ? STRIP_FOOTER_BACKGROUND
+      : root.style.getPropertyValue("--top-safe-area-color") || "#000000");
+  };
+}
+
+export function paintPreviewBottom(color: string) {
+  const root = document.documentElement;
+  if (!bottomPaintOwners.has(root)) return;
+  root.style.setProperty("--preview-handoff-color", color);
+  root.style.setProperty("--bottom-safe-area-color", color);
+  document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute("content", color);
+}
+
 /** Hold the outgoing scroll range before React swaps editor clearance for the
  * reader footer. Release only that extra space, on the toolbar's easing clock.
- * Native scroll clamping then follows it smoothly, without translating photos
- * or forcing scroll positions while someone is touching the page. */
+ * At the very bottom, follow the incoming bottom on that same clock. Otherwise
+ * keep the current reading position. Media itself is never translated. */
 export function preparePreviewLayout(
   canvas: HTMLElement | null,
   previous: PreviewLayoutTransition | null,
   duration: number,
+  onBottomScroll?: (scrollTop: number) => void,
 ): PreviewLayoutTransition | null {
   let outgoingHeight = canvas?.getBoundingClientRect().height ?? 0;
   const outgoingTop = canvas ? canvas.getBoundingClientRect().top + window.scrollY : 0;
+  let outgoingScroll = window.scrollY;
+  let followBottom = outgoingHeight > 0 &&
+    outgoingTop + outgoingHeight - outgoingScroll - window.innerHeight <= 2;
   const anchor = canvas?.querySelector<HTMLElement>(".strip-block:not(.sticker-block)");
   const outgoingOrigin = anchor ? anchor.getBoundingClientRect().top + window.scrollY : null;
-  previous?.cancel();
-  if (!canvas || outgoingHeight <= 0) return null;
   const root = document.documentElement;
+  // Away from the ending the toolbar still slides fully away as before.
+  // At the ending, reserve one shared paint owner while the dock crossfades
+  // between editor and reader without moving its visible edge.
+  const keepBottomWhite = canvas && outgoingHeight > 0 && window.innerWidth < 900 && (
+    root.matches(".preview-bottom-canvas-active, .preview-bottom-handoff-active") ||
+    outgoingTop + outgoingHeight - window.scrollY <= window.innerHeight + 64
+  );
+  // Acquire before releasing an interrupted transition: no intermediate tint.
+  const releaseBottomPaint = keepBottomWhite ? retainPreviewBottomPaint() : () => {};
+  previous?.cancel();
+  if (!canvas || outgoingHeight <= 0) { releaseBottomPaint(); return null; }
   const originalMinimum = canvas.style.minHeight;
   let frame = 0;
   let disposed = false;
@@ -28,6 +82,13 @@ export function preparePreviewLayout(
   let originalOpacity = "";
   canvas.style.minHeight = `${outgoingHeight}px`;
   root.classList.add("inline-preview-layout-moving");
+  const stopFollowing = () => {
+    followBottom = false;
+    onBottomScroll?.(window.scrollY);
+  };
+  for (const event of ["touchstart", "pointerdown", "wheel"]) {
+    window.addEventListener(event, stopFollowing, { passive: true });
+  }
 
   const syncBoundary = () => {
     // The document-painted toolbar must not preserve an obsolete page height
@@ -40,10 +101,14 @@ export function preparePreviewLayout(
     if (disposed) return;
     disposed = true;
     cancelAnimationFrame(frame);
+    for (const event of ["touchstart", "pointerdown", "wheel"]) {
+      window.removeEventListener(event, stopFollowing);
+    }
     canvas.style.minHeight = originalMinimum;
     if (controls) controls.style.opacity = originalOpacity;
     root.classList.remove("inline-preview-layout-moving");
     syncBoundary();
+    releaseBottomPaint();
   };
   return {
     cancel,
@@ -55,6 +120,7 @@ export function preparePreviewLayout(
       // apply. Safari can report a real safe inset or use the fallback, so an
       // inset-only estimate misses part of the shift on some devices.
       const delta = anchor.getBoundingClientRect().top + window.scrollY - outgoingOrigin;
+      outgoingScroll = Math.max(0, outgoingScroll + delta);
       const wrapperShift = canvas.getBoundingClientRect().top + window.scrollY - outgoingTop;
       outgoingHeight = Math.max(0, outgoingHeight + delta - wrapperShift);
       canvas.style.minHeight = `${outgoingHeight}px`;
@@ -68,20 +134,31 @@ export function preparePreviewLayout(
       // The reader footer follows the content canvas, exactly as publication
       // does. Keep its height out of sticker coordinates but in this handoff.
       const ending = preview ? canvas.querySelector<HTMLElement>(".strip-ending-card") : null;
+      const stripBounds = strip.getBoundingClientRect();
+      const canvasBounds = canvas.getBoundingClientRect();
       const naturalHeight = Math.max(preview ? 0 : window.innerHeight,
-        strip.getBoundingClientRect().height + (ending?.getBoundingClientRect().height ?? 0));
+        stripBounds.bottom - canvasBounds.top + (ending?.getBoundingClientRect().height ?? 0));
+      const destinationBottom = canvasBounds.top + window.scrollY + naturalHeight;
       const reserve = Math.max(0, outgoingHeight - naturalHeight);
-      // Keep the white surface and the last block's corner fill opaque. Only
+      // Keep the footer surface and the last block's corner fill opaque. Only
       // the incoming controls fade, so there is never a translucent edge seam.
       controls = preview ? canvas.querySelector<HTMLElement>(".strip-ending-card-inner") : null;
       originalOpacity = controls?.style.opacity ?? "";
       const timelineTime = document.timeline.currentTime;
       const started = typeof timelineTime === "number" ? timelineTime : performance.now();
       const paint = (progress: number) => {
-        const eased = 1 - Math.pow(1 - progress, 3);
+        const eased = keepBottomWhite ? easePreviewHandoff(progress) : 1 - Math.pow(1 - progress, 3);
         canvas.style.minHeight = `${naturalHeight + reserve * (1 - eased)}px`;
         if (controls) controls.style.opacity = String(eased);
         syncBoundary();
+        if (followBottom) {
+          const destinationScroll = Math.max(0, destinationBottom - window.innerHeight);
+          const scrollTop = outgoingScroll + (destinationScroll - outgoingScroll) * eased;
+          // Keep history restoration on the same moving anchor. The returned
+          // dock can otherwise preserve the old, taller preview scroll range.
+          onBottomScroll?.(scrollTop);
+          window.scrollTo({ top: scrollTop, left: 0, behavior: "instant" });
+        }
       };
       paint(0);
       const tick = (now: number) => {

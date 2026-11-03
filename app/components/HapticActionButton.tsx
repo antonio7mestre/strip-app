@@ -4,13 +4,14 @@ import type { ReactNode } from "react";
 
 /** A real switch tap gives supported iPhones native feedback. Keep valid actions
  * as regular buttons, and never synthesize clicks on a hidden offscreen switch. */
-export function HapticActionButton({ children, className, label, feedback, disabled = false, pressed, onClick }: {
+export function HapticActionButton({ children, className, label, feedback, disabled = false, pressed, preserveScroll = false, onClick }: {
   children: ReactNode;
   className: string;
   label: string;
   feedback: boolean;
   disabled?: boolean;
   pressed?: boolean;
+  preserveScroll?: boolean;
   onClick: (target: HTMLElement) => void;
 }) {
   const activate = (event: { currentTarget: HTMLElement }) => {
@@ -24,7 +25,7 @@ export function HapticActionButton({ children, className, label, feedback, disab
 
   if (!feedback) return <button type="button" className={className} disabled={disabled}
     aria-label={label} aria-pressed={pressed}
-    onPointerDown={event => event.stopPropagation()}
+    onPointerDown={event => { event.stopPropagation(); if (preserveScroll && event.button === 0) event.preventDefault(); }}
     onClick={event => { event.stopPropagation(); activate(event); }}>{children}</button>;
 
   return <label className={`${className} haptic-action-button`}>

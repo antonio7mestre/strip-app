@@ -7,6 +7,7 @@ export type StickerAsset = {
   category: StickerCategory;
   name: string;
   src: string;
+  thumbnailSrc: string;
   width: number;
   height: number;
 };
@@ -218,6 +219,7 @@ export const STICKER_PACK: StickerAsset[] = STICKER_CATEGORIES.flatMap(category 
     width,
     height,
     src: `/sticker-pack/${category}/${id}.webp`,
+    thumbnailSrc: `/sticker-pack/thumbnails/${category}/${id}.webp`,
   })),
 );
 

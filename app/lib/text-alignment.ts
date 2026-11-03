@@ -4,3 +4,8 @@ export type TextAlignment = "left" | "center" | "right";
 export function normalizeTextAlignment(value: unknown): TextAlignment {
   return value === "center" || value === "right" ? value : "left";
 }
+
+export function nextTextAlignment(value: unknown): TextAlignment {
+  const current = normalizeTextAlignment(value);
+  return current === "left" ? "center" : current === "center" ? "right" : "left";
+}

@@ -19,6 +19,7 @@
   --white: #ffffff;
   --top-safe-area-color: #000000;
   --bottom-safe-area-color: #000000;
+  --strip-footer-background: #ffffff;
   /* Mirror the broad portrait-phone corner across every full-width tray.
      One responsive radius also sizes the reflected-photo corner backing.
      The device clips the lower edge; do not add a second bottom radius. */
@@ -31,7 +32,7 @@
   --dock-bottom-gap: 2px;
   --dock-bleed: 180px;
   --dock-surface-extra: 0px;
-  /* Shared by fixed tool trays, navigation and the in-page Strip footer. */
+  /* Shared by fixed tool trays and navigation. */
   --bottom-bar-shadow: 0 -4px 12px -4px rgba(0, 0, 0, 0.18);
   --muted: #8a8a8a;
   --line: rgba(255, 255, 255, 0.14);
@@ -40,6 +41,13 @@
   --leading-image-inset: 0px;
   --height-crop-motion-duration: 520ms;
   --height-crop-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-in-app-browser="instagram"] {
+  /* Instagram exposes less tray below the controls. Finish the corner nearer
+     the edge so it joins the straight side before the viewport clips it.
+     Keep the shared token so inner surfaces and moving tray copies match. */
+  --iphone-panel-radius: clamp(32px, 9vw, 40px);
 }
 
 * {
@@ -81,42 +89,81 @@ html {
   background-size: 100% 100%;
 }
 
-html.published-trailing-edge-active {
-  background-image: linear-gradient(
-    to bottom,
-    var(--bottom-safe-area-color, var(--black)) 0 50%,
-    var(--top-safe-area-color, var(--black)) 50% 100%
-  );
-}
-
-html.published-bottom-pocket-active,
-html.published-bottom-pocket-active body {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
-html.published-bottom-sheet-canvas-active,
-html.preview-bottom-canvas-active {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-  background-image: linear-gradient(
-    to bottom,
-    var(--bottom-safe-area-color, var(--black)) 0 50%,
-    var(--top-safe-area-color, var(--black)) 50% 100%
-  ) !important;
-}
-
-html.published-bottom-sheet-canvas-active body,
-html.preview-bottom-canvas-active body {
-  background-color: var(--bottom-safe-area-color, var(--black)) !important;
-}
-
 body {
   min-height: 100lvh;
   overflow-x: clip;
-  background: var(--top-safe-area-color, #000000);
+  background: var(--reader-safe-area-color, var(--top-safe-area-color, #000000));
   color: var(--white);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: auto;
+}
+
+/* All readers share the same out-of-document bounce edges below. */
+html.published-bottom-sheet-canvas-active,
+html.preview-bottom-canvas-active,
+html.preview-bottom-handoff-active {
+  background: var(--reader-safe-area-color, var(--bottom-safe-area-color, var(--black))) !important;
+}
+
+html.published-bottom-sheet-canvas-active body,
+html.preview-bottom-canvas-active body,
+html.preview-bottom-handoff-active body {
+  background-color: var(--reader-safe-area-color, var(--bottom-safe-area-color, var(--black))) !important;
+}
+
+/* The toolbar/footer exchange owns one shade, even if a reader tint was still
+   fading when Preview was tapped. No stale reader frame can cover this paint. */
+html.preview-bottom-handoff-active {
+  background: var(--preview-handoff-color, #ffffff) !important;
+}
+
+html.preview-bottom-handoff-active body {
+  background-color: var(--preview-handoff-color, #ffffff) !important;
+}
+
+/* Every reader exposes the real document top during overscroll.
+   Its backing must match the top safe area, including text-first Strips. */
+html:not([data-auth-canvas]):not(.published-bottom-sheet-canvas-active):not(.preview-bottom-canvas-active):not(.preview-bottom-handoff-active):not(:has(.is-strip-reader)):has(.editor-mode.has-leading-image) {
+  background: var(--reader-safe-area-color, var(--top-safe-area-color, var(--black))) !important;
+}
+
+/* Rubber-banding exposes the root canvas outside the document, beyond the
+   footer and its shadow. Repeat one document-height tile: below the document
+   its first edge is already white; above it the previous tile's last edge
+   retains the existing live top color. The opaque body covers the tile inside
+   the page. No fixed paint panel or main-thread scroll update is required. */
+html:not([data-auth-canvas]):not([data-reader-entry-pending]):not(.preview-bottom-handoff-active):not([data-in-app-browser="instagram"]):has(.is-strip-reader) {
+  --published-leading-bounce-color: var(--reader-safe-area-color, var(--top-safe-area-color, #000000));
+  background: linear-gradient(to bottom,
+    #ffffff 0 50%,
+    var(--published-leading-bounce-color) 50% 100%)
+    0 0 / 100% 100% repeat-y var(--published-leading-bounce-color) !important;
+}
+
+html:is(.published-bottom-sheet-canvas-active, .preview-bottom-canvas-active):not([data-auth-canvas]):not([data-reader-entry-pending]):not(.preview-bottom-handoff-active):not([data-in-app-browser="instagram"]):has(.is-strip-reader) {
+  --published-leading-bounce-color: var(--reader-safe-area-color, var(--bottom-safe-area-color, #ffffff));
+}
+
+/* Instagram's WebView samples html/body background-color for rubber-banding.
+   A gradient alone leaves that color transparent, even when its final stop is
+   white. Keep an opaque white canvas while viewing the published reader. */
+html[data-in-app-browser="instagram"]:not([data-auth-canvas]):not([data-reader-entry-pending]):has(.is-strip-reader) {
+  --strip-footer-background: #ffffff;
+  background: #ffffff !important;
+}
+
+html[data-in-app-browser="instagram"]:not([data-auth-canvas]):not([data-reader-entry-pending]):has(.is-strip-reader) body {
+  background: #ffffff !important;
+}
+
+html:has(.is-strip-reader),
+html:has(.is-strip-reader) body,
+html[data-auth-landing],
+html[data-auth-landing] body,
+html:has(.auth-landing-mode),
+html:has(.auth-landing-mode) body {
   overscroll-behavior-y: auto;
 }
 
@@ -189,13 +236,6 @@ html.strip-standard-page-entering .app-shell.library-mode {
 html.strip-standard-page-entering .app-shell.library-mode .strip-library {
   animation: strip-standard-page-enter 240ms cubic-bezier(0.22, 0.72, 0.18, 1)
     backwards;
-}
-
-html.leading-image-inset-active,
-html.leading-image-inset-active body,
-html.leading-image-inset-active .app-shell,
-html.leading-image-inset-active .strip-canvas {
-  overflow-anchor: none;
 }
 
 html.inline-preview-exit-locked,
@@ -276,7 +316,7 @@ html.inline-preview-layout-moving .strip-canvas {
 .dock-controls-outgoing {
   position: absolute;
   z-index: 1;
-  top: 12px;
+  top: calc(12px + var(--dock-controls-lower, 0px));
   right: 0;
   left: 0;
   transform: translate3d(0, 0, 0);
@@ -376,10 +416,25 @@ html.page-zoom-locked :where(.auth-mode *, .library-mode *),
   touch-action: pan-y;
 }
 
+/* Native one-finger scrolling stays intact. Only Strip content has temporary
+   two-finger magnification; the browser viewport and page chrome stay at 1x. */
+html.page-zoom-spring,
+html.page-zoom-spring .strip-canvas {
+  touch-action: pan-y;
+}
+
+[data-strip-zoom-clip] {
+  /* Clip transformed overflow without creating a scroll container or changing
+     the containing block of the existing fixed footer and editor toolbar. */
+  overflow: clip;
+}
+
 .auth-mode,
 .auth-shell {
   overflow-anchor: none;
-  background: #000000;
+  /* Safari can sample either container, including the clipped scroll surface
+     while its controls are collapsed. Every backing must match the landing. */
+  background: #304dff;
 }
 
 .auth-mode {
@@ -397,7 +452,7 @@ html.page-zoom-locked :where(.auth-mode *, .library-mode *),
   min-height: 100dvh;
   flex-direction: column;
   overflow: hidden;
-  overscroll-behavior: none;
+  overscroll-behavior-y: auto;
   padding: calc(env(safe-area-inset-top) + 18px) 20px
     calc(env(safe-area-inset-bottom) + 88px);
 }
@@ -610,6 +665,8 @@ html.page-zoom-locked :where(.auth-mode *, .library-mode *),
 
 .auth-shell.auth-step-landing {
   padding: 0;
+  /* Let the CTA stay above the root's bottom backing, just like its moving copy. */
+  z-index: auto;
 }
 
 .auth-mode.auth-landing-mode,
@@ -622,12 +679,11 @@ html.page-zoom-locked :where(.auth-mode *, .library-mode *),
 html:has(.auth-mode),
 html:has(.auth-mode) body {
   background: #304dff !important;
+  transition: none !important;
 }
 
-/* Reuse the real Strip's top anchor; the dock remains outside its moving layer. */
-html.leading-image-inset-active .auth-landing {
-  translate: 0 var(--leading-media-return-y, 0px);
-}
+/* Sign-in keeps the same native blue safe area, with no fixed top paint over
+   the back button or keyboard form. The document owns the existing color. */
 
 /* A transformed scroll layer is clipped by Safari at its safe-area edge. */
 .auth-step-landing.auth-transition-forward .auth-landing,
@@ -716,9 +772,12 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
 
 .landing-block { position: relative; }
 .landing-content { position: relative; width: min(100%, 1100px); margin: 0 auto; }
-.landing-hero { background: #304dff; color: #d4ff00; }
+.landing-hero { --landing-blue-extension: 0px; background: #304dff; color: #d4ff00; }
+@media (max-width: 899px) {
+  .landing-hero { --landing-blue-extension: 36px; padding-bottom: var(--landing-blue-extension); }
+}
 .landing-hero .landing-content {
-  padding: calc(var(--leading-image-inset, 0px) + env(safe-area-inset-top) + 28px) clamp(24px, calc(6 * var(--page-vw, 1vw)), 72px) 0;
+  padding: calc(env(safe-area-inset-top) + 28px) clamp(24px, calc(6 * var(--page-vw, 1vw)), 72px) 0;
 }
 .landing-hero h1,
 .landing-block h2,
@@ -738,13 +797,21 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   box-shadow: 0 6px 15px #0003;
 }
 .landing-hero-stickers {
+  --landing-photo-width: min(calc(56 * var(--page-vw, 1vw)), 340px);
   position: relative;
   z-index: 2;
   bottom: -50px;
-  width: min(calc(56 * var(--page-vw, 1vw)), 340px);
+  width: var(--landing-photo-width);
   margin: var(--landing-hero-clearance, 96px) auto 0;
   transform: rotate(7deg);
   pointer-events: none;
+}
+@media (max-width: 899px) {
+  .landing-hero-stickers {
+    /* A 3:4 photo rotated 7deg: (1 - cos(7deg)) * 2/3 + sin(7deg)/2.
+       Align the actual lower-left corner, not the rotated bounding box. */
+    bottom: calc(-1 * var(--landing-blue-extension) - var(--landing-photo-width) * 0.065904);
+  }
 }
 .landing-sticker-sky { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: center; }
 .landing-photo-block { background: #101a26; }
@@ -897,6 +964,23 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   height: 48px;
   background: url("/landing/sticker-cursor.webp") center / contain no-repeat;
   pointer-events: none;
+  transform-origin: 28% 24%;
+}
+
+.auth-step-landing .auth-action-button[data-cursor-cue="click"]::after {
+  animation: landing-get-started-cursor 480ms cubic-bezier(.22, .8, .25, 1);
+}
+.auth-step-landing .auth-action-button[data-cursor-cue="click"] {
+  animation: landing-get-started-press 480ms linear;
+}
+@keyframes landing-get-started-cursor {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(.84); }
+  72% { transform: scale(1.04); }
+}
+@keyframes landing-get-started-press {
+  0%, 80%, 100% { background-color: #080808; box-shadow: 0 3px 10px rgb(0 0 0 / 16%); }
+  40%, 50% { background-color: #242424; box-shadow: 0 1px 4px rgb(0 0 0 / 12%); }
 }
 
 .auth-step-landing .auth-action-button:active {
@@ -921,6 +1005,15 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   );
 }
 
+/* Only transform the actual tray. The bottom white backing stays stationary,
+   and the live button keeps its identity and width across the whole arrival. */
+.landing-start-dock.composer-dock { transition: none; }
+.landing-start-dock[data-entering] {
+  transform: translate3d(0, 100%, 0);
+  transition: none;
+  will-change: transform;
+}
+
 .auth-action-terms {
   max-width: 300px;
   margin: 0;
@@ -936,6 +1029,11 @@ html.auth-form-anchored .top-safe-area-anchor { visibility: hidden; }
   min-height: 44px;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Instagram supplies its own Back control. Remove the row, not just the icon. */
+html[data-in-app-browser="instagram"] .auth-flow-header {
+  display: none;
 }
 
 .auth-back-button {
@@ -1140,8 +1238,9 @@ html.auth-form-active,
 html.auth-form-active body {
   height: 100%;
   min-height: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
   background: #304dff;
 }
 html.auth-form-active body { position: fixed; width: 100%; }
@@ -1227,25 +1326,48 @@ html.auth-form-compact .auth-signin-mode .auth-continue-button { min-height: 44p
   overflow-anchor: none;
 }
 
-html.library-scroll-top-locked,
-html.library-scroll-top-locked body,
-html.library-scroll-top-locked .library-mode {
-  overscroll-behavior-y: none;
-}
-
 .library-mode {
   min-height: 100dvh;
   overflow: visible;
   overscroll-behavior-y: auto;
 }
 
+/* The signed-in home tabs live outside the native content scroller. Root-page
+   momentum must not consume a tap on the fixed navigation. Public profiles,
+   editors and published readers retain their existing document scrolling. */
+/* Top-edge pulls chain to the browser's native refresh on every home tab. */
+html:has(.profile-scroll-viewport),
+body:has(.profile-scroll-viewport) { overscroll-behavior-y: auto; }
+html:has(body > .profile-scroll-shell),
+body:has(> .profile-scroll-shell) {
+  height: 100%;
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+}
+.app-shell.profile-scroll-shell {
+  height: 100dvh;
+  min-height: 0;
+}
+.profile-scroll-content { position: relative; min-height: 100dvh; }
+.profile-scroll-shell > .profile-scroll-viewport {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  overflow-anchor: none;
+  scroll-behavior: auto;
+  touch-action: pan-y;
+}
+.profile-scroll-viewport:focus-visible { outline: none; }
+
 .strip-library {
   position: relative;
   z-index: 1;
   display: flex;
-  min-height: calc(100dvh + var(--library-tab-scroll-inset, 0px));
+  min-height: 100dvh;
   flex-direction: column;
-  padding-top: var(--library-tab-scroll-inset, 0px);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -1358,7 +1480,7 @@ html.profile-page-active body {
 .public-profile-mode .profile-empty-state strong { font-family: var(--profile-font); }
 .profile-feedback { font-size: 13px; }
 .profile-feedback button { background: none; border: none; color: inherit; text-decoration: underline; cursor: pointer; }
-.profile-editor-dock.composer-dock { align-items: flex-start; padding-top: 12px; color: #000; }
+.profile-editor-dock.composer-dock { align-items: flex-start; padding-top: calc(12px + var(--dock-controls-lower, 0px)); color: #000; }
 .profile-save-notice.notice {
   margin: 0; color: #fff; bottom: calc(var(--dock-visible-height) + env(safe-area-inset-bottom) + 8px);
   translate: 0 var(--keyboard-dock-pan, 0px);
@@ -1433,6 +1555,20 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   gap: 8px;
 }
 
+.library-load-more {
+  display: block;
+  align-self: center;
+  margin: 0 auto 120px;
+  padding: 12px 20px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .library-card {
   position: relative;
   display: block;
@@ -1458,18 +1594,15 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   cursor: wait;
 }
 
-.library-mode .library-add-button {
-  transition: opacity 620ms ease;
-}
 .library-mode.is-opening-strip .strip-library {
   /* The loader backdrop owns this fade. Keep the image grid fully painted
      underneath it so Safari never crossfades two large compositor surfaces. */
   pointer-events: none;
 }
 .library-mode.is-opening-strip .library-add-button {
-  opacity: 0;
   pointer-events: none;
 }
+.library-mode.is-opening-strip .library-card-open-button:disabled { opacity: 1; }
 .library-card.is-opening-cover .library-cover {
   visibility: hidden;
 }
@@ -1521,7 +1654,26 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 .library-cover-image img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.library-cover-image { position: relative; background: var(--profile-background, var(--profile-reload-background, #000)); }
+.library-cover-image img { position: relative; }
+.library-cover-image[data-cover-state="ready"] img { opacity: 1; }
+.library-cover-placeholder {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--profile-background, #000) 82%, var(--profile-ink, #fff) 18%);
+  animation: library-skeleton-pulse 1.35s ease-in-out infinite;
+}
+.library-cover-image[data-cover-state="error"] .library-cover-placeholder { animation: none; }
+.library-cover-image[data-cover-state="ready"] .library-cover-placeholder {
+  animation: none;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
 }
 
 .library-cover-portrait {
@@ -1638,40 +1790,58 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 
 .app-navigation-controls {
   display: grid;
-  width: min(calc(100% - 48px), 280px);
-  grid-template-columns: repeat(4, 44px);
-  justify-content: space-between;
+  width: min(calc(100% - 12px), 316px);
+  height: 44px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
+  transform: none;
+  opacity: 1;
+  will-change: auto;
 }
 
 .app-navigation-button {
+  position: relative;
   display: grid;
-  width: 44px;
-  height: 44px;
+  min-width: 0;
+  width: 100%;
+  height: 64px;
+  margin-block: -10px;
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0;
   background: transparent;
   color: #999999;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: transform 100ms ease-out;
+  text-decoration: none;
+}
+
+/* Four real, contiguous targets. The smaller circle is visual only. */
+.app-navigation-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  pointer-events: none;
 }
 
 .app-navigation-button svg {
   width: 21px;
   height: 21px;
   stroke-width: 2.2;
+  pointer-events: none;
+  transition: transform 100ms ease-out;
 }
 
-.app-navigation-button.is-active {
+.app-navigation-button.is-active .app-navigation-icon {
   background: #000000;
   color: #ffffff;
 }
 
-.app-navigation-button:active {
+.app-navigation-button:active svg {
   transform: scale(0.92);
 }
 
@@ -1680,95 +1850,196 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   outline-offset: 2px;
 }
 
+/* Native link taps outside the content scroller need no touch interception. */
+html .app-navigation-controls,
+html .app-navigation-controls * {
+  touch-action: manipulation;
+}
+
+.is-strip-reader {
+  --strip-footer-background: #ffffff;
+}
+
 .strip-end-sheet {
-  --ending-paint-overlap: 2px;
   position: relative;
-  z-index: 2;
   display: flex;
   width: 100%;
   min-height: 0;
   align-items: flex-start;
   justify-content: center;
-  /* The seam overlap below is part of the scroll-floor clearance. Count it
-     inside, not in addition to, the cover toolbar's bottom gap. */
-  padding: 12px max(18px, env(safe-area-inset-right))
-    calc(var(--dock-bottom-gap) - var(--ending-paint-overlap) + env(safe-area-inset-bottom))
-    max(18px, env(safe-area-inset-left));
+  --footer-bottom-padding: calc(12px + env(safe-area-inset-bottom));
+  padding: 24px max(18px, env(safe-area-inset-right))
+    var(--footer-bottom-padding) max(18px, env(safe-area-inset-left));
   border: 0;
-  border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
-  corner-shape: var(--iphone-panel-corner-shape);
-  /* The footer paints its own opaque base with the document. Its decorative
-     surface still owns the existing shadow and fractional-pixel overlap. */
-  background: var(--ending-background, #ffffff);
+  border-radius: 0;
+  background: var(--ending-background, var(--strip-footer-background));
   color: var(--ending-foreground, #000000);
-  isolation: isolate;
-  overflow: visible;
 }
 
-.strip-end-sheet-corner-fill {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  left: 0;
+.strip-ending-reveal-track {
   width: 100%;
-  height: var(--iphone-panel-radius);
-  background: transparent;
-  pointer-events: none;
 }
 
-.strip-end-sheet[data-touches-block] > .strip-end-sheet-corner-fill {
-  background: var(--ending-corner-color, transparent);
+/* Instagram already owns the home-indicator/browser inset. Do not reserve it
+   again inside the footer, or add space when its native controls expand. */
+html[data-in-app-browser="instagram"] .is-strip-reader .strip-end-sheet {
+  --footer-bottom-padding: 44px;
+  background: var(--strip-footer-background);
 }
 
-.strip-end-sheet-surface {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  /* Fractional document heights can expose the dark backing for one device
-     pixel where Safari meets the page. Continue the white surface underneath. */
-  bottom: calc(-1 * var(--ending-paint-overlap));
-  border-radius: inherit;
-  corner-shape: inherit;
-  background: var(--ending-background, #ffffff);
-  box-shadow: var(--bottom-bar-shadow);
-  /* Expose the complete upper shadow, including the corners. Stop only its
-     bottom spill so it cannot draw a rule against Safari's white safe area. */
-  clip-path: inset(-24px 0 0);
-  pointer-events: none;
+/* Previews keep their native sticky layer, not an animation that
+   counter-scrolls and can drift a frame behind the document on a phone.
+   The transparent track extends upward without adding any page height.
+   Only the normal footer box can paint or receive taps, so it cannot leak
+   underneath Safari's controls while the reader is elsewhere in the Strip. */
+@supports (clip-path: inset(0)) and (height: 100lvh) {
+  .is-strip-reader .strip-end-sheet {
+    /* Only the top edge reveals the buttons. Let the bottom mask run past the
+       painted box so WebKit cannot antialias a fractional bottom into a seam. */
+    clip-path: inset(0 0 -1px);
+  }
+
+  .is-strip-reader .strip-ending-reveal-track {
+    margin-top: -100lvh;
+  }
+
+  .is-strip-reader .strip-ending-reveal-track::before {
+    content: "";
+    display: block;
+    height: 100lvh;
+    pointer-events: none;
+  }
+
+  .is-strip-reader .strip-ending-card-inner {
+    position: sticky;
+    bottom: var(--footer-bottom-padding);
+  }
 }
 
 .published-bottom-sheet {
-  /* Keep the opaque base attached to the footer's own compositor surface. */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  content-visibility: visible;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  /* Keep the shared shadow outside the rounded surface and clipping masks. */
-  overflow: visible;
 }
 
-.is-strip-reader .published-bottom-sheet {
-  /* Paint the reader footer with the document, not in an offscreen graphics
-     backing that Safari can detach during a fast fling. Preview's outgoing
-     toolbar keeps its separate transition surface. */
-  transform: none;
-  backface-visibility: visible;
+/* The actual Strip canvas covers the published reader's fixed controls.
+   The in-flow footer reserves its original space and
+   keeps the footer color when overscroll exposes it above the fixed track.
+   Both browsers use white; Safari retains its existing safe-area inset. */
+.is-strip-reader .strip-end-sheet[data-fixed-footer-reveal] {
+  clip-path: none;
+  background: var(--strip-footer-background);
+  height: calc(24px + var(--published-footer-content-height) + var(--footer-bottom-padding));
+  pointer-events: none;
 }
 
-/* A reached ending can follow returning Safari controls without moving the
-   document scroll position. No extra layer exists during ordinary reading. */
-.is-strip-reader .strip-end-sheet[data-reader-toolbar-lift] {
-  translate: 0 calc(-1 * var(--reader-ending-lift));
-  transition: translate var(--reader-ending-motion, 0ms) cubic-bezier(0.2, 0.8, 0.2, 1);
+/* Restore Safari's original document-bound reveal edge. Covering the fixed
+   track with content alone does not stop Safari painting it under its toolbar.
+   Clip only at the footer's top; extend the lower edge beyond the viewport so
+   rubber-banding moves the page without clipping or moving the fixed buttons.
+   Instagram keeps its existing unclipped white backing. */
+html:not([data-in-app-browser="instagram"]) .is-strip-reader .strip-end-sheet[data-fixed-footer-reveal] {
+  clip-path: inset(0 0 -100lvh);
+  /* Prepaint the bottom bounce in the scrolling layer. Safari can rubber-band
+     before the scroll callback updates the root canvas from the top color.
+     A shadow adds paint, not scrollable space; the clip keeps it below the
+     real footer edge and prevents a permanent panel over the media. */
+  box-shadow: 0 100lvh 0 100lvh var(--strip-footer-background);
+}
+
+.is-strip-reader [data-fixed-footer-reveal] .strip-ending-reveal-track {
+  position: fixed;
+  z-index: 0;
+  bottom: 0;
+  left: max(0px, calc((100vw - var(--page-max-width, 100vw)) / 2));
+  right: max(0px, calc((100vw - var(--page-max-width, 100vw)) / 2));
+  width: auto;
+  height: auto;
+  margin-top: 0;
+  padding: 24px max(18px, env(safe-area-inset-right))
+    var(--footer-bottom-padding) max(18px, env(safe-area-inset-left));
+  background: var(--strip-footer-background);
+  pointer-events: auto;
+  transition: none;
+}
+
+/* Safari samples an opaque fixed track beneath its toolbar even after the
+   document clip covers it again. Paint the scrolling backing, not this track. */
+html:not([data-in-app-browser="instagram"]) .is-strip-reader [data-fixed-footer-reveal] .strip-ending-reveal-track {
+  background: transparent;
+}
+
+/* Keep the transparent controls ready underneath the document clip. Hiding them
+   with the JS color-trigger class leaves a blank footer during a fast native
+   swipe, until WebKit delivers the next main-thread scroll event. */
+
+.is-strip-reader [data-fixed-footer-reveal] .strip-ending-reveal-track::before {
+  display: none;
+}
+
+.is-strip-reader [data-fixed-footer-reveal] .strip-ending-card-inner {
+  position: relative;
+  bottom: auto;
+}
+
+.strip-footer-stickers {
+  flex: 0 0 auto;
+  align-self: stretch;
+  height: 68px;
+  margin-top: 14px;
+  margin-left: calc(-1 * max(18px, env(safe-area-inset-left)));
+  margin-right: calc(-1 * max(18px, env(safe-area-inset-right)));
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.strip-footer-stickers-track {
+  display: flex;
+  width: max-content;
+  animation: footer-sticker-drift var(--footer-sticker-loop-duration) linear infinite;
+  animation-play-state: paused;
+}
+
+html.published-bottom-sheet-canvas-active .strip-footer-stickers-track,
+html.preview-bottom-canvas-active .strip-footer-stickers-track {
+  animation-play-state: running;
+}
+
+.strip-footer-stickers-group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 24px;
+  padding-right: 24px;
+}
+
+@keyframes footer-sticker-drift {
+  to { transform: translateX(-50%); }
+}
+
+.strip-footer-sticker {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 68px;
+}
+
+.strip-footer-stickers img {
+  display: block;
+  flex: 0 0 auto;
+  max-width: none;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .published-bottom-sheet-title {
   width: min(calc(100% - 20px), 344px);
-  margin: 0;
+  margin: 0 0 4px;
   color: #000000;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 400;
   letter-spacing: -0.01em;
   line-height: 1.35;
@@ -1811,15 +2082,19 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 }
 
 .strip-end-sheet-controls {
+  --footer-action-gap: 10px;
   display: grid;
-  width: min(calc(100% - 20px), 344px);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.52fr);
-  gap: 10px;
+  align-self: stretch;
+  width: auto;
+  margin-left: calc(max(var(--footer-action-gap), env(safe-area-inset-left)) - max(18px, env(safe-area-inset-left)));
+  margin-right: calc(max(var(--footer-action-gap), env(safe-area-inset-right)) - max(18px, env(safe-area-inset-right)));
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: var(--footer-action-gap);
 }
 
 .strip-end-sheet-controls.is-preview {
+  --footer-action-gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
 }
 
 .strip-end-sheet button {
@@ -1837,6 +2112,11 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 
 .strip-end-sheet button:active {
   transform: scale(0.96);
+}
+
+.strip-end-sheet-controls.is-preview .strip-end-sheet-primary:not(.strip-end-sheet-publish) {
+  background: #d0d0d0;
+  color: #000000;
 }
 
 .strip-end-sheet button:focus-visible {
@@ -1900,6 +2180,7 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
+  stroke-width: 2.25;
 }
 
 .strip-end-sheet-controls:not(.is-preview) button {
@@ -1916,8 +2197,13 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
 }
 
 .strip-end-sheet-controls:not(.is-preview) .strip-end-sheet-share {
-  background: #ffffff;
+  background: #d0d0d0;
   color: #000000;
+  border: 0;
+}
+
+html[data-in-app-browser="instagram"] .published-mode .strip-end-sheet-share {
+  background: #d0d0d0;
 }
 
 .strip-end-sheet-primary .strip-end-sheet-solid-pencil {
@@ -2102,69 +2388,6 @@ html.page-zoom-locked:has(.profile-editor-dock) { touch-action: pan-x pan-y; }
   min-height: inherit;
 }
 
-/* Safari needs a real scroll offset to draw the first media under its top UI.
- * Reserve that range even for a Strip shorter than the viewport. */
-html.leading-image-inset-active .app-shell.has-leading-image {
-  min-height: calc(100lvh + var(--leading-image-inset));
-}
-
-/* Text-first readers need the same real under-glass origin as the loader.
- * Equal padding preserves the text's original visual position. Retain both
- * after the fade: removing/re-adding scroll offsets makes Safari jump. */
-html.leading-image-inset-active:has(.is-strip-reader.has-leading-text) {
-  min-height: calc(100lvh + var(--leading-image-inset));
-}
-
-html.leading-image-inset-active .is-strip-reader.has-leading-text .strip-canvas {
-  margin-top: 0;
-  padding-top: calc(var(--leading-image-inset) + env(safe-area-inset-top));
-  background: var(--top-safe-area-color);
-}
-
-/* Absolute stickers must follow the same added reader origin as flow blocks.
- * This is a presentation offset only, never a change to saved coordinates. */
-html.leading-image-inset-active .is-strip-reader.has-leading-text .strip-canvas > .sticker-block {
-  margin-top: var(--leading-image-inset);
-}
-
-html.leading-image-inset-active .has-leading-image .strip-canvas {
-  margin-top: 0;
-  padding-top: 0;
-}
-
-/* Keep native scrolling and bounce, but never reload a Strip on a deep pull. */
-html.leading-image-inset-active,
-html.leading-image-inset-active body {
-  overscroll-behavior-y: contain;
-}
-
-/* Near the leading edge there is one elastic motion, not a compositor bounce
- * underneath a second JavaScript spring. Elsewhere Safari keeps its bounce. */
-html.leading-image-inset-active.leading-media-top-edge,
-html.leading-image-inset-active.leading-media-top-edge body {
-  overscroll-behavior-y: none;
-}
-
-/* Keep the reader's compositor scroll policy stable for the whole visit.
-   The leading-edge class still tracks the spring, but crossing its boundary
-   must not switch native overscroll modes in the middle of a fast swipe. */
-html.leading-image-inset-active:has(.is-strip-reader),
-html.leading-image-inset-active:has(.is-strip-reader) body {
-  overscroll-behavior-y: none;
-}
-
-/* Only an owned top-edge pull needs a compensating translation. Keeping a
- * whole long Strip in a permanent will-change layer makes Safari tile its
- * photos separately from native scrolling and can expose blank backing tiles.
- * Native flings already return through scrollTo, without this translation.
- * Do not promote/demote the document as the bottom footer enters the viewport. */
-html.leading-image-inset-active.leading-media-return-active .has-leading-image > .editor-canvas,
-html.leading-image-inset-active.leading-media-return-active .has-leading-image > .published-strip,
-html.leading-image-inset-active.leading-media-return-active .is-strip-reader.has-leading-text > .editor-canvas,
-html.leading-image-inset-active.leading-media-return-active .is-strip-reader.has-leading-text > .published-strip {
-  translate: 0 var(--leading-media-return-y, 0px);
-}
-
 .editor-mode .strip-canvas {
   display: flex;
   flex-direction: column;
@@ -2188,12 +2411,6 @@ html.leading-image-inset-active.leading-media-return-active .is-strip-reader.has
   touch-action: pan-y;
 }
 
-.image-block.is-height-cropping.has-top-crop-clearance {
-  margin-top: calc(
-    var(--leading-image-inset, 0px) + var(--leading-image-inset, 0px) + 20px
-  );
-}
-
 .route-loading-mode {
   min-height: 100lvh;
   background: var(--profile-reload-background, var(--black));
@@ -2204,9 +2421,12 @@ html.profile-reload-pending body {
   background: var(--profile-reload-background, #000) !important;
 }
 .profile-reload { position: relative; max-width: none; }
-.profile-reload-frame { position: absolute; z-index: 2; display: block; background: #999; opacity: .38; }
+.profile-reload-frame {
+  position: absolute; z-index: 2; display: block;
+  background: color-mix(in srgb, var(--profile-background, var(--profile-reload-background, #000)) 82%, var(--profile-ink, #fff) 18%);
+  animation: library-skeleton-pulse 1.35s ease-in-out infinite;
+}
 .profile-reload .profile-edit-button:disabled,
-.profile-reload .app-navigation-button:disabled,
 .profile-reload .library-add-button:disabled { opacity: 1; }
 .is-restored-profile .is-library-card-entering { animation: none; }
 
@@ -2227,64 +2447,40 @@ html.profile-reload-pending body {
   min-height: 0;
   padding-bottom: 0;
   background: var(--black);
+  z-index: 1;
+  box-shadow: 0 12px 16px -12px rgb(0 0 0 / 30%);
 }
 
 .is-strip-reader,
 .is-strip-reader .editor-canvas,
 .is-strip-reader .published-strip {
   min-height: 0;
-  background: var(--black);
+  background: var(--top-safe-area-color);
+}
+
+.is-strip-reader .editor-canvas,
+.is-strip-reader .published-strip {
+  /* Every reader backs the entire footer
+     with its own color so a delayed footer tile cannot reveal the top color. */
+  background: linear-gradient(to bottom,
+    var(--top-safe-area-color) 0 calc(100% - var(--published-footer-backing-height, 1px)),
+    var(--strip-footer-background) calc(100% - var(--published-footer-backing-height, 1px)) 100%);
+}
+
+.is-strip-reader .published-strip,
+.is-strip-reader .editor-canvas {
+  --published-footer-backing-height: calc(24px + var(--published-footer-content-height, 0px) + 12px + env(safe-area-inset-bottom));
+}
+
+html[data-in-app-browser="instagram"] .is-strip-reader .published-strip,
+html[data-in-app-browser="instagram"] .is-strip-reader .editor-canvas {
+  --published-footer-backing-height: calc(24px + var(--published-footer-content-height, 0px) + 44px);
 }
 
 html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-canvas {
   /* The outgoing toolbar's temporary clearance continues the incoming footer.
      The content canvas remains black, and cleanup restores the reader backing. */
-  background: #ffffff;
-}
-
-.published-mode.has-trailing-image .strip-canvas {
-  display: flex;
-  flex-direction: column;
-}
-
-.published-mode.has-trailing-image
-  .strip-canvas
-  > .strip-block:not(.sticker-block) {
-  flex: 0 0 auto;
-}
-
-.published-mode.has-trailing-image .strip-canvas::after {
-  min-height: 0;
-  flex: 1 0 0;
-  background: var(--bottom-safe-area-color, var(--black));
-  content: "";
-}
-
-
-.published-bottom-pocket-sampler {
-  display: none;
-  position: fixed;
-  z-index: 8;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: max(84px, calc(env(safe-area-inset-bottom) + 50px));
-  background: linear-gradient(
-    to bottom,
-    color-mix(
-        in srgb,
-        var(--bottom-safe-area-color, var(--black)) 0%,
-        transparent
-      )
-      0,
-    var(--bottom-safe-area-color, var(--black)) 42px,
-    var(--bottom-safe-area-color, var(--black)) 100%
-  );
-  pointer-events: none;
-}
-
-html.published-bottom-pocket-active .published-bottom-pocket-sampler {
-  display: block;
+  background: var(--strip-footer-background);
 }
 
 .strip-block {
@@ -2304,6 +2500,20 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .text-block-content {
   padding: 16px;
 }
+
+.text-block-texture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: calc(100% + var(--texture-controls-extension, 0px));
+  max-height: none;
+  object-fit: cover;
+  object-position: center top;
+  clip-path: inset(0 0 var(--texture-controls-extension, 0px));
+  pointer-events: none;
+  user-select: none;
+}
+
 
 .text-block.is-editing {
   touch-action: manipulation;
@@ -2400,23 +2610,26 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
     var(--height-crop-motion-easing);
 }
 
-.image-block {
-  transition: margin-top var(--height-crop-motion-duration)
-    var(--height-crop-motion-easing);
-}
-
 /* Decode the real media with no layout footprint, then fade in the ready batch. */
 .editor-mode {
   --media-import-duration: 440ms;
   --media-import-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Paint the real editor, including its leading safe-area pixels, behind one
-   opaque surface. Only that surface fades: a separate canvas-opacity layer
-   makes Safari repaint its top edge when it is promoted/demoted. The existing
-   dock stays mounted above the surface throughout loading and reveal. */
+/* Decode in the mounted canvas, then paint it fully behind the still-opaque
+   loader. One eased fade reveals content and the under-glass edge together.
+   Fading both layers multiplies their opacity and makes the middle rush in.
+   The dock stays outside the fade. */
+.editor-mode > .editor-canvas {
+  opacity: 1;
+}
 .editor-mode.is-editor-loading > .editor-canvas {
   pointer-events: none;
+  /* The opaque entrance covers already-painted media, as in the reader.
+     Hiding the whole canvas defers WebKit rasterization until reveal. */
+}
+.editor-mode.is-editor-revealing > .editor-canvas {
+  opacity: 1;
 }
 .editor-entrance {
   --entrance-safe-top: env(safe-area-inset-top, 0px);
@@ -2429,14 +2642,17 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   opacity: 1;
   background: #000000;
   color: #ffffff;
-  transition: opacity 320ms ease;
+  transition: opacity 600ms cubic-bezier(0.4, 0, 0.2, 1);
   touch-action: none;
 }
 .editor-entrance.is-revealing { opacity: 0; }
+/* First-Strip onboarding reveals the ready canvas and its dock together. The
+   chosen background is the one cover, with no black interstitial or slide. */
+.editor-entrance.is-onboarding-handoff { z-index: 100; }
 .top-status-pill {
   position: fixed;
   z-index: 70;
-  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -2470,9 +2686,9 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
 .top-status-progress[data-waiting="true"] { animation: editor-loading-pulse 900ms ease-in-out infinite alternate; }
 .top-status-pill.is-temporary { animation: top-status-notice 3000ms ease both; }
 @keyframes top-status-notice {
-  0% { opacity: 0; transform: translate(-50%, -6px); }
-  7%, 88% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, -4px); }
+  0% { opacity: 0; }
+  7%, 88% { opacity: 1; }
+  100% { opacity: 0; }
 }
 @keyframes editor-loading-pulse { from { opacity: .25; } to { opacity: 1; } }
 .editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }
@@ -2664,8 +2880,8 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   transition: opacity 200ms ease-in-out;
 }
 .strip-entrance-percent[data-waiting="false"] .strip-entrance-percent-value { opacity: 1; }
-/* The waiting zero gently brightens. Its solid text blends in when counting
- * starts, so the pulse never snaps off mid-cycle. */
+/* Zero and stalled progress gently brighten. Solid text blends in when counting
+ * resumes, so the pulse never snaps off mid-cycle or depends on motion settings. */
 .strip-entrance-percent::after {
   content: attr(data-value);
   position: absolute;
@@ -2682,11 +2898,107 @@ html.published-bottom-pocket-active .published-bottom-pocket-sampler {
   0%, 100% { opacity: 0; }
   50% { opacity: 1; }
 }
+/* Prepare decoded pixels behind a plain cover, then fade the cover only.
+   The content itself never changes opacity or replays on scroll. */
+.reader-entry-cover {
+  --entrance-safe-top: env(safe-area-inset-top, 0px);
+  position: absolute;
+  top: calc(-1 * env(safe-area-inset-top, 0px));
+  right: 0;
+  left: 0;
+  height: calc(100lvh + env(safe-area-inset-top, 0px) + 8px);
+  z-index: 100;
+  background: #000000;
+  animation: reader-entry-reveal 420ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+html[data-reader-entry-pending] .reader-entry-cover {
+  animation: none;
+  opacity: 1;
+}
+html[data-in-app-browser="instagram"] .reader-entry-cover { background: #ffffff; }
+@keyframes reader-entry-reveal {
+  from { opacity: 1; visibility: visible; }
+  to { opacity: 0; visibility: hidden; }
+}
+html[data-reader-entry-pending],
+html[data-reader-entry-pending] body {
+  --top-safe-area-color: #000000 !important;
+  --reader-safe-area-color: #000000 !important;
+  --bottom-safe-area-color: #000000 !important;
+  background: #000000 !important;
+  transition: none !important;
+}
+html[data-reader-entry-pending] .route-loading-mode {
+  visibility: hidden;
+}
+html[data-reader-entry-pending] .published-mode {
+  background: #000000;
+}
+
+/* Start the hint delay with the server-rendered cover, not hydration. */
+.reader-entry-wait {
+  display: none;
+}
+html[data-reader-entry-pending] .reader-entry-wait {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 400;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  animation: reader-entry-wait-in 220ms ease-out 2s forwards;
+}
+.reader-entry-wait-spinner {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  animation: reader-entry-wait-spin 800ms linear infinite;
+}
+/* Instagram's WebView keeps its white page backing from the server's first
+   paint. Scope every override to the loading hold, leaving the reveal alone. */
+html[data-in-app-browser="instagram"][data-reader-entry-pending],
+html[data-in-app-browser="instagram"][data-reader-entry-pending] body {
+  --top-safe-area-color: #ffffff !important;
+  --reader-safe-area-color: #ffffff !important;
+  --bottom-safe-area-color: #ffffff !important;
+  background: #ffffff !important;
+}
+html[data-in-app-browser="instagram"][data-reader-entry-pending] .published-mode {
+  background: #ffffff;
+}
+html[data-in-app-browser="instagram"][data-reader-entry-pending] .reader-entry-wait {
+  color: #000000;
+}
+html[data-in-app-browser="instagram"][data-reader-entry-pending] .reader-entry-wait-spinner {
+  border-color: rgba(0, 0, 0, 0.2);
+  border-top-color: #000000;
+}
+@keyframes reader-entry-wait-in {
+  from { visibility: visible; opacity: 0; }
+  to { visibility: visible; opacity: 1; }
+}
+@keyframes reader-entry-wait-spin {
+  to { transform: rotate(360deg); }
+}
+
 html.published-content-loading,
 html.published-content-loading body,
 html.cover-entrance-active,
 html.cover-entrance-active body {
-  overflow: hidden;
+  /* The full-screen entrance intercepts input without replacing the root
+     scroller, which would expand Safari's bottom controls during a card tap. */
+  overscroll-behavior: none;
 }
 
 /* Keep Safari's text tint out of the loader, then reveal the real edge color
@@ -2773,27 +3085,52 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
   white-space: pre-wrap; overflow-wrap: anywhere; letter-spacing: 0;
   -webkit-user-select: text; user-select: text; pointer-events: auto; touch-action: auto;
   color: transparent; -webkit-text-fill-color: transparent;
-  caret-color: var(--text-sticker-color);
+  caret-color: transparent;
 }
 .text-sticker-input::placeholder { color: transparent; }
+.text-sticker-input:placeholder-shown { caret-color: transparent; }
 .text-sticker-input:focus-visible { outline: 0; box-shadow: none; }
+.text-sticker-caret {
+  position: absolute; width: 1.5px; border-radius: 1px;
+  background: var(--text-sticker-color); pointer-events: none; visibility: hidden;
+  animation: text-sticker-caret-blink 1s steps(1, end) infinite;
+}
+.text-sticker-input:focus ~ .text-sticker-caret { visibility: visible; }
+.is-closing .text-sticker-caret { display: none; }
+@keyframes text-sticker-caret-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
 .sticker-block.is-text-composing { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 /* Dim the document only. Fixed black paint is interpreted as a header by
    Safari and extended into its top chrome. Leave the bottom tools untouched. */
 :root { --page-dim-opacity: 0; --page-dim-duration: 380ms; }
-html:has(.confirmation-backdrop) { --page-dim-opacity: .6; }
+html:has(.text-sticker-editor-layer:not(.is-closing)):not(:has(.confirmation-backdrop)) { --page-dim-opacity: 1; }
+html:has(.confirmation-backdrop) { --page-dim-opacity: 1; }
 html:has(.media-import-popup.is-revealing):not(:has(.confirmation-backdrop:not(.media-import-popup))) { --page-dim-opacity: 0; }
 html.page-color-picking { --page-dim-opacity: 0; }
 .page-dimmer {
   position: absolute; z-index: 29;
   top: 0; right: 0; height: 0; left: 0;
-  --page-dim-feather: clamp(96px, 18svh, 160px);
+  /* Typing and confirmation dialogs share one short, smooth top edge.
+     Keep this paint stable while opening, closing or switching between them,
+     and leave Safari's top chrome unchanged. */
+  --page-dim-feather: 48px;
   background: linear-gradient(to bottom,
     rgb(0 0 0 / 0) 0,
-    rgb(0 0 0 / .08) calc(var(--page-dim-feather) * .25),
-    rgb(0 0 0 / .35) calc(var(--page-dim-feather) * .5),
-    rgb(0 0 0 / .75) calc(var(--page-dim-feather) * .75),
-    #000 var(--page-dim-feather));
+    rgb(0 0 0 / .00674) calc(var(--page-dim-feather) * .0625),
+    rgb(0 0 0 / .02578) calc(var(--page-dim-feather) * .125),
+    rgb(0 0 0 / .05537) calc(var(--page-dim-feather) * .1875),
+    rgb(0 0 0 / .09375) calc(var(--page-dim-feather) * .25),
+    rgb(0 0 0 / .13916) calc(var(--page-dim-feather) * .3125),
+    rgb(0 0 0 / .18984) calc(var(--page-dim-feather) * .375),
+    rgb(0 0 0 / .24404) calc(var(--page-dim-feather) * .4375),
+    rgb(0 0 0 / .3) calc(var(--page-dim-feather) * .5),
+    rgb(0 0 0 / .35596) calc(var(--page-dim-feather) * .5625),
+    rgb(0 0 0 / .41016) calc(var(--page-dim-feather) * .625),
+    rgb(0 0 0 / .46084) calc(var(--page-dim-feather) * .6875),
+    rgb(0 0 0 / .50625) calc(var(--page-dim-feather) * .75),
+    rgb(0 0 0 / .54463) calc(var(--page-dim-feather) * .8125),
+    rgb(0 0 0 / .57422) calc(var(--page-dim-feather) * .875),
+    rgb(0 0 0 / .59326) calc(var(--page-dim-feather) * .9375),
+    rgb(0 0 0 / .6) var(--page-dim-feather));
   opacity: var(--page-dim-opacity); pointer-events: none;
   transition: opacity var(--page-dim-duration) ease;
 }
@@ -2832,7 +3169,6 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
 .sticker-delete-anchor.has-text-tools .sticker-delete-control {
   flex: 0 0 40px; width: 40px; height: 40px; border: 0; background: transparent;
 }
-
 .sticker-image-reveal[data-sticker-ready="false"] { opacity: 0; }
 .sticker-image-reveal[data-sticker-ready="true"] { animation: sticker-image-in 180ms ease-out backwards; }
 @keyframes sticker-image-in { from { opacity: 0; } to { opacity: 1; } }
@@ -2966,9 +3302,9 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   justify-content: center;
   gap: 4px;
   overflow: hidden;
-  padding: 12px var(--dock-padding-right)
+  padding: calc(12px + var(--dock-controls-lower, 0px)) var(--dock-padding-right)
     calc(
-      var(--dock-bleed) + var(--dock-bottom-gap) + env(safe-area-inset-bottom) + var(--dock-browser-extension)
+      var(--dock-bleed) + var(--dock-bottom-gap) + env(safe-area-inset-bottom) + var(--dock-browser-extension) - var(--dock-controls-lower, 0px)
     ) var(--dock-padding-left);
   transform: none;
   translate: 0 var(--keyboard-dock-pan, 0px);
@@ -3000,12 +3336,33 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
+/* Move controls, not the tray silhouette or the page. Landing keeps its exact
+   existing position. These values also travel with outgoing control copies. */
+html[data-in-app-browser="instagram"] .composer-dock:not(.landing-start-dock) {
+  /* Keep every tap target above the screen edge even on zero-inset Android. */
+  --dock-controls-lower: min(8px, max(0px, calc(env(safe-area-inset-bottom) - 8px)));
+}
+html[data-in-app-browser="instagram"] :is(.main-composer-dock, .app-navigation-dock, .editor-mode > .selector-dock):not(.preview-motion-dock):not(.strip-entrance-dock) {
+  --dock-browser-extension: 0px;
+  top: calc(var(--instagram-dock-viewport-height, 100svh) - var(--instagram-dock-height, var(--dock-visible-height)) - var(--dock-surface-extra) - env(safe-area-inset-bottom));
+  bottom: auto;
+  backface-visibility: hidden;
+}
+html[data-in-app-browser="instagram"] .main-composer-dock {
+  --instagram-dock-height: var(--sticker-dock-visible-height);
+}
+
 /* The expanded picker owns scrolling, without moving the editor's scroll anchor. */
 html.sticker-tray-open,
 html.sticker-tray-open body {
   /* Gesture containment keeps the document still without replacing Safari's
      scrolling/painting surface when the picker opens or closes. */
   overscroll-behavior: none;
+}
+
+.main-composer-dock.is-sticker-picker-pack {
+  --dock-padding-left: 0px;
+  --dock-padding-right: 0px;
 }
 
 .main-composer-dock.is-sticker-picker-page-color {
@@ -3083,6 +3440,44 @@ html.sticker-tray-open body {
   display: contents;
 }
 
+/* Cross-origin Make a Strip links paint the destination before React/auth.
+   Same-origin links keep the document and go straight into the same arrival. */
+html[data-reader-create-entry="landing"],
+html[data-reader-create-entry="landing"] body {
+  background-color: #304dff !important;
+  --top-safe-area-color: #304dff !important;
+  --bottom-safe-area-color: #ffffff !important;
+}
+/* WebKit samples 4px inside the fixed viewport, not the physical glass edge.
+   Use a real, opaque fixed element with 14px of sampling room, including a
+   2px overlap at the sliding tray seam. A 1px pseudo
+   element can miss that sample and send both browser edges back to blue.
+   The rounded tray slides above this stationary bottom-only white surface. */
+.landing-browser-bottom { display: none; }
+@media (max-width: 899px) {
+  html[data-auth-landing] .landing-browser-bottom,
+  html:has(.auth-landing-mode) .landing-browser-bottom {
+    display: block;
+    position: fixed;
+    z-index: 29;
+    left: 0;
+    right: 0;
+    bottom: calc(-1 * var(--dock-bleed) - max(0px, 100lvh - 100dvh));
+    height: calc(var(--dock-bleed) + max(0px, 100lvh - 100dvh) + 14px);
+    background: #ffffff;
+    pointer-events: none;
+    animation: none;
+    transition: none;
+  }
+}
+html[data-reader-create-entry] .route-loading-mode { visibility: hidden; }
+.auth-landing [data-landing-art] {
+  opacity: 0;
+  transition: opacity 360ms cubic-bezier(.22, .8, .25, 1);
+}
+.auth-landing [data-landing-art][data-art-ready] { opacity: 1; }
+.auth-landing [data-landing-art]:not([data-art-ready]) { pointer-events: none; }
+
 /* Measure the destination before paint, then remove the fixed element entirely. */
 .preview-dock-mount[data-measuring] > .composer-dock {
   visibility: hidden;
@@ -3113,6 +3508,14 @@ html.sticker-tray-open body {
   pointer-events: none;
 }
 
+/* At the ending, keep the shared surface still through the full glass area.
+   The white editor dock fades over gray instead of sliding a white band away. */
+.preview-dock-backing {
+  position: absolute;
+  background: var(--strip-footer-background);
+  pointer-events: none;
+}
+
 .composer-dock.preview-motion-dock {
   position: absolute;
   right: auto;
@@ -3124,6 +3527,7 @@ html.sticker-tray-open body {
   will-change: auto;
   pointer-events: none;
 }
+
 
 .dock-glyph {
   width: 21px;
@@ -3322,6 +3726,36 @@ html.publish-title-active body { position: fixed; width: 100%; }
   font-size: 13px;
 }
 
+.title-keyboard-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 0s 180ms;
+}
+.title-keyboard-action[data-keyboard-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 180ms ease, visibility 0s;
+}
+.title-keyboard-action button {
+  min-width: 112px;
+  height: 44px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #000000;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.title-keyboard-action button:disabled { opacity: .6; }
+
 @property --story-share-instruction-space {
   syntax: "<length>";
   inherits: true;
@@ -3332,13 +3766,20 @@ html.publish-title-active body { position: fixed; width: 100%; }
   --story-share-instruction-space: 0px;
   height: 100dvh;
   overflow: hidden;
-  background: var(--black);
-  color: var(--white);
+  background: #000000;
+  color: #ffffff;
   transition: --story-share-instruction-space 360ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .share-mode[data-story-ready="true"] { --story-share-instruction-space: 28px; }
-.share-dock { --dock-visible-height: calc(64px + var(--story-share-instruction-space)); }
+.share-dock {
+  --dock-visible-height: calc(64px + var(--story-share-instruction-space));
+}
+
+html:has(.share-mode):not(:has(.story-share-boundary)),
+html:has(.share-mode):not(:has(.story-share-boundary)) body {
+  background: #000000 !important;
+}
 
 .share-shell {
   position: relative;
@@ -3351,9 +3792,9 @@ html.publish-title-active body { position: fixed; width: 100%; }
   overflow: hidden;
   padding: calc(env(safe-area-inset-top) + 18px)
     env(safe-area-inset-right)
-    calc(84px + env(safe-area-inset-bottom) + var(--story-share-instruction-space))
+    calc(84px + env(safe-area-inset-bottom))
     env(safe-area-inset-left);
-  background: var(--black);
+  background: #000000;
 }
 
 .share-heading {
@@ -3588,8 +4029,17 @@ html:has(.story-share-boundary) body {
 .poster-option img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-touch-callout: none; }
 .poster-preparing { display: grid; height: 100%; place-items: center; color: #999; font-size: 12px; }
 .poster-picker-meta { text-align: center; display: grid; justify-items: center; gap: 5px; }
-.share-link-anchor { position: relative; display: grid; justify-items: center; width: 100%; }
+.share-link-anchor {
+  position: relative;
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  /* Follow the expanding tray without resizing the poster's grid row. */
+  translate: 0 calc(-1 * var(--story-share-instruction-space));
+}
 .poster-picker-meta .share-link-button { min-height: 36px; margin-top: 3px; font-size: 11px; }
+.poster-link-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .poster-retry { border: 0; background: none; color: #fff; text-decoration: underline; font: inherit; font-size: 12px; }
 
 .cover-picker {
@@ -4168,11 +4618,27 @@ html:has(.story-share-boundary) body {
 .story-share-controls[data-instagram-ready="true"] .story-share-primary > button { opacity: 0; pointer-events: none; }
 .story-share-controls[data-instagram-ready="true"] .instagram-story-button { opacity: 1; pointer-events: auto; }
 
-.main-composer-dock.is-shifted,
 .publish-setup-dock.is-shifted {
   transform: translateY(125%);
   opacity: 0;
   pointer-events: none;
+}
+
+/* The editor keeps one painted tray through tool changes. Only its controls
+   crossfade with the transparent selector above it, never the safe-area surface. */
+.main-composer-dock.is-shifted {
+  transform: none;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.main-composer-dock > .dock-controls-current:not(.is-entering) {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.main-composer-dock.is-shifted > .dock-controls-current {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 @keyframes block-controls-shape-reveal {
@@ -4339,6 +4805,34 @@ html:has(.story-share-boundary) body {
   background-size: calc(118 * var(--page-vw, 1vw)) auto;
   filter: blur(18px);
   transform: scale(1.08);
+}
+
+/* Continue the same, unblurred texture crop into the attached toolbar. */
+.block-controls.has-texture-surface::before,
+.block-controls-text-join.has-texture-surface {
+  background-image: var(--block-controls-image);
+  background-size: var(--texture-controls-size);
+  background-position: var(--texture-controls-position);
+  background-repeat: no-repeat;
+}
+.block-controls.has-texture-surface::before {
+  inset: 0;
+  filter: none;
+  transform: none;
+}
+.block-controls.has-texture-surface::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background-image: var(--block-controls-image);
+  background-size: var(--texture-controls-size);
+  background-position: var(--texture-controls-position);
+  background-repeat: no-repeat;
+  filter: blur(7px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 85%);
+  mask-image: linear-gradient(to bottom, transparent, #000 85%);
+  pointer-events: none;
 }
 
 .block-controls-under-edge {
@@ -4640,6 +5134,23 @@ html:has(.story-share-boundary) body {
   pointer-events: auto;
 }
 
+.editor-mode > .selector-dock {
+  transform: none;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  transition: opacity 140ms ease;
+}
+
+.editor-mode > .selector-dock > :is(.selector-scroll, .selector-leading) {
+  transform: translateY(4px);
+  transition: transform 140ms ease;
+}
+
+.editor-mode > .selector-dock.is-visible > :is(.selector-scroll, .selector-leading) {
+  transform: none;
+}
+
 .selector-scroll {
   display: flex;
   min-width: 0;
@@ -4806,8 +5317,7 @@ html:has(.story-share-boundary) body {
 
 .color-swatch-option.is-selected {
   border-color: transparent;
-  outline: 0;
-  box-shadow: inset 0 0 0 2px var(--swatch-foreground, currentColor);
+  box-shadow: none;
 }
 
 .gradient-trigger,
@@ -5111,13 +5621,32 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
   .is-strip-reader.has-leading-text .strip-canvas {
     margin-top: 0;
     padding-top: env(safe-area-inset-top);
+    background: var(--top-safe-area-color);
   }
 
+  /* Media-first Strips use the device's ordinary safe area. No negative
+     origin, synthetic scroll offset, or custom top-return spring. */
   .editor-mode.has-leading-image .strip-canvas,
   .is-strip-reader.has-leading-image .strip-canvas {
-    margin-top: calc(-1 * env(safe-area-inset-top));
+    margin-top: 0;
     margin-bottom: 0;
     padding-top: 0;
+  }
+
+  /* Move the complete canvas, including its stickers, as one document box.
+     Saved sticker coordinates must never include the device's safe area. */
+  .editor-mode.has-leading-image > .editor-canvas,
+  .is-strip-reader.has-leading-image > .published-strip {
+    padding-top: env(safe-area-inset-top);
+    background: var(--top-safe-area-color);
+  }
+
+  /* Keep the native top backing and the footer's document backing independent. */
+  .is-strip-reader.has-leading-image > .editor-canvas,
+  .is-strip-reader.has-leading-image > .published-strip {
+    background: linear-gradient(to bottom,
+      var(--top-safe-area-color) 0 calc(100% - var(--published-footer-backing-height, 1px)),
+      var(--strip-footer-background) calc(100% - var(--published-footer-backing-height, 1px)) 100%);
   }
 
   .app-shell::after {

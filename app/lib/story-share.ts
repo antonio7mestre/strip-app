@@ -4,6 +4,23 @@ type ShareBrowser = {
   share?: (data: ShareData) => Promise<void>;
 };
 
+/** Link sharing never receives a File, including native suggested contacts and
+ * Messages. Image saving is an explicit, independent download action. */
+export async function shareStoryLink(url: string, browser: ShareBrowser = navigator) {
+  const data: ShareData = { url };
+  if (typeof browser.share === "function") {
+    try {
+      await browser.share(data);
+      return "shared" as const;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return "cancelled" as const;
+    }
+  }
+  if (!browser.clipboard) throw new Error("Link sharing is unavailable");
+  await browser.clipboard.writeText(url);
+  return "copied" as const;
+}
+
 type ShareCallbacks = {
   open: () => void;
   close: () => void;

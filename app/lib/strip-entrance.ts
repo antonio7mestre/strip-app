@@ -9,7 +9,7 @@ export function entranceLoadPercent(settled: number, total: number) {
   return Math.min(99, Math.floor(Math.max(0, settled) / total * 100));
 }
 
-/** Show every integer, but never invent progress beyond settled media. */
+/** Follow real completed media without making a ready Strip wait for 100 ticks. */
 export function startEntranceCounter(onChange: (value: number) => void) {
   let value = 0, target = 0, frame = 0, disposed = false;
   let lastStep: number | null = null;
@@ -19,9 +19,8 @@ export function startEntranceCounter(onChange: (value: number) => void) {
   function tick(now: number) {
     frame = 0;
     if (disposed) return;
-    if (value < target && (lastStep === null || now - lastStep >= 24)) {
-      // Never catch up by skipping numbers after a slow frame or hidden tab.
-      value++;
+    if (value < target && (lastStep === null || now - lastStep >= 16)) {
+      value = Math.min(target, value + Math.max(1, Math.ceil((target - value) * 0.3)));
       lastStep = now;
       onChange(value);
     }

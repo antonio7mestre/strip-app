@@ -18,11 +18,13 @@ export function scribbleSurfaceBounds({
   return { top: scrollY - inset, height: Math.ceil(Math.max(viewportHeight + inset, isPhone ? phoneHeight : 0)) + 8 };
 }
 
-export function installScribbleSurface(host: HTMLElement, onSync?: () => void) {
+export function installScribbleSurface(host: HTMLElement, onSync?: () => void,
+  { suspendTheme = false }: { suspendTheme?: boolean } = {}) {
   let disposed = false;
-  // Text pages normally ask Safari for a solid edge tint. Suspend that hint
-  // while real ink is painting there; preserve ongoing content/color updates.
-  const theme = host.closest?.(".published-mode.has-leading-text")
+  // A solid theme hint can remain black while the content is fading, then
+  // trigger a separate native tint animation. During a full-page entrance,
+  // let Safari sample the same document-painted opacity as the content.
+  const theme = suspendTheme || host.closest?.(".published-mode.has-leading-text")
     ? document.getElementById("strip-theme-color") : null;
   const themeName = theme?.getAttribute("name") ?? null;
   if (themeName) theme?.removeAttribute("name");

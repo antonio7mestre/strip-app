@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Baseline, Check, ChevronLeft, ChevronUp, PaintBucket, Palette, Pencil, Pipette, Type } from "lucide-react";
+import { Baseline, CaseUpper, Check, ChevronLeft, ChevronUp, PaintBucket, Palette, Pencil, Pipette } from "lucide-react";
 import { PROFILE_FONTS, profileFontInfo, profileFontWeight, profileColorChoices, profileColorsReadable, profileInk, profileTextColor, profileTitle, type StripProfile } from "@/app/lib/profile";
 import { fontVisualScale, normalizedFontSize } from "@/app/lib/font-sizing";
 import { type useStripProfile } from "./useStripProfile";
@@ -158,7 +158,7 @@ export function ProfileTools({ controller }: { controller: ProfileController }) 
       <button type="button" className="dock-icon-button profile-tool-icon profile-cancel-button" aria-label="Cancel editing" disabled={pending} onClick={cancel}><ChevronLeft aria-hidden="true" /></button>
       <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Background color" onClick={() => chooseTool("background")}><PaintBucket aria-hidden="true" /></button>
       <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Text color" onClick={() => chooseTool("accent")}><Baseline aria-hidden="true" /></button>
-      <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><Type aria-hidden="true" /></button>
+      <button type="button" className="dock-icon-button profile-tool-icon" aria-label="Profile font" onClick={() => chooseTool("font")}><CaseUpper aria-hidden="true" /></button>
       <HapticActionButton className="profile-save-button" label={pending ? "Saving…" : "Save"} disabled={pending}
         feedback={!profileColorsReadable(profile)} onClick={() => void controller.save()}>{pending ? "Saving…" : "Save"}</HapticActionButton>
     </div>}

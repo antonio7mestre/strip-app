@@ -18,6 +18,8 @@ export type AuthUser = {
 };
 
 type AuthEnvironment = {
+  // Temporary, server-only onboarding rehearsal. Unset to restore normal login.
+  REPEAT_SIGNUP_PHONE?: string;
   TWILIO_API_KEY?: string;
   TWILIO_API_SECRET?: string;
   TWILIO_ACCOUNT_SID?: string;
@@ -362,12 +364,14 @@ export async function upsertVerifiedUser(
   legacyOwnerId: unknown,
 ) {
   const now = Date.now();
+  const repeatSignupPhone = normalizePhone(authEnvironment().REPEAT_SIGNUP_PHONE);
+  const repeatSignup = repeatSignupPhone !== null && repeatSignupPhone === phoneE164;
   const existing = await env.DB.prepare(
-    "SELECT id, username FROM users WHERE phone_e164 = ?",
+    "SELECT id, username FROM users WHERE phone_e164 = ? AND signup_parent_id IS NULL",
   )
     .bind(phoneE164)
     .first<{ id: string; username: string | null }>();
-  if (existing) {
+  if (existing && !repeatSignup) {
     await env.DB.prepare("UPDATE users SET last_seen_at = ? WHERE id = ?")
       .bind(now, existing.id)
       .run();
@@ -376,17 +380,17 @@ export async function upsertVerifiedUser(
 
   const requestedLegacyId = String(legacyOwnerId ?? "");
   let id = `usr_${randomToken(18)}`;
-  if (OWNER_PATTERN.test(requestedLegacyId)) {
+  if (!repeatSignup && OWNER_PATTERN.test(requestedLegacyId)) {
     const claimed = await env.DB.prepare("SELECT id FROM users WHERE id = ?")
       .bind(requestedLegacyId)
       .first<{ id: string }>();
     if (!claimed) id = requestedLegacyId;
   }
   await env.DB.prepare(
-    `INSERT INTO users (id, phone_e164, created_at, last_seen_at)
-     VALUES (?, ?, ?, ?)`,
+    `INSERT INTO users (id, phone_e164, signup_parent_id, created_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(id, phoneE164, now, now)
+    .bind(id, phoneE164, repeatSignup ? existing?.id ?? null : null, now, now)
     .run();
   return { id, username: null };
 }

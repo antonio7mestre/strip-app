@@ -1,4 +1,4 @@
-import { READER_IMAGE_VERSION, READER_IMAGE_WIDTHS } from "@/app/lib/reader-image";
+import { LIBRARY_COVER_VERSION, LIBRARY_COVER_WIDTH, READER_IMAGE_VERSION, READER_IMAGE_WIDTHS, READER_PREVIEW_VERSION, READER_PREVIEW_WIDTH } from "@/app/lib/reader-image";
 import { applyPublicMediaSecurityHeaders } from "@/app/server/media-security";
 
 type MediaObject = {
@@ -12,7 +12,7 @@ type MediaObject = {
 type Images = {
   input(stream: ReadableStream<Uint8Array>): {
     transform(options: { width: number; fit: "scale-down"; metadata: "none" }): {
-      output(options: { format: "image/webp"; quality: number }): Promise<{ response(): Response }>;
+      output(options: { format: "image/webp"; quality: number; anim?: boolean }): Promise<{ response(): Response }>;
     };
   };
 };
@@ -22,6 +22,12 @@ const INTERNAL_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
 export function readReaderImageWidth(request: Request): number | null {
   const query = new URL(request.url).searchParams;
+  if (query.get("reader-version") === READER_PREVIEW_VERSION) {
+    return query.get("reader-width") === String(READER_PREVIEW_WIDTH) ? READER_PREVIEW_WIDTH : null;
+  }
+  if (query.get("reader-version") === LIBRARY_COVER_VERSION) {
+    return query.get("reader-width") === String(LIBRARY_COVER_WIDTH) ? LIBRARY_COVER_WIDTH : null;
+  }
   if (query.get("reader-version") !== String(READER_IMAGE_VERSION)) return null;
   const value = query.get("reader-width");
   const width = Number(value);
@@ -97,11 +103,19 @@ export async function serveReaderImage({ request, object, width, scope, images, 
   loadOriginal: () => Promise<MediaObject | null>;
   isPrivate?: boolean;
 }) {
+  const libraryCover = new URL(request.url).searchParams.get("reader-version") === LIBRARY_COVER_VERSION
+    && width === LIBRARY_COVER_WIDTH && readReaderImageWidth(request) === width;
+  const preview = new URL(request.url).searchParams.get("reader-version") === READER_PREVIEW_VERSION
+    && width === READER_PREVIEW_WIDTH && readReaderImageWidth(request) === width;
+  const version = preview ? READER_PREVIEW_VERSION : libraryCover ? LIBRARY_COVER_VERSION : READER_IMAGE_VERSION;
   const contentType = object.httpMetadata?.contentType?.split(";", 1)[0].trim().toLowerCase();
-  if (contentType !== "image/jpeg" || object.size > MAX_TRANSFORM_BYTES) return originalFallback(object);
+  const supported = libraryCover || preview
+    ? ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"].includes(contentType ?? "")
+    : contentType === "image/jpeg";
+  if (!supported || object.size > MAX_TRANSFORM_BYTES) return originalFallback(object);
 
   const key = new URL(request.url);
-  key.pathname = `/__strip-reader-image-cache/${encodeURIComponent(scope)}/${encodeURIComponent(object.httpEtag)}/${READER_IMAGE_VERSION}/${width}`;
+  key.pathname = `/__strip-reader-image-cache/${encodeURIComponent(scope)}/${encodeURIComponent(object.httpEtag)}/${version}/${width}`;
   key.search = "";
   const cacheRequest = new Request(key, { method: "GET" });
   const cache = typeof caches === "undefined" ? undefined : (caches as CacheStorage & { default?: Cache }).default;
@@ -114,13 +128,14 @@ export async function serveReaderImage({ request, object, width, scope, images, 
   } catch { /* Cache availability must not decide whether a photo is visible. */ }
 
   try {
-    const source = await inspectJpeg(object.body);
+    const source = libraryCover || preview ? { stream: object.body, isJpeg: true } : await inspectJpeg(object.body);
     if (!source.isJpeg) return originalFallback(object, source.stream);
     // Images applies EXIF orientation before resizing. No manual rotation or
     // crop is needed, and scale-down preserves smaller originals' dimensions.
     const transformed = await images.input(source.stream)
       .transform({ width, fit: "scale-down", metadata: "none" })
-      .output({ format: "image/webp", quality: 88 });
+      .output({ format: "image/webp", quality: preview ? 40 : libraryCover ? 62 : 88,
+        ...(libraryCover ? { anim: true } : {}) });
     const result = transformed.response();
     if (!result.ok) throw new Error("Reader image transform failed");
     const headers = new Headers(result.headers);
@@ -128,7 +143,7 @@ export async function serveReaderImage({ request, object, width, scope, images, 
     headers.delete("Accept-Ranges");
     headers.delete("Content-Length");
     headers.set("Cache-Control", INTERNAL_CACHE_CONTROL);
-    headers.set("ETag", `"reader-${READER_IMAGE_VERSION}-${width}-${object.httpEtag.replace(/^"|"$/g, "")}"`);
+    headers.set("ETag", `"reader-${version}-${width}-${object.httpEtag.replace(/^"|"$/g, "")}"`);
     applyPublicMediaSecurityHeaders(headers);
     const response = new Response(result.body, { headers });
     try { await cache?.put(cacheRequest, response.clone()); } catch { /* Serve even if the cache is full. */ }

@@ -1,11 +1,29 @@
 export const ONBOARDING_BACKGROUND = "#304DFF";
 
+/** Let Safari sample the live document, not the previous fixed sign-in canvas. */
+export function retainOnboardingBackgroundCanvas(page: Document = document) {
+  const root = page.documentElement;
+  const body = page.body;
+  root.classList.add("onboarding-background-active");
+  return () => {
+    root.classList.remove("onboarding-background-active");
+    root.style.removeProperty("--onboarding-background");
+    // The next screen owns the canvas through its live safe-area variables.
+    // Restoring an inline signup color would override that CSS indefinitely.
+    body.style.removeProperty("background-color");
+    root.style.removeProperty("--bottom-safe-area-color");
+  };
+}
+
 /** The ready color step replaces any SSR reload paint before Safari samples it. */
 export function syncOnboardingBackground(color: string, page: Document = document) {
   const root = page.documentElement;
   root.classList.remove("profile-reload-pending");
   root.style.removeProperty("--profile-reload-background");
   root.style.backgroundColor = color;
+  // Safari's under-page color observes the body separately from the root and
+  // theme metadata. Commit it with the picker, never in a later frame or fade.
+  page.body.style.backgroundColor = color;
   root.style.setProperty("--onboarding-background", color);
   root.style.setProperty("--top-safe-area-color", color);
   root.style.setProperty("--bottom-safe-area-color", color);

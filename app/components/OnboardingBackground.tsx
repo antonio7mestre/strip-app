@@ -17,13 +17,6 @@ export function OnboardingBackground({ color, onChange, onContinue, onBack, pend
   const [picker, setPicker] = useState(false);
   const ink = profileInk(color);
   useLayoutEffect(() => {
-    document.documentElement.classList.add("onboarding-background-active");
-    return () => {
-      document.documentElement.classList.remove("onboarding-background-active");
-      document.documentElement.style.removeProperty("--onboarding-background");
-    };
-  }, []);
-  useLayoutEffect(() => {
     document.documentElement.style.setProperty("--onboarding-background", color);
   }, [color]);
   useLayoutEffect(() => {
@@ -52,8 +45,10 @@ export function OnboardingBackground({ color, onChange, onContinue, onBack, pend
         {ONBOARDING_COLORS.slice(0, grid.count).map((swatch) => <button
           key={swatch.value} type="button" className={styles.swatch}
           aria-label={swatch.name} aria-pressed={color.toUpperCase() === swatch.value}
-          style={{ backgroundColor: swatch.value }} disabled={pending}
-          onClick={() => onChange(swatch.value)} />)}
+          style={{ backgroundColor: swatch.value, color: profileInk(swatch.value) }} disabled={pending}
+          onClick={() => onChange(swatch.value)}>
+          {color.toUpperCase() === swatch.value ? <Check aria-hidden="true" /> : null}
+        </button>)}
       </div>
     </div>
     <footer className={styles.footer}>

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { readStripContent } from "@/app/lib/strip-ending";
 import { applyPublicMediaSecurityHeaders } from "@/app/server/media-security";
 import { readReaderImageWidth, serveReaderImage } from "@/app/server/reader-image";
+import { LIBRARY_COVER_VERSION, READER_PREVIEW_VERSION } from "@/app/lib/reader-image";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,10 @@ export async function GET(
   }
   if (!mediaBlock) return new Response("Not found", { status: 404 });
 
-  const readerWidth = mediaBlock.type === "image" ? readReaderImageWidth(request) : null;
+  const recipe = new URL(request.url).searchParams.get("reader-version");
+  const isThumbnail = recipe === LIBRARY_COVER_VERSION || recipe === READER_PREVIEW_VERSION;
+  const readerWidth = mediaBlock.type === "image" || (mediaBlock.type === "sticker" && isThumbnail)
+    ? readReaderImageWidth(request) : null;
   const object = await env.STRIP_MEDIA.get(mediaBlock.objectKey, readerWidth === null ? {
     range: request.headers,
   } : undefined);

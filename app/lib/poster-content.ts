@@ -3,6 +3,7 @@ import { profileFontInfo, profileFontWeight } from "./profile";
 import { normalizeStickerWidth } from "./sticker-sizing";
 import { normalizeStickerRotation } from "./sticker-rotation";
 import { normalizeTextAlignment } from "./text-alignment";
+import { textureCoverRect } from "./text-textures";
 import { posterColor, posterInk, type PosterBlock, type PosterPhoto, type PosterTile } from "./share-posters";
 
 export const POSTER_REFERENCE_WIDTH = 390;
@@ -52,7 +53,7 @@ export function posterTextStyle(block: PosterBlock) {
     size: normalizedFontSize(font.id,size), leading: size*1.22 };
 }
 
-export function createPosterTextTile(block: PosterBlock, index: number, top: number, rasterWidth: number): PosterTile {
+export function createPosterTextTile(block: PosterBlock, index: number, top: number, rasterWidth: number, texture?: PosterPhoto | null): PosterTile {
   const canvas=document.createElement("canvas"),context=canvas.getContext("2d");
   if (!context) throw new Error("Canvas unavailable");
   const style=posterTextStyle(block);
@@ -68,6 +69,10 @@ export function createPosterTextTile(block: PosterBlock, index: number, top: num
   canvas.width=rasterWidth;canvas.height=Math.max(1,Math.min(8192,Math.ceil(flowHeight*scale)));
   context.scale(scale,canvas.height/flowHeight);context.fillStyle=style.background;
   context.fillRect(0,0,POSTER_REFERENCE_WIDTH,flowHeight);
+  if (texture) {
+    const crop = textureCoverRect(texture.width,texture.height,POSTER_REFERENCE_WIDTH,flowHeight);
+    context.drawImage(texture.source,crop.x,crop.y,crop.width,crop.height,0,0,POSTER_REFERENCE_WIDTH,flowHeight);
+  }
   context.font=`${style.weight} ${style.size}px ${style.font}`;
   context.fillStyle=style.ink;context.textBaseline="top";
   context.textAlign=normalizeTextAlignment(block.textAlign);

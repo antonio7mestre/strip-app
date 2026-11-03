@@ -76,14 +76,21 @@ export function clearProfileReload() {
   try { localStorage.removeItem(PROFILE_RELOAD_KEY); } catch {}
 }
 
-export function cachedCoverRatio(id: string) {
+/** Build one snapshot per response, not one JSON parse and scan per cover. */
+export function cachedCoverRatios() {
+  const ratios = new Map<string, number>();
   const pages = readProfileReload()?.pages;
-  if (!pages) return undefined;
+  if (!pages) return ratios;
   for (const layout of Object.values(pages)) {
-    const frame = layout && Array.isArray(layout.frames) ? layout.frames.find(frame => frame?.coverId === id) : null;
-    if (frame && Number.isFinite(frame.width) && Number.isFinite(frame.height) && frame.width > 0 && frame.height > 0) return frame.width / frame.height;
+    if (!layout || !Array.isArray(layout.frames)) continue;
+    for (const frame of layout.frames) {
+      if (frame && typeof frame.coverId === "string" && !ratios.has(frame.coverId) &&
+          Number.isFinite(frame.width) && Number.isFinite(frame.height) && frame.width > 0 && frame.height > 0) {
+        ratios.set(frame.coverId, frame.width / frame.height);
+      }
+    }
   }
-  return undefined;
+  return ratios;
 }
 
 // Runs in <head>, before either the body or React can paint a default canvas.

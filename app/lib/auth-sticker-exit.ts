@@ -39,12 +39,14 @@ export function startAuthStickerExit(onReveal: () => void, onComplete: () => voi
   const backdrop = document.createElement("div");
   backdrop.className = "auth-sticker-backdrop auth-step-landing";
   const bounds = landing.getBoundingClientRect();
-  const flightInset = Number.parseFloat(getComputedStyle(landing).getPropertyValue("--leading-image-inset")) || 0;
+  // The complete exit bleed must live inside the document, not above y=0.
+  // Safari can report a zero safe-area inset while its status bar still caps
+  // negative document overflow. Own this flight space independently of it.
+  const flightInset = BLEED;
   const frozen = landing.cloneNode(true) as HTMLElement;
   frozen.classList.add("auth-landing-frozen");
   Object.assign(frozen.style, { left: `${bounds.left}px`, top: `${bounds.top + BLEED}px`,
     width: `${bounds.width}px`, height: `${bounds.height}px`, translate: "none", transform: "none" });
-  frozen.style.setProperty("--leading-image-inset", getComputedStyle(landing).getPropertyValue("--leading-image-inset") || "0px");
   frozen.querySelectorAll("[id]").forEach(element => element.removeAttribute("id"));
   frozen.querySelectorAll(FLOATING_STICKER_SELECTOR).forEach(element => element.remove());
   backdrop.append(frozen);

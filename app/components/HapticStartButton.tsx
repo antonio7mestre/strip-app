@@ -1,7 +1,14 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { installLandingStartCue } from "../lib/landing-start-cue";
+
 /** A direct native switch tap supplies Safari's single haptic. No synthetic clicks. */
-export function HapticStartButton({ onStart }: { onStart: () => void }) {
+export function HapticStartButton({ onStart, cueReady = true }: { onStart: () => void; cueReady?: boolean }) {
+  const button = useRef<HTMLLabelElement>(null);
+  useEffect(() => cueReady && button.current ? installLandingStartCue(button.current) : undefined, [cueReady]);
   return (
-    <label className="auth-action-button auth-haptic-start">
+    <label ref={button} className="auth-action-button auth-haptic-start">
       <span aria-hidden="true">Get started</span>
       <input type="checkbox" {...{ switch: "" }} role="button" aria-label="Get started"
         onChange={() => {

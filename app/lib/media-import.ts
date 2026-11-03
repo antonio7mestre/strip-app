@@ -18,8 +18,11 @@ const MAX_MEDIA_BYTES = 80 * 1024 * 1024;
 
 function aborted() { return new DOMException("Import cancelled", "AbortError"); }
 
-/** Preserve the original file. Only two large reads/decodes run at a time. */
+/** Videos retain the camera-roll Blob instead of duplicating it as a huge
+ * base64 string. The saver streams this URL's original file individually. */
 function readMedia(file: File, signal: AbortSignal): Promise<string> {
+  if (signal.aborted) return Promise.reject(aborted());
+  if (file.type.startsWith("video/")) return Promise.resolve(URL.createObjectURL(file));
   return new Promise((resolve, reject) => {
     if (signal.aborted) { reject(aborted()); return; }
     const reader = new FileReader();
@@ -97,14 +100,16 @@ export async function prepareMediaFiles(files: readonly File[], {
     while (cursor < files.length) {
       if (signal.aborted) throw aborted();
       const index = cursor++, file = files[index];
+      let src: string | undefined;
       try {
         const type = file.type.startsWith("video/") ? "video" : "image";
         if ((!file.type.startsWith("image/") && type !== "video") || /svg|xml/i.test(file.type)
           || file.size === 0 || file.size > MAX_MEDIA_BYTES) throw new Error("Unsupported media");
-        const src = await readMedia(file, signal);
+        src = await readMedia(file, signal);
         const size = await measureMedia(src, type, signal);
         prepared[index] = { type, src, alt: file.name.replace(/\.[^/.]+$/, ""), ...size };
       } catch (error) {
+        if (src?.startsWith("blob:")) URL.revokeObjectURL(src);
         if (signal.aborted || (error instanceof DOMException && error.name === "AbortError")) throw aborted();
         // A damaged file must not prevent the remaining selections from arriving.
       }
@@ -112,7 +117,12 @@ export async function prepareMediaFiles(files: readonly File[], {
       onProgress?.({ completed: ++completed, total: files.length });
     }
   };
-  await Promise.all(Array.from({ length: Math.min(IMPORT_CONCURRENCY, files.length) }, worker));
+  try {
+    await Promise.all(Array.from({ length: Math.min(IMPORT_CONCURRENCY, files.length) }, worker));
+  } catch (error) {
+    prepared.forEach(item => { if (item?.src.startsWith("blob:")) URL.revokeObjectURL(item.src); });
+    throw error;
+  }
   if (signal.aborted) throw aborted();
   const media = prepared.filter((item): item is PreparedMedia => item !== null);
   return { media, failed: files.length - media.length };

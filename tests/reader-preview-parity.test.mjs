@@ -4,13 +4,19 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import ts from "typescript";
-import { StripEndingSheet } from "./helpers/ending-sheet.mjs";
+import { loadStripEndingSheet } from "./helpers/ending-sheet.mjs";
 import { profileFontWeight } from "../app/lib/profile.ts";
 import { normalizedFontSize } from "../app/lib/font-sizing.ts";
 import { getReaderImageProps } from "../app/lib/reader-image.ts";
 import { normalizeTextAlignment } from "../app/lib/text-alignment.ts";
+import { textTexture } from "../app/lib/text-textures.ts";
 
 const require = createRequire(import.meta.url);
+// This fixture inspects element props without mounting. Footer DOM effects are
+// tested separately; supply inert hooks for its pure markup here.
+const StripEndingSheet = loadStripEndingSheet({
+  useRef: value => ({ current: value }), useMemo: fn => fn(), useLayoutEffect() {},
+});
 const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const tree = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function find(predicate, node = tree) {
@@ -49,22 +55,24 @@ function fixture(mode, blocks, overrides = {}) {
   const exports = {};
   const code = ts.transpileModule([
     `const ${declaration("MIN_CROPPED_BLOCK_HEIGHT")};`, cropFunction,
-    ...["handlePreviewEndingEdit", "handlePreviewEndingPublish", "renderStrip",
-      "trailingPublishedBlock", "publishedEndsWithMedia", "publishedEndsWithVideo", "publishedEndsWithText", "publishedStripStyle"]
+    ...["handlePreviewEndingEdit", "handlePreviewEndingPublish", "renderStrip"]
       .map(name => `const ${declaration(name)};`),
     `export function render() { return (${roots[mode === "editor" ? "inline" : mode]}); }`,
   ].join("\n"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   runInNewContext(code, {
     exports, require: () => ({ jsx, jsxs: jsx, Fragment: fragment }),
     blocks, publishedBlocks: blocks, view, inlinePreview,
-    normalizeTextAlignment,
-    authUser: { username: "antonio" }, openedPublishedStrip: { username: "antonio" },
+    normalizeTextAlignment, textTexture, TextBlockTexture: "text-texture",
+    authUser: { username: "antonio" }, openedPublishedStrip: { username: "antonio", blocks },
     publishedContentCanReveal: true, openingPublishedEditor: false, publishedViewerCanEdit: false,
+    ReaderMediaProvider: fragment, ReaderImage: "reader-image", publishedAssetIds: blocks.map(block => block.id),
+    readerReturnRef: { current: null }, publishedStripLoadKey: "test-strip",
     legacyPageEnterClass: "", topSafeAreaColor: "#000000", hasRequiredContent: true,
     stripCanvasRef: { current: null }, mediaLoadStatus: {}, importedMediaSizes: {},
+    publishFlowMediaSizesRef: { current: {} },
     mediaBatchRevealIds: [], mediaBatchRevealStarted: false, mediaImportProgress: null,
-    editorEntrance: { active: false },
-    selectedBlockId: null, editingTextBlockId: null, typingTextStickerId: null, heightCropSession: null,
+    editorEntrance: { active: false, requiredIds: [] }, currentDraftId: 'test-draft',
+    selectedBlockId: null, editingTextBlockId: null, typingTextStickerId: null, newTextStickerId: null, heightCropSession: null,
     overlappingStickerIds: [], selectedBlock: null, audibleVideoId: null, videoAudioPresence: {},
     trackBlockTapGesture: stub, cancelBlockTapGesture: stub,
     renderBlockControls: () => ({ type: "editor-controls", props: {} }),
@@ -91,17 +99,29 @@ function children(node) {
 function all(node, predicate) {
   return [...(predicate(node) ? [node] : []), ...children(node).flatMap(child => all(child, predicate))];
 }
-const ofType = (node, type) => all(node, child => child.type === type);
+const ofType = (node, type) => all(node, child => child.type === type || (type === "img" && child.type === "reader-image"));
 const hasClass = (node, name) => typeof node.props?.className === "string" && node.props.className.split(/\s+/).includes(name);
 const canvas = root => all(root, node => hasClass(node, "strip-canvas"))[0];
 const footer = root => all(root, node => hasClass(node, "strip-ending-card"))[0];
 function signature(node) {
-  return JSON.parse(JSON.stringify(node, (key, value) => key === "ref" || key.startsWith("on") || typeof value === "function" ? undefined : value));
+  // Published images delegate scheduling to ReaderImage; its blockId is not
+  // visual content. Compare geometry and media props across the route wrappers.
+  return JSON.parse(JSON.stringify(node, (key, value) => key === "ref" || key === "blockId" || key.startsWith("on") || typeof value === "function" ? undefined
+    : key === "type" && value === "reader-image" ? "img" : value));
 }
 const photo = { id: "photo", type: "image", src: "/photo.jpg", alt: "Photo", height: 800 };
 const video = { id: "video", type: "video", src: "/video.mp4", height: 600, audioEnabled: true, hasAudio: true };
 const text = { id: "text", type: "text", content: "A short Strip", backgroundColor: "#9772FF" };
 const sticker = { id: "sticker", type: "sticker", src: "/sticker.png", x: 12, y: 1000, width: 120, rotation: 12 };
+
+test("all reader modes and editing share the same full-width texture", () => {
+  const block={...text,backgroundTexture:"17-indigo-denim"};
+  for (const mode of [...readerModes,"editor"]) {
+    const {root}=fixture(mode,[block]);
+    const textures=ofType(root,"text-texture");
+    assert.equal(textures.length,1);assert.equal(textures[0].props.id,block.backgroundTexture);
+  }
+});
 
 test("actual reader routes render identical content and exactly one sibling ending", () => {
   for (const blocks of [[], [text], [photo], [video], [photo, text], [text, sticker], [text, photo, video, sticker]]) {
@@ -119,7 +139,7 @@ test("actual reader routes render identical content and exactly one sibling endi
       expectedContent ??= contentTree;
       assert.deepEqual(contentTree, expectedContent, `${mode}: content rendering matches the other reader routes`);
       assert.equal(ending.props.style["--ending-background"], "#FFFFFF");
-      assert.equal(ending.props.style["--ending-corner-color"], blocks.findLast(block => block.type !== "sticker")?.type === "text" ? "#9772FF" : "transparent");
+      assert.equal(ending.props.style["--ending-corner-color"], undefined);
     }
   }
 });
@@ -134,31 +154,32 @@ test("alignment is identical in editing, inline preview, standalone preview and 
   }
 });
 
-test("every reader loads all media immediately without editor visibility or decode ordering gates", () => {
+test("reader renderers expose media without serial gates and editor sessions share reader scheduling", () => {
   for (const mode of readerModes) {
     const { root } = fixture(mode, [photo, { ...photo, id: "second", src: "/second.jpg" }, video]);
-    assert.deepEqual(ofType(root, "img").map(node => node.props.src), ["/photo.jpg", "/second.jpg"]);
-    for (const image of ofType(root, "img")) {
+    assert.deepEqual(ofType(canvas(root), "img").map(node => node.props.src), ["/photo.jpg", "/second.jpg"]);
+    assert.equal(ofType(root, "reader-image").length, 2);
+    for (const image of ofType(canvas(root), "img")) {
       assert.equal(image.props.loading, "eager");
       assert.equal(image.props.style, undefined, "unsettled reader photos are not hidden by editor state");
     }
     const renderedVideo = ofType(root, "reader-video")[0];
     assert.equal(renderedVideo.props.shouldLoad, true);
-    assert.equal(renderedVideo.props.extendBottomEdge, true);
+    assert.equal(renderedVideo.props.extendBottomEdge, undefined);
     assert.equal(renderedVideo.props.controls, null);
     assert.equal(ofType(root, "editor-controls").length, 0);
   }
   const { root } = fixture("editor", [photo, { ...photo, id: "second" }, video]);
   const images = ofType(root, "img");
   assert.equal(images[0].props.src, "/photo.jpg");
-  assert.equal(images[1].props.src, undefined, "editor media still waits for preceding media to settle");
-  assert.equal(images[0].props.style.visibility, "hidden");
-  assert.equal(ofType(root, "reader-video")[0].props.shouldLoad, false);
+  assert.equal(images[1].props.src, "/photo.jpg", "media scheduling belongs to the shared provider, not a serial gate");
+  assert.equal(images[0].props.style.visibility, undefined, "readiness bookkeeping cannot hide decoded pixels");
+  assert.equal(ofType(root, "reader-video")[0].props.shouldLoad, true);
   assert.equal(footer(root), undefined);
   assert.equal(ofType(root, "editor-controls").length, 2);
 });
 
-test("standalone readers use bounded variants while inline preview retains the editor's decoded source", () => {
+test("all readers and the editor use identical bounded display variants without changing saved sources", () => {
   const source = "/api/strips/1791303521563-plsa2g/media/photo-001";
   const media = { ...photo, src: source, cropTop: 70, cropBottom: 90 };
   for (const mode of ["standalone", "published"]) {
@@ -174,9 +195,9 @@ test("standalone readers use bounded variants while inline preview retains the e
   for (const mode of ["editor", "inline"]) {
     const { root } = fixture(mode, [media]);
     const image = ofType(root, "img")[0];
-    assert.equal(image.props.src, source);
-    assert.equal(image.props.srcSet, undefined);
-    assert.equal(image.props.sizes, undefined);
+    const expected = getReaderImageProps(source);
+    for (const key of ["src", "srcSet", "sizes"]) assert.equal(image.props[key], expected[key]);
+    assert.equal(media.src, source, "the authored block is never rewritten");
   }
 });
 
@@ -189,7 +210,7 @@ test("repeated editor/preview switches keep loaded source attributes despite ear
       const { root } = fixture(mode, items, { mediaLoadStatus: { photo: status, video: "loaded" } });
       const image = ofType(root, "img")[1];
       const current = { src: image.props.src, srcSet: image.props.srcSet, sizes: image.props.sizes };
-      assert.equal(current.src, original, "already-loaded photos cannot have their src removed or replaced");
+      assert.equal(current.src, getReaderImageProps(original).src, "already-loaded photos cannot have their src removed or replaced");
       if (previous) assert.deepEqual(current, previous);
       previous = current;
       const clip = ofType(root, "reader-video")[0];
@@ -211,6 +232,7 @@ test("video preview and sound changes preserve the player resource instead of ca
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
   } }).outputText, {
     exports, require: () => ({ jsx, jsxs: jsx }), ...react,
+    useReaderVideo: () => ({ active: false }),
     window: { innerHeight: 800 }, HTMLMediaElement: { HAVE_CURRENT_DATA: 2 },
     IntersectionObserver: class { observe() {} disconnect() {} },
     BlockHeightReporter: "height-reporter", MediaEdgeExtension: "media-edge-extension",
@@ -243,9 +265,7 @@ test("saved photo and video crops match across readers despite an active editor 
         const content = all(root, node => hasClass(node, "block-crop-content"))[0];
         assert.equal(viewport.props.style.height, "640px");
         assert.equal(content.props.style.transform, "translateY(-70px)");
-        const edge = ofType(root, "media-edge-extension")[0];
-        assert.equal(edge.props.cropTop, 70);
-        assert.equal(edge.props.cropHeight, 640);
+        assert.equal(ofType(root, "media-edge-extension").length, 0);
       } else {
         const rendered = ofType(root, "reader-video")[0];
         assert.equal(rendered.props.cropTop, 70);
@@ -267,7 +287,7 @@ test("saved photo and video crops match across readers despite an active editor 
       assert.equal(rendered.props.cropTop, 140);
       assert.equal(rendered.props.cropEditing, true);
       assert.ok(rendered.props.heightCropHandles);
-      assert.equal(rendered.props.extendBottomEdge, false);
+      assert.equal(rendered.props.extendBottomEdge, undefined);
     }
   }
 });

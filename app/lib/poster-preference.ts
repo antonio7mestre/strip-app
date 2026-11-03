@@ -1,10 +1,10 @@
 import { POSTER_DESIGNS } from "./share-posters";
 
-export const POSTER_PREFERENCE_KEY = "strip-story-poster-design";
-// Lead with Sidecar, then alternate dense, open, sharp, soft and angled layouts.
+// A new four-poster set starts with Sidecar, even if the old gallery had a
+// different favorite. Subsequent completed shares can remember a new choice.
+export const POSTER_PREFERENCE_KEY = "strip-story-poster-design-v2";
 export const POSTER_DEFAULT_ORDER = [
-  "sidecar-strip", "masonry-wall", "portrait-atmosphere", "photo-diptych",
-  "soft-memory", "stepped-blocks", "after-hours-grid", "diagonal-cascade",
+  "sidecar-strip", "masonry-wall", "soft-memory", "after-hours-grid",
 ] as const;
 export function posterDesignOrder(preferred: string | null) {
   const indices = POSTER_DEFAULT_ORDER.map(id => POSTER_DESIGNS.findIndex(design => design.id === id));

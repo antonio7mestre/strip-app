@@ -9,6 +9,7 @@ import * as rotation from "../app/lib/sticker-rotation.ts";
 import * as fonts from "../app/lib/font-sizing.ts";
 import * as posters from "../app/lib/share-posters.ts";
 import * as alignment from "../app/lib/text-alignment.ts";
+import * as textures from "../app/lib/text-textures.ts";
 
 class Canvas {
   constructor(){this.width=300;this.height=150;this.commands=[];this.context={
@@ -22,10 +23,20 @@ const source=readFileSync(new URL("../app/lib/poster-content.ts",import.meta.url
 runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
   exports,document:{createElement:tag=>{assert.equal(tag,"canvas");return new Canvas();}},
   require:id=>({"./font-sizing":fonts,"./profile":profile,"./sticker-sizing":sizing,
-    "./sticker-rotation":rotation,"./share-posters":posters,"./text-alignment":alignment})[id],
+    "./sticker-rotation":rotation,"./share-posters":posters,"./text-alignment":alignment,"./text-textures":textures})[id],
 });
 const {posterStickerGeometry,posterParagraphLines,posterTextStyle,posterRasterWidth,
   createPosterTextTile,createPosterMediaTile,paintPosterSticker}=exports;
+
+test("text textures cover the whole poster block before text, without stretching",()=>{
+  for (const height of [80, 390, 1200]) {
+    const tile=createPosterTextTile({type:"text",content:"hello",height},0,0,390,{source:{texture:true},width:1280,height:1280});
+    const commands=tile.source.commands,draw=commands.find(c=>c[0]==="drawImage");
+    assert(draw);assert.equal(draw[8],390);assert.equal(draw[9],height);
+    assert.equal(draw[4]/draw[5],390/height);
+    assert(commands.indexOf(draw)<commands.findIndex(c=>c[0]==="fillText"));
+  }
+});
 
 test("frame widths preserve every editor fraction, including 80-92% frames",()=>{
   for(const width of [8,10,30.125,79.875,80.001,86.625,91.99999,92])for(const angle of [-179.5,-17.25,0,89.335,179.75]) {

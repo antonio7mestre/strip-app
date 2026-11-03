@@ -5,8 +5,14 @@ import "./globals.css";
 import "./wide-layout.css";
 import { DesktopPresentation } from "./components/DesktopPresentation";
 import { PageDimmer } from "./components/PageDimmer";
+import { ReaderEntryCover } from "./components/ReaderEntryCover";
 import { PROFILE_RELOAD_SCRIPT } from "./lib/profile-reload";
+import { READER_CREATE_PAINT_SCRIPT } from "./lib/reader-create-entry";
+import { IN_APP_BROWSER_SCRIPT, isInstagramInAppBrowser } from "./lib/in-app-browser";
+import { routeFromLocation } from "./lib/app-routing";
 import { initialPageBackground } from "./server/initial-background";
+import { initialProfileChrome } from "./server/initial-profile-chrome";
+import { InitialProfileChromeProvider } from "./components/InitialProfileChrome";
 
 const initialThemeColorScript = `
   (() => {
@@ -73,19 +79,36 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const background = await initialPageBackground(await headers());
+  const requestHeaders = await headers();
+  const [background, profileChrome] = await Promise.all([
+    initialPageBackground(requestHeaders), initialProfileChrome(requestHeaders),
+  ]);
+  const initialLanding = requestHeaders.get("x-strip-pathname") === "/start" || profileChrome?.showLanding === true;
+  const initialReader = routeFromLocation(requestHeaders.get("x-strip-pathname") ?? "/",
+    requestHeaders.get("host") ?? "").kind === "published";
+  const instagramBrowser = isInstagramInAppBrowser(requestHeaders.get("user-agent") ?? "");
+  const readerEntryColor = initialReader && instagramBrowser ? "#FFFFFF" : "#000000";
   return (
     <html lang="en" suppressHydrationWarning data-initial-background={background ?? undefined}
+      data-in-app-browser={instagramBrowser ? "instagram" : undefined}
+      data-auth-landing={initialLanding ? "" : undefined}
+      data-reader-entry-pending={initialReader ? "" : undefined}
       className={background ? "profile-reload-pending" : undefined}
       style={background ? { backgroundColor: background, "--profile-reload-background": background,
-        "--top-safe-area-color": background, "--bottom-safe-area-color": background } as CSSProperties : undefined}>
+        "--top-safe-area-color": background, "--bottom-safe-area-color": background } as CSSProperties
+        : initialReader ? { backgroundColor: readerEntryColor } : undefined}>
       <head>
-        <meta id="strip-theme-color" name="theme-color" content={background ?? "#000000"} suppressHydrationWarning />
+        <script dangerouslySetInnerHTML={{ __html: IN_APP_BROWSER_SCRIPT }} />
+        <meta id="strip-theme-color" name={profileChrome?.showTools || initialLanding ? undefined : "theme-color"} content={background ?? readerEntryColor} suppressHydrationWarning />
         <script dangerouslySetInnerHTML={{ __html: PROFILE_RELOAD_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: initialReloadScrollScript }} />
         <script dangerouslySetInnerHTML={{ __html: initialThemeColorScript }} />
+        <script dangerouslySetInnerHTML={{ __html: READER_CREATE_PAINT_SCRIPT }} />
       </head>
-      <body><DesktopPresentation /><PageDimmer />{children}</body>
+      <body>
+        {initialReader ? <ReaderEntryCover /> : null}
+        <div className="landing-browser-bottom" aria-hidden="true" /><DesktopPresentation /><PageDimmer /><InitialProfileChromeProvider value={profileChrome}>{children}</InitialProfileChromeProvider>
+      </body>
     </html>
   );
 }

@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { normalizeTextTexture } from "@/app/lib/text-textures";
 import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
 import { normalizeStickerRotation } from "@/app/lib/sticker-rotation";
@@ -12,6 +13,7 @@ import {
 import { isSameOrigin, requireAuthUser } from "@/app/server/auth";
 import { isAllowedStoredMediaContentType } from "@/app/server/media-security";
 import { publishedProfileTheme } from "@/app/lib/profile";
+import { publishedMediaPath } from "@/app/lib/published-media";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,7 @@ type PublishBlock =
       cropTop?: number;
       cropBottom?: number;
       backgroundColor?: string;
+      backgroundTexture?: string;
       textColor?: string;
       fontStyle?: string;
       fontSize?: number;
@@ -120,10 +123,6 @@ const MAX_COVER_BYTES = 20 * 1024 * 1024;
 const MAX_MEDIA_BYTES = 80 * 1024 * 1024;
 const MAX_BLOCKS = 100;
 
-function imageCoverPath(stripId: string) {
-  return `/api/strips/${encodeURIComponent(stripId)}/cover`;
-}
-
 function serializeRow(row: StoredStripRow, username: string | null) {
   return {
     id: row.id,
@@ -134,7 +133,7 @@ function serializeRow(row: StoredStripRow, username: string | null) {
       row.cover_kind === "image"
         ? {
             kind: "image" as const,
-            src: imageCoverPath(row.id),
+            src: publishedMediaPath(row.id, null, row.published_at),
             alt: row.cover_alt ?? "Strip cover",
           }
         : {
@@ -219,6 +218,7 @@ function prepareContentBlocks(
           ? { cropBottom: Math.min(20_000, finiteNumber(block.cropBottom, 0)) }
           : {}),
         backgroundColor: block.backgroundColor,
+        backgroundTexture: normalizeTextTexture(block.backgroundTexture),
         textColor: block.textColor,
         fontStyle: block.fontStyle,
         fontSize: block.fontSize,
@@ -553,7 +553,17 @@ export async function POST(request: Request) {
     published_at: publishedAt,
   };
   return Response.json(
-    { strip: { ...serializeRow(row, auth.user.username), ...authorTheme } },
+    { strip: {
+      ...serializeRow(row, auth.user.username),
+      ...authorTheme,
+      viewerIsOwner: true,
+      endingStyle: readStripContent(contentJson).endingStyle,
+      blocks: preparedContent.storedBlocks.map(block => {
+        if (block.type === "text") return block;
+        const { objectKey: _objectKey, ...publishedBlock } = block;
+        return { ...publishedBlock, src: publishedMediaPath(id, block.id, publishedAt) };
+      }),
+    } },
     { status: existing ? 200 : 201 },
   );
 }

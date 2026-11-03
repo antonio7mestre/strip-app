@@ -4,21 +4,23 @@ import { cloneElement, isValidElement, useLayoutEffect, useRef, useState, type C
 import { createPortal, flushSync } from "react-dom";
 import { TextStickerVisual } from "./TextStickerVisual";
 import type { TextSticker } from "@/app/lib/text-sticker";
-import { focusedTextSticker, installTextStickerScrollAnchor, textStickerFocusWidth } from "@/app/lib/text-sticker-focus";
+import { focusedTextSticker, installTextStickerScrollAnchor, textStickerFocusFrame, textStickerFocusWidth, textStickerPlacementFromArtwork } from "@/app/lib/text-sticker-focus";
+import { installTextStickerKeyboardDismiss } from "@/app/lib/text-sticker-keyboard";
 import { stepTextStickerSpring, textStickerLayoutSize, textStickerToolFrame, type SpringAxis } from "@/app/lib/text-sticker-motion";
 
 type Pose = { x: number; y: number; scale: number; rotation: number };
 type Motion = { [Key in keyof Pose]: SpringAxis };
-type TypingControls = { onConfirmStickerText?: () => void; onTextTool?: (tool: "font" | "color" | "background") => void };
+type TypingControls = { textTyping?: boolean; onTextTool?: (tool: "font" | "color" | "background") => void };
 const axes = ["x", "y", "scale", "rotation"] as const;
 
-/** A temporary typing surface. It never changes the sticker's placed transform. */
-export function TextStickerEditor({ value, onChange, onFinish, controls, sourceRef }: {
+/** Existing stickers return to their placement; new ones stay where typed. */
+export function TextStickerEditor({ value, onChange, onFinish, controls, sourceRef, onInitialPlacement }: {
   value: TextSticker;
   onChange: (content: string) => void;
-  onFinish: () => void;
+  onFinish: (keepToolsOpen: boolean) => void;
   controls: ReactNode;
   sourceRef: RefObject<HTMLElement | null>;
+  onInitialPlacement?: (placement: ReturnType<typeof textStickerPlacementFromArtwork>) => void;
 }) {
   // The focus width scales the entire artwork. Keep the same font-to-width
   // ratio so every line and its background match the placed sticker.
@@ -32,10 +34,13 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   const previousFrameRef = useRef(0);
   const startedRef = useRef(0);
   const wakeRef = useRef<() => void>(() => {});
+  const resizeRef = useRef<() => void>(() => {});
   const targetRef = useRef<() => Pose>(() => ({ x: 0, y: 0, scale: 1, rotation: 0 }));
   const completeRef = useRef<() => void>(() => {});
+  const finishRef = useRef<() => void>(() => {});
   const enteredRef = useRef(false);
   const closingRef = useRef(false);
+  const closingPoseRef = useRef<Pose | null>(null);
   const handoffFramesRef = useRef(0);
   const initialTransformRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -45,10 +50,14 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   // The first render has no input yet. Capture the page anchor before the
   // measured render mounts and focuses it, including Safari's later pan.
   useLayoutEffect(installTextStickerScrollAnchor, []);
+  useLayoutEffect(() => installTextStickerKeyboardDismiss(() => finishRef.current()), []);
   useLayoutEffect(() => {
     const viewport = window.visualViewport;
     let frame = 0;
     const measure = () => {
+      // Dismissing the keyboard must not resize or recenter a new sticker
+      // after its final artwork position has already been captured.
+      if (closingPoseRef.current) return;
       const source = sourceRef.current;
       if (source && !initialToolsStyleRef.current) {
         const from = source.getBoundingClientRect();
@@ -69,9 +78,8 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       const bottom = Math.max(top + 80, visibleBottom - 72);
       const next = {
         left: bounds ? bounds.left + bounds.width / 2 : viewportWidth / 2,
-        top: (top + bottom) / 2,
+        ...textStickerFocusFrame(top, bottom),
         width: textStickerFocusWidth(bounds?.width ?? viewportWidth, viewportWidth),
-        maxHeight: Math.max(80, bottom - top),
         viewportTop, layerHeight: Math.max(100, visibleBottom - viewportTop),
       };
       layoutRef.current = next;
@@ -90,6 +98,16 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       window.removeEventListener("resize", queue);
     };
   }, [sourceRef]);
+  const hasLayout = Boolean(layout);
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    // Text, font and viewport changes can resize the artwork long after the
+    // spring settles. Follow that geometry before paint, not on the next tap.
+    const observer = new ResizeObserver(() => resizeRef.current());
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [hasLayout]);
   useLayoutEffect(() => () => {
     cancelAnimationFrame(frameRef.current);
     if (sourceRef.current) {
@@ -106,17 +124,16 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     const rotation = parseFloat(source.style.getPropertyValue("--sticker-rotation")) || 0;
     return { x: from.left + from.width / 2, y: from.top + from.height / 2, scale, rotation };
   };
-  targetRef.current = () => closingRef.current ? placedPose() : {
+  targetRef.current = () => closingPoseRef.current ?? (closingRef.current ? placedPose() : {
     x: layoutRef.current?.left ?? 0, y: layoutRef.current?.top ?? 0, scale: 1, rotation: 0,
-  };
+  });
   completeRef.current = () => {
     // Removing the floating copy and releasing is-text-composing must be one
     // commit. Keep the placed copy visible until the unmount cleanup runs.
     flushSync(() => {
       // A styling tool is already open while the sticker returns. Finish
       // typing without resetting that selector at the placement handoff.
-      if (!toolRequestedRef.current && isValidElement<TypingControls>(controls) && controls.props.onConfirmStickerText) controls.props.onConfirmStickerText();
-      else onFinish();
+      onFinish(toolRequestedRef.current);
     });
   };
   const paintTools = (pose: Pose) => {
@@ -129,6 +146,12 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     tools.style.height = `${frame.height}px`;
     tools.style.transform = frame.transform;
     tools.style.setProperty("--sticker-counter-rotation", frame["--sticker-counter-rotation"]);
+  };
+  resizeRef.current = () => {
+    const motion = motionRef.current;
+    if (!motion) return;
+    paintTools({ x: motion.x.value, y: motion.y.value, scale: motion.scale.value, rotation: motion.rotation.value });
+    wakeRef.current();
   };
   // One compositor transform owns the whole journey. A changing keyboard
   // target keeps the current position and velocity instead of restarting CSS
@@ -175,7 +198,7 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     if (enteredRef.current || !panelRef.current) return;
     enteredRef.current = true;
     setReady(true);
-    const pose = placedPose();
+    const pose = onInitialPlacement ? targetRef.current() : placedPose();
     motionRef.current = Object.fromEntries(axes.map(axis => [axis, { value: pose[axis], velocity: 0 }])) as Motion;
     startedRef.current = performance.now();
     tick(startedRef.current);
@@ -185,6 +208,19 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
     if (!alreadyClosing) {
       closingRef.current = true;
       setClosing(true);
+      const panel = panelRef.current;
+      // Capture the shared layout box used by both typed and placed artwork.
+      const artwork = panel?.querySelector<HTMLElement>(".text-sticker-visual");
+      const canvas = sourceRef.current?.closest<HTMLElement>(".strip-canvas");
+      const motion = motionRef.current;
+      if (onInitialPlacement && artwork && canvas && motion) {
+        // Capture before blur. Safari can resize/pan its viewport immediately
+        // when the keyboard closes. Preserve even an in-flight focus pose.
+        closingPoseRef.current = Object.fromEntries(axes.map(axis => [axis, motion[axis].value])) as Pose;
+        for (const axis of axes) motion[axis].velocity = 0;
+        const placement = textStickerPlacementFromArtwork(artwork.getBoundingClientRect(), canvas.getBoundingClientRect());
+        flushSync(() => onInitialPlacement(placement));
+      }
       panelRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.blur();
     }
     // Begin revealing the selector in the same event that drops the keyboard,
@@ -202,9 +238,10 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
   };
   const typingControls = isValidElement<TypingControls>(controls)
     ? cloneElement(controls, {
-      onConfirmStickerText: () => finish(),
+      textTyping: !closing,
       onTextTool: tool => finish(() => controls.props.onTextTool?.(tool)),
     }) : controls;
+  finishRef.current = () => finish();
   if (!layout) return null;
   // Native focus must see an on-screen input, not a box at (-50%, -50%).
   // Keep this initial React style stable; the spring owns it after entry.
@@ -220,8 +257,8 @@ export function TextStickerEditor({ value, onChange, onFinish, controls, sourceR
       <div ref={panelRef} className="text-sticker-editor-panel" data-ready={ready || undefined}
         style={{ width: layout.width, transform: initialTransformRef.current }}>
         <div className="text-sticker-editor-scroll" style={{ maxHeight: layout.maxHeight }}>
-          {/* Safari's keyboard Done button blurs the input. Use the same
-              guarded finish path as the pill check and styling buttons. */}
+          {/* Native blur and viewport-detected keyboard dismissal share the
+              same guarded return path as the styling buttons. */}
           <TextStickerVisual value={focusedValue} typing finishOnBlur
             onChange={onChange} onFinish={finish} onSettled={enter} />
         </div>

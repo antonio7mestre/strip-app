@@ -96,8 +96,7 @@
   .legacy-page-transition-overlay,
   .top-safe-area-anchor,
   .cover-selector-frame,
-  .editor-entrance,
-  .published-bottom-pocket-sampler {
+  .editor-entrance {
     width: 100%;
     max-width: var(--page-max-width);
     margin-inline: auto;
@@ -182,7 +181,9 @@
   .story-share-confirmation { bottom: var(--desktop-dock-clearance); }
 
   .notice { max-width: calc(var(--desktop-pill-width) - 24px); }
-  .share-shell { padding-bottom: var(--desktop-dock-clearance); }
+  /* Reserve the original 80px pill, its 28px offset and 16px gap. The saved
+     state only lifts the link; measured tray growth must not shrink the poster. */
+  .share-shell { padding-bottom: 124px; }
   .share-mode:has(.notice) .notice { bottom: calc(var(--desktop-dock-clearance) + 48px); }
   .publish-setup-mode:has(.notice) .notice { bottom: calc(var(--desktop-dock-clearance) + 32px); }
 
@@ -215,8 +216,7 @@
   .sticker-transform-handle svg { width: 16px; height: 16px; }
 
   /* Published and preview endings keep the full-width, in-flow phone tray. */
-  .strip-end-sheet { --dock-bottom-gap: 2px; }
-  :is(.published-mode, .preview-mode, .is-inline-preview) .strip-end-sheet { padding-bottom: 28px; }
+  :is(.published-mode, .preview-mode, .is-inline-preview) .strip-end-sheet { padding-block: 28px 16px; --footer-bottom-padding: 16px; }
   :is(.published-mode, .preview-mode, .is-inline-preview) .strip-end-sheet-controls { width: min(calc(100% - 20px), 520px); }
 
   /* These were the old wide-screen exceptions. Keep the phone composition. */

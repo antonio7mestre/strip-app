@@ -2,6 +2,7 @@ import { PUBLIC_DOMAIN, usernameFromHostname, validateUsername } from "./usernam
 
 export type AppRoute =
   | { kind: "library" }
+  | { kind: "landing" }
   | { kind: "profile"; username: string }
   | { kind: "drafts" }
   | { kind: "history" }
@@ -14,6 +15,7 @@ type AppLocation = { hostname: string; origin: string; pathname: string; search?
 type StripLink = { id: string; username?: string | null };
 
 export function routeFromLocation(pathname: string, hostname: string): AppRoute {
+  if (/^\/start\/?$/.test(pathname)) return { kind: "landing" };
   const edit = /^\/edit\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
   if (edit) return { kind: "edit", id: edit[1] };
   const share = /^\/share\/([a-zA-Z0-9_-]{8,128})\/?$/.exec(pathname);
@@ -60,7 +62,7 @@ export function publishedStripUrl(location: Pick<AppLocation, "hostname" | "orig
 export function workspaceRedirect(location: AppLocation, username?: string | null) {
   if (!isProductionAppHost(location.hostname)) return null;
   const route = routeFromLocation(location.pathname, location.hostname);
-  if (route.kind === "profile" || route.kind === "published") return null;
+  if (route.kind === "profile" || route.kind === "published" || route.kind === "landing") return null;
   const targetOrigin = accountAppOrigin(location, username);
   return targetOrigin === location.origin ? null
     : `${targetOrigin}${location.pathname}${location.search ?? ""}${location.hash ?? ""}`;

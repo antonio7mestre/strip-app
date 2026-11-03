@@ -24,7 +24,11 @@ export function installAuthFormViewport() {
     // Follow the keyboard at normal scale, with a fallback for system magnification.
     const normalScale = !viewport || viewport.scale === 1;
     const height = normalScale && viewport ? viewport.height : window.innerHeight;
-    const top = normalScale && viewport ? Math.max(0, viewport.offsetTop) : 0;
+    // During the first numeric-keyboard opening WebKit also reports our
+    // document anchor as visualViewport.offsetTop. It is already represented
+    // by scrollY below, so only an additional keyboard pan belongs here.
+    const top = normalScale && viewport
+      ? Math.max(0, viewport.offsetTop - (anchored ? anchorInset : 0)) : 0;
     root.style.setProperty("--auth-viewport-height", `${height}px`);
     root.style.setProperty("--auth-viewport-top", `${top}px`);
     root.style.setProperty("--auth-document-top", `${window.scrollY + top}px`);
@@ -33,6 +37,9 @@ export function installAuthFormViewport() {
     root.classList.toggle("auth-form-compact", window.innerWidth <= 600 || height < 520);
   };
   root.classList.add("auth-form-active");
+  // Establish the real document anchor before the caller focuses the input.
+  // A zero-scroll/fixed-body frame would let Safari cache an opaque top band.
+  window.scrollTo({ top: anchorInset, left: 0, behavior: "instant" });
   sync();
   viewport?.addEventListener("resize", sync);
   viewport?.addEventListener("scroll", sync);

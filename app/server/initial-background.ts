@@ -4,7 +4,6 @@ import { usernameFromHostname } from "@/app/lib/username";
 import { getAuthUser } from "@/app/server/auth";
 
 const PROFILE_PATHS = ["/", "/drafts", "/history", "/settings"];
-const ID = /^[a-zA-Z0-9_-]{8,128}$/;
 const color = (value: unknown) => typeof value === "string" && /^#[\da-f]{6}$/i.test(value)
   ? value : DEFAULT_PROFILE.background;
 
@@ -13,21 +12,12 @@ const color = (value: unknown) => typeof value === "string" && /^#[\da-f]{6}$/i.
 export async function initialPageBackground(headers: Headers): Promise<string | null> {
   const path = headers.get("x-strip-pathname");
   if (!path) return null;
+  if (path === "/start") return "#304dff";
   const username = usernameFromHostname(headers.get("host") ?? "");
-  const pieces = path.split("/").filter(Boolean);
   const profilePage = PROFILE_PATHS.includes(path);
-  const id = pieces[0] === "strip" && pieces.length === 2 ? pieces[1]
-    : username && !profilePage && pieces.length === 1 ? pieces[0] : null;
   try {
-    if (id && ID.test(id)) {
-      const row = await env.DB.prepare(
-        `SELECT p.background, u.username FROM strips s
-         LEFT JOIN profiles p ON p.user_id = s.owner_id
-         LEFT JOIN users u ON u.id = s.owner_id WHERE s.id = ?`,
-      ).bind(id).first<{ background: string | null; username: string | null }>();
-      if (!row || (pieces.length === 1 && row.username !== username)) return null;
-      return color(row.background);
-    }
+    // Public Strip entries reveal their actual media and sampled edge together.
+    // The author's profile color is not an intermediate loading screen.
     if (!profilePage) return null;
     if (path === "/" && username) {
       const row = await env.DB.prepare(

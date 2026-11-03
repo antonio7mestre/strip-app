@@ -7,7 +7,7 @@ export function shouldLockPageZoom({
   needsUsername: boolean;
 }) {
   return needsUsername || (authenticationRequired && authStatus !== "signed-in") ||
-    ["library", "drafts", "history", "settings", "edit"].includes(view);
+    !["published", "edit", "preview"].includes(view);
 }
 
 /** Lock browser magnification, not scrolling, taps, keyboard focus or sticker gestures. */

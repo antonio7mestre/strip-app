@@ -34,8 +34,10 @@ import {
   Pipette,
   Plus,
   Send,
+  Share,
   Slash,
   Sticker,
+  SwatchBook,
   Trash2,
   Type,
   Volume2,
@@ -48,13 +50,24 @@ import {
 import { accountAppOrigin, baseAppOrigin, publishedStripUrl, routeFromLocation, workspaceRedirect } from "@/app/lib/app-routing";
 import {
   DEFAULT_STRIP_ENDING_STYLE,
+  PUBLISHED_STRIP_FOOTER_BACKGROUND,
+  STRIP_FOOTER_BACKGROUND,
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
-import { MediaEdgeExtension } from "@/app/components/MediaEdgeExtension";
 import { StripEndingSheet } from "@/app/components/StripEndingSheet";
 import { StripEntrance } from "@/app/components/StripEntrance";
+import { ReaderImage, ReaderMediaProvider, useReaderVideo } from "@/app/components/ReaderMedia";
+import { useReaderViewport } from "@/app/components/useReaderViewport";
 import { PreviewDock } from "@/app/components/PreviewDock";
+import { LandingStartDock } from "@/app/components/LandingStartDock";
+import { readerCreateEntry, readerCreateUrl, READER_CREATE_PARAM } from "@/app/lib/reader-create-entry";
+import { startReaderLandingTransition } from "@/app/lib/reader-landing-transition";
+import { retainAuthBrowserTheme } from "@/app/lib/auth-browser-theme";
+import { prepareLandingArt } from "@/app/lib/landing-art";
 import { StickerPicker } from "@/app/components/StickerPicker";
+import { TexturePicker } from "@/app/components/TexturePicker";
+import { TextBlockTexture } from "@/app/components/TextBlockTexture";
+import { textTexture, textBackgroundChange, textureCoverRect, textureControlsGeometry } from "@/app/lib/text-textures";
 import { TextStickerVisual } from "@/app/components/TextStickerVisual";
 import { TextStickerEditor } from "@/app/components/TextStickerEditor";
 import { EMPTY_TEXT_STICKER_SRC, normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
@@ -65,6 +78,8 @@ import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
 import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticker-placement";
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
+import { createDraftSaveQueue, DraftSaveError } from "@/app/lib/draft-save";
+import { createOnboardingHistory, type CreationStep, type OnboardingStep } from "@/app/lib/onboarding-history";
 import { prepareMediaFiles, mediaImportInsertionIndex, type MediaSize } from "@/app/lib/media-import";
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
@@ -81,48 +96,55 @@ import { resizeStickerWidth, stickerHandleTransform } from "@/app/lib/sticker-si
 import { AuthLandingStrip, AUTH_LANDING_COLOR } from "@/app/components/AuthLandingStrip";
 import { AuthCodeDelivery } from "@/app/components/AuthCodeDelivery";
 import { OnboardingBackground } from "@/app/components/OnboardingBackground";
+import { OnboardingStrip } from "@/app/components/OnboardingStrip";
+import { buildFirstStrip, type FirstStripInput } from "@/app/lib/onboarding-strip";
 import { EmptyStripState } from "@/app/components/EmptyStripState";
-import { ONBOARDING_BACKGROUND, backgroundOnboardingPending, rememberBackgroundOnboarding, syncOnboardingBackground } from "@/app/lib/onboarding-background";
+import { ONBOARDING_BACKGROUND, backgroundOnboardingPending, rememberBackgroundOnboarding, retainOnboardingBackgroundCanvas, syncOnboardingBackground } from "@/app/lib/onboarding-background";
 import { startAuthStickerExit } from "@/app/lib/auth-sticker-exit";
-import { HapticStartButton } from "@/app/components/HapticStartButton";
 import { HapticActionButton } from "@/app/components/HapticActionButton";
 import { ConfirmationDialog } from "@/app/components/ConfirmationDialog";
 import AuthKeyboardButton from "@/app/components/AuthKeyboardButton";
 import { installAuthFormViewport } from "@/app/lib/auth-form-viewport";
 import { installPageZoomLock, shouldLockPageZoom } from "@/app/lib/page-zoom";
+import { installStripPinchZoom } from "@/app/lib/strip-pinch-zoom";
 import { SharePosterPicker } from "@/app/components/SharePosterPicker";
 import { STACK_SWIPE_THRESHOLD, stackSwipeProgress, stackSwipeTarget, stackCardStyle } from "@/app/lib/stack-picker";
 import { useStoryPosters } from "@/app/components/useStoryPosters";
-import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
+import { TitleKeyboardPublish } from "@/app/components/TitleKeyboardPublish";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { CopyStripLinkButton } from "@/app/components/CopyStripLinkButton";
 import { StoryShareControls } from "@/app/components/StoryShareControls";
-import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
+import { shareStoryLink, type StoryShareConfirmationData } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
+import { capturePublishReturnMedia } from "@/app/lib/publish-return-layout";
 import { installPreviewNoticeDismiss } from "@/app/lib/preview-notice";
 import {
   installLeadingMediaTop,
   scrollAfterLeadingInsetChange,
 } from "@/app/lib/leading-media-top";
-import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
-import { installReaderBottomAnchor } from "@/app/lib/reader-bottom-anchor";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { installPublishKeyboardDock } from "@/app/lib/publish-keyboard-dock";
+import { installInstagramDockViewport } from "@/app/lib/instagram-dock";
+import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
+import { useLeadingMediaAppearance } from "@/app/components/useLeadingMediaColor";
 import { keyboardInsetForViewport } from "@/app/lib/keyboard-inset";
 import { hasScreenfulOfContent, observeStripContent } from "@/app/lib/strip-minimum-content";
 import { ProfileHeader, ProfileTools, profilePageStyle } from "@/app/components/ProfileEditor";
 import { GradientColorPicker } from "@/app/components/GradientColorPicker";
 import { DEFAULT_PROFILE, PROFILE_FONTS, PROFILE_FONT_CATALOG, profileFontWeight, profileCoverOutline, profileTitle, profileTextColor, type ProfileFont, type StripProfile } from "@/app/lib/profile";
 import { normalizedFontSize } from "@/app/lib/font-sizing";
-import { normalizeTextAlignment, type TextAlignment } from "@/app/lib/text-alignment";
+import { nextTextAlignment, normalizeTextAlignment, type TextAlignment } from "@/app/lib/text-alignment";
 import { scrollPickerOnSelect } from "@/app/lib/picker-scroll";
 import { useStripProfile } from "@/app/components/useStripProfile";
 import { ProfileReload, useProfileReloadLayout, useProfileReloadPresentation } from "@/app/components/ProfileReload";
 import { ProfileNavigation, type ProfileView } from "@/app/components/ProfileNavigation";
+import { LibraryGrid } from "@/app/components/LibraryGrid";
 import { LibraryDeleteButton } from "@/app/components/LibraryDeleteButton";
+import { LibraryCoverImage } from "@/app/components/LibraryCoverImage";
+import { newestLibraryItems } from "@/app/lib/library-cover-loading";
 import { retainProfileBrowserTheme } from "@/app/lib/profile-browser-theme";
-import { cachedCoverRatio, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
+import { cachedCoverRatios, clearProfileReload, readProfileReload } from "@/app/lib/profile-reload";
 
 type TextBlock = {
   id: string;
@@ -132,6 +154,7 @@ type TextBlock = {
   cropTop?: number;
   cropBottom?: number;
   backgroundColor?: string;
+  backgroundTexture?: string;
   textColor?: string;
   fontStyle?: FontStyle;
   fontSize?: number;
@@ -240,7 +263,7 @@ type PublicProfileState = {
   strips: PublishedStripSummary[];
   status: "loading" | "ready" | "missing" | "error";
 };
-type AuthStep = "landing" | "phone" | "code" | "username" | "background";
+type AuthStep = "landing" | "phone" | "code" | "username" | "background" | "create";
 type CoverChoice =
   | { key: string; kind: "image"; src: string; alt: string }
   | { key: string; kind: "color"; color: string }
@@ -280,7 +303,6 @@ const MAX_FONT_SIZE = 72;
 const FONT_SIZE_STEP = 2;
 const PAGE_TRANSITION_DURATION_MS = 380;
 const DOCK_TRANSITION_DURATION_MS = 300;
-const PUBLISHED_LOADING_MINIMUM_MS = 3000;
 const PUBLISHED_MEDIA_LOAD_TIMEOUT_MS = 15000;
 const PREVIEW_MODE_NOTICE = "Preview mode, tap any block to edit";
 const KEYBOARD_SCROLL_SETTLE_MS = 90;
@@ -612,7 +634,7 @@ function StripEndActions({
           onPrimary();
         }}
       >
-        {onPublish ? null : (
+        {!onPublish && (
           <Pencil className={`strip-end-sheet-solid-pencil is-${primaryAction}`} aria-hidden="true" />
         )}
         <span>{primaryLabel}</span>
@@ -623,59 +645,23 @@ function StripEndActions({
         onClick={() => (onPublish ?? onShare)()}
         label={onPublish ? "Publish" : "Share this Strip"}
       >
-        {onPublish ? "Publish" : <>
-          {/* Phosphor share-fat-fill, MIT. See /licenses/phosphor-icons.txt. */}
-          <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false">
-            <path d="M237.66,117.66l-80,80A8,8,0,0,1,144,192V152.23c-57.1,3.24-96.25,40.27-107.24,52h0a12,12,0,0,1-20.68-9.58c3.71-32.26,21.38-63.29,49.76-87.37,23.57-20,52.22-32.69,78.16-34.91V32a8,8,0,0,1,13.66-5.66l80,80A8,8,0,0,1,237.66,117.66Z" />
-          </svg>
-          <span>Share</span>
-        </>}
+        {onPublish ? "Publish" : <Share aria-hidden="true" />}
       </HapticActionButton>
     </div>
   );
 }
 
 
-function loadLibraryCoverAspectRatio(src: string) {
-  return new Promise<number | null>((resolve) => {
-    const image = new Image();
-    image.decoding = "async";
-    let settled = false;
-    const finish = (ratio: number | null) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      resolve(ratio);
-    };
-    const readRatio = () => {
-      const ratio = image.naturalWidth / image.naturalHeight;
-      finish(Number.isFinite(ratio) && ratio > 0 ? ratio : null);
-    };
-    const timeout = window.setTimeout(() => finish(null), 5000);
-    image.onload = readRatio;
-    image.onerror = () => finish(null);
-    image.src = src;
-    if (image.complete) readRatio();
-  });
-}
-
-async function prepareLibrarySummaries<
+function prepareLibrarySummaries<
   T extends PublishedStripSummary | DraftStripSummary | ViewedStripSummary,
 >(items: T[]) {
-  const preparedItems = items.map(item => item.cover.kind === "image" && !item.cover.aspectRatio
-    ? { ...item, cover: { ...item.cover, aspectRatio: cachedCoverRatio(item.id) } } as T : item);
-  await Promise.all(
-    items.slice(0, 6).map(async (item, index) => {
-      if (item.cover.kind !== "image") return;
-      const aspectRatio = await loadLibraryCoverAspectRatio(item.cover.src);
-      if (!aspectRatio) return;
-      preparedItems[index] = {
-        ...item,
-        cover: { ...item.cover, aspectRatio },
-      } as T;
-    }),
-  );
-  return preparedItems;
+  items = newestLibraryItems(items);
+  // Show the section immediately. Each visible cover loads independently;
+  // saved ratios preserve its footprint without downloading it ahead of time.
+  if (!items.some(item => item.cover.kind === "image" && !item.cover.aspectRatio)) return items;
+  const ratios = cachedCoverRatios();
+  return items.map(item => item.cover.kind === "image" && !item.cover.aspectRatio
+    ? { ...item, cover: { ...item.cover, aspectRatio: ratios.get(item.id) } } as T : item);
 }
 
 
@@ -683,6 +669,8 @@ function sampleVisualBottomColor(
   source: CanvasImageSource,
   sourceWidth: number,
   sourceHeight: number,
+  crop = { x: 0, y: 0, width: sourceWidth, height: sourceHeight },
+  bandRatio = 0.06,
 ) {
   if (!sourceWidth || !sourceHeight) return null;
   const canvas = document.createElement("canvas");
@@ -691,13 +679,13 @@ function sampleVisualBottomColor(
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return null;
 
-  const sampledHeight = Math.max(1, Math.round(sourceHeight * 0.06));
+  const sampledHeight = Math.min(crop.height, Math.max(1, crop.height * bandRatio));
   try {
     context.drawImage(
       source,
-      0,
-      sourceHeight - sampledHeight,
-      sourceWidth,
+      crop.x,
+      crop.y + crop.height - sampledHeight,
+      crop.width,
       sampledHeight,
       0,
       0,
@@ -926,13 +914,14 @@ function BlockControls({
   onRemove,
   onTextTool,
   isTextSticker = false,
-  onConfirmStickerText,
+  textTyping = false,
   activeTextTool,
   onHeightCrop,
   onVideoAudio,
   videoMuted,
   surfaceColor,
   imageSrc,
+  textureSurface = false,
   stickerRotation,
   showTopEdge = true,
   closing = false,
@@ -944,13 +933,14 @@ function BlockControls({
   onRemove?: () => void;
   onTextTool?: (tool: TextTool) => void;
   isTextSticker?: boolean;
-  onConfirmStickerText?: () => void;
+  textTyping?: boolean;
   activeTextTool?: TextTool | null;
   onHeightCrop?: () => void;
   onVideoAudio?: () => void;
   videoMuted?: boolean;
   surfaceColor?: string;
   imageSrc?: string;
+  textureSurface?: boolean;
   stickerRotation?: number;
   showTopEdge?: boolean;
   closing?: boolean;
@@ -1025,27 +1015,31 @@ function BlockControls({
         <div className={`sticker-delete-anchor ${isTextSticker ? "has-text-tools" : ""}`}>
           {isTextSticker ? <>
             <button className="sticker-delete-control" type="button" aria-label="Choose sticker typeface"
-              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (onConfirmStickerText) onTextTool?.("font"); }}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (textTyping) onTextTool?.("font"); }}
               onClick={event => { event.stopPropagation(); onTextTool?.("font"); }}><CaseUpper className="block-glyph" aria-hidden="true" /></button>
             <button className="sticker-delete-control" type="button" aria-label="Choose sticker text color"
-              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (onConfirmStickerText) onTextTool?.("color"); }}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (textTyping) onTextTool?.("color"); }}
               onClick={event => { event.stopPropagation(); onTextTool?.("color"); }}><Baseline className="block-glyph" aria-hidden="true" /></button>
             <button className="sticker-delete-control" type="button" aria-label="Choose sticker background"
-              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (onConfirmStickerText) onTextTool?.("background"); }}
+              onPointerDown={event => { event.preventDefault(); event.stopPropagation(); if (textTyping) onTextTool?.("background"); }}
               onClick={event => { event.stopPropagation(); onTextTool?.("background"); }}><PaintBucket className="block-glyph" aria-hidden="true" /></button>
           </> : null}
           <button
             className="sticker-delete-control"
             type="button"
-            onPointerDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              // Keep the typing controls mounted until Delete receives its
+              // click. The confirmation dialog then dismisses the keyboard.
+              if (textTyping) event.preventDefault();
+            }}
             onClick={(event) => {
               event.stopPropagation();
-              if (onConfirmStickerText) onConfirmStickerText();
-              else onRemove?.();
+              onRemove?.();
             }}
-            aria-label={onConfirmStickerText ? "Done typing sticker" : "Delete sticker"}
+            aria-label="Delete sticker"
           >
-            {onConfirmStickerText ? <Check className="block-glyph" aria-hidden="true" /> : <Trash2 className="block-glyph" aria-hidden="true" />}
+            <Trash2 className="block-glyph" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -1062,14 +1056,14 @@ function BlockControls({
         />
       ) : null}
       {onTextTool ? (
-        <span className="block-controls-text-join" style={style} aria-hidden="true" />
+        <span className={`block-controls-text-join ${textureSurface ? "has-texture-surface" : ""}`} style={style} aria-hidden="true" />
       ) : null}
       <div
         className={`block-controls-reveal ${mediaHandoffEntrance ? `is-media-handoff is-media-handoff-${mediaHandoffEntrance}` : ""} ${closing ? "is-closing" : ""}`}
         style={style}
       >
         <div
-          className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""}`}
+          className={`block-controls ${trayClass} ${imageSrc ? "has-image-surface" : ""} ${textureSurface ? "has-texture-surface" : ""}`}
           aria-label="Block controls"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
@@ -1188,6 +1182,7 @@ function TextStyleSelector({
   startInGradientMode = false,
   allowTransparentBackground = false,
   transparentBackground = false,
+  allowTextures = false,
 }: {
   block: TextBlock;
   tool: TextTool;
@@ -1199,12 +1194,16 @@ function TextStyleSelector({
   startInGradientMode?: boolean;
   allowTransparentBackground?: boolean;
   transparentBackground?: boolean;
+  allowTextures?: boolean;
 }) {
   const background = block.backgroundColor ?? DEFAULT_BACKGROUND;
   const textColor = block.textColor ?? DEFAULT_TEXT;
   const textColorOptions = textColorOptionsForBackground(background);
   const fontStyle = block.fontStyle ?? "sans";
   const fontSize = block.fontSize ?? DEFAULT_FONT_SIZE;
+  const textAlignment = normalizeTextAlignment(block.textAlign);
+  const nextAlignment = nextTextAlignment(textAlignment);
+  const AlignmentIcon = textAlignment === "left" ? AlignLeft : textAlignment === "center" ? AlignCenter : AlignRight;
   const selectorScrollRef = useRef<HTMLDivElement>(null);
   const fontSizeRef = useRef(fontSize);
   const fontSizeRepeatDelayRef = useRef<number | null>(null);
@@ -1212,6 +1211,7 @@ function TextStyleSelector({
   const fontSizeDidRepeatRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const [gradientMode, setGradientMode] = useState<TextTool | null>(null);
+  const [textureOpen, setTextureOpen] = useState(false);
   const [pageColorMode, setPageColorMode] = useState<TextTool | null>(null);
   const [pageColorDragging, setPageColorDragging] = useState(false);
   const [pageColorPoint, setPageColorPoint] = useState<{
@@ -1230,10 +1230,11 @@ function TextStyleSelector({
 
   useEffect(() => {
     setGradientMode(startInGradientMode && tool !== "font" ? tool : null);
+    setTextureOpen(false);
     setPageColorMode(null);
     setPageColorDragging(false);
     setPageColorPoint(null);
-  }, [startInGradientMode, tool, visible]);
+  }, [startInGradientMode, tool, visible, block.id]);
 
   useEffect(() => {
     if (!visible || pageColorMode !== tool || tool === "font") return;
@@ -1478,18 +1479,13 @@ function TextStyleSelector({
                 </button>
               </div>,
               <div className="text-alignment-picker" role="group" aria-label="Text alignment" key="text-alignment">
-                {([
-                  { value: "left", label: "Align text left", Icon: AlignLeft },
-                  { value: "center", label: "Center text", Icon: AlignCenter },
-                  { value: "right", label: "Align text right", Icon: AlignRight },
-                ] as const).map(({ value, label, Icon }) => (
-                  <button key={value} type="button" aria-label={label}
-                    className="selector-option"
-                    aria-pressed={normalizeTextAlignment(block.textAlign) === value}
-                    tabIndex={visible ? 0 : -1} onClick={() => onChange({ textAlign: value })}>
-                    <Icon aria-hidden="true" />
-                  </button>
-                ))}
+                <button type="button" className="selector-option"
+                  aria-label={`Text alignment: ${textAlignment}. Switch to ${nextAlignment}`}
+                  title={`Align ${textAlignment}. Click to align ${nextAlignment}.`}
+                  data-alignment={textAlignment}
+                  tabIndex={visible ? 0 : -1} onClick={() => onChange({ textAlign: nextAlignment })}>
+                  <AlignmentIcon aria-hidden="true" />
+                </button>
               </div>,
               ...FONT_OPTIONS.map((option) => (
                 <button
@@ -1512,17 +1508,25 @@ function TextStyleSelector({
             ]
           : null}
 
+        {gradientMode !== tool && tool === "background" && allowTextures ? (
+          <button type="button" className="selector-option color-selector-option gradient-trigger texture-trigger"
+            aria-label="Choose a background texture" aria-haspopup="dialog" aria-expanded={textureOpen}
+            onPointerDown={event => { event.preventDefault(); event.currentTarget.blur(); }}
+            tabIndex={visible ? 0 : -1} onClick={() => { setPageColorMode(null); setTextureOpen(true); }}>
+            <SwatchBook aria-hidden="true" />
+          </button>
+        ) : null}
         {gradientMode !== tool && tool === "background" && allowTransparentBackground ? (
           <button type="button" className={`selector-option color-selector-option color-swatch-option ${transparentBackground ? "is-selected" : ""}`}
             data-picker-option style={swatchStyle("#FFFFFF")} aria-label="No sticker background"
             aria-pressed={transparentBackground} tabIndex={visible ? 0 : -1}
             onClick={() => { setPageColorMode(null); onChange({ backgroundColor: undefined }); }}>
-            <Slash aria-hidden="true" />
+            {transparentBackground ? <Check className="swatch-check" aria-hidden="true" /> : <Slash aria-hidden="true" />}
           </button>
         ) : null}
         {gradientMode !== tool && tool === "background"
           ? backgroundOptions.map((option) => {
-              const selected = !transparentBackground && background.toUpperCase() === option.value.toUpperCase();
+              const selected = !transparentBackground && !block.backgroundTexture && background.toUpperCase() === option.value.toUpperCase();
               return (
                 <button
                   key={option.value}
@@ -1642,6 +1646,9 @@ function TextStyleSelector({
         </button>
       </div>
       </footer>
+      {allowTextures ? <TexturePicker open={visible && tool === "background" && textureOpen}
+        selected={block.backgroundTexture} onSelect={backgroundTexture => onChange({ backgroundTexture })}
+        onClose={() => setTextureOpen(false)} /> : null}
       {pageColorPickerActive && pageColorPoint && typeof document !== "undefined"
         ? createPortal(
             <span
@@ -1723,7 +1730,6 @@ function StripVideoBlock({
   cropEditing = false,
   croppedHeight,
   heightCropHandles,
-  extendBottomEdge = false,
 }: {
   block: VideoBlock;
   isEditing: boolean;
@@ -1749,10 +1755,10 @@ function StripVideoBlock({
   cropEditing?: boolean;
   croppedHeight?: number;
   heightCropHandles?: ReactNode;
-  extendBottomEdge?: boolean;
 }) {
   const cropViewportHeight = cropEditing ? cropSourceHeight : croppedHeight;
   const videoRef = useRef<HTMLVideoElement>(null);
+  const readerVideo = useReaderVideo(videoRef, block.src, block.id);
   const tapGestureRef = useRef<{
     pointerId: number;
     x: number;
@@ -1774,7 +1780,7 @@ function StripVideoBlock({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || readerVideo.active) return;
 
     const updatePlayback = (isVisible: boolean) => {
       if (isVisible) {
@@ -1794,7 +1800,7 @@ function StripVideoBlock({
     const bounds = video.getBoundingClientRect();
     updatePlayback(bounds.bottom > 0 && bounds.top < window.innerHeight);
     return () => observer.disconnect();
-  }, [block.src, shouldLoad]);
+  }, [block.src, shouldLoad, readerVideo.active]);
 
   return (
     <figure
@@ -1806,7 +1812,7 @@ function StripVideoBlock({
       data-block-id={block.id}
       aria-busy={!loadSettled}
       style={{
-        ...(!loadSettled && reservedHeight && croppedHeight === undefined ? { minHeight: reservedHeight } : {}),
+        ...(!loadSettled && croppedHeight === undefined && (reservedHeight || readerVideo.active) ? { minHeight: reservedHeight ?? 480 } : {}),
       } as CSSProperties}
       onPointerDown={(event) => {
         tapGestureRef.current = {
@@ -1854,16 +1860,16 @@ function StripVideoBlock({
             ref={videoRef}
             width={intrinsicSize?.width}
             height={intrinsicSize?.height}
-            src={shouldLoad ? block.src : undefined}
+            src={shouldLoad && (!readerVideo.active || readerVideo.attached) ? block.src : undefined}
             aria-label={block.alt ? `Video: ${block.alt}` : "Strip video"}
-            autoPlay
+            autoPlay={readerVideo.active ? readerVideo.playing : true}
             muted={muted}
             loop
             playsInline
             controls={false}
             disablePictureInPicture
             controlsList="nodownload nofullscreen noremoteplayback"
-            preload={shouldLoad ? "auto" : "none"}
+            preload={readerVideo.active ? readerVideo.preload : shouldLoad ? "auto" : "none"}
             draggable={false}
             style={{
               display: loadSettled && !isLoaded ? "none" : undefined,
@@ -1886,13 +1892,6 @@ function StripVideoBlock({
       </div>
       {controls}
       {heightCropHandles}
-      {extendBottomEdge ? (
-        <MediaEdgeExtension
-          src={block.src}
-          cropTop={cropEditing ? 0 : cropTop}
-          cropHeight={cropViewportHeight}
-        />
-      ) : null}
       {showAudioToggle ? (
         <button
           className="video-audio-toggle"
@@ -1923,6 +1922,7 @@ function StripStickerBlock({
   onLoadSettled,
   controls,
   textTyping = false,
+  textCreating = false,
   onTextChange,
   onTextFinish,
   onTextEdit,
@@ -1944,11 +1944,15 @@ function StripStickerBlock({
   onLoadSettled?: (loaded: boolean) => void;
   controls?: ReactNode;
   textTyping?: boolean;
+  textCreating?: boolean;
   onTextChange?: (content: string) => void;
-  onTextFinish?: () => void;
+  onTextFinish?: (keepToolsOpen?: boolean) => void;
   onTextEdit?: () => void;
 }) {
   const stickerElementRef = useRef<HTMLElement>(null);
+  const stickerVideoRef = useRef<HTMLVideoElement>(null);
+  const readerVideo = useReaderVideo(stickerVideoRef, block.src, block.id);
+  const StickerMediaImage = readerVideo.active ? ReaderImage : StickerImage;
   const packAsset = packStickerForSource(block.src);
   const liveBlockRef = useRef(block);
   const selectionTapRef = useRef<{
@@ -2658,22 +2662,24 @@ function StripStickerBlock({
           onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()}
           onSettled={loaded => onLoadSettled?.(loaded)} /> : block.mediaType === "video" ? (
           <video
-            src={block.src}
+            ref={stickerVideoRef}
+            src={!readerVideo.active || readerVideo.attached ? block.src : undefined}
             aria-label={block.alt ? `Video sticker: ${block.alt}` : "Video sticker"}
-            autoPlay
+            autoPlay={readerVideo.active ? readerVideo.playing : true}
             muted
             loop
             playsInline
             controls={false}
             disablePictureInPicture
             controlsList="nodownload nofullscreen noplaybackrate noremoteplayback"
-            preload="auto"
+            preload={readerVideo.active ? readerVideo.preload : "auto"}
             draggable={false}
             onLoadedData={() => onLoadSettled?.(true)}
             onError={() => onLoadSettled?.(false)}
           />
         ) : (
-          <StickerImage
+          <StickerMediaImage
+            {...(readerVideo.active ? { blockId: block.id } : {})}
             src={block.src}
             alt={block.alt}
             width={packAsset?.width}
@@ -2762,7 +2768,8 @@ function StripStickerBlock({
     </figure>
     {isEditing && textTyping && block.textSticker ? <TextStickerEditor value={block.textSticker}
       sourceRef={stickerElementRef}
-      onChange={content => onTextChange?.(content)} onFinish={() => onTextFinish?.()} controls={controls} /> : null}
+      onInitialPlacement={textCreating ? onTransform : undefined}
+      onChange={content => onTextChange?.(content)} onFinish={keepToolsOpen => onTextFinish?.(keepToolsOpen)} controls={controls} /> : null}
     </>
   );
 }
@@ -2802,9 +2809,6 @@ export default function Home() {
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
   const [mediaBatchRevealStarted, setMediaBatchRevealStarted] = useState(false);
   const mediaImportRequestRef = useRef<AbortController | null>(null);
-  const [publishedMinimumReadyKey, setPublishedMinimumReadyKey] = useState<
-    string | null
-  >(null);
   const [publishedCoverSettledKey, setPublishedCoverSettledKey] = useState<
     string | null
   >(null);
@@ -2824,6 +2828,8 @@ export default function Home() {
   const [publicProfile, setPublicProfile] = useState<PublicProfileState | null>(null);
   const visibleProfile = publicProfile?.profile ?? stripProfile.profile;
   const [authStep, setAuthStep] = useState<AuthStep>("landing");
+  const [creationStep, setCreationStep] = useState<CreationStep>("media");
+  const authNavigationRevisionRef = useRef(0);
   const [authBackground, setAuthBackground] = useState(ONBOARDING_BACKGROUND);
   const [authStickerRevealed, setAuthStickerRevealed] = useState(false);
   const authStickerExitRef = useRef<(() => void) | null>(null);
@@ -2841,6 +2847,19 @@ export default function Home() {
   const [authUsernameError, setAuthUsernameError] = useState("");
   const [authDevelopmentCode, setAuthDevelopmentCode] = useState("");
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
+  const [arrivingFromReader, setArrivingFromReader] = useState(false);
+  const readerLandingCleanupRef = useRef<(() => void) | null>(null);
+  const readerReturnRef = useRef<{ strip: PublishedStripDetail; ready: boolean; owner: string;
+    media: Record<string, "loaded" | "error"> } | null>(null);
+  useLayoutEffect(() => {
+    if (readerCreateEntry(window.location.search)) setArrivingFromReader(true);
+    if (routeFromLocation(window.location.pathname, window.location.hostname).kind === "landing" ||
+        readerCreateEntry(window.location.search) === "landing") {
+      setAuthenticationRequired(true);
+      setInitialRouteReady(true);
+    }
+  }, []);
+  useEffect(() => () => { readerLandingCleanupRef.current?.(); }, []);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -2871,9 +2890,23 @@ export default function Home() {
   const [storyInstagramFile, setStoryInstagramFile] = useState<File | null>(null);
   const storyShareInFlightRef = useRef(false);
   const storyShareAttemptRef = useRef(0);
-  const [libraryScrollInset, setLibraryScrollInset] = useState(0);
   const [instantLibraryNavigation, setInstantLibraryNavigation] = useState(false);
   const [initialRouteReady, setInitialRouteReady] = useState(false);
+  const [initialPublishedId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const route = routeFromLocation(window.location.pathname, window.location.hostname);
+    return route.kind === "published" ? route.id : "";
+  });
+  const [initialReaderReleased, setInitialReaderReleased] = useState(false);
+  useLayoutEffect(() => {
+    if (!arrivingFromReader || !initialRouteReady || authStatus === "loading") return;
+    delete document.documentElement.dataset.readerCreateEntry;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has(READER_CREATE_PARAM)) {
+      url.searchParams.delete(READER_CREATE_PARAM);
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, [arrivingFromReader, initialRouteReady, authStatus]);
   const [legacyPageTransition, setLegacyPageTransition] =
     useState<LegacyPageTransitionSnapshot | null>(null);
   const [dockTransition, setDockTransition] =
@@ -2894,6 +2927,7 @@ export default function Home() {
   useEffect(() => () => { mediaImportRequestRef.current?.abort(); }, [currentDraftId, view, inlinePreview, authStatus]);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [typingTextStickerId, setTypingTextStickerId] = useState<string | null>(null);
+  const [newTextStickerId, setNewTextStickerId] = useState<string | null>(null);
   const [stickerPickerView, setStickerPickerView] = useState<"source" | "pack" | "page-color">("source");
   const [shapeStickerColor, setShapeStickerColor] = useState(() => {
     if (typeof window === "undefined") return SHAPE_STICKER_DEFAULT_COLOR;
@@ -2949,7 +2983,7 @@ export default function Home() {
   const coverDragProgressRef = useRef(0);
   const coverSwipeSuppressClickRef = useRef(false);
   const pageTransitionInFlightRef = useRef(false);
-  const libraryScrollInsetRef = useRef(0);
+  const profileNavigationRevisionRef = useRef(0);
   const leadingImageInsetRef = useRef(0);
   const leadingLayoutRef = useRef<{ view: string; inlinePreview: boolean } | null>(null);
   const skipLeadingImagePlacementOnReorderRef = useRef(false);
@@ -2963,6 +2997,7 @@ export default function Home() {
   const dockTransitionFrameRef = useRef<number | null>(null);
   const editorDockEntryTimerRef = useRef<number | null>(null);
   const publishFlowStartScrollRef = useRef(0);
+  const publishFlowMediaSizesRef = useRef<Record<string, MediaSize>>({});
   const editorBackPathRef = useRef("/");
   const inlinePreviewScrollRef = useRef<number | null>(null);
   const previewLayoutRef = useRef<PreviewLayoutTransition | null>(null);
@@ -2982,8 +3017,29 @@ export default function Home() {
   const legacyDraftMigrationRef = useRef<Promise<boolean> | null>(null);
   const legacyOwnerIdRef = useRef("");
   const initialRouteHandledRef = useRef(false);
+  const onboardingEditorHandoffRef = useRef<string | null>(null);
+  const onboardingOwnerRef = useRef(libraryOwnerId);
+  useLayoutEffect(() => { onboardingOwnerRef.current = libraryOwnerId; }, [libraryOwnerId]);
   const draftSaveTimerRef = useRef<number | null>(null);
   const draftSaveSequenceRef = useRef(0);
+  const draftSaveQueueRef = useRef<ReturnType<typeof createDraftSaveQueue> | null>(null);
+  if (!draftSaveQueueRef.current) draftSaveQueueRef.current = createDraftSaveQueue();
+  const liveVideoUrlsRef = useRef(new Set<string>());
+  useEffect(() => {
+    const next = new Set([...blocks, ...(openedPublishedStrip?.blocks ?? [])]
+      .flatMap(block => block.type !== "text" && block.src.startsWith("blob:") ? [block.src] : []));
+    const removed = [...liveVideoUrlsRef.current].filter(src => !next.has(src));
+    liveVideoUrlsRef.current = next;
+    // An in-flight save may still need an original Blob. Retire it only once
+    // the save queue is idle and no canvas has taken ownership again.
+    void draftSaveQueueRef.current!.idle().then(() => removed.forEach(src => {
+      if (!liveVideoUrlsRef.current.has(src)) URL.revokeObjectURL(src);
+    }));
+  }, [blocks, openedPublishedStrip]);
+  useEffect(() => () => {
+    const remaining = [...liveVideoUrlsRef.current];
+    void draftSaveQueueRef.current!.idle().then(() => remaining.forEach(src => URL.revokeObjectURL(src)));
+  }, []);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const deletingDraftRef = useRef(false);
   const blockTapGestureRef = useRef<{
@@ -3011,11 +3067,32 @@ export default function Home() {
         : "none";
 
   useLayoutEffect(() => {
+    const previous = readerReturnRef.current;
+    if (previous?.ready && previous.owner === libraryOwnerId &&
+        mediaLoadKey === `published:${previous.strip.id}`) {
+      setMediaLoadStatus(previous.media);
+      return;
+    }
     setMediaLoadStatus({});
   }, [mediaLoadKey]);
-  const editorEntrance = useEditorEntrance(blocks, mediaLoadStatus, visibleProfile.font, stripProfile.loading);
-  const imagesAreLoading = mediaImportProgress !== null || mediaBatchRevealIds.length > 0 || blocks.some(block =>
-    (block.type === "image" || block.type === "video") && mediaLoadStatus[block.id] === undefined);
+  const editorEntrance = useEditorEntrance(blocks, mediaLoadStatus, visibleProfile.font, stripProfile.loading, stripCanvasRef);
+  const editorRequiredKey = editorEntrance.requiredIds.join("|");
+  useEffect(() => {
+    if (editorEntrance.phase !== "loading" || !editorRequiredKey) return;
+    const timer = window.setTimeout(() => setMediaLoadStatus(current => {
+      const next = { ...current };
+      editorRequiredKey.split("|").forEach(id => { if (next[id] === undefined) next[id] = "error"; });
+      return next;
+    }), PUBLISHED_MEDIA_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [editorEntrance.request, editorEntrance.phase, editorRequiredKey]);
+  const imagesAreLoading = mediaImportProgress !== null || mediaBatchRevealIds.length > 0;
+  const editorTargetIsLoading = (target: EventTarget | null) => {
+    if (imagesAreLoading || mediaImportRequestRef.current) return true;
+    if (!(target instanceof Element)) return false;
+    const id = target.closest<HTMLElement>(".strip-block[data-block-id]")?.dataset.blockId;
+    return Boolean(id && blocks.some(block => block.id === id && block.type !== "text") && mediaLoadStatus[id] === undefined);
+  };
   const showEditorLoadingNotice = (message = "Strip is loading") => {
     try { navigator.vibrate?.(12); } catch { /* Physical feedback is optional. */ }
     showActionNotice(message);
@@ -3064,44 +3141,73 @@ export default function Home() {
   );
   const needsAuthUsername = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser && (!authUser.username || authStep === "username"));
   const needsAuthBackground = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser?.username) && authStep === "background";
+  const needsAuthCreation = !visitingProfileHost && authStatus === "signed-in" && Boolean(authUser?.username) && authStep === "create";
+  const needsAuthOnboarding = needsAuthBackground || needsAuthCreation;
+  // One owner spans all onboarding steps. Release its paint and scroll locks
+  // before the normal editor installs its content-derived browser colors.
+  useLayoutEffect(() => needsAuthOnboarding ? retainOnboardingBackgroundCanvas() : undefined, [needsAuthOnboarding]);
   const authFlowStep = needsAuthUsername ? "username" : authStep;
+  useLayoutEffect(() => {
+    if (authenticationRequired && authStatus !== "signed-in" && authFlowStep === "landing") return;
+    readerLandingCleanupRef.current?.();
+    readerLandingCleanupRef.current = null;
+  }, [authenticationRequired, authStatus, authFlowStep]);
   const authActiveInputRef = authFlowStep === "code" ? authCodeInputRef : authPhoneInputRef;
   useLayoutEffect(() => {
     if (needsAuthUsername && document.activeElement === authCodeInputRef.current) {
       authPhoneInputRef.current?.focus({ preventScroll: true });
     }
   }, [needsAuthUsername]);
+  const hasLeadingImage =
+    firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
+  const hasLeadingText = firstVisibleBlock?.type === "text";
+  const leadingTexture = firstVisibleBlock?.type === "text" ? textTexture(firstVisibleBlock.backgroundTexture) : undefined;
+  const usesNativeMediaTop = (hasLeadingImage || Boolean(leadingTexture)) &&
+    (view === "published" || view === "preview" || view === "edit");
+  const paintedTopColorRef = useRef(DEFAULT_BACKGROUND);
+  const leadingMediaAppearance = useLeadingMediaAppearance(usesNativeMediaTop && !needsAuthOnboarding,
+    firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video" ? firstVisibleBlock
+      : firstVisibleBlock && leadingTexture ? { id: firstVisibleBlock.id, src: leadingTexture.src } : null,
+    `${view}:${inlinePreview}:${needsAuthOnboarding}:${editorEntrance.request ?? ""}`,
+    view === "edit" && !inlinePreview && !editorEntrance.active ? paintedTopColorRef.current : DEFAULT_BACKGROUND);
+  const leadingMediaColor = leadingMediaAppearance.color;
   const topSafeAreaColor =
-    needsAuthBackground ? authBackground : needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")
+    needsAuthOnboarding ? authBackground : needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")
       ? AUTH_LANDING_COLOR
       : view === "library" ||
     view === "drafts" ||
     view === "history" ||
     view === "settings"
       ? visibleProfile.background
-      : view === "publish-setup" ||
-    view === "title-setup" ||
-    view === "share"
+      : view === "share"
       ? DEFAULT_BACKGROUND
-      : firstVisibleBlock?.type === "text"
+      : view === "publish-setup" ||
+    view === "title-setup"
+      ? DEFAULT_BACKGROUND
+      // The loader covers the canvas, but Safari also reads the root and theme
+      // color. Keep those black until the same commit starts revealing content.
+      : view === "edit" && editorEntrance.phase === "loading"
+      ? editorEntrance.handoffColor ?? DEFAULT_BACKGROUND
+      : firstVisibleBlock?.type === "text" && !leadingTexture
       ? (firstVisibleBlock.backgroundColor ?? DEFAULT_BACKGROUND)
+      : usesNativeMediaTop ? leadingMediaColor
       : DEFAULT_BACKGROUND;
-  const hasLeadingImage =
-    firstVisibleBlock?.type === "image" || firstVisibleBlock?.type === "video";
-  const hasLeadingText = firstVisibleBlock?.type === "text";
-  const endingSurfaceColor = "#FFFFFF";
-  const publishedAssetIds =
+  const publishedAllAssetIds =
     view === "published" && openedPublishedStrip
       ? openedPublishedStrip.blocks.flatMap((block) =>
           block.type === "image" ||
           block.type === "video" ||
-          block.type === "sticker"
+          block.type === "sticker" || (block.type === "text" && textTexture(block.backgroundTexture))
             ? [block.id]
             : [],
         )
       : [];
+  const publishedViewport = useReaderViewport(view === "published" ? openedPublishedStrip?.id ?? "" : "",
+    publishedAllAssetIds.join("|"), stripCanvasRef, mediaLoadStatus,
+    Boolean(openedPublishedStrip && publishedLoaderDismissedKey === openedPublishedStrip.id));
+  const publishedAssetIds = publishedViewport.ids;
   const publishedAssetKey = publishedAssetIds.join("|");
-  const publishedContentReady = publishedAssetIds.every(
+  const publishedContentReady = publishedViewport.measured && publishedAssetIds.every(
     (blockId) => mediaLoadStatus[blockId] !== undefined,
   );
   const publishedStripLoadKey =
@@ -3111,29 +3217,32 @@ export default function Home() {
   const publishedCoverReady =
     openedPublishedStrip?.cover.kind !== "image" ||
     publishedCoverSettledKey === publishedStripLoadKey;
-  const publishedAssetsReady = publishedContentReady && publishedCoverReady;
-  const publishedMinimumElapsed =
-    publishedStripLoadKey !== "" &&
-    publishedMinimumReadyKey === publishedStripLoadKey;
+  const directPublishedEntry = Boolean(initialPublishedId && publishedStripLoadKey === initialPublishedId && !openingCover);
+  const publishedAssetsReady = publishedContentReady && (directPublishedEntry || publishedCoverReady);
+  const publishedEdgeReady = !usesNativeMediaTop || leadingMediaAppearance.ready ||
+    (firstVisibleBlock && mediaLoadStatus[firstVisibleBlock.id] === "error");
   const publishedContentCanReveal =
-    publishedAssetsReady && publishedMinimumElapsed;
+    publishedAssetsReady && (!directPublishedEntry || publishedEdgeReady);
+  const initialReaderPending = Boolean(initialPublishedId && !initialReaderReleased &&
+    (!initialRouteReady || (view === "published" && !publishedContentCanReveal)));
   const publishedLoaderPhase = publishedContentCanReveal
     ? "revealing"
     : "loading";
   const publishedLoaderIsVisible =
+    !directPublishedEntry &&
     publishedStripLoadKey !== "" &&
     (!publishedContentCanReveal ||
       publishedLoaderDismissedKey !== publishedStripLoadKey);
-  const cleanViewBottomSurfaceColor =
-    view === "preview" || (view === "edit" && inlinePreview)
-      ? endingSurfaceColor
-      : null;
 
   const prepareInlinePreviewLayout = () => {
     previewLayoutRef.current = preparePreviewLayout(
       stripCanvasRef.current?.parentElement ?? null,
       previewLayoutRef.current,
       COVER_DOCK_DROP_MS,
+      (scrollTop) => {
+        if (inlinePreviewScrollRef.current !== null) inlinePreviewScrollRef.current = scrollTop;
+        if (inlinePreviewExitLockRef.current) inlinePreviewExitLockRef.current.scrollTop = scrollTop;
+      },
     );
   };
   useEffect(() => () => { previewLayoutRef.current?.cancel(); }, []);
@@ -3145,7 +3254,7 @@ export default function Home() {
     return installAuthFormViewport();
   }, [authFormIsVisible]);
 
-  const homeIsVisible = initialRouteReady && (authStatus === "signed-in" || viewingPublicProfile) && !needsAuthUsername && !needsAuthBackground &&
+  const homeIsVisible = initialRouteReady && (authStatus === "signed-in" || viewingPublicProfile) && !needsAuthUsername && !needsAuthOnboarding &&
     ["library", "drafts", "history", "settings"].includes(view);
   const profilePageIsLoading = homeIsVisible && (viewingPublicProfile
     ? publicProfile.status === "loading"
@@ -3176,22 +3285,13 @@ export default function Home() {
     return retainProfileBrowserTheme();
   }, [homeIsVisible]);
 
-  useEffect(() => {
-    setPublishedMinimumReadyKey(null);
-    if (!publishedStripLoadKey) return;
-
-    const timeout = window.setTimeout(() => {
-      setPublishedMinimumReadyKey(publishedStripLoadKey);
-    }, PUBLISHED_LOADING_MINIMUM_MS);
-    return () => window.clearTimeout(timeout);
-  }, [publishedStripLoadKey]);
 
   useEffect(() => {
     const root = document.documentElement;
     const isWaitingForPublishedContent =
       view === "published" &&
       openedPublishedStrip !== null &&
-      publishedLoaderIsVisible;
+      (publishedLoaderIsVisible || initialReaderPending);
     root.classList.toggle(
       "published-content-loading",
       isWaitingForPublishedContent,
@@ -3224,6 +3324,7 @@ export default function Home() {
     publishedAssetKey,
     publishedAssetsReady,
     publishedLoaderIsVisible,
+    initialReaderPending,
     publishedStripLoadKey,
     view,
   ]);
@@ -3252,102 +3353,11 @@ export default function Home() {
     return () => window.removeEventListener("scroll", rememberPreviewScroll);
   }, [inlinePreview]);
 
-  useLayoutEffect(() => {
-    const isLibraryView =
-      view === "library" ||
-      view === "drafts" ||
-      view === "history" ||
-      view === "settings";
-    if (!isLibraryView || libraryScrollInset <= 0) return;
-
-    const lockedScrollTop = libraryScrollInset;
-    const root = document.documentElement;
-    let lastTouchY: number | null = null;
-    let restoringScroll = false;
-
-    const setLockedScrollTop = () => {
-      if (
-        restoringScroll ||
-        Math.abs(window.scrollY - lockedScrollTop) < 0.5
-      ) {
-        return;
-      }
-      restoringScroll = true;
-      window.scrollTo({ top: lockedScrollTop, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = lockedScrollTop;
-      document.body.scrollTop = lockedScrollTop;
-      restoringScroll = false;
-    };
-    const restoreLockedScrollTop = () => {
-      if (root.classList.contains("page-color-dragging")) return;
-      if (window.scrollY < lockedScrollTop) setLockedScrollTop();
-    };
-    const handleTouchStart = (event: TouchEvent) => {
-      lastTouchY = root.classList.contains("page-color-dragging") ? null : event.touches[0]?.clientY ?? null;
-    };
-    const handleTouchMove = (event: TouchEvent) => {
-      if (root.classList.contains("page-color-dragging")) return;
-      const nextTouchY = event.touches[0]?.clientY;
-      if (nextTouchY === undefined || lastTouchY === null) return;
-
-      const upwardScrollDistance = nextTouchY - lastTouchY;
-      lastTouchY = nextTouchY;
-      if (
-        upwardScrollDistance <= 0 ||
-        window.scrollY - upwardScrollDistance > lockedScrollTop
-      ) {
-        return;
-      }
-
-      if (event.cancelable) event.preventDefault();
-      setLockedScrollTop();
-    };
-    const handleTouchEnd = () => {
-      lastTouchY = null;
-      restoreLockedScrollTop();
-    };
-    const handleWheel = (event: WheelEvent) => {
-      if (root.classList.contains("page-color-dragging")) return;
-      if (
-        event.deltaY >= 0 ||
-        window.scrollY + event.deltaY > lockedScrollTop
-      ) {
-        return;
-      }
-      if (event.cancelable) event.preventDefault();
-      setLockedScrollTop();
-    };
-
-    root.classList.add("library-scroll-top-locked");
-    restoreLockedScrollTop();
-    document.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-      capture: true,
-    });
-    document.addEventListener("touchmove", handleTouchMove, {
-      passive: false,
-      capture: true,
-    });
-    document.addEventListener("touchend", handleTouchEnd, { capture: true });
-    document.addEventListener("touchcancel", handleTouchEnd, { capture: true });
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    window.addEventListener("scroll", restoreLockedScrollTop, { passive: true });
-    return () => {
-      root.classList.remove("library-scroll-top-locked");
-      document.removeEventListener("touchstart", handleTouchStart, true);
-      document.removeEventListener("touchmove", handleTouchMove, true);
-      document.removeEventListener("touchend", handleTouchEnd, true);
-      document.removeEventListener("touchcancel", handleTouchEnd, true);
-      window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("scroll", restoreLockedScrollTop);
-    };
-  }, [libraryScrollInset, view]);
-
   const pageZoomLocked = shouldLockPageZoom({
     view,
     authenticationRequired,
     authStatus,
-    needsUsername: needsAuthUsername || needsAuthBackground,
+    needsUsername: needsAuthUsername || needsAuthOnboarding,
   });
   useLayoutEffect(() => {
     if (!pageZoomLocked) return;
@@ -3355,47 +3365,19 @@ export default function Home() {
   }, [pageZoomLocked]);
 
   useLayoutEffect(() => {
+    if (pageZoomLocked) return;
+    return installStripPinchZoom();
+  }, [pageZoomLocked, view, inlinePreview]);
+
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const landingIsVisible = authenticationRequired && authStatus !== "signed-in" && authStep === "landing";
     const stripIsVisible =
       landingIsVisible || view === "edit" || view === "preview" || view === "published";
 
-    const calculateLeadingImageOffset = () => {
-      const isIOS =
-        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-      if (
-        !stripIsVisible ||
-        !(landingIsVisible || hasLeadingImage || (hasLeadingText &&
-          (view === "published" || view === "preview" || (view === "edit" && inlinePreview)))) ||
-        !isIOS ||
-        window.screen.height / window.screen.width <= 2
-      ) {
-        return 0;
-      }
-
-      const probe = document.createElement("div");
-      probe.style.cssText =
-        "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
-      document.body.appendChild(probe);
-      const reportedSafeTop = Number.parseFloat(
-        window.getComputedStyle(probe).paddingTop,
-      );
-      probe.remove();
-
-      const fallbackSafeTop = Math.min(
-        62,
-        Math.max(47, window.screen.width * 0.154),
-      );
-      return Math.round(
-        Number.isFinite(reportedSafeTop) && reportedSafeTop >= 1
-          ? reportedSafeTop
-          : fallbackSafeTop,
-      );
-    };
-
-    const offset = calculateLeadingImageOffset();
+    // Landing and readers share the real document top. The browser owns
+    // overscroll and pull-to-refresh; only initial route placement happens here.
+    const offset = 0;
     const previousLayout = leadingLayoutRef.current;
     const switchingInlineReader = view === "edit" && previousLayout?.view === "edit" &&
       previousLayout.inlinePreview !== inlinePreview;
@@ -3435,7 +3417,17 @@ export default function Home() {
       removeLeadingMediaTop();
       leadingImageInsetRef.current = 0;
     };
-  }, [authenticationRequired, authStatus, authStep, hasLeadingImage, hasLeadingText, initialRouteReady, inlinePreview, view]);
+  }, [authenticationRequired, authStatus, authStep, hasLeadingImage, hasLeadingText, usesNativeMediaTop, initialRouteReady, inlinePreview, view]);
+
+  // Place a reader once, beneath its entry cover. Do not scroll again when the
+  // cover disappears: even redundant root scroll writes can disturb Safari's
+  // collapsed controls. Its viewport and media updates do not own this position.
+  useLayoutEffect(() => {
+    if (view !== "published" || !publishedStripLoadKey) return;
+    const top = leadingImageInsetRef.current;
+    if (Math.abs(window.scrollY - top) < 0.5 && Math.abs(window.scrollX) < 0.5) return;
+    window.scrollTo({ top, left: 0, behavior: "instant" });
+  }, [view, publishedStripLoadKey]);
 
   // Measure after the leading inset is updated, so text-first readers include
   // their final safe-area geometry before the toolbar clearance settles.
@@ -3493,12 +3485,10 @@ export default function Home() {
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
-    // The footer's layout effect already chose the visible edge. A later
-    // passive top-color effect must not overwrite that decision on route load.
-    if (root.classList.contains("profile-reload-pending")) return;
-    if (!root.matches(".published-bottom-canvas-active, .published-bottom-sheet-canvas-active, .published-bottom-pocket-active, .preview-bottom-canvas-active")) {
+    if (initialReaderPending || root.classList.contains("profile-reload-pending")) return;
+    if (!root.matches(".published-bottom-sheet-canvas-active, .preview-bottom-canvas-active, .preview-bottom-handoff-active")) {
       document.querySelector<HTMLMetaElement>("#strip-theme-color")?.setAttribute(
         "content",
         topSafeAreaColor,
@@ -3506,7 +3496,22 @@ export default function Home() {
     }
     root.style.setProperty("--top-safe-area-color", topSafeAreaColor);
     root.style.backgroundColor = topSafeAreaColor;
-  }, [topSafeAreaColor]);
+    paintedTopColorRef.current = topSafeAreaColor;
+  }, [topSafeAreaColor, needsAuthOnboarding, view, inlinePreview, authenticationRequired, initialReaderPending]);
+
+  useLayoutEffect(() => {
+    if (!initialPublishedId || initialReaderReleased || initialReaderPending) return;
+    // One layout commit starts the fade across the decoded screen and edges.
+    // The entrance temporarily owns browser sampling, restoring the final
+    // theme hint only after the shared document-painted fade completes.
+    const root = document.documentElement;
+    const theme = document.getElementById("strip-theme-color");
+    theme?.setAttribute("content", topSafeAreaColor);
+    root.removeAttribute("data-reader-entry-pending");
+    setInitialReaderReleased(true);
+    if (directPublishedEntry) setPublishedLoaderDismissedKey(publishedStripLoadKey);
+  }, [initialPublishedId, initialReaderReleased, initialReaderPending, topSafeAreaColor,
+    view, directPublishedEntry, publishedStripLoadKey]);
 
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
@@ -3527,30 +3532,36 @@ export default function Home() {
   }, [viewingPublicProfile, publicProfile]);
 
 
-  useLayoutEffect(() => installFooterSafeAreaColor({
-    enabled: (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
-    sheet: document.querySelector<HTMLElement>(cleanViewBottomSurfaceColor !== null
+  // Color only: CSS reveals the in-flow footer beneath the content. Never follow
+  // Safari with scroll corrections, footer transforms, or extra bottom space.
+  const readerIsPreview = view === "preview" || (view === "edit" && inlinePreview);
+  useLayoutEffect(() => initialReaderPending ? undefined : installFooterSafeAreaColor({
+    enabled: (view === "published" && publishedContentCanReveal) || readerIsPreview,
+    sheet: document.querySelector<HTMLElement>(readerIsPreview
       ? ".is-inline-preview .strip-ending-card, .preview-mode .strip-ending-card"
       : ".published-mode .published-bottom-sheet"),
     topColor: topSafeAreaColor,
-    bottomColor: endingSurfaceColor,
+    bottomColor: readerIsPreview ? STRIP_FOOTER_BACKGROUND : PUBLISHED_STRIP_FOOTER_BACKGROUND,
     defaultColor: DEFAULT_BACKGROUND,
-    activeClassName: cleanViewBottomSurfaceColor !== null
+    activeClassName: readerIsPreview
       ? "preview-bottom-canvas-active"
       : "published-bottom-sheet-canvas-active",
-  }), [cleanViewBottomSurfaceColor, publishedContentCanReveal, topSafeAreaColor, view, endingSurfaceColor]);
+  }), [view, readerIsPreview, publishedContentCanReveal, topSafeAreaColor, initialReaderPending]);
 
-  useLayoutEffect(() => installReaderBottomAnchor(
-    (view === "published" && publishedContentCanReveal) || cleanViewBottomSurfaceColor !== null,
-  ), [view, publishedContentCanReveal, cleanViewBottomSurfaceColor]);
-
-  // The onboarding canvas owns both Safari edges, after inactive footer cleanup.
+  // The onboarding canvas owns both Safari edges.
   // Keep this scoped to signup so published and editor dock behavior is unchanged.
   useLayoutEffect(() => {
-    if (needsAuthBackground) syncOnboardingBackground(authBackground);
-  }, [needsAuthBackground, authBackground]);
+    if (needsAuthOnboarding) syncOnboardingBackground(authBackground);
+  }, [needsAuthOnboarding, needsAuthCreation, authBackground]);
+
+  const authCanvasVisible = needsAuthUsername || (authenticationRequired && authStatus !== "signed-in");
+  useLayoutEffect(() => authCanvasVisible
+    ? retainAuthBrowserTheme(AUTH_LANDING_COLOR, authFlowStep === "landing") : undefined,
+  [authCanvasVisible, authFlowStep]);
 
   useLayoutEffect(installKeyboardDockPosition, []);
+
+  useLayoutEffect(installInstagramDockViewport, [view]);
 
   useLayoutEffect(() => {
     if (view !== "title-setup") return;
@@ -3577,7 +3588,7 @@ export default function Home() {
       const activeElement = document.activeElement;
       // Fixed forms do not need the editor canvas's delayed scroll restoration.
       // A second scroll during keyboard dismissal can move their covered dock.
-      if (activeElement?.closest(".auth-shell, .title-setup-mode, .text-sticker-editor-layer")) return false;
+      if (activeElement?.closest(".auth-shell, .title-setup-mode, .text-sticker-editor-layer, [data-onboarding-strip]")) return false;
       return (
         (activeElement instanceof HTMLElement && activeElement.isContentEditable) ||
         activeElement instanceof HTMLTextAreaElement ||
@@ -3816,7 +3827,7 @@ export default function Home() {
           strips?: PublishedStripSummary[];
         };
         const strips = Array.isArray(data.strips) ? data.strips : [];
-        const preparedStrips = await prepareLibrarySummaries(strips);
+        const preparedStrips = prepareLibrarySummaries(strips);
         if (!controller.signal.aborted) setPublishedStrips(preparedStrips);
       })
       .catch((error: unknown) => {
@@ -3841,7 +3852,7 @@ export default function Home() {
         if (!response.ok) throw new Error("Draft library request failed");
         const data = (await response.json()) as { drafts?: DraftStripSummary[] };
         const drafts = Array.isArray(data.drafts) ? data.drafts : [];
-        const preparedDrafts = await prepareLibrarySummaries(drafts);
+        const preparedDrafts = prepareLibrarySummaries(drafts);
         if (!controller.signal.aborted) setDraftStrips(preparedDrafts);
       })
       .catch((error: unknown) => {
@@ -3868,7 +3879,7 @@ export default function Home() {
           history?: ViewedStripSummary[];
         };
         const historyItems = Array.isArray(data.history) ? data.history : [];
-        const preparedHistory = await prepareLibrarySummaries(historyItems);
+        const preparedHistory = prepareLibrarySummaries(historyItems);
         if (!controller.signal.aborted) setViewedStrips(preparedHistory);
       })
       .catch((error: unknown) => {
@@ -3887,21 +3898,16 @@ export default function Home() {
     const legacyBlocks = legacyDraftBlocksRef.current;
     const id = makeId();
     const createdAt = Date.now();
-    const migration = prepareStickerUploads(legacyBlocks).then((uploadBlocks) => fetch("/api/drafts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const migration = prepareStickerUploads(legacyBlocks).then((uploadBlocks) => draftSaveQueueRef.current!.save<StripBlock, DraftStripSummary>({
         id,
         title: "",
         blocks: uploadBlocks,
         endingStyle: DEFAULT_STRIP_ENDING_STYLE,
         createdAt,
         updatedAt: createdAt,
-      }),
     }))
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Legacy draft migration failed");
-        const data = (await response.json()) as { draft: DraftStripSummary };
+      .then((data) => {
+        if (!data) return false;
         setDraftStrips((current) => [
           data.draft,
           ...current.filter((draft) => draft.id !== data.draft.id),
@@ -3930,6 +3936,7 @@ export default function Home() {
     }
     if (
       !loaded ||
+      publishing ||
       editorEntrance.active ||
       !libraryOwnerId ||
       !currentDraftId ||
@@ -3945,23 +3952,17 @@ export default function Home() {
       draftSaveTimerRef.current = null;
       void prepareStickerUploads(blocks).then((uploadBlocks) => {
         if (sequence !== draftSaveSequenceRef.current) return null;
-        return fetch("/api/drafts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        return draftSaveQueueRef.current!.save<StripBlock, DraftStripSummary>({
             id: currentDraftId,
             title: stripTitle,
             blocks: uploadBlocks,
             endingStyle,
             createdAt,
             updatedAt,
-          }),
-        });
+        }, () => sequence === draftSaveSequenceRef.current);
       })
-        .then(async (response) => {
-          if (!response) return;
-          if (!response.ok) throw new Error("Draft save failed");
-          const data = (await response.json()) as { draft: DraftStripSummary };
+        .then((data) => {
+          if (!data) return;
           if (sequence !== draftSaveSequenceRef.current) return;
           setDraftStrips((current) => [
             data.draft,
@@ -3969,9 +3970,9 @@ export default function Home() {
           ]);
           window.localStorage.removeItem(STORAGE_KEY);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (sequence === draftSaveSequenceRef.current) {
-            setNotice("Couldn’t save this draft yet.");
+            setNotice(error instanceof DraftSaveError ? error.message : "Couldn’t save this draft yet. Keep this page open.");
           }
         });
     }, 450);
@@ -3989,13 +3990,16 @@ export default function Home() {
     endingStyle,
     libraryOwnerId,
     loaded,
+    publishing,
     editorEntrance.active,
     stripTitle,
   ]);
 
   useEffect(() => {
-    if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(""), notice === PREVIEW_MODE_NOTICE ? 3000 : 2600);
+    // Preview owns its animation completion, including an interrupted entry.
+    // A separate wall-clock timeout can cut its swipe fade off mid-frame.
+    if (!notice || notice === PREVIEW_MODE_NOTICE) return;
+    const timeout = window.setTimeout(() => setNotice(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [notice, noticeRevision]);
 
@@ -4170,8 +4174,8 @@ export default function Home() {
       setNotice("Add a text or image block before adding a sticker.");
       return;
     }
-    // Start typing in the upper third, before the keyboard covers the page.
-    // Image/pack stickers keep their existing centered placement.
+    // Seed new text near the top; its first Done saves the visible typing
+    // geometry. Image/pack stickers keep their existing centered placement.
     const placement = textSticker
       ? captureStickerPlacement(0.3) ?? stickerPlacementRef.current
       : stickerPlacementRef.current ?? captureStickerPlacement();
@@ -4198,7 +4202,10 @@ export default function Home() {
       },
     ]);
     setSelectedBlockId(id);
-    if (textSticker) setTypingTextStickerId(id);
+    if (textSticker) {
+      setNewTextStickerId(id);
+      setTypingTextStickerId(id);
+    }
     setEditingTextBlockId(null);
     setActiveTextTool(null);
   };
@@ -4238,7 +4245,7 @@ export default function Home() {
 
   const addTextSticker = () => {
     const value = normalizeTextSticker({ content: "", fontStyle: visibleProfile.font,
-      fontSize: 32, textColor: profileTextColor(visibleProfile), textAlign: "center" })!;
+      fontSize: 24, textColor: "#FFFFFF", textAlign: "center" })!;
     placeSticker(EMPTY_TEXT_STICKER_SRC, "Text sticker", "image", "text", value);
     setStickerPickerOpen(false);
   };
@@ -4250,6 +4257,7 @@ export default function Home() {
   };
 
   const finishTextSticker = (id: string) => {
+    setNewTextStickerId(current => current === id ? null : current);
     setTypingTextStickerId(current => current === id ? null : current);
     setBlocks(current => current.filter(block => block.id !== id || block.type !== "sticker" || !block.textSticker || block.textSticker.content.trim()));
   };
@@ -4284,7 +4292,7 @@ export default function Home() {
     setBlocks((current) =>
       current.map((block) =>
         block.id === id && block.type === "text"
-          ? { ...block, ...change, editedAt: Date.now() }
+          ? { ...block, ...textBackgroundChange(change), editedAt: Date.now() }
           : block,
       ),
     );
@@ -4607,11 +4615,9 @@ export default function Home() {
   ) => {
     const dockSnapshot = animateDock ? captureDockTransition() : null;
     if (!animateDock) cancelDockTransitionSchedule();
-    libraryScrollInsetRef.current = 0;
     flushSync(() => {
       setDockTransition(dockSnapshot);
       setDockTransitionStarted(false);
-      setLibraryScrollInset(0);
       setView(nextView);
     });
     if (animateDock) scheduleDockTransitionEnd();
@@ -4638,20 +4644,21 @@ export default function Home() {
 
   const switchLibraryView = (nextView: ProfileView) => {
     const root = document.documentElement;
-    // The four tabs already have their data in memory. Swap in the tap, keep
-    // Safari's current scroll canvas, and never queue an entrance animation.
-    const preservedScrollTop = Math.max(0, window.scrollY);
+    // No transition lock or image dependency. Reset only the library scroller;
+    // the fixed tabs do not belong to its momentum/touch hierarchy.
     cancelDockTransitionSchedule();
     root.classList.remove("strip-page-transitioning", "strip-standard-page-entering");
-    libraryScrollInsetRef.current = preservedScrollTop;
     flushSync(() => {
       setLegacyPageTransition(null);
       setDockTransition(null);
       setDockTransitionStarted(false);
       setInstantLibraryNavigation(true);
-      setLibraryScrollInset(preservedScrollTop);
+      setInitialRouteReady(true);
       setView(nextView);
     });
+    document.querySelector<HTMLElement>(".profile-scroll-shell > .profile-scroll-viewport")
+      ?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   const transitionToView = async (
@@ -4686,6 +4693,13 @@ export default function Home() {
     }
 
     const outgoingShell = currentShell.cloneNode(true) as HTMLElement;
+    const profileScrollTop = currentShell.querySelector<HTMLElement>(".profile-scroll-viewport")?.scrollTop ?? 0;
+    const copiedProfileContent = outgoingShell.querySelector<HTMLElement>(".profile-scroll-content");
+    if (copiedProfileContent && profileScrollTop) {
+      // scrollTop is not serialized by outerHTML. Preserve the visible section
+      // in the outgoing animation without keeping the live root scroll locked.
+      copiedProfileContent.style.transform = `translateY(${-profileScrollTop}px)`;
+    }
     outgoingShell
       .querySelectorAll(".composer-dock")
       .forEach((element) => element.remove());
@@ -4726,6 +4740,8 @@ export default function Home() {
 
   const resetTransientNavigationState = () => {
     const root = document.documentElement;
+    readerLandingCleanupRef.current?.();
+    readerLandingCleanupRef.current = null;
     storyShareAttemptRef.current++;
     storyShareInFlightRef.current = false;
     setStoryShareSheetOpen(false);
@@ -4743,6 +4759,8 @@ export default function Home() {
     setOpeningDraftId(null);
     setLegacyPageTransition(null);
     setOpeningPublishedEditor(false);
+    setArrivingFromReader(false);
+    delete root.dataset.readerCreateEntry;
     editorEntrance.cancel();
     setDockTransition(null);
     setDockTransitionStarted(false);
@@ -5029,6 +5047,9 @@ export default function Home() {
     setNotice("");
     pageTransitionInFlightRef.current = true;
 
+    // Capture before replacing the editor, not after its media nodes unmount.
+    publishFlowStartScrollRef.current = window.scrollY;
+    publishFlowMediaSizesRef.current = capturePublishReturnMedia(stripCanvasRef.current);
     const availableCovers = coverChoices
       .filter((choice) => choice.kind === "image" || choice.kind === "color")
       .map((choice) => choice.key);
@@ -5044,7 +5065,6 @@ export default function Home() {
     setActiveTextTool(null);
     setInlinePreview(false);
     setPublishSetupReturnView(view === "preview" ? "preview" : "edit");
-    publishFlowStartScrollRef.current = window.scrollY;
     try {
       setViewInstantly("publish-setup");
     } finally {
@@ -5055,6 +5075,10 @@ export default function Home() {
   const returnFromPublishSetup = () => {
     if (pageTransitionInFlightRef.current) return;
     pageTransitionInFlightRef.current = true;
+    const previousFocusSuppression = suppressSelectedBlockAutoFocusRef.current;
+    // Restoring a view is not a new selection. Its layout effects must not
+    // focus-scroll the previously selected block over the saved position.
+    suppressSelectedBlockAutoFocusRef.current = true;
     try {
       setCoverColorPickerOpen(false);
       setViewInstantly(
@@ -5062,6 +5086,7 @@ export default function Home() {
         publishFlowStartScrollRef.current,
       );
     } finally {
+      suppressSelectedBlockAutoFocusRef.current = previousFocusSuppression;
       pageTransitionInFlightRef.current = false;
     }
   };
@@ -5231,6 +5256,7 @@ export default function Home() {
   const requestSignInCode = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     if (authPending || authStickerExitRef.current) return;
+    const revision = authNavigationRevisionRef.current;
     // Focus a dedicated OTP input during the original tap, before sending the
     // SMS. Changing autocomplete on the already-focused phone field can leave
     // Safari's native input session using its old telephone AutoFill traits.
@@ -5255,22 +5281,24 @@ export default function Home() {
         error?: string;
         developmentCode?: string;
       };
+      if (revision !== authNavigationRevisionRef.current) return;
       if (!response.ok) throw new Error(data.error || "Couldn’t send a code.");
       setAuthDevelopmentCode(data.developmentCode ?? "");
       // An SMS can arrive before this response. Never erase an autofilled code.
       setAuthResendSeconds(30);
     } catch (error) {
+      if (revision !== authNavigationRevisionRef.current) return;
       setAuthCodeDeliveryFailed(true);
       setAuthError(error instanceof Error ? error.message : "Couldn’t send a code.");
     } finally {
-      setAuthSendingCode(false);
-      setAuthPending(false);
+      if (revision === authNavigationRevisionRef.current) { setAuthSendingCode(false); setAuthPending(false); }
     }
   };
 
   const verifySignInCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (authPending) return;
+    const revision = authNavigationRevisionRef.current;
     setAuthPending(true);
     setAuthError("");
     try {
@@ -5284,6 +5312,7 @@ export default function Home() {
         }),
       });
       const data = (await response.json()) as { user?: AuthUser; error?: string };
+      if (revision !== authNavigationRevisionRef.current) return;
       if (!response.ok || !data.user) {
         throw new Error(data.error || "That code isn’t right.");
       }
@@ -5303,9 +5332,10 @@ export default function Home() {
       initialRouteHandledRef.current = false;
       setInitialRouteReady(false);
     } catch (error) {
+      if (revision !== authNavigationRevisionRef.current) return;
       setAuthError(error instanceof Error ? error.message : "That code isn’t right.");
     } finally {
-      setAuthPending(false);
+      if (revision === authNavigationRevisionRef.current) setAuthPending(false);
     }
   };
 
@@ -5353,15 +5383,60 @@ export default function Home() {
   };
 
   const finishBackgroundOnboarding = async () => {
+    const revision = authNavigationRevisionRef.current;
     if (!await stripProfile.saveBackground(authBackground)) return;
+    if (revision !== authNavigationRevisionRef.current) return;
+    setAuthStep("create");
+  };
+
+  const finishFirstStripOnboarding = async (input: FirstStripInput, transferMedia: () => void) => {
+    if (!libraryOwnerId) throw new Error("Sign in again to save your Strip. Keep this page open.");
+    const owner = libraryOwnerId;
+    const createdAt = input.createdAt;
+    const firstBlocks = buildFirstStrip(input, authBackground, contrastColor(authBackground)) as StripBlock[];
+    if (onboardingOwnerRef.current !== owner) throw new Error("Your account changed. Please sign in again.");
+    // Start persistence immediately, but reveal the original, already-decoded
+    // camera-roll media. Uploading then downloading it again is not an entrance.
+    const saving = draftSaveQueueRef.current!.save<StripBlock, DraftStripSummary>({
+      id: input.id, title: "", blocks: firstBlocks, endingStyle: DEFAULT_STRIP_ENDING_STYLE, createdAt, updatedAt: createdAt,
+    }, () => onboardingOwnerRef.current === owner, prepareStickerUploads);
+    const protectUnsavedMedia = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", protectUnsavedMedia);
+    void saving.then(saved => {
+      if (!saved || onboardingOwnerRef.current !== owner) return;
+      setDraftStrips(current => {
+        const newer = current.find(draft => draft.id === input.id);
+        if (newer && newer.updatedAt > saved.draft.updatedAt) return current;
+        return [saved.draft, ...current.filter(draft => draft.id !== input.id)];
+      });
+    }).catch(error => {
+      if (onboardingOwnerRef.current === owner) setNotice(error instanceof DraftSaveError ? error.message : "Couldn’t save this draft yet. Keep this page open.");
+    }).finally(() => window.removeEventListener("beforeunload", protectUnsavedMedia));
+    firstBlocks.forEach(block => { if ((block.type === "image" || block.type === "video") && block.src.startsWith("blob:")) liveVideoUrlsRef.current.add(block.src); });
+    transferMedia();
+    const entranceRequest = editorEntrance.start({ handoffColor: authBackground });
+    editorBackPathRef.current = "/";
+    resetEditorEntry();
+    setImportedMediaSizes(Object.fromEntries(input.media.map(item => [item.id, { width: item.width, height: item.height }])));
+    setCurrentDraftId(input.id); setCurrentDraftCreatedAt(createdAt);
+    setBlocks(firstBlocks); setEndingStyle(DEFAULT_STRIP_ENDING_STYLE); setStripTitle("");
+    editorEntrance.resolve(entranceRequest);
+    setSelectedBlockId(null); setEditingTextBlockId(null); setActiveTextTool(null);
+    setEditingPublishedStripId(null); setOpenedPublishedStrip(null);
+    setAuthenticationRequired(false);
+    onboardingEditorHandoffRef.current = input.id;
+    setBrowserPath(`/edit/${encodeURIComponent(input.id)}`);
+    setView("edit");
     rememberBackgroundOnboarding(null);
     setAuthStep("landing");
     initialRouteHandledRef.current = false;
-    setInitialRouteReady(false);
+    setInitialRouteReady(true);
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   const returnBackgroundToUsername = () => {
     if (stripProfile.pending) return;
+    ++authNavigationRevisionRef.current;
     setAuthTransitionDirection("backward");
     setAuthUsername(authUser?.username ?? "");
     setAuthUsernameError("");
@@ -5369,7 +5444,9 @@ export default function Home() {
   };
 
   const editSignInPhone = () => {
+    ++authNavigationRevisionRef.current;
     flushSync(() => {
+      setAuthPending(false); setAuthSendingCode(false);
       setAuthStickerRevealed(false);
       setAuthTransitionDirection("backward");
       setAuthStep("phone");
@@ -5382,7 +5459,7 @@ export default function Home() {
   };
 
   const returnUsernameToPhone = async () => {
-    if (authPending) return;
+    if (authPending) return false;
     setAuthPending(true);
     setAuthUsernameError("");
     try {
@@ -5410,8 +5487,10 @@ export default function Home() {
         setInitialRouteReady(true);
       });
       authPhoneInputRef.current?.focus({ preventScroll: true });
+      return true;
     } catch (error) {
       setAuthUsernameError(error instanceof Error ? error.message : "Couldn’t go back. Try again.");
+      return false;
     } finally {
       setAuthPending(false);
     }
@@ -5427,7 +5506,6 @@ export default function Home() {
         setAuthError("");
         setAuthDevelopmentCode("");
       });
-      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       // Still inside the original tap: iOS can open the keyboard during the fade.
       authPhoneInputRef.current?.focus({ preventScroll: true });
     }, () => {
@@ -5436,6 +5514,8 @@ export default function Home() {
   };
 
   const returnToAuthLanding = () => {
+    ++authNavigationRevisionRef.current;
+    setAuthPending(false); setAuthSendingCode(false);
     authStickerExitRef.current?.();
     authStickerExitRef.current = null;
     setAuthStickerRevealed(false);
@@ -5447,6 +5527,37 @@ export default function Home() {
     setAuthError("");
     setAuthDevelopmentCode("");
   };
+
+  const onboardingHistoryStep: OnboardingStep | null = needsAuthUsername ? "username"
+    : needsAuthCreation ? creationStep : needsAuthBackground ? "background"
+    : authenticationRequired && authStatus === "signed-out" ? authStep === "create" ? creationStep : authStep : null;
+  const onboardingNavigateRef = useRef<(step: OnboardingStep) => boolean | Promise<boolean>>(() => false);
+  onboardingNavigateRef.current = async step => {
+    if (step === "phone" && authUser) return returnUsernameToPhone();
+    if (step === "landing") { returnToAuthLanding(); return true; }
+    if (step === "phone") { editSignInPhone(); return true; }
+    if (step === "username" && !authUser) return false;
+    if ((step === "background" || step === "media" || step === "stickers" || step === "message") && !authUser?.username) return false;
+    setAuthTransitionDirection("backward");
+    if (step === "media" || step === "stickers" || step === "message") {
+      setCreationStep(step); setAuthStep("create");
+    } else if (step === "username") {
+      if (stripProfile.pending) return false;
+      returnBackgroundToUsername();
+    }
+    else setAuthStep(step);
+    return true;
+  };
+  const onboardingHistoryRef = useRef<ReturnType<typeof createOnboardingHistory> | null>(null);
+  useLayoutEffect(() => {
+    const history = createOnboardingHistory(window, step => onboardingNavigateRef.current(step));
+    onboardingHistoryRef.current = history;
+    window.addEventListener("popstate", history.pop, true);
+    return () => { window.removeEventListener("popstate", history.pop, true); onboardingHistoryRef.current = null; };
+  }, []);
+  useLayoutEffect(() => {
+    onboardingHistoryRef.current?.observe(onboardingHistoryStep);
+  }, [onboardingHistoryStep]);
 
   const signOut = async () => {
     if (authPending) return;
@@ -5500,6 +5611,11 @@ export default function Home() {
     setStickerPickerOpen(false);
     setInlinePreview(false);
     setOpeningCover(null);
+    setSelectedCover("");
+    setActiveCoverKey("");
+    setCustomCoverSrc(null);
+    setCustomCoverColors([]);
+    setCoverColorShape("square");
     setNotice("");
     setEditorDockEntering(false);
     setViewInstantly("edit", 0, false);
@@ -5512,7 +5628,8 @@ export default function Home() {
   };
 
   useLayoutEffect(() => {
-    if (routeFromLocation(window.location.pathname, window.location.hostname).kind === "edit") startEditorEntry();
+    if (routeFromLocation(window.location.pathname, window.location.hostname).kind === "edit" &&
+        readerCreateEntry(window.location.search) !== "landing") startEditorEntry();
   }, []);
 
   const beginNewStrip = () => {
@@ -5625,8 +5742,10 @@ export default function Home() {
   const openLibrarySection = (
     nextView: "library" | "drafts" | "history" | "settings",
   ) => {
-    if (view === nextView) return;
-    if (pageTransitionInFlightRef.current) return;
+    // A visible tab always wins, even if a prior page transition failed or an
+    // older route request is still finishing in the background.
+    profileNavigationRevisionRef.current++;
+    resetTransientNavigationState();
     setBrowserPath(
       nextView === "library"
         ? "/"
@@ -5639,9 +5758,6 @@ export default function Home() {
     switchLibraryView(nextView);
   };
 
-  const openDraftLibrary = () => openLibrarySection("drafts");
-  const openHistory = () => openLibrarySection("history");
-  const openSettings = () => openLibrarySection("settings");
   const returnToLibrary = () => openLibrarySection("library");
 
   const openPublishedStrip = async (strip: PublishedStripSummary, button: HTMLElement) => {
@@ -5723,7 +5839,7 @@ export default function Home() {
   useEffect(() => {
     // Username is still part of the focused sign-in flow. Applying the route
     // here resets scroll under the keyboard before onboarding is complete.
-    if (needsAuthBackground) return;
+    if (needsAuthOnboarding) return;
     if (authStatus === "loading" || needsAuthUsername || initialRouteHandledRef.current) return;
     initialRouteHandledRef.current = true;
     let cancelled = false;
@@ -5731,13 +5847,43 @@ export default function Home() {
 
     const applyRoute = async (): Promise<void> => {
       const requestId = ++routeRequestId;
-      const routeIsCurrent = () => !cancelled && requestId === routeRequestId;
+      const profileRevision = profileNavigationRevisionRef.current;
+      const routeIsCurrent = () => !cancelled && requestId === routeRequestId
+        && profileRevision === profileNavigationRevisionRef.current;
       let leavingForCanonicalRoute = false;
       try {
         const route = routeFromLocation(
           window.location.pathname,
           window.location.hostname,
         );
+        if (route.kind === "landing" || (route.kind === "edit" &&
+            readerCreateEntry(window.location.search) === "landing" && authStatus !== "signed-in")) {
+          if (authStatus === "signed-in") {
+            // Canonical private routing still happens only after verification.
+            setBrowserPath(`/edit/${makeId()}`, true);
+            await applyRoute();
+          } else {
+            if (route.kind !== "landing") setBrowserPath("/start", true);
+            const showLanding = () => {
+              setAuthStep("landing");
+              setArrivingFromReader(true);
+              setAuthenticationRequired(true);
+              setPublicProfile(null);
+              setOpenedPublishedStrip(null);
+              setView("library");
+            };
+            if (readerReturnRef.current && !readerLandingCleanupRef.current) {
+              readerLandingCleanupRef.current = startReaderLandingTransition(() => flushSync(showLanding));
+            } else showLanding();
+          }
+          return;
+        }
+        if (route.kind === "edit" && onboardingEditorHandoffRef.current === route.id) {
+          onboardingEditorHandoffRef.current = null;
+          setView("edit");
+          window.scrollTo({ top: 0, behavior: "instant" });
+          return;
+        }
         const workspaceUrl = workspaceRedirect(window.location, authStatus === "signed-in" ? authUser?.username : null);
         if (workspaceUrl) {
           // Browser storage is origin-scoped. Preserve any pre-account local
@@ -5753,7 +5899,23 @@ export default function Home() {
           return;
         }
         if (route.kind === "published") {
-          setAuthenticationRequired(false);
+          const previous = readerReturnRef.current;
+          if (previous?.ready && previous.owner === libraryOwnerId && previous.strip.id === route.id &&
+              (!route.username || previous.strip.username?.toLowerCase() === route.username)) {
+            // Back restores the already-decoded reader in one commit. No
+            // temporary profile screen, fetch, or second loading entrance.
+            flushSync(() => {
+              setAuthenticationRequired(false);
+              setPublicProfile(null);
+              setOpenedPublishedStrip(previous.strip);
+              setMediaLoadStatus(previous.media);
+              setPublishedCoverSettledKey(previous.strip.id);
+              setPublishedLoaderDismissedKey(previous.strip.id);
+              setView("published");
+            });
+            window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+            return;
+          }
           try {
             const response = await fetch(`/api/strips/${encodeURIComponent(route.id)}`, {
               cache: "no-store",
@@ -5779,6 +5941,7 @@ export default function Home() {
             }
             setPublishedCoverSettledKey(null);
             setPublishedLoaderDismissedKey(null);
+            setAuthenticationRequired(false);
             setOpenedPublishedStrip(data.strip);
             setView("published");
             window.scrollTo({ top: 0, behavior: "auto" });
@@ -5819,7 +5982,7 @@ export default function Home() {
             }
             if (!response.ok) throw new Error("Public profile request failed");
             const data = await response.json() as Omit<PublicProfileState, "status">;
-            const strips = await prepareLibrarySummaries(data.strips);
+            const strips = prepareLibrarySummaries(data.strips);
             if (!routeIsCurrent()) return;
             setPublicProfile({ ...data, strips, status: "ready" });
           } catch {
@@ -6000,7 +6163,7 @@ export default function Home() {
       initialRouteHandledRef.current = false;
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [authStatus, libraryOwnerId, needsAuthUsername, needsAuthBackground, authUser?.username]);
+  }, [authStatus, libraryOwnerId, needsAuthUsername, needsAuthOnboarding, authUser?.username]);
 
   const publish = async () => {
     if (!hasContent) {
@@ -6031,8 +6194,18 @@ export default function Home() {
     const publishedAt = Date.now();
     pageTransitionInFlightRef.current = true;
     setPublishing(true);
+    // Supersede queued autosaves before the final, serialized draft save.
+    ++draftSaveSequenceRef.current;
     try {
-      const uploadBlocks = await prepareStickerUploads(blocks);
+      let uploadBlocks = await prepareStickerUploads(blocks);
+      if (currentDraftId) {
+        const saved = await draftSaveQueueRef.current!.save<StripBlock, DraftStripSummary>({
+          id: currentDraftId, title: stripTitle, blocks: uploadBlocks, endingStyle,
+          createdAt: currentDraftCreatedAt || Date.now(), updatedAt: Date.now(),
+        });
+        if (!saved) throw new DraftSaveError("Couldn’t save the videos before publishing. Try again.");
+        uploadBlocks = saved.blocks;
+      }
       const response = await fetch("/api/strips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -6048,18 +6221,15 @@ export default function Home() {
       });
       if (!response.ok) throw new Error("Publish request failed");
       const data = (await response.json()) as {
-        strip: PublishedStripSummary;
+        strip: PublishedStripDetail;
       };
       setPublishedStrips((current) => [
         data.strip,
         ...current.filter((strip) => strip.id !== data.strip.id),
       ]);
-      setOpenedPublishedStrip({
-        ...data.strip,
-        blocks,
-        endingStyle,
-        viewerIsOwner: true,
-      });
+      // Use the committed publication, never the editor's draft/blob URLs.
+      // Draft media is deleted below and local blobs are released on exit.
+      setOpenedPublishedStrip(data.strip);
       if (currentDraftId) {
         try {
           await fetch(
@@ -6089,8 +6259,8 @@ export default function Home() {
       setCoverColorShape("square");
       setBrowserPath(`/share/${encodeURIComponent(stripId)}`);
       await transitionToView("share", "forward", "top", false);
-    } catch {
-      setNotice("Couldn’t publish this Strip. Try again.");
+    } catch (error) {
+      setNotice(error instanceof DraftSaveError ? error.message : "Couldn’t publish this Strip. Try again.");
     } finally {
       setPublishing(false);
       pageTransitionInFlightRef.current = false;
@@ -6147,9 +6317,38 @@ export default function Home() {
   };
 
   const makeOwnStripFromReader = () => {
-    window.location.assign(
-      `${accountAppOrigin(window.location, authUser?.username)}/edit/${encodeURIComponent(makeId())}`,
-    );
+    if (pageTransitionInFlightRef.current || authStatus === "loading") return;
+    const signedIn = authStatus === "signed-in";
+    if (!signedIn) {
+      if (readerLandingCleanupRef.current) return;
+      if (openedPublishedStrip) readerReturnRef.current = {
+        strip: openedPublishedStrip, ready: publishedContentCanReveal, owner: libraryOwnerId, media: mediaLoadStatus,
+      };
+      // A public landing is safe on any account host. Do not reload the site or
+      // pass through an editor route just to show this public introduction.
+      readerLandingCleanupRef.current = startReaderLandingTransition(() => flushSync(() => {
+        setArrivingFromReader(true);
+        setBrowserPath("/start");
+        setAuthStep("landing");
+        setAuthenticationRequired(true);
+        setOpenedPublishedStrip(null);
+        setPublicProfile(null);
+        setNotice("");
+        setView("library");
+      }));
+      return;
+    }
+    const destination = readerCreateUrl(accountAppOrigin(window.location, authUser?.username), makeId(), signedIn);
+    if (destination.origin !== window.location.origin) {
+      // Cross-account navigation still belongs to the correct origin. Carry
+      // only a visual-entry hint so the destination paints before hydration.
+      pageTransitionInFlightRef.current = true;
+      window.location.assign(destination.href);
+      return;
+    }
+    setArrivingFromReader(true);
+    beginNewStrip();
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   const editPublishedStripFromReader = async () => {
@@ -6236,45 +6435,26 @@ export default function Home() {
     link.remove();
   };
 
-  const shareStoryToInstagram = async () => {
+  const saveStoryPoster = () => {
+    if (!storyAssetFile || !openedPublishedStrip) return;
+    downloadStoryAsset();
+    posters.remember(storyAssetFile);
+    if (!window.matchMedia("(min-width: 900px)").matches) setStoryInstagramFile(storyAssetFile);
+    void copyPublishedStripLink();
+  };
+
+  const shareStoryLinkFromPoster = async () => {
     if (storyShareInFlightRef.current || !openedPublishedStrip) return;
-    if (!storyAssetFile) {
-      setNotice(storyAssetLoading ? "Finishing your share image…" : "Try again.");
-      return;
-    }
-    const shareData: ShareData = { files: [storyAssetFile] };
-    const desktopShare = window.matchMedia("(min-width: 900px)").matches;
     const attempt = ++storyShareAttemptRef.current;
     storyShareInFlightRef.current = true;
-    setStoryShareConfirmation(null);
-    setStoryInstagramFile(null);
     setNotice("");
     try {
-      const { copied, finished } = beginStoryShare(shareData, publicStripUrl(openedPublishedStrip), {
-        open: () => flushSync(() => {
-          setNotice("");
-          setStoryShareSheetOpen(true);
-        }),
-        close: () => {
-          if (storyShareAttemptRef.current === attempt) setStoryShareSheetOpen(false);
-        },
-        download: () => {
-          if (storyShareAttemptRef.current === attempt) downloadStoryAsset();
-        },
-      }, desktopShare ? { clipboard: navigator.clipboard } : navigator);
-      const result = await finished;
-      if (result !== "cancelled") posters.remember(storyAssetFile);
-      if (storyShareAttemptRef.current === attempt) {
-        if (result !== "cancelled" && !desktopShare) setStoryInstagramFile(storyAssetFile);
-        setStoryShareConfirmation(getStoryShareConfirmation(result, null));
-      }
-      // A slow clipboard permission response must not leave the backdrop stuck.
-      void copied.then(success => {
-        if (storyShareAttemptRef.current !== attempt) return;
-        setStoryShareConfirmation(getStoryShareConfirmation(result, success));
-      });
+      flushSync(() => setStoryShareSheetOpen(true));
+      const result = await shareStoryLink(publicStripUrl(openedPublishedStrip));
+      if (storyShareAttemptRef.current === attempt && result === "copied")
+        setStoryShareConfirmation({ image: null, copied: true });
     } catch {
-      if (storyShareAttemptRef.current === attempt) setNotice("Couldn’t share this poster. Try again.");
+      if (storyShareAttemptRef.current === attempt) setNotice("Couldn’t share this link. Try Copy link.");
     } finally {
       if (storyShareAttemptRef.current === attempt) {
         storyShareInFlightRef.current = false;
@@ -6596,9 +6776,7 @@ export default function Home() {
         }
         onRemove={() => setPendingDeleteId(block.id)}
         isTextSticker={block.type === "sticker" && Boolean(block.textSticker)}
-        onConfirmStickerText={block.type === "sticker" && typingTextStickerId === block.id ? () => {
-          setActiveTextTool(null); finishTextSticker(block.id);
-        } : undefined}
+        textTyping={block.type === "sticker" && typingTextStickerId === block.id}
         onTextTool={
           block.type === "text" || (block.type === "sticker" && block.textSticker)
             ? (tool) => {
@@ -6621,14 +6799,17 @@ export default function Home() {
         videoMuted={block.type === "video" ? block.audioEnabled === false : undefined}
         surfaceColor={
           block.type === "text"
-            ? block.backgroundColor ?? DEFAULT_BACKGROUND
+            ? textTexture(block.backgroundTexture)
+              ? imageTrayColors[`${block.id}:${block.backgroundTexture}`] ?? "#ffffff"
+              : block.backgroundColor ?? DEFAULT_BACKGROUND
             : block.type === "image"
               ? imageTrayColors[block.id]
               : block.type === "video"
                 ? imageTrayColors[block.id] ?? "#000000"
               : undefined
         }
-        imageSrc={block.type === "image" ? block.src : undefined}
+        imageSrc={block.type === "image" ? block.src : block.type === "text" ? textTexture(block.backgroundTexture)?.src : undefined}
+        textureSurface={block.type === "text" && Boolean(textTexture(block.backgroundTexture))}
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
         showTopEdge={!(block.type === "text" && index === firstFlowBlockIndex)}
         closing={heightCropSession?.blockId === block.id}
@@ -6659,45 +6840,19 @@ export default function Home() {
     isEditing: boolean,
     sourceBlocks: StripBlock[] = blocks,
   ) => {
-    const mediaBlockIds = sourceBlocks.flatMap((block) =>
-      block.type === "image" || block.type === "video" ? [block.id] : [],
-    );
-    const shouldLoadMedia = (blockId: string) => {
-      // Once a resource has settled, never detach its src because another
-      // block is pending or the same editor canvas changes presentation mode.
-      if (mediaLoadStatus[blockId] !== undefined || importedMediaSizes[blockId]) return true;
-      const mediaIndex = mediaBlockIds.indexOf(blockId);
-      if (!isEditing) return mediaIndex >= 0;
-      return (
-        mediaIndex >= 0 &&
-        mediaBlockIds
-          .slice(0, mediaIndex)
-          .every((precedingId) => mediaLoadStatus[precedingId] !== undefined)
-      );
-    };
     const stickerFloor = sourceBlocks.reduce(
       (floor, block) =>
         block.type === "sticker" ? Math.max(floor, block.y + 180) : floor,
       0,
     );
-    const firstFlowBlock = sourceBlocks.find((block) => block.type !== "sticker");
     const showsEndingCard = !isEditing && view !== "published";
-    const trailingFlowBlock = [...sourceBlocks]
-      .reverse()
-      .find((block) => block.type !== "sticker");
-    const endingFollowsMedia =
-      showsEndingCard &&
-      (trailingFlowBlock?.type === "image" || trailingFlowBlock?.type === "video");
-    const endingFollowsText = showsEndingCard && trailingFlowBlock?.type === "text";
     const canvasMinHeight = !isEditing && stickerFloor > 0 ? `${stickerFloor}px` : undefined;
 
     return (
       <>
       <div
         ref={stripCanvasRef}
-        className={`strip-canvas ${isEditing && mediaBatchRevealIds.length ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""} ${
-          endingFollowsMedia ? "has-trailing-media" : ""
-        } ${endingFollowsText ? "has-trailing-text" : ""}`}
+        className={`strip-canvas ${isEditing && mediaBatchRevealIds.length ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""}`}
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
         {(sourceBlocks.length === 0 || (!mediaBatchRevealStarted && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing ? (
@@ -6707,6 +6862,7 @@ export default function Home() {
         ) : null}
 
         {sourceBlocks.map((block, index) => {
+        const intrinsicSize = importedMediaSizes[block.id] ?? publishFlowMediaSizesRef.current[block.id];
         const heightCrop =
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, isEditing ? heightCropSession : null)
@@ -6765,6 +6921,21 @@ export default function Home() {
             >
               {isEditing ? renderBlockControls(block, index) : null}
               <div className="block-crop-viewport">
+                {textTexture(block.backgroundTexture) ? <TextBlockTexture id={block.backgroundTexture!}
+                  controlsVisible={isEditing && selectedBlockId === block.id}
+                  onReady={(status, image) => {
+                    setMediaLoadStatus(current => current[block.id] === status ? current : { ...current, [block.id]: status });
+                    if (status !== "loaded") return;
+                    const viewport = image.parentElement;
+                    const controls = viewport?.parentElement?.querySelector<HTMLElement>(".block-controls.has-texture-surface");
+                    const crop = controls && viewport
+                      ? textureControlsGeometry(image.naturalWidth, image.naturalHeight, viewport.clientWidth, viewport.clientHeight,
+                        controls.clientWidth, controls.clientHeight, parseFloat(getComputedStyle(controls).top) || 0).source
+                      : textureCoverRect(image.naturalWidth, image.naturalHeight, image.clientWidth, image.clientHeight);
+                    const color = sampleVisualBottomColor(image, image.naturalWidth, image.naturalHeight, crop, controls ? 1 : 0.06);
+                    const key = `${block.id}:${block.backgroundTexture}`;
+                    if (color) setImageTrayColors(current => current[key] === color ? current : { ...current, [key]: color });
+                  }} /> : null}
                 <div className="block-crop-content text-block-content">
                   {textIsBeingEdited ? (
                     <textarea
@@ -6837,16 +7008,12 @@ export default function Home() {
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
-              } ${
-                heightCrop?.isEditing && firstFlowBlock?.id === block.id
-                  ? "has-top-crop-clearance"
-                  : ""
               }`}
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] === undefined}
               style={{
-                ...(mediaLoadStatus[block.id] === undefined && block.height && heightCrop?.height === undefined ? { minHeight: block.height } : {}),
+                ...(mediaLoadStatus[block.id] === undefined && heightCrop?.height === undefined ? { minHeight: block.height ?? (view === "edit" ? 480 : undefined) } : {}),
               } as CSSProperties}
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
@@ -6881,14 +7048,13 @@ export default function Home() {
                       : undefined
                   }
                 >
-                  {/* Inline preview keeps this editing session's decoded
-                      original. Standalone readers still use bounded variants. */}
-                  <img
-                    width={importedMediaSizes[block.id]?.width}
-                    height={importedMediaSizes[block.id]?.height}
-                    {...(shouldLoadMedia(block.id)
-                      ? view === "edit" ? { src: block.src } : getReaderImageProps(block.src)
-                      : {})}
+                  {/* All three views keep the same decoded display resource.
+                      The authored source remains untouched in the saved block. */}
+                  <ReaderImage
+                    blockId={block.id}
+                    width={intrinsicSize?.width}
+                    height={intrinsicSize?.height}
+                    {...getReaderImageProps(block.src)}
                     alt={block.alt}
                     draggable={isEditing ? false : undefined}
                     onDragStart={event => { if (isEditing) event.preventDefault(); }}
@@ -6900,13 +7066,9 @@ export default function Home() {
                         : !isEditing
                           ? undefined
                           : {
-                              aspectRatio: importedMediaSizes[block.id]
-                                ? `auto ${importedMediaSizes[block.id].width} / ${importedMediaSizes[block.id].height}`
+                              aspectRatio: intrinsicSize
+                                ? `auto ${intrinsicSize.width} / ${intrinsicSize.height}`
                                 : undefined,
-                              visibility:
-                                mediaLoadStatus[block.id] === "loaded"
-                                  ? "visible"
-                                  : "hidden",
                             }
                     }
                     onLoad={(event) => {
@@ -6919,6 +7081,7 @@ export default function Home() {
                           if (
                             isEditing &&
                             !importedMediaSizes[block.id] &&
+                            !publishFlowMediaSizesRef.current[block.id] &&
                             !suppressSelectedBlockAutoFocusRef.current &&
                             selectedBlockId === block.id
                           ) {
@@ -6937,7 +7100,7 @@ export default function Home() {
                     }}
                     onError={() => settleMediaLoad(block.id, false)}
                   />
-                  {isEditing ? (
+                  {isEditing && mediaLoadStatus[block.id] === "loaded" ? (
                     <BlockHeightReporter
                       blockId={block.id}
                       onHeight={recordBlockHeight}
@@ -6948,13 +7111,6 @@ export default function Home() {
               {isEditing && heightCrop
                 ? renderHeightCropHandles(block, heightCrop)
                 : null}
-              {!isEditing && trailingFlowBlock?.id === block.id ? (
-                <MediaEdgeExtension
-                  src={block.src}
-                  cropTop={heightCrop?.isEditing ? 0 : heightCrop?.top}
-                  cropHeight={cropViewportHeight}
-                />
-              ) : null}
             </figure>
           );
         }
@@ -6965,8 +7121,12 @@ export default function Home() {
               key={block.id}
               block={block}
               textTyping={typingTextStickerId === block.id}
+              textCreating={newTextStickerId === block.id}
               onTextChange={content => updateTextSticker(block.id, { content })}
-              onTextFinish={() => finishTextSticker(block.id)}
+              onTextFinish={keepToolsOpen => {
+                if (!keepToolsOpen) setActiveTextTool(null);
+                finishTextSticker(block.id);
+              }}
               onTextEdit={() => { setTypingTextStickerId(block.id); setSelectedBlockId(block.id); setActiveTextTool(null); }}
               isEditing={isEditing}
               isSelected={selectedBlockId === block.id}
@@ -7038,7 +7198,6 @@ export default function Home() {
           <StripVideoBlock
             key={block.id}
             block={block}
-            extendBottomEdge={!isEditing && trailingFlowBlock?.id === block.id}
             isEditing={isEditing}
             isSelected={selectedBlockId === block.id}
             muted={
@@ -7068,11 +7227,11 @@ export default function Home() {
                   : { ...current, [block.id]: color },
               );
             }}
-            shouldLoad={shouldLoadMedia(block.id)}
+            shouldLoad
             isLoaded={mediaLoadStatus[block.id] === "loaded"}
             loadSettled={mediaLoadStatus[block.id] !== undefined}
             reservedHeight={block.height}
-            intrinsicSize={importedMediaSizes[block.id]}
+            intrinsicSize={intrinsicSize}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
             importReady={mediaBatchRevealStarted}
             cropTop={heightCrop?.top}
@@ -7085,6 +7244,7 @@ export default function Home() {
                 isEditing &&
                 loadedSuccessfully &&
                 !importedMediaSizes[block.id] &&
+                !publishFlowMediaSizesRef.current[block.id] &&
                 !suppressSelectedBlockAutoFocusRef.current &&
                 selectedBlockId === block.id
               ) {
@@ -7093,7 +7253,7 @@ export default function Home() {
                 );
               }
             }}
-            onHeight={isEditing ? recordBlockHeight : undefined}
+            onHeight={isEditing && mediaLoadStatus[block.id] === "loaded" ? recordBlockHeight : undefined}
             controls={isEditing ? renderBlockControls(block, index) : null}
             heightCropHandles={
               isEditing && heightCrop
@@ -7108,7 +7268,7 @@ export default function Home() {
           <StripEndingSheet
             preview
             username={authUser?.username}
-            cornerColor={endingFollowsText ? trailingFlowBlock.backgroundColor ?? DEFAULT_BACKGROUND : undefined}
+            stickerSeed={sourceBlocks[0]?.id ?? currentDraftId ?? undefined}
           >
             <StripEndActions
               primaryAction="edit"
@@ -7211,11 +7371,14 @@ export default function Home() {
 
 
   const entranceStrip = openingCover?.strip ?? openedPublishedStrip;
+  // Local-only design preview, never stored on the Strip.
+  const longLoaderTitlePreview = process.env.NODE_ENV === "development" && typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("loader-title-preview") === "long";
   const coverEntranceLayer = entranceStrip && (openingCover || publishedLoaderIsVisible) && typeof document !== "undefined"
     ? createPortal(
       <StripEntrance key={entranceStrip.id}
         cover={entranceStrip.cover}
-        title={entranceStrip.title}
+        title={longLoaderTitlePreview ? "The kind of weekend you wish could last a little longer" : entranceStrip.title}
         origin={openingCover?.origin}
         dock={openingCover?.dock}
         backgroundColor={openingCover?.background ?? openedPublishedStrip?.profileBackground}
@@ -7225,7 +7388,7 @@ export default function Home() {
         settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
           (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}
         totalAssets={publishedAssetIds.length + (entranceStrip.cover.kind === "image" ? 1 : 0)}
-        revealing={view === "published" && publishedLoaderPhase === "revealing"}
+        revealing={!longLoaderTitlePreview && view === "published" && publishedLoaderPhase === "revealing"}
         onCoverSettled={() => setPublishedCoverSettledKey(entranceStrip.id)}
         onExitComplete={() => {
           setPublishedLoaderDismissedKey(entranceStrip.id);
@@ -7235,18 +7398,16 @@ export default function Home() {
         }}
       />, document.body, "strip-cover-entrance") : null;
 
-  if (needsAuthBackground) return <OnboardingBackground color={authBackground}
+  if (needsAuthOnboarding) return <>
+    {needsAuthBackground ? <OnboardingBackground color={authBackground}
     onChange={setAuthBackground} onContinue={() => void finishBackgroundOnboarding()}
     onBack={returnBackgroundToUsername}
     pending={stripProfile.pending} loading={stripProfile.loading || stripProfile.loadFailed}
-    error={stripProfile.error} onRetry={stripProfile.retry} />;
+    error={stripProfile.error} onRetry={stripProfile.retry} /> : null}
+    <OnboardingStrip active={needsAuthCreation} color={authBackground} step={creationStep} onStepChange={setCreationStep}
+      onBack={() => setAuthStep("background")} onComplete={finishFirstStripOnboarding} />
+  </>;
 
-  const navigateProfilePage = (destination: ProfileView) => {
-    if (destination === "library") void returnToLibrary();
-    else if (destination === "drafts") void openDraftLibrary();
-    else if (destination === "history") void openHistory();
-    else void openSettings();
-  };
   const reloadProfileProps = {
     view: initialRouteReady && (view === "library" || view === "drafts" || view === "history" || view === "settings") ? view : undefined,
     controller: stripProfile,
@@ -7255,17 +7416,21 @@ export default function Home() {
       : authStatus === "signed-in" && !visitingProfileHost && !stripProfile.loading && !stripProfile.loadFailed ? stripProfile.profile : undefined,
     username: publicProfile?.username ?? (visitingProfileHost ? profileHostUsername : authUser?.username),
     publicView: authStatus === "loading" ? undefined : visitingProfileHost || viewingPublicProfile,
-    onNavigate: authStatus === "signed-in" && !visitingProfileHost ? navigateProfilePage : undefined,
+    onNavigate: authStatus === "signed-in" && !visitingProfileHost ? openLibrarySection : undefined,
     onNew: authStatus === "signed-in" && !visitingProfileHost ? beginNewStrip : undefined,
   };
+  const renderProfileReload = () => <>
+    {coverEntranceLayer}{legacyTransitionLayer}{desktopBackControl}
+    <ProfileReload {...reloadProfileProps} />
+  </>;
   if (!initialRouteReady && !needsAuthUsername && !(view === "edit" && editorEntrance.active)) {
-    return <ProfileReload {...reloadProfileProps} />;
+    return renderProfileReload();
   }
-  if (profilePageIsLoading) return <ProfileReload {...reloadProfileProps} />;
+  if (profilePageIsLoading) return renderProfileReload();
 
   if (needsAuthUsername || (authenticationRequired && authStatus !== "signed-in")) {
     return (
-      <main className={`app-shell auth-mode${authFlowStep === "landing" ? " auth-landing-mode" : " auth-signin-mode"}`}>
+      <main className={`app-shell auth-mode${authFlowStep === "landing" ? " auth-landing-mode" : " auth-signin-mode"}${arrivingFromReader && authFlowStep === "landing" ? " is-reader-create-arrival" : ""}`}>
         <section
           className={`auth-shell auth-step-${authFlowStep} auth-transition-${authTransitionDirection}${authFlowStep === "phone" && authStickerRevealed ? " auth-sticker-revealed" : ""}`}
           aria-labelledby="auth-heading"
@@ -7407,16 +7572,7 @@ export default function Home() {
               </div>
             </>
           )}
-          {authFlowStep === "landing" ? <footer className="composer-dock auth-action-dock">
-            <div className="dock-controls dock-controls-current auth-action-controls">
-                <>
-                  <HapticStartButton onStart={beginSignIn} />
-                  <p className="auth-action-terms">
-                    By continuing, you agree to our Terms &amp; Privacy Policy.
-                  </p>
-                </>
-            </div>
-          </footer> : null}
+          {authFlowStep === "landing" ? <LandingStartDock onStart={beginSignIn} /> : null}
         </section>
       </main>
     );
@@ -7439,10 +7595,6 @@ export default function Home() {
         : isDraftLibrary
           ? draftStrips
           : publicProfile?.strips ?? publishedStrips;
-    const libraryColumns = [
-      libraryItems.filter((_, index) => index % 2 === 0),
-      libraryItems.filter((_, index) => index % 2 === 1),
-    ];
     const libraryItemOrder = new Map(
       libraryItems.map((item, index) => [item.id, index]),
     );
@@ -7462,7 +7614,8 @@ export default function Home() {
         strip.title ||
         (isDraft ? draftFallbackTitle(strip.createdAt) : "Untitled");
       const coverOutline = strip.cover.kind === "color"
-        ? profileCoverOutline(strip.cover.color, visibleProfile.background) : undefined;
+        ? profileCoverOutline(strip.cover.color, visibleProfile.background,
+            profileTextColor(visibleProfile, stripProfile.editing)) : undefined;
       const coverStyle: CSSProperties | undefined =
         strip.cover.kind === "color"
           ? { backgroundColor: strip.cover.color,
@@ -7479,6 +7632,7 @@ export default function Home() {
         >
           <HapticActionButton
             className="library-card-open-button"
+            preserveScroll
             feedback={stripProfile.editing}
             onClick={(target) => {
               if (stripProfile.editing) {
@@ -7494,7 +7648,8 @@ export default function Home() {
             }
             label={`Open ${cardTitle}`}
           >
-            <div
+            {strip.cover.kind === "image" ? <LibraryCoverImage src={strip.cover.src} alt={strip.cover.alt}
+              aspectRatio={strip.cover.aspectRatio} eager={itemOrder < 6} order={itemOrder} /> : <div
               className={`library-cover library-cover-${strip.cover.kind} ${
                 strip.cover.kind === "color"
                   ? `library-cover-${strip.cover.shape} ${
@@ -7505,16 +7660,7 @@ export default function Home() {
                   : ""
               }`}
               style={coverStyle}
-            >
-              {strip.cover.kind === "image" ? (
-                <img
-                  src={strip.cover.src}
-                  alt={strip.cover.alt}
-                  loading={itemOrder < 6 ? "eager" : "lazy"}
-                  decoding="async"
-                />
-              ) : null}
-            </div>
+            />}
             <h2>{cardTitle}</h2>
           </HapticActionButton>
           {isDraft ? (
@@ -7534,25 +7680,26 @@ export default function Home() {
 
     return (
       <>
-        {coverEntranceLayer}
-        {legacyTransitionLayer}
-        {desktopBackControl}
-        <main
-          inert={openingCover !== null}
-          className={`app-shell library-mode profile-theme-mode ${instantLibraryNavigation ? "is-instant-navigation" : ""} ${view === "library" ? "profile-mode" : ""} ${viewingPublicProfile ? "public-profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
+      {coverEntranceLayer}
+      {legacyTransitionLayer}
+      {desktopBackControl}
+      <ProfileReload {...reloadProfileProps} loaded
+        hideTools={Boolean(viewingPublicProfile || openingCover)}
+        hideAdd={Boolean(viewingPublicProfile || stripProfile.editing)}
+        dockClassName={view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}
+        navigation={view === "library" && stripProfile.editing ? <ProfileTools controller={stripProfile} /> :
+          <ProfileNavigation view={view} onNavigate={openLibrarySection} />}
+        mainProps={{
+          inert: openingCover !== null,
+          className: `app-shell library-mode profile-theme-mode ${instantLibraryNavigation ? "is-instant-navigation" : ""} ${view === "library" ? "profile-mode" : ""} ${viewingPublicProfile ? "public-profile-mode" : ""} ${stripProfile.editing ? "is-profile-editing" : ""} ${openingCover ? "is-opening-strip" : ""} ${
             isDraftLibrary ? "drafts-library-mode" : ""
           } ${isHistory ? "history-library-mode" : ""} ${
             isSettings ? "settings-mode" : ""
-          }`}
-          style={profilePageStyle({ profile: visibleProfile, editing: !viewingPublicProfile && stripProfile.editing })}
-        >
+          }`,
+          style: profilePageStyle({ profile: visibleProfile, editing: !viewingPublicProfile && stripProfile.editing }),
+        }}>
           <section
             className={`strip-library ${legacyPageEnterClass}`}
-            style={
-              {
-                "--library-tab-scroll-inset": `${libraryScrollInsetRef.current}px`,
-              } as CSSProperties
-            }
           >
             {view === "library" ? <ProfileHeader controller={stripProfile} username={publicProfile?.username ?? authUser?.username ?? null} publicProfile={publicProfile?.profile} /> : <header className="library-header">
               <div className="profile-name">
@@ -7646,49 +7793,18 @@ export default function Home() {
                 <span>{isDraftLibrary ? "Strips you’re working on will appear here." : "Strips you open will appear here."}</span>
               </div>
             ) : (
-              <div
-                className="library-grid"
-                aria-label={
+              <LibraryGrid key={view} items={libraryItems} renderCard={renderLibraryCard}
+                label={
                   isDraftLibrary
                     ? "Your drafts"
                     : isHistory
                       ? "Your viewed Strips"
                       : "Published Strips"
                 }
-                aria-busy="false"
-              >
-                {libraryColumns.map((column, columnIndex) => (
-                  <div
-                    className="library-column"
-                    key={`${view}-library-column-${columnIndex}`}
-                  >
-                    {column.map(renderLibraryCard)}
-                  </div>
-                ))}
-              </div>
+              />
             )}
           </section>
 
-          {!viewingPublicProfile && !isSettings && !stripProfile.editing ? (
-            <button
-              className="library-add-button"
-              type="button"
-              onClick={beginNewStrip}
-              aria-label="Create a new Strip"
-            >
-              <Plus aria-hidden="true" />
-            </button>
-          ) : null}
-
-          {/* Remove the fixed surface entirely: Safari retains its white
-              edge paint even with visibility:hidden or an offscreen transform. */}
-          {!viewingPublicProfile && !openingCover ? <footer
-            key="persistent-composer-dock"
-            className={`composer-dock app-navigation-dock ${view === "library" && stripProfile.editing ? "profile-editor-dock" : ""}`}
-          >
-            {view === "library" && stripProfile.editing ? <ProfileTools controller={stripProfile} /> : <>{dockTransitionLayer}
-            <ProfileNavigation className={currentDockControlsClass} view={view} onNavigate={navigateProfilePage} /></>}
-          </footer> : null}
           {pendingDraftDelete ? (
             <DeleteConfirmationModal
               title="Delete this draft?"
@@ -7699,7 +7815,7 @@ export default function Home() {
             />
           ) : null}
           {notice ? <div className="notice">{notice}</div> : null}
-        </main>
+      </ProfileReload>
       </>
     );
   }
@@ -7708,13 +7824,12 @@ export default function Home() {
     const storyInstagramReady = Boolean(!storyShareSheetOpen && !storyAssetLoading && storyAssetFile && storyInstagramFile === storyAssetFile);
     return (
       <>
-        <link rel="preload" as="image" href="/apple-messages.jpg" />
         {legacyTransitionLayer}
         {desktopBackControl}
         <main className="app-shell share-mode" inert={storyShareSheetOpen} data-story-ready={storyInstagramReady}>
           <div
             className={`top-safe-area-anchor ${legacyPageEnterClass}`}
-            style={{ backgroundColor: DEFAULT_BACKGROUND }}
+            style={{ backgroundColor: topSafeAreaColor }}
             aria-hidden="true"
           />
           <section
@@ -7730,7 +7845,12 @@ export default function Home() {
             <div className="poster-picker-meta">
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}
               <div className="share-link-anchor">
+                <div className="poster-link-actions">
                 <CopyStripLinkButton copied={storyShareConfirmation?.copied} onCopy={() => void copyPublishedStripLink()} />
+                <button className="share-link-button" type="button" onClick={() => void shareStoryLinkFromPoster()}>
+                  <Share aria-hidden="true" /><span>Share link</span>
+                </button>
+                </div>
               </div>
             </div>
           </section>
@@ -7738,10 +7858,10 @@ export default function Home() {
           <footer className="composer-dock share-dock publish-flow-dock">
             <StoryShareControls
               instagramReady={storyInstagramReady}
-              shareLabel={storyAssetLoading ? <>Preparing<AnimatedEllipsis /></> : "Share"}
+              shareLabel={storyAssetLoading ? <>Preparing<AnimatedEllipsis /></> : "Save image"}
               disabled={storyAssetLoading || !storyAssetFile || storyShareSheetOpen}
               onBack={() => void returnToLibrary()}
-              onShare={() => void shareStoryToInstagram()}
+              onShare={saveStoryPoster}
             />
           </footer>
           {notice ? <div className="notice">{notice}</div> : null}
@@ -7750,14 +7870,8 @@ export default function Home() {
           <StoryShareBackdrop open={storyShareSheetOpen}>
             <div className="story-share-hint">
               <div className="story-share-option">
-                <StoryShareSaveIcon />
-                <p>Save to post</p>
-              </div>
-              <span className="story-share-or">or</span>
-              <div className="story-share-option">
-                {/* Official Apple Messages artwork: apps.apple.com/app/id1146560473. */}
-                <img className="story-share-messages-icon" src="/apple-messages.jpg" width="56" height="56" alt="" />
-                <p>Send to friends</p>
+                <Link2 aria-hidden="true" />
+                <p>Share your Strip link</p>
               </div>
             </div>
           </StoryShareBackdrop>,
@@ -7802,6 +7916,7 @@ export default function Home() {
               />
             </label>
             <p className="title-question-hint">Optional, only if you want!</p>
+            <TitleKeyboardPublish publishing={publishing} onPublish={() => void publish()} />
           </div>
         </section>
         {notice ? <div className="notice">{notice}</div> : null}
@@ -8205,26 +8320,9 @@ export default function Home() {
         ? openedPublishedStrip.blocks
         : blocks;
     if (isPublished) {
-      const trailingPublishedBlock = [...publishedBlocks]
-        .reverse()
-        .find((block) => block.type !== "sticker");
-      const publishedEndsWithMedia =
-        trailingPublishedBlock?.type === "image" ||
-        trailingPublishedBlock?.type === "video";
-      const publishedEndsWithVideo = trailingPublishedBlock?.type === "video";
-      const publishedEndsWithText = trailingPublishedBlock?.type === "text";
       const publishedViewerCanEdit =
         authStatus === "signed-in" &&
         openedPublishedStrip?.viewerIsOwner === true;
-      const publishedStripStyle = {
-        "--ending-background": "#FFFFFF",
-        "--ending-corner-color": publishedEndsWithText
-          ? trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND
-          : undefined,
-        "--ending-foreground": "#000000",
-        "--ending-button": "#000000",
-        "--ending-button-foreground": "#FFFFFF",
-      } as CSSProperties;
       return (
         <>
           {coverEntranceLayer}
@@ -8244,25 +8342,25 @@ export default function Home() {
             <article
               className={`published-strip published-strip-load-gate ${
                 publishedContentCanReveal ? "is-ready" : ""
-              } ${publishedEndsWithMedia ? "has-trailing-media" : ""} ${
-                publishedEndsWithVideo ? "has-trailing-video" : ""
-              } ${publishedEndsWithText ? "has-trailing-text" : ""
               } ${legacyPageEnterClass}`}
-              style={publishedStripStyle}
               aria-hidden={!publishedContentCanReveal}
               inert={!publishedContentCanReveal || openingPublishedEditor}
             >
-              {renderStrip(false, publishedBlocks)}
+              <ReaderMediaProvider key={openedPublishedStrip?.id} revealed={publishedContentCanReveal} required={publishedAssetIds}
+                restored={Boolean(readerReturnRef.current?.ready && readerReturnRef.current.strip.id === publishedStripLoadKey)}
+                onUpgradesComplete={() => { if (authStatus === "signed-out") void prepareLandingArt("hero"); }}>
+                {renderStrip(false, publishedBlocks)}
+              </ReaderMediaProvider>
               <StripEndingSheet
                 username={openedPublishedStrip?.username}
-                cornerColor={publishedEndsWithText ? trailingPublishedBlock.backgroundColor ?? DEFAULT_BACKGROUND : undefined}
+                stickerSeed={openedPublishedStrip?.blocks[0]?.id ?? openedPublishedStrip?.id}
               >
                 <StripEndActions
                   primaryAction={publishedViewerCanEdit ? "edit" : "create"}
                   primaryLabel={
                     publishedViewerCanEdit
                       ? "Edit Strip"
-                      : "Make a Strip"
+                      : "Make your own Strip"
                   }
                   onPrimary={() => {
                     if (publishedViewerCanEdit) {
@@ -8316,7 +8414,9 @@ export default function Home() {
           </header>
         ) : null}
         <article className={`published-strip ${legacyPageEnterClass}`}>
-          {renderStrip(false, publishedBlocks)}
+          <ReaderMediaProvider revealed required={[]}>
+            {renderStrip(false, publishedBlocks)}
+          </ReaderMediaProvider>
         </article>
         {notice === PREVIEW_MODE_NOTICE ? <TopStatusPill key={noticeRevision} pillRef={previewNoticeRef} /> :
           notice ? <div className={`notice${notice === noticeShakeMessage ? " is-repeated" : ""}`} role="status" key={noticeRevision}>{notice}</div> : null}
@@ -8336,13 +8436,13 @@ export default function Home() {
       <main
         aria-busy={editorEntrance.active || undefined}
         onClickCapture={(event) => {
-          if (!editorEntrance.active && !imagesAreLoading && !mediaImportRequestRef.current) return;
+          if (!editorEntrance.active && !editorTargetIsLoading(event.target)) return;
           event.preventDefault();
           event.stopPropagation();
           showEditorLoadingNotice(editorEntrance.active ? "Strip is loading" : "Images loading");
         }}
         onKeyDownCapture={(event) => {
-          if ((!editorEntrance.active && !imagesAreLoading && !mediaImportRequestRef.current) || (event.key !== "Enter" && event.key !== " ")) return;
+          if ((!editorEntrance.active && !editorTargetIsLoading(event.target)) || (event.key !== "Enter" && event.key !== " ")) return;
           event.preventDefault();
           event.stopPropagation();
           if (!event.repeat) showEditorLoadingNotice(editorEntrance.active ? "Strip is loading" : "Images loading");
@@ -8374,16 +8474,22 @@ export default function Home() {
           exitInlinePreviewAndSelect(blockId);
         }}
       >
-        {renderStrip(!inlinePreview)}
+        <ReaderMediaProvider key={currentDraftId ?? "editor"}
+          revealed={editorEntrance.phase !== "loading"}
+          required={[...editorEntrance.requiredIds, ...Object.keys(importedMediaSizes)]}>
+          {renderStrip(!inlinePreview)}
+        </ReaderMediaProvider>
       </div>
 
       {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} percent={editorEntrance.percent}
+        handoffColor={editorEntrance.handoffColor}
         onCountComplete={() => editorEntrance.completeCount(editorEntrance.request!)}
         revealing={editorEntrance.phase === "revealing"} /> : null}
 
       {!inlinePreview && !heightCropSession && selectedBlock?.type === "text" ? (
         <TextStyleSelector
           block={selectedBlock}
+          allowTextures
           tool={activeTextTool ?? lastTextTool}
           visible={activeTextTool !== null}
           onChange={(change) => updateTextStyle(selectedBlock.id, change)}
@@ -8399,9 +8505,11 @@ export default function Home() {
           onBack={() => setActiveTextTool(null)} />
       ) : null}
 
-      <PreviewDock preview={inlinePreview}>
+      <PreviewDock preview={inlinePreview} enter={arrivingFromReader}>
       <footer
         key="persistent-composer-dock"
+        inert={activeTextTool !== null}
+        aria-hidden={activeTextTool !== null || undefined}
         className={`composer-dock main-composer-dock ${
           editorDockEntering ? "is-entering-editor" : ""
         } ${activeTextTool ? "is-shifted" : ""} ${
@@ -8535,9 +8643,6 @@ export default function Home() {
         )}
       </footer>
       </PreviewDock>
-      {inlinePreview ? (
-        <div className="published-bottom-pocket-sampler" aria-hidden="true" />
-      ) : null}
       {pendingDeleteBlock ? (
         <DeleteConfirmationModal
           title={`Delete this ${

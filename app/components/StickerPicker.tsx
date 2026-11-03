@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, ImagePlus, Palette, Pipette, Sticker, Type, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ImagePlus, Palette, Pipette, Sticker, Type, X } from "lucide-react";
 import {
   STICKER_CATEGORIES,
   stickersByCategory,
@@ -13,6 +13,7 @@ import {
 import styles from "./StickerPicker.module.css";
 import { StickerImage } from "./StickerImage";
 import { installStickerTrayScroll } from "@/app/lib/sticker-tray-scroll";
+import { installStickerPickerDismiss } from "@/app/lib/sticker-picker-dismiss";
 import { scrollPickerOnSelect } from "@/app/lib/picker-scroll";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import {
@@ -118,6 +119,8 @@ function StickerPickerDialog({
   const [sampleDragging, setSampleDragging] = useState(false);
   const [wheelHue, setWheelHue] = useState(() => shapeColorPosition(shapeColor).hue);
   const firstActionRef = useRef<HTMLButtonElement>(null);
+  const trayRef = useRef<HTMLElement>(null);
+  const paletteRef = useRef<HTMLElement>(null);
   const pickTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const categoriesRef = useRef<HTMLDivElement>(null);
@@ -132,9 +135,15 @@ function StickerPickerDialog({
     onShapeColorChangeRef.current(color);
   }, []);
 
-  useLayoutEffect(() => samplingPage ? undefined : installStickerTrayScroll(
+  // The small source menu must behave like ordinary buttons. Only the expanded
+  // sheet needs to contain scrolling; canceling touchmove here can swallow taps.
+  useLayoutEffect(() => samplingPage || view !== "pack" ? undefined : installStickerTrayScroll(
     () => scrollRef.current,
     () => [categoriesRef.current, paletteScrollRef.current],
+  ), [samplingPage, view]);
+  useLayoutEffect(() => samplingPage ? undefined : installStickerPickerDismiss(
+    () => [trayRef.current?.closest("footer") ?? trayRef.current, paletteRef.current],
+    () => onCloseRef.current(),
   ), [samplingPage]);
   useLayoutEffect(() => {
     const row = categoriesRef.current;
@@ -228,7 +237,7 @@ function StickerPickerDialog({
 
   return (
     <>
-      <section className={`${styles.tray} ${view === "pack" ? styles.packTray : styles.sourceTray} ${shapePaletteOpen ? styles.hasPalette : ""}`}
+      <section ref={trayRef} className={`${styles.tray} ${view === "pack" ? styles.packTray : styles.sourceTray} ${shapePaletteOpen ? styles.hasPalette : ""}`}
         inert={samplingPage}
         aria-label={view === "source" ? "Add sticker" : undefined}
         aria-labelledby={view === "pack" ? "sticker-picker-title" : undefined}>
@@ -236,16 +245,16 @@ function StickerPickerDialog({
             <div className={styles.sourceChoices}>
               <button ref={firstActionRef} className={styles.sourceBackChoice} type="button" onClick={onClose}
                 aria-label="Back to editor tools">
-                <ArrowLeft aria-hidden="true" />
+                <ChevronLeft aria-hidden="true" />
               </button>
               <button className={styles.sourceChoice} type="button"
                 onClick={() => showView("pack")}>
                 <Sticker aria-hidden="true" />
-                <span>Sticker<br />pack</span>
+                <span>Sticker</span>
               </button>
               <button className={styles.sourceChoice} type="button" onClick={onPhotoVideo}>
                 <ImagePlus aria-hidden="true" />
-                <span>Photo or<br />video</span>
+                <span>Media</span>
               </button>
               <button className={styles.sourceChoice} type="button" onClick={onText} aria-label="Add text sticker">
                 <Type aria-hidden="true" /><span>Text</span>
@@ -264,6 +273,7 @@ function StickerPickerDialog({
               </button>
             </header>
             <div ref={categoriesRef} className={styles.categories} onClickCapture={scrollPickerOnSelect}>
+              <div className={styles.categoryContent}>
               <div className={styles.categoryTabs} role="tablist" aria-label="Sticker categories">
               {categories.map(item => (
                 <button key={item} className={category === item ? styles.activeCategory : ""}
@@ -282,6 +292,7 @@ function StickerPickerDialog({
                 <span style={{ backgroundColor: shapeColor }} aria-hidden="true" />Select a color
               </button>
               : null}
+              </div>
             </div>
             <div ref={scrollRef} className={styles.scrollArea} role="tabpanel" tabIndex={0}
               aria-label={category === "shapes" ? "Shapes" : `${labels[category]} stickers`}>
@@ -299,7 +310,7 @@ function StickerPickerDialog({
                   className={`${styles.stickerButton} ${stickerSizeClass(sticker, index)} ${pickingId === sticker.id ? styles.isPicking : ""}`}
                   style={{ maxWidth: `${stickerTrayMaxWidth(sticker)}%` }}
                   onClick={() => chooseSticker(sticker)} aria-label={`Add ${sticker.name}`}>
-                  <StickerImage src={sticker.src} alt="" width={sticker.width} height={sticker.height}
+                  <StickerImage src={sticker.thumbnailSrc} alt="" width={sticker.width} height={sticker.height}
                     loading="lazy" decoding="async" draggable={false} />
                 </button>
               ))}
@@ -309,7 +320,7 @@ function StickerPickerDialog({
         )}
       </section>
       {view === "pack" && category === "shapes" && typeof document !== "undefined" ? createPortal(
-        <footer className={`composer-dock selector-dock shape-selector-dock ${shapeWheelOpen ? "is-gradient-picker" : ""} ${shapePaletteOpen ? "is-visible" : ""}`}
+        <footer ref={paletteRef} className={`composer-dock selector-dock shape-selector-dock ${shapeWheelOpen ? "is-gradient-picker" : ""} ${shapePaletteOpen ? "is-visible" : ""}`}
           aria-label="Shape color selector" aria-hidden={!shapePaletteOpen} inert={!shapePaletteOpen}>
           <div ref={paletteScrollRef} className={`selector-scroll ${shapeWheelOpen ? "is-gradient-mode" : ""}`}
             onClickCapture={scrollPickerOnSelect} role="group" aria-label="Shape color choices">

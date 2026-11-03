@@ -1,7 +1,34 @@
-import { createContext, useContext, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState, type ImgHTMLAttributes, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { prepareLandingArt, type LandingArtGroup } from "../lib/landing-art";
 
 export const AUTH_LANDING_COLOR = "#304dff";
+
+function LandingImage({ className = "", src, ...props }: ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
+  return <img {...props} src={src} className={`${className} landing-media`}
+    onError={event => { event.currentTarget.style.visibility = "hidden"; }} />;
+}
+
+const LandingArt = createContext(false);
+function ArtGroup({ group, children }: { group: LandingArtGroup; children: ReactNode }) {
+  const [ready, setReady] = useState(false);
+  useLayoutEffect(() => {
+    let cancelled = false, frame = 0;
+    void prepareLandingArt(group).then(() => {
+      if (!cancelled) frame = requestAnimationFrame(() => setReady(true));
+    });
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
+  }, [group]);
+  return <LandingArt.Provider value={ready}>{children}</LandingArt.Provider>;
+}
+function ArtSurface({ className, children }: { className?: string; children: ReactNode }) {
+  const ready = useContext(LandingArt);
+  return <div className={className} data-landing-art data-art-ready={ready || undefined}>{children}</div>;
+}
+
+function landingScrollTop() {
+  return window.scrollY;
+}
 
 const STICKER_HEIGHTS = { camera: 512, flipphone: 1152, "green-glasses": 512, daisy: 922, cherries: 790, cassette: 512, headphones: 816, cd: 768, "ticket-admit": 511, shell: 702, rollerskate: 814, clip: 640 } as const;
 const PACK_CUTOUTS = {
@@ -45,6 +72,7 @@ function parentAngle(element: HTMLElement) {
 
 function MovableSticker({ className, label, children, aspectRatio = 1 }: { className: string; label: string; children: ReactNode; aspectRatio?: number }) {
   const { selected, select, layer } = useContext(StickerSelection);
+  const artReady = useContext(LandingArt);
   const anchor = useRef<HTMLSpanElement>(null);
   const [placement, setPlacement] = useState<{ left: number; top: number; width: number; height: number; angle: number; color: string } | null>(null);
   const isSelected = selected === className;
@@ -82,7 +110,7 @@ function MovableSticker({ className, label, children, aspectRatio = 1 }: { class
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
   const sticker = (
-    <button type="button" data-landing-sticker className={`${className} landing-sticker-button${isSelected ? " is-selected" : ""}${dragging ? " is-dragging" : ""}`}
+    <button type="button" data-landing-sticker data-landing-art data-art-ready={artReady || undefined} className={`${className} landing-sticker-button${isSelected ? " is-selected" : ""}${dragging ? " is-dragging" : ""}`}
       aria-label={`Move ${label} sticker`} aria-pressed={isSelected} aria-describedby="landing-sticker-help"
       style={{ left: placement?.left ?? 0, top: placement?.top ?? 0, right: "auto", bottom: "auto",
         width: placement?.width ?? "100%", height: placement?.height ?? "100%",
@@ -97,7 +125,7 @@ function MovableSticker({ className, label, children, aspectRatio = 1 }: { class
         const rect = element.getBoundingClientRect();
         const canvas = element.closest(".auth-landing")!.getBoundingClientRect();
         element.setPointerCapture(event.pointerId);
-        drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: window.scrollY, angle: parentAngle(element), origin: offset,
+        drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: landingScrollTop(), angle: parentAngle(element), origin: offset,
           ...landingStickerBounds({ left: rect.left - canvas.left, right: rect.right - canvas.left, width: rect.width }, canvas.width),
           minY: Math.min(0, canvas.top - rect.top), maxY: Math.max(0, canvas.bottom - rect.bottom) };
         setDragging(true);
@@ -107,7 +135,7 @@ function MovableSticker({ className, label, children, aspectRatio = 1 }: { class
         if (!current || current.id !== event.pointerId) return;
         event.preventDefault();
         const dx = Math.max(current.minX, Math.min(current.maxX, event.clientX - current.x));
-        const dy = Math.max(current.minY, Math.min(current.maxY, event.clientY - current.y + window.scrollY - current.scrollY));
+        const dy = Math.max(current.minY, Math.min(current.maxY, event.clientY - current.y + landingScrollTop() - current.scrollY));
         const delta = landingStickerOffset(dx, dy, current.angle);
         setOffset({ x: current.origin.x + delta.x, y: current.origin.y + delta.y });
       }}
@@ -138,7 +166,7 @@ function PhotoCutout({ kind, className = "" }: { kind: keyof typeof STICKER_HEIG
   const asset = PACK_CUTOUTS[kind as keyof typeof PACK_CUTOUTS] ?? { src: `/landing/sticker-${kind}.webp`, width: 768, height: STICKER_HEIGHTS[kind] };
   return (
     <MovableSticker className={`landing-cutout landing-cutout-${kind} ${className}`} aspectRatio={asset.width / asset.height} label={kind === "flipphone" ? "phone" : kind.replaceAll("-", " ")}>
-      <img src={asset.src} alt="" width={asset.width} height={asset.height} decoding="async" draggable={false} />
+      <LandingImage src={asset.src} alt="" width={asset.width} height={asset.height} decoding="async" draggable={false} />
     </MovableSticker>
   );
 }
@@ -198,13 +226,13 @@ export function AuthLandingStrip() {
     <StickerSelection.Provider value={{ selected, select, layer }}>
     <div className="auth-landing" role="region" aria-label="Meet Strip" onPointerDown={event => {
       backgroundTap.current = (event.target as Element).closest("[data-landing-sticker]") ? null
-        : { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: window.scrollY };
+        : { id: event.pointerId, x: event.clientX, y: event.clientY, scrollY: landingScrollTop() };
     }} onPointerUp={event => {
       const tap = backgroundTap.current;
       backgroundTap.current = null;
       // Scrolling off the sticker keeps it selected, just like the editor.
       if (tap?.id === event.pointerId && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) < 8
-        && Math.abs(window.scrollY - tap.scrollY) < 8) select(null);
+        && Math.abs(landingScrollTop() - tap.scrollY) < 8) select(null);
     }} onPointerCancel={() => { backgroundTap.current = null; }}>
       <svg className="landing-sticker-filters" aria-hidden="true" width="0" height="0" focusable="false">
         <defs>
@@ -218,16 +246,18 @@ export function AuthLandingStrip() {
       </svg>
       <span id="landing-sticker-help" className="sr-only">Tap a sticker to select it, then drag to move. Use arrow keys to move a selected sticker, or Escape to deselect.</span>
       <div className="landing-strip">
+        <ArtGroup group="hero">
         <header className="landing-block landing-hero">
           <div className="landing-content">
             <h1 id="auth-heading">Want to<br />strip?</h1>
             <p ref={intro} className="landing-intro">This is what a Strip looks like. A place to tell a story, mix photos, videos and words, and make something that feels like you.</p>
             <div ref={heroCollage} className="landing-hero-stickers">
+              <ArtSurface>
               <div className="landing-play-hint" aria-hidden="true">
-                <img className="landing-play-lettering" src="/landing/sticker-help-text.png" alt="click a sticker to move it around" width="1536" height="1024" draggable={false} />
-                <span className="landing-play-arrow"><img src="/landing/sticker-help-arrow.png" alt="" width="1536" height="1024" draggable={false} /></span>
+                <LandingImage className="landing-play-lettering" src="/landing/sticker-help-text.png" alt="click a sticker to move it around" width="1536" height="1024" draggable={false} />
+                <span className="landing-play-arrow"><LandingImage src="/landing/sticker-help-arrow.png" alt="" width="1536" height="1024" draggable={false} /></span>
               </div>
-              <img className="landing-sticker landing-sticker-sky" src="/landing/story-friends.webp" width="900" height="1200" alt="Friends laughing together in the sunshine" decoding="async" />
+              <LandingImage className="landing-sticker landing-sticker-sky" src="/landing/story-friends.webp" width="900" height="1200" alt="Friends laughing together in the sunshine" decoding="async" />
               <PhotoCutout kind="green-glasses" className="landing-hero-glasses" />
               <PhotoCutout kind="camera" className="landing-hero-camera" />
               <PhotoCutout kind="flipphone" className="landing-hero-phone" />
@@ -239,50 +269,58 @@ export function AuthLandingStrip() {
               </MovableSticker>
               <CollageBurst className="landing-hero-spark" />
               <CollageBurst className="landing-hero-squiggle" />
+              </ArtSurface>
             </div>
           </div>
         </header>
+        </ArtGroup>
 
+        <ArtGroup group="night">
         <section className="landing-block landing-photo-block" aria-label="A moment worth keeping">
-          <div className="landing-feature-photo">
-            <img className="landing-full-photo" src="/landing/story-night.webp" alt="Two silhouettes leaning together against blurred blue and pink city lights" width="1280" height="768" decoding="async" />
+          <ArtSurface className="landing-feature-photo">
+            <LandingImage className="landing-full-photo" src="/landing/story-night.webp" alt="Two silhouettes leaning together against blurred blue and pink city lights" width="1280" height="768" decoding="async" />
             <div className="landing-photo-scraps">
               <PhotoCutout kind="daisy" className="landing-photo-daisy" />
             </div>
-          </div>
+          </ArtSurface>
         </section>
+        </ArtGroup>
 
+        <ArtGroup group="make">
         <section className="landing-block landing-make">
           <div className="landing-content">
             <h2 className="landing-section-title"><span>01 /</span> MAKE IT YOURS</h2>
             <p className="landing-make-headline">Your photos.<br />Your words.<br />Your world.</p>
             <p className="landing-description">Stack photos and videos. Add a thought, a color, a sticker. Keep going.</p>
-            <div className="landing-make-collage">
-              <img className="landing-sticker landing-make-scrap-street" src="/landing/cosmos-street.webp" alt="" width="900" height="1126" loading="lazy" decoding="async" />
+            <ArtSurface className="landing-make-collage">
+              <LandingImage className="landing-sticker landing-make-scrap-street" src="/landing/cosmos-street.webp" alt="" width="900" height="1126" loading="lazy" decoding="async" />
               <PhotoCutout kind="cassette" className="landing-make-cassette" />
               <PhotoCutout kind="rollerskate" className="landing-make-skate" />
               <PhotoCutout kind="headphones" className="landing-make-headphones" />
               <PhotoCutout kind="cd" className="landing-make-cd" />
               <CollageBurst className="landing-make-spark" />
-            </div>
+            </ArtSurface>
           </div>
         </section>
+        </ArtGroup>
 
+        <ArtGroup group="share">
         <section className="landing-block landing-share">
           <div className="landing-content">
             <h2 className="landing-section-title"><span>02 /</span> PASS IT AROUND</h2>
             <p className="landing-description">You decide who sees your Strip.<br />One shareable link.</p>
-            <div className="landing-share-photo">
-              <img src="/landing/cosmos-ocean.webp" alt="A candid sunset portrait beside the ocean" width="900" height="1199" loading="lazy" decoding="async" />
+            <ArtSurface className="landing-share-photo">
+              <LandingImage src="/landing/cosmos-ocean.webp" alt="A candid sunset portrait beside the ocean" width="900" height="1199" loading="lazy" decoding="async" />
               <PhotoCutout kind="ticket-admit" className="landing-share-ticket" />
               <PhotoCutout kind="cherries" className="landing-share-cherries" />
               <PhotoCutout kind="shell" className="landing-share-shell" />
               <PhotoCutout kind="clip" className="landing-share-clip" />
               <CollageBurst className="landing-share-spark" />
-            </div>
+            </ArtSurface>
             <p className="landing-signoff">This is a Strip.<br />Now make yours.</p>
           </div>
         </section>
+        </ArtGroup>
       </div>
       <div ref={setLayer} className="landing-sticker-layer" />
     </div>

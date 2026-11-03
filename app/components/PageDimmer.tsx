@@ -13,8 +13,13 @@ export function PageDimmer() {
       // Start inside the visible page. Do not paint above it, change the root
       // color, or dim the tool dock and its existing safe-area extension.
       const top = Math.max(0, window.scrollY + (viewport?.offsetTop ?? 0));
-      const height = Math.min(viewport?.height ?? window.innerHeight,
-        Math.max(0, document.documentElement.scrollHeight - top));
+      // The visual viewport ends above the software keyboard. Keep painting
+      // through the layout viewport behind it, including Safari's translucent
+      // keyboard/accessory chrome, without adding any document scroll height.
+      const layoutBottom = window.scrollY + Math.max(window.innerHeight, document.documentElement.clientHeight);
+      const visibleBottom = top + (viewport?.height ?? window.innerHeight);
+      const bottom = Math.min(document.documentElement.scrollHeight, Math.max(layoutBottom, visibleBottom));
+      const height = Math.max(0, bottom - top);
       layer.style.top = `${top}px`;
       layer.style.height = `${height}px`;
     };
