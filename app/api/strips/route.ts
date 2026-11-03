@@ -438,8 +438,12 @@ export async function POST(request: Request) {
       : null;
     coverAlt = (input.cover.alt ?? "Strip cover").slice(0, 160);
   } else {
-    const color = input.cover.color.trim().toUpperCase();
-    if (!color || color === "#000" || color === "#000000") {
+    const inputColor = input.cover.color.trim().toUpperCase();
+    // Store shorthand colors in the same six-digit format used by cover images.
+    const color = /^#[0-9A-F]{3}$/.test(inputColor)
+      ? `#${inputColor.slice(1).split("").map(channel => channel + channel).join("")}`
+      : inputColor;
+    if (!color) {
       return Response.json({ error: "Invalid cover color." }, { status: 400 });
     }
     coverColor = color.slice(0, 64);

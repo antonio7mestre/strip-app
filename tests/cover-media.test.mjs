@@ -9,6 +9,7 @@ import * as origin from "../app/lib/sticker-origin.ts";
 import * as rotation from "../app/lib/sticker-rotation.ts";
 import * as profile from "../app/lib/profile.ts";
 import * as alignment from "../app/lib/text-alignment.ts";
+import * as publishedMedia from "../app/lib/published-media.ts";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function compile(path, imports = {}) {
@@ -61,6 +62,7 @@ test("draft and published reads retain the sticker's origin after storage URLs r
     "@/app/lib/sticker-origin": origin,
     "@/app/lib/sticker-rotation": rotation,
     "@/app/lib/profile": profile,
+    "@/app/lib/published-media": publishedMedia,
     "@/app/lib/text-sticker": textStickers,
     "@/app/lib/strip-ending": { readStripContent: () => ({ blocks }) },
     "@/app/server/auth": { requireAuthUser: async () => ({ user: { id: "owner-qa" } }), getAuthUser: async () => null },

@@ -496,9 +496,7 @@ function coverImageDimensions(
 }
 
 function randomFallbackCoverColors(seed: string) {
-  const colors = BACKGROUND_COLORS.filter(
-    (option) => !isBlackCoverColor(option.value),
-  ).map((option) => option.value.toUpperCase());
+  const colors = BACKGROUND_COLORS.map((option) => option.value.toUpperCase());
   let state = Array.from(seed).reduce(
     (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619),
     2166136261,
@@ -4503,35 +4501,17 @@ export default function Home() {
         .map((block) => (block.backgroundColor ?? DEFAULT_BACKGROUND).toUpperCase()),
     ),
   );
-  const nonBlackCoverColors = usedCoverColors.filter(
-    (color) => !isBlackCoverColor(color),
-  );
-  const onlyBackgroundColorIsBlack =
-    usedCoverColors.length > 0 && usedCoverColors.every(isBlackCoverColor);
-  const selectedFontCoverColors = Array.from(
-    new Set(
-      blocks
-        .filter(
-          (block): block is TextBlock => block.type === "text" && Boolean(block.textColor),
-        )
-        .map((block) => block.textColor!.toUpperCase())
-        .filter((color) => !isBlackCoverColor(color)),
-    ),
-  );
   const hasCoverImages = visualCoverBlocks.length > 0 || Boolean(customCoverSrc);
   const automaticCoverColors =
-    nonBlackCoverColors.length > 0
-      ? nonBlackCoverColors
-      : onlyBackgroundColorIsBlack && selectedFontCoverColors.length > 0
-        ? selectedFontCoverColors
+    usedCoverColors.length > 0
+      ? usedCoverColors
       : hasCoverImages
         ? []
         : randomFallbackCoverColors(blocks.map((block) => block.id).join("|"));
   const coverColors = Array.from(
     new Set(
       [...automaticCoverColors, ...customCoverColors]
-        .map((color) => color.toUpperCase())
-        .filter((color) => !isBlackCoverColor(color)),
+        .map((color) => color.toUpperCase()),
     ),
   );
   const coverChoices: CoverChoice[] = [
@@ -5116,17 +5096,13 @@ export default function Home() {
     setPendingCoverColor(
       selectedColor?.kind === "color"
         ? selectedColor.color
-        : latestCustomColor ?? nonBlackCoverColors[0] ?? "#2147D9",
+        : latestCustomColor ?? usedCoverColors[0] ?? "#2147D9",
     );
     setCoverColorPickerOpen(true);
   };
 
   const confirmCoverColor = () => {
     const color = pendingCoverColor.toUpperCase();
-    if (isBlackCoverColor(color)) {
-      setNotice("Our system can’t handle pure black covers.");
-      return;
-    }
     setCustomCoverColors((current) =>
       current.some((option) => option.toUpperCase() === color)
         ? current
@@ -8303,9 +8279,7 @@ export default function Home() {
             setPendingCoverColor(change.backgroundColor);
           }}
           onBack={confirmCoverColor}
-          backgroundOptions={BACKGROUND_COLORS.filter(
-            (option) => !isBlackCoverColor(option.value),
-          )}
+          backgroundOptions={BACKGROUND_COLORS}
           startInGradientMode
         />
         {notice ? <div className="notice">{notice}</div> : null}
