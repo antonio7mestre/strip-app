@@ -1,22 +1,17 @@
 import type { CSSProperties } from "react";
 import type { MediaImportProgress } from "@/app/lib/media-import";
+import { profileInk } from '@/app/lib/profile';
+import { MediaLoadingTile } from './MediaLoadingTile';
 
-/** Confirmation-style feedback, separate from the Strip's content and layout. */
-export function MediaImportPopup({ progress, revealing = false }: {
-  progress: MediaImportProgress;
-  revealing?: boolean;
+export function MediaImportPopup({ progress, revealing = false, preview, color = '#304dff' }: {
+  progress: MediaImportProgress; revealing?: boolean;
+  preview?: { src: string; previewSrc?: string; type: 'image' | 'video' } | null; color?: string;
 }) {
-  const total = Math.max(1, progress.total);
-  const completed = Math.min(total, Math.max(0, progress.completed));
   return <div className={`confirmation-backdrop media-import-popup${revealing ? " is-revealing" : ""}`}>
-    <section className="confirmation-card media-import-card" role="status" aria-live="polite" aria-atomic="true"
-    aria-label={`Adding media ${completed} of ${total}`} aria-busy="true"
-    style={{ "--media-import-progress": `${completed / total * 100}%` } as CSSProperties}>
-      <h2>Adding media<span className="media-import-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></h2>
-      <div className="media-import-progress" aria-hidden="true">
-        <span className="media-import-count">{completed}<span> / {total}</span></span>
-        <span className="media-import-track"><span className="media-import-fill" /></span>
-      </div>
+    <section className="media-import-art" role="status" aria-live="polite" aria-atomic="true"
+      aria-label={`Adding media ${progress.completed} of ${progress.total}`} aria-busy="true"
+      style={{ '--onboarding-background': color, '--onboarding-ink': profileInk(color) } as CSSProperties}>
+      <MediaLoadingTile src={preview?.src} previewSrc={preview?.previewSrc} type={preview?.type} />
     </section>
   </div>;
 }

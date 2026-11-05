@@ -1,9 +1,12 @@
+import { mediaPreview, type MediaColor } from "./media-palette";
 export type MediaImportProgress = { completed: number; total: number };
 export type MediaSize = { width: number; height: number };
 export type PreparedMedia = MediaSize & {
   type: "image" | "video";
   src: string;
   alt: string;
+  previewSrc?: string;
+  palette?: MediaColor;
 };
 
 /** Keep the selected insertion spot while preparing the complete media batch. */
@@ -45,23 +48,25 @@ function readMedia(file: File, signal: AbortSignal): Promise<string> {
   });
 }
 
-function measureMedia(src: string, type: PreparedMedia["type"], signal: AbortSignal): Promise<MediaSize> {
+function measureMedia(src: string, type: PreparedMedia["type"], signal: AbortSignal, previews: boolean): Promise<MediaSize & Pick<PreparedMedia, "previewSrc" | "palette">> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) { reject(aborted()); return; }
     const image = type === "image" ? new Image() : null;
     const video = type === "video" ? document.createElement("video") : null;
     let settled = false;
+    let frameTimeout: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
       clearTimeout(timeout);
+      clearTimeout(frameTimeout);
       signal.removeEventListener("abort", cancel);
       if (image) { image.onload = image.onerror = null; }
       if (video) {
-        video.onloadedmetadata = video.onerror = null;
+        video.onloadedmetadata = video.onloadeddata = video.onseeked = video.onerror = null;
         video.removeAttribute("src");
         video.load();
       }
     };
-    const finish = (size?: MediaSize, error?: unknown) => {
+    const finish = (size?: MediaSize & Pick<PreparedMedia, "previewSrc" | "palette">, error?: unknown) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -73,14 +78,25 @@ function measureMedia(src: string, type: PreparedMedia["type"], signal: AbortSig
     signal.addEventListener("abort", cancel, { once: true });
     if (image) {
       image.onload = () => {
-        void image.decode().catch(() => {}).then(() => finish({ width: image.naturalWidth, height: image.naturalHeight }));
+        void image.decode().catch(() => {}).then(() => finish({ width: image.naturalWidth, height: image.naturalHeight, ...(previews ? mediaPreview(image, image.naturalWidth, image.naturalHeight) : {}) }));
       };
       image.onerror = () => finish();
       image.src = src;
     } else if (video) {
-      video.preload = "metadata";
+      video.preload = previews ? "auto" : "metadata";
+      video.playsInline = true;
       video.muted = true;
-      video.onloadedmetadata = () => finish({ width: video.videoWidth, height: video.videoHeight });
+      const dimensions = () => ({ width: video.videoWidth, height: video.videoHeight });
+      const frame = () => {
+        if (video.readyState >= 2) finish({ ...dimensions(), ...mediaPreview(video, video.videoWidth, video.videoHeight) });
+      };
+      video.onloadedmetadata = () => {
+        if (!previews) { finish(dimensions()); return; }
+        frameTimeout = setTimeout(() => finish(dimensions()), 1200);
+        try { video.currentTime = Math.min(.08, Number.isFinite(video.duration) ? video.duration / 2 : .08); } catch { /* First decoded frame is sufficient. */ }
+        frame();
+      };
+      if (previews) { video.onloadeddata = frame; video.onseeked = frame; }
       video.onerror = () => finish();
       video.src = src;
       video.load();
@@ -91,10 +107,12 @@ function measureMedia(src: string, type: PreparedMedia["type"], signal: AbortSig
 /** Decode first, then hand the editor one ordered batch with stable dimensions. */
 export async function prepareMediaFiles(files: readonly File[], {
   signal,
-  onProgress,
-}: { signal: AbortSignal; onProgress?: (progress: MediaImportProgress) => void }) {
+  onProgress, onPrepared, previews = false,
+}: { signal: AbortSignal; onProgress?: (progress: MediaImportProgress) => void;
+  onPrepared?: (media: PreparedMedia, index: number) => void; previews?: boolean }) {
   const prepared: Array<PreparedMedia | null> = Array(files.length).fill(null);
-  let cursor = 0, completed = 0;
+  const settled = Array<boolean>(files.length).fill(false);
+  let cursor = 0, completed = 0, delivered = 0;
   onProgress?.({ completed, total: files.length });
   const worker = async () => {
     while (cursor < files.length) {
@@ -106,7 +124,7 @@ export async function prepareMediaFiles(files: readonly File[], {
         if ((!file.type.startsWith("image/") && type !== "video") || /svg|xml/i.test(file.type)
           || file.size === 0 || file.size > MAX_MEDIA_BYTES) throw new Error("Unsupported media");
         src = await readMedia(file, signal);
-        const size = await measureMedia(src, type, signal);
+        const size = await measureMedia(src, type, signal, previews);
         prepared[index] = { type, src, alt: file.name.replace(/\.[^/.]+$/, ""), ...size };
       } catch (error) {
         if (src?.startsWith("blob:")) URL.revokeObjectURL(src);
@@ -114,6 +132,13 @@ export async function prepareMediaFiles(files: readonly File[], {
         // A damaged file must not prevent the remaining selections from arriving.
       }
       if (signal.aborted) throw aborted();
+      settled[index] = true;
+      // Deliver the ready prefix, preserving selection order even when worker 2 finishes first.
+      while (delivered < files.length && settled[delivered]) {
+        const item = prepared[delivered];
+        if (item) onPrepared?.(item, delivered);
+        delivered++;
+      }
       onProgress?.({ completed: ++completed, total: files.length });
     }
   };

@@ -3,9 +3,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { ArrowLeft, Check, ImagePlus, Plus, X } from "lucide-react";
+import { MediaLoadingTile } from "./MediaLoadingTile";
 import { prepareMediaFiles } from "@/app/lib/media-import";
 import { STICKER_PACK } from "@/app/lib/sticker-pack";
-import { FIRST_STRIP_BLOCK_LIMIT, FIRST_STRIP_FONT_SIZE, shuffledStickers, stickerMasonry, type FirstStripInput, type OnboardingMedia } from "@/app/lib/onboarding-strip";
+import { FIRST_STRIP_BLOCK_LIMIT, FIRST_STRIP_FONT_SIZE, colorMatchedStickers, stickerMasonry, type FirstStripInput, type OnboardingMedia } from "@/app/lib/onboarding-strip";
 import { installOnboardingKeyboard } from "@/app/lib/onboarding-keyboard";
 import type { CreationStep } from "@/app/lib/onboarding-history";
 import { profileInk, PROFILE_FONT_CATALOG } from "@/app/lib/profile";
@@ -30,6 +31,7 @@ export function OnboardingStrip({ active, color, step, onStepChange, onBack, onC
   const [cycles, setCycles] = useState(1);
   const [viewport, setViewport] = useState({ width: 330, height: 600, top: 0 });
   const [progress, setProgress] = useState("");
+  const [pendingMedia, setPendingMedia] = useState<Array<{ id: string; src: string; type: "image" | "video"; alt: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
@@ -42,7 +44,8 @@ export function OnboardingStrip({ active, color, step, onStepChange, onBack, onC
   const ownedBlobs = useRef(new Set<string>());
   const busy = Boolean(progress) || saving;
   const ink = profileInk(color);
-  const assets = useMemo(() => Array.from({ length: cycles }, (_, cycle) => shuffledStickers(STICKER_PACK, identity.seed + cycle)).flat(), [cycles, identity.seed]);
+  const palette = useMemo(() => media.flatMap(item => item.palette ? [item.palette] : []), [media]);
+  const assets = useMemo(() => Array.from({ length: cycles }, (_, cycle) => colorMatchedStickers(STICKER_PACK, identity.seed + cycle, palette)).flat(), [cycles, identity.seed, palette]);
   const masonry = useMemo(() => stickerMasonry(assets, viewport.width), [assets, viewport.width]);
   const visible = masonry.items.filter(item => item.top + item.height >= viewport.top - 500 && item.top <= viewport.top + viewport.height + 500);
 
@@ -88,15 +91,27 @@ export function OnboardingStrip({ active, color, step, onStepChange, onBack, onC
     const request = new AbortController(); controller.current = request;
     const kind = files.every(file => file.type.startsWith("image/")) ? "images" : "media";
     setError(""); setProgress(`Loading ${kind} 1 of ${files.length}`);
+    const queued = files.map(file => ({ id: crypto.randomUUID(), src: URL.createObjectURL(file), type: file.type.startsWith("video/") ? "video" as const : "image" as const, alt: file.name }));
+    queued.forEach(item => ownedBlobs.current.add(item.src));
+    setPendingMedia(queued);
     try {
-      const result = await prepareMediaFiles(files, { signal: request.signal, onProgress: ({ completed, total }) => setProgress(`Loading ${kind} ${Math.min(completed + 1, total)} of ${total}`) });
+      const result = await prepareMediaFiles(files, { signal: request.signal, previews: true,
+        onPrepared: (item, index) => {
+          if (request.signal.aborted) return;
+          if (item.src.startsWith("blob:")) ownedBlobs.current.add(item.src);
+          setMedia(previous => [...previous, { ...item, id: queued[index].id }]);
+          setPendingMedia(previous => previous.filter(pending => queued.findIndex(entry => entry.id === pending.id) > index));
+        },
+        onProgress: ({ completed, total }) => setProgress(`Loading ${kind} ${Math.min(completed + 1, total)} of ${total}`),
+      });
       if (request.signal.aborted) return;
-      const added = result.media.map(item => ({ ...item, id: crypto.randomUUID() }));
-      added.forEach(item => { if (item.src.startsWith("blob:")) ownedBlobs.current.add(item.src); });
-      setMedia(previous => [...previous, ...added]);
       if (result.failed) setError(`${result.failed} item${result.failed === 1 ? "" : "s"} couldn’t be opened. Try choosing those again.`);
     } catch { if (!request.signal.aborted) setError("Couldn’t open those files. Please try again."); }
-    finally { controller.current = null; if (!request.signal.aborted) setProgress(""); }
+    finally {
+      queued.forEach(item => { ownedBlobs.current.delete(item.src); URL.revokeObjectURL(item.src); });
+      controller.current = null;
+      if (!request.signal.aborted) { setProgress(""); setPendingMedia([]); }
+    }
   };
   const go = (next: typeof step) => {
     // Mount and focus in the same tap, while Safari still has user activation.
@@ -129,21 +144,23 @@ export function OnboardingStrip({ active, color, step, onStepChange, onBack, onC
     </header>
     <div className={`auth-flow-copy ${shared.heading} ${styles.heading}`}>
       <h1 id="first-strip-heading">{step === "media" ? "Let’s make your Strip" : step === "stickers" ? "Make it yours" : "What you want to say?"}</h1>
-      <p>{step === "media" ? "Start with some photos or videos." : step === "stickers" ? "Pick some stickers. Or keep it simple." : "A little thought, a whole story. Or nothing at all."}</p>
+      <p>{step === "media" ? "Start with some photos or videos." : step === "stickers" ? "Pick some stickers. Or keep it simple." : "What's the story here?"}</p>
     </div>
     <div className={styles.scroll} data-edge-fade={step !== "message" || undefined} ref={scroller} key={step}>
       {step === "media" ? <div className={styles.media}>
         <input ref={file} hidden type="file" accept="image/*,video/*" multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ""; void importFiles(files); }} />
         <div className={styles.mediaGrid}>{media.map(item => <div className={styles.mediaItem} key={item.id}>
-          {item.type === "video" ? <video src={item.src} muted playsInline preload="metadata" /> : <img src={item.src} alt={item.alt} />}
+          <MediaLoadingTile src={item.src} previewSrc={item.previewSrc} type={item.type} alt={item.alt} ready />
           <button type="button" disabled={busy} aria-label={`Remove ${item.alt}`} onClick={() => {
             setMedia(items => items.filter(media => media.id !== item.id));
             if (ownedBlobs.current.delete(item.src)) URL.revokeObjectURL(item.src);
           }}><X size={16} /></button>
         </div>)}
-        <button type="button" className={styles.addMedia} disabled={busy} aria-busy={Boolean(progress)} aria-label={progress || (media.length ? "Add more" : "Choose photos & videos")} onClick={() => file.current?.click()}>
-          {media.length ? <Plus /> : <ImagePlus size={44} strokeWidth={1.7} />}<span role="status" aria-live="polite">{progress || (media.length ? "Add more" : "Choose photos & videos")}</span>
-        </button>
+        {progress ? <div className={`${styles.mediaItem} ${styles.pendingMedia}`} key={pendingMedia[0]?.id ?? "finishing"} role="status" aria-label={progress}>
+          <MediaLoadingTile src={pendingMedia[0]?.src} type={pendingMedia[0]?.type} />
+        </div> : <button type="button" className={styles.addMedia} disabled={saving} aria-label={media.length ? "Add more" : "Choose photos & videos"} onClick={() => file.current?.click()}>
+          {media.length ? <Plus /> : <ImagePlus size={44} strokeWidth={1.7} />}<span>{media.length ? "Add more" : "Choose photos & videos"}</span>
+        </button>}
         </div>
       </div> : step === "stickers" ? <div className={styles.masonry} role="group" aria-label="Choose stickers" style={{ height: masonry.height }}>
         {visible.map(item => <button type="button" key={item.index} aria-label={item.asset.name} aria-pressed={selected.includes(item.asset.id)}

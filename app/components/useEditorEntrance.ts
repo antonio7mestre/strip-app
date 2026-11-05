@@ -17,13 +17,11 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
   font: ProfileFont, profileLoading: boolean, canvas: RefObject<HTMLElement | null>) {
   const [entrance, setEntrance] = useState<Entrance | null>(null);
   const [fontsReady, setFontsReady] = useState(false);
-  const [viewportReady, setViewportReady] = useState(true);
   const requestRef = useRef(0);
   const start = useCallback((options?: { handoffColor: string }) => {
     const request = ++requestRef.current;
     setFontsReady(false);
     setEntrance({ request, startedAt: performance.now(), dataReady: false, counted: Boolean(options?.handoffColor), phase: "loading", handoffColor: options?.handoffColor });
-    setViewportReady(!options?.handoffColor);
     return request;
   }, []);
   const resolve = useCallback((request: number) => {
@@ -38,23 +36,6 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
   const dataReady = entrance?.dataReady ?? false;
   const handoffColor = entrance?.handoffColor;
   const fontKey = [...new Set([font, ...blocks.filter(block => block.type === "text").map(block => block.fontStyle ?? "sans")])].sort().join("|");
-
-  useEffect(() => {
-    if (!request || !handoffColor) return;
-    // Keep the editor covered while the outgoing typing keyboard collapses.
-    // A quiet viewport beat avoids exposing the dock in its keyboard position.
-    const viewport = window.visualViewport;
-    let settle = 0;
-    const sync = () => {
-      clearTimeout(settle);
-      if (viewport && window.innerHeight - viewport.height > 120) return;
-      settle = window.setTimeout(() => setViewportReady(true), 100);
-    };
-    const fallback = window.setTimeout(() => setViewportReady(true), 1000);
-    sync();
-    viewport?.addEventListener("resize", sync);
-    return () => { clearTimeout(settle); clearTimeout(fallback); viewport?.removeEventListener("resize", sync); };
-  }, [request, handoffColor]);
 
   useEffect(() => {
     if (!request || !dataReady || profileLoading) return;
@@ -78,7 +59,7 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
     entranceLoadPercent(1 + (fontsReady && !profileLoading ? 1 : 0)
       + assets.filter(id => media[id] !== undefined).length, assets.length + 2)) : 0;
   useEffect(() => {
-    if (!entrance || !entrance.counted || entrance.phase !== "loading" || !dataReady || !fontsReady || profileLoading || !assetsSettled || !viewportReady) return;
+    if (!entrance || !entrance.counted || entrance.phase !== "loading" || !dataReady || !fontsReady || profileLoading || !assetsSettled) return;
     let frame = 0;
     // Give a cached load a single intentional entrance, not a one-frame flash.
     const timer = window.setTimeout(() => {
@@ -86,7 +67,7 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
         ? { ...current, phase: "revealing" } : current));
     }, Math.max(0, EDITOR_ENTRANCE_MIN_MS - (performance.now() - entrance.startedAt)));
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); };
-  }, [entrance, request, dataReady, fontsReady, profileLoading, assetsSettled, viewportReady]);
+  }, [entrance, request, dataReady, fontsReady, profileLoading, assetsSettled]);
 
   useEffect(() => {
     if (entrance?.phase !== "revealing") return;

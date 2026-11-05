@@ -187,7 +187,7 @@ test("the same crossfade completes even when the device requests reduced motion"
   h.advance(fadeMs); assert.equal(h.value.active, false);
 });
 
-test("onboarding keeps its color until decoded content and keyboard geometry are ready without waiting for a visible counter", async () => {
+test("onboarding keeps its color until decoded content is ready, without waiting for the keyboard or counter", async () => {
   const h = harness({ keyboard: true, autoCount: false });
   const request = h.value.start({ handoffColor: '#CB8DFF' }); h.render();
   h.value.resolve(request);
@@ -196,10 +196,7 @@ test("onboarding keeps its color until decoded content and keyboard geometry are
   assert.equal(h.value.handoffColor, '#CB8DFF');
   assert.equal(h.value.phase, 'loading');
   h.render([[{ id: 'photo', type: 'image' }], { photo: 'loaded' }, 'sans', false]);
-  h.advance(100); assert.equal(h.value.phase, 'loading', 'keyboard still covers the dock');
-  h.resize(800); h.advance(90); h.resize(790);
-  h.advance(99); assert.equal(h.value.phase, 'loading', 'wait for viewport motion to settle');
-  h.advance(17); assert.equal(h.value.phase, 'revealing');
+  h.advance(16); assert.equal(h.value.phase, 'revealing', 'keyboard dismissal cannot delay the editor');
   h.advance(fadeMs); assert.equal(h.value.active, false);
   assert.equal(h.value.handoffColor, undefined);
 });
@@ -208,7 +205,7 @@ test("a missing keyboard resize cannot strand onboarding and a later regular ent
   const h = harness({ keyboard: true, autoCount: false });
   const request = h.value.start({ handoffColor: '#000000' }); h.render();
   h.value.resolve(request); h.render(); await h.fontsReady();
-  h.advance(1016); assert.equal(h.value.phase, 'revealing');
+  h.advance(296); assert.equal(h.value.phase, 'revealing');
   h.value.cancel(); h.render();
   h.value.start(); h.render();
   h.advance(2000);
@@ -223,7 +220,7 @@ test("first-Strip handoff opens immediately and fades the editor over the same c
   assert.match(finish, /editorEntrance.start\(\{ handoffColor: authBackground \}\)/);
   assert.match(finish, /editorEntrance.resolve\(entranceRequest\)/);
   assert.match(page, /editorEntrance.handoffColor \?\? DEFAULT_BACKGROUND/);
-  assert.match(css, /\.editor-entrance.is-onboarding-handoff \{ z-index: 100; \}/);
+  assert.match(css, /\.editor-entrance.is-onboarding-handoff \{ z-index: 29; \}/);
   const onboardingCss = readFileSync(new URL('../app/components/OnboardingStrip.module.css', import.meta.url), 'utf8');
   assert.match(onboardingCss, /transition: opacity 180ms ease/);
   assert.match(onboardingCss, /\.leaving > \.footer \{ opacity: 0; pointer-events: none/);

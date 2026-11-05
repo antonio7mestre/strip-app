@@ -308,7 +308,7 @@ export function AuthLandingStrip() {
         <section className="landing-block landing-share">
           <div className="landing-content">
             <h2 className="landing-section-title"><span>02 /</span> PASS IT AROUND</h2>
-            <p className="landing-description">You decide who sees your Strip.<br />One shareable link.</p>
+            <p className="landing-description">One shareable link.</p>
             <ArtSurface className="landing-share-photo">
               <LandingImage src="/landing/cosmos-ocean.webp" alt="A candid sunset portrait beside the ocean" width="900" height="1199" loading="lazy" decoding="async" />
               <PhotoCutout kind="ticket-admit" className="landing-share-ticket" />

@@ -1,3 +1,5 @@
+import { STICKER_COLORS } from "./sticker-colors";
+import type { MediaColor } from "./media-palette";
 import { initialPackStickerWidth, type StickerAsset } from "./sticker-pack";
 import type { PreparedMedia } from "./media-import";
 
@@ -19,6 +21,26 @@ export function shuffledStickers(assets: readonly StickerAsset[], seed: number) 
     [result[i], result[j]] = [result[j], result[i]];
   }
   return result;
+}
+
+/** Numeric palette distance only. Sampling happened during media preparation. */
+export function colorMatchedStickers(assets: readonly StickerAsset[], seed: number, colors: readonly MediaColor[]) {
+  const shuffled = shuffledStickers(assets, seed);
+  if (!colors.length) return shuffled;
+  const palette = colors.slice(0, 8);
+  const ranked = shuffled.map((asset, index) => {
+    const color = STICKER_COLORS[asset.id];
+    const distance = color ? Math.min(...palette.map(target =>
+      (color[0] - target[0]) ** 2 + (color[1] - target[1]) ** 2 + (color[2] - target[2]) ** 2)) : Infinity;
+    return { asset, distance, index };
+  }).sort((a, b) => a.distance - b.distance || a.index - b.index);
+  // Mix in surprises so matching a warm portrait does not produce only brown stickers.
+  const matched = ranked.slice(0, 24).map(item => item.asset);
+  const picked = new Set(matched.map(asset => asset.id));
+  const rest = shuffled.filter(asset => !picked.has(asset.id));
+  const result: StickerAsset[] = [];
+  while (matched.length) { result.push(...matched.splice(0, 2)); if (rest.length) result.push(rest.shift()!); }
+  return [...result, ...rest];
 }
 
 /** Shortest-column placement preserves the order and positions when more are appended. */

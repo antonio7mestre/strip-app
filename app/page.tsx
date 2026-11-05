@@ -2804,6 +2804,7 @@ export default function Home() {
     Record<string, "loaded" | "error">
   >({});
   const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportFeedback & { afterId: string | null }) | null>(null);
+  const [mediaImportPreview, setMediaImportPreview] = useState<{ src: string; previewSrc?: string; type: "image" | "video" } | null>(null);
   const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
   const [mediaBatchRevealStarted, setMediaBatchRevealStarted] = useState(false);
@@ -3556,7 +3557,7 @@ export default function Home() {
   const authCanvasVisible = needsAuthUsername || (authenticationRequired && authStatus !== "signed-in");
   useLayoutEffect(() => authCanvasVisible
     ? retainAuthBrowserTheme(AUTH_LANDING_COLOR, authFlowStep === "landing") : undefined,
-  [authCanvasVisible, authFlowStep]);
+  [authCanvasVisible, authFlowStep === "landing"]);
 
   useLayoutEffect(installKeyboardDockPosition, []);
 
@@ -4087,6 +4088,7 @@ export default function Home() {
     if (files.length === 0 || mediaImportRequestRef.current || pageTransitionInFlightRef.current) return;
     const controller = new AbortController();
     mediaImportRequestRef.current = controller;
+    setMediaImportPreview(null);
     const insertionAfterId = selectedBlockId;
     const feedback = createMediaImportFeedback({
       signal: controller.signal,
@@ -4098,7 +4100,8 @@ export default function Home() {
     try {
       const { media, failed } = await prepareMediaFiles(files, {
         signal: controller.signal,
-        onProgress: feedback.report,
+        onProgress: feedback.report, previews: true,
+        onPrepared: item => setMediaImportPreview(item),
       });
       await feedback.finish();
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
@@ -4156,6 +4159,7 @@ export default function Home() {
       if (mediaImportRequestRef.current === controller) {
         mediaImportRequestRef.current = null;
         setMediaImportProgress(null);
+        setMediaImportPreview(null);
         setMediaBatchRevealIds([]);
         setMediaBatchRevealStarted(false);
       }
@@ -5298,16 +5302,19 @@ export default function Home() {
       } catch {
         // Storage cleanup should not interrupt a successful sign-in.
       }
-      setAuthUser(data.user);
-      setLibraryOwnerId(data.user.id);
-      setAuthStatus("signed-in");
-      setAuthenticationRequired(false);
-      setAuthStep(data.user.username && backgroundOnboardingPending(data.user.id) ? "background" : "landing");
-      setAuthCode("");
-      setAuthResendSeconds(0);
-      setAuthDevelopmentCode("");
-      initialRouteHandledRef.current = false;
-      setInitialRouteReady(false);
+      // Commit the verified screen atomically. Keep the blue form mounted
+      // while owner/profile data catches up, without a profile-loading detour.
+      const nextUser = data.user;
+      flushSync(() => {
+        setAuthUser(nextUser);
+        setLibraryOwnerId(nextUser.id);
+        setAuthStatus("signed-in");
+        setAuthenticationRequired(false);
+        setAuthStep(!nextUser.username ? "username" : backgroundOnboardingPending(nextUser.id) ? "background" : "landing");
+        setAuthCode(""); setAuthResendSeconds(0); setAuthDevelopmentCode("");
+        initialRouteHandledRef.current = false;
+        setInitialRouteReady(!nextUser.username);
+      });
     } catch (error) {
       if (revision !== authNavigationRevisionRef.current) return;
       setAuthError(error instanceof Error ? error.message : "That code isn’t right.");
@@ -5372,8 +5379,31 @@ export default function Home() {
     const createdAt = input.createdAt;
     const firstBlocks = buildFirstStrip(input, authBackground, contrastColor(authBackground)) as StripBlock[];
     if (onboardingOwnerRef.current !== owner) throw new Error("Your account changed. Please sign in again.");
-    // Start persistence immediately, but reveal the original, already-decoded
-    // camera-roll media. Uploading then downloading it again is not an entrance.
+    syncOnboardingBackground(authBackground);
+    flushSync(() => {
+      firstBlocks.forEach(block => { if ((block.type === "image" || block.type === "video") && block.src.startsWith("blob:")) liveVideoUrlsRef.current.add(block.src); });
+      transferMedia();
+      const entranceRequest = editorEntrance.start({ handoffColor: authBackground });
+      editorBackPathRef.current = "/";
+      resetEditorEntry();
+      setImportedMediaSizes(Object.fromEntries(input.media.map(item => [item.id, { width: item.width, height: item.height }])));
+      setCurrentDraftId(input.id); setCurrentDraftCreatedAt(createdAt);
+      setBlocks(firstBlocks); setEndingStyle(DEFAULT_STRIP_ENDING_STYLE); setStripTitle("");
+      editorEntrance.resolve(entranceRequest);
+      setSelectedBlockId(null); setEditingTextBlockId(null); setActiveTextTool(null);
+      setEditingPublishedStripId(null); setOpenedPublishedStrip(null);
+      setAuthenticationRequired(false);
+      onboardingEditorHandoffRef.current = input.id;
+      setBrowserPath(`/edit/${encodeURIComponent(input.id)}`);
+      setView("edit");
+      rememberBackgroundOnboarding(null);
+      setAuthStep("landing");
+      initialRouteHandledRef.current = false;
+      setInitialRouteReady(true);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    });
+    // Persistence begins after the editor is already on screen. The local
+    // decoded originals remain its sources throughout the background save.
     const saving = draftSaveQueueRef.current!.save<StripBlock, DraftStripSummary>({
       id: input.id, title: "", blocks: firstBlocks, endingStyle: DEFAULT_STRIP_ENDING_STYLE, createdAt, updatedAt: createdAt,
     }, () => onboardingOwnerRef.current === owner, prepareStickerUploads);
@@ -5389,26 +5419,7 @@ export default function Home() {
     }).catch(error => {
       if (onboardingOwnerRef.current === owner) setNotice(error instanceof DraftSaveError ? error.message : "Couldn’t save this draft yet. Keep this page open.");
     }).finally(() => window.removeEventListener("beforeunload", protectUnsavedMedia));
-    firstBlocks.forEach(block => { if ((block.type === "image" || block.type === "video") && block.src.startsWith("blob:")) liveVideoUrlsRef.current.add(block.src); });
-    transferMedia();
-    const entranceRequest = editorEntrance.start({ handoffColor: authBackground });
-    editorBackPathRef.current = "/";
-    resetEditorEntry();
-    setImportedMediaSizes(Object.fromEntries(input.media.map(item => [item.id, { width: item.width, height: item.height }])));
-    setCurrentDraftId(input.id); setCurrentDraftCreatedAt(createdAt);
-    setBlocks(firstBlocks); setEndingStyle(DEFAULT_STRIP_ENDING_STYLE); setStripTitle("");
-    editorEntrance.resolve(entranceRequest);
-    setSelectedBlockId(null); setEditingTextBlockId(null); setActiveTextTool(null);
-    setEditingPublishedStripId(null); setOpenedPublishedStrip(null);
-    setAuthenticationRequired(false);
-    onboardingEditorHandoffRef.current = input.id;
-    setBrowserPath(`/edit/${encodeURIComponent(input.id)}`);
-    setView("edit");
-    rememberBackgroundOnboarding(null);
-    setAuthStep("landing");
-    initialRouteHandledRef.current = false;
-    setInitialRouteReady(true);
-    window.scrollTo({ top: 0, behavior: "instant" });
+
   };
 
   const returnBackgroundToUsername = () => {
@@ -7400,7 +7411,7 @@ export default function Home() {
     {coverEntranceLayer}{legacyTransitionLayer}{desktopBackControl}
     <ProfileReload {...reloadProfileProps} />
   </>;
-  if (!initialRouteReady && !needsAuthUsername && !(view === "edit" && editorEntrance.active)) {
+  if (!initialRouteReady && !authCanvasVisible && !(view === "edit" && editorEntrance.active)) {
     return renderProfileReload();
   }
   if (profilePageIsLoading) return renderProfileReload();
@@ -7444,6 +7455,7 @@ export default function Home() {
 
                   <form
                     id={`auth-${authFlowStep}-form`}
+                    autoComplete="off"
                     className={`auth-form auth-flow-form${authFlowStep === "code" ? " auth-confirmation-form" : ""}`}
                     onSubmit={needsAuthUsername ? claimUsername : authFlowStep === "phone" ? requestSignInCode : verifySignInCode}
                   >
@@ -7476,7 +7488,8 @@ export default function Home() {
                         type="text"
                         inputMode={needsAuthUsername ? "text" : "tel"}
                         readOnly={needsAuthUsername && Boolean(authUser?.username)}
-                        autoComplete={needsAuthUsername ? "username" : "tel"}
+                        autoComplete="off"
+                        name={needsAuthUsername ? "strip-address" : "strip-signin-number"}
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
@@ -8405,7 +8418,7 @@ export default function Home() {
       {legacyTransitionLayer}
       {desktopBackControl}
       {!inlinePreview && mediaImportProgress?.visible && typeof document !== "undefined" ? createPortal(
-        <MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} />,
+        <MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} preview={mediaImportPreview} color={visibleProfile.background} />,
         document.body,
       ) : null}
       <main

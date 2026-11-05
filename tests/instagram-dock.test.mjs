@@ -33,6 +33,7 @@ test('Instagram keeps viewport and inset fixed through chrome and keyboard chang
   }
   assert.equal(s.events.has('scroll'), false);
   assert.equal(s.probes, 0);
+  s.resize(780, 0, 391); assert.deepEqual(anchor(), ['800px', '34px'], 'minor WebView width jitter is not rotation');
   s.resize(390, 21, 800); assert.deepEqual(anchor(), ['390px', '21px']);
   cleanup(); assert.equal(s.events.size + s.properties.size, 0);
 });

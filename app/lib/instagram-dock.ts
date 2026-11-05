@@ -1,6 +1,6 @@
 /** Keep Instagram trays at one resting screen position across flow steps.
  * Browser chrome, keyboard and scrolling cannot resize this geometry. Only
- * a width change (rotation or split view) establishes a new resting viewport. */
+ * a substantial width change (rotation or split view) establishes a new resting viewport. */
 export function installInstagramDockViewport() {
   const root = document.documentElement;
   if (root.dataset.inAppBrowser !== "instagram") return;
@@ -17,7 +17,7 @@ export function installInstagramDockViewport() {
     root.style.setProperty(properties[1], `${safeBottom}px`);
   };
   const resize = () => {
-    if (window.innerWidth === width) return;
+    if (Math.abs(window.innerWidth - width) < 24) return;
     width = window.innerWidth;
     capture();
   };

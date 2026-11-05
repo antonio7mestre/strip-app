@@ -3,11 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { mediaImportInsertionIndex } from "../app/lib/media-import.ts";
+import * as mediaPalette from "../app/lib/media-palette.ts";
 import { mediaFeedbackClock } from "./helpers/media-import-feedback-fixture.mjs";
 
 const root = new URL("../", import.meta.url);
 const source = readFileSync(new URL("app/lib/media-import.ts", root), "utf8");
+const moduleExports = {};
+runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
+  { exports: moduleExports, require: () => mediaPalette });
+const { mediaImportInsertionIndex } = moduleExports;
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const files = count => Array.from({ length: count }, (_, index) => ({ name: `photo-${index}.jpg`, type: "image/jpeg", size: 1024 }));
 function preparation() {
@@ -26,7 +30,7 @@ function preparation() {
   }
   runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-  } }).outputText, { exports, FileReader, Image, DOMException,
+  } }).outputText, { exports, require: () => mediaPalette, URL: { createObjectURL: file => `blob:${file.name}`, revokeObjectURL() {} }, FileReader, Image, DOMException,
     setTimeout: callback => { timers.set(++timerId, callback); return timerId; },
     clearTimeout: id => timers.delete(id),
     document: { createElement: type => {
@@ -100,7 +104,7 @@ test("cancellation stops reads and decodes without accepting any partial batch",
 test("videos reserve their real dimensions without playing or leaving metadata resources attached", async () => {
   const h = preparation();
   const pending = h.prepareMediaFiles([{ name: "clip.mp4", type: "video/mp4", size: 2000 }], { signal: new AbortController().signal });
-  await h.read(0);
+  await tick();
   const video = h.videos[0];
   assert.equal(video.preload, "metadata"); assert.equal(video.muted, true);
   video.onloadedmetadata(); const result = await pending;
@@ -165,6 +169,7 @@ function editor({ selected = "anchor", holdReveal = false } = {}) {
     setMediaBatchRevealStarted: value => { state.started = value; },
     setSelectedBlockId: value => { state.selected = value; },
     setEditingTextBlockId() {}, setActiveTextTool() {},
+    setMediaImportPreview() {},
     setMediaImportProgress: value => { state.progress = value; },
     setNotice: value => notices.push(value),
   });
@@ -260,11 +265,11 @@ test("partial and complete failures show a helpful message and release the impor
 test("prepared images bypass sequential loading, reserve aspect ratios and cannot trigger another load-time scroll", () => {
   const imageLoad = find(node => ts.isJsxAttribute(node) && node.name.text === "onLoad" && node.getText(ast).includes("focusSelectedBlockWithToolbar"));
   assert.match(imageLoad.getText(ast), /!importedMediaSizes\[block.id\]/);
-  assert.match(declaration("shouldLoadMedia"), /if \(importedMediaSizes\[blockId\]\) return true/);
-  assert.match(page, /width=\{importedMediaSizes\[block.id\]\?\.width\}/);
-  assert.match(page, /height=\{importedMediaSizes\[block.id\]\?\.height\}/);
+  assert.match(page, /required=\{\[\.\.\.editorEntrance.requiredIds, \.\.\.Object.keys\(importedMediaSizes\)\]\}/);
+  assert.match(page, /width=\{intrinsicSize\?\.width\}/);
+  assert.match(page, /height=\{intrinsicSize\?\.height\}/);
   assert.ok(page.includes("{sourceBlocks.map((block, index) => {"));
-  assert.ok(page.includes("<MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} />"));
+  assert.match(page, /<MediaImportPopup progress=\{mediaImportProgress\} revealing=\{mediaBatchRevealStarted\}/);
   assert.doesNotMatch(page, /notice media-import-notice/);
   const css = readFileSync(new URL("app/globals.css", root), "utf8");
   assert.match(css, /@keyframes media-import-in \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
@@ -330,4 +335,27 @@ test("the upload popup does not own the top safe area or add fake content", () =
   assert.doesNotMatch(page, /pendingMediaIsLeading|MEDIA_IMPORT_BACKGROUND|withMediaImportBlock/);
   assert.ok(declaration("firstVisibleBlock").includes("mediaBatchRevealStarted || !mediaBatchRevealIds.includes(block.id)"));
   assert.ok(declaration("topSafeAreaColor").includes('firstVisibleBlock?.type === "text"'));
+});
+
+
+test("ready media is delivered incrementally in selection order before the batch ends", async () => {
+  const h = preparation(), arrived = [];
+  const pending = h.prepareMediaFiles(files(3), { signal: new AbortController().signal,
+    onPrepared: (media, index) => arrived.push([index, media.alt]) });
+  await h.finish(1); assert.equal(arrived.length, 0);
+  await h.finish(0); assert.deepEqual(arrived, [[0, "photo-0"], [1, "photo-1"]]);
+  await h.finish(2); await pending;
+  assert.deepEqual(arrived.map(item => item[0]), [0, 1, 2]);
+});
+
+
+test("video preview waits for a decoded frame and cleans up without playing", async () => {
+  const h = preparation();
+  const pending = h.prepareMediaFiles([{ name: "clip.mp4", type: "video/mp4", size: 2000 }],
+    { signal: new AbortController().signal, previews: true });
+  await tick(); const video = h.videos[0]; video.duration = 5; video.readyState = 1;
+  video.onloadedmetadata(); assert.equal(video.preload, "auto"); assert.equal(video.currentTime, .08);
+  video.readyState = 2; video.onloadeddata(); const result = await pending;
+  assert.equal(result.media[0].width, 1920); assert.equal(video.onloadeddata, null);
+  assert.equal(video.src, undefined); assert.equal(h.timers.size, 0);
 });

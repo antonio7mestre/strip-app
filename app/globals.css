@@ -2642,9 +2642,9 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-canva
   touch-action: none;
 }
 .editor-entrance.is-revealing { opacity: 0; }
-/* First-Strip onboarding reveals the ready canvas and its dock together. The
-   chosen background is the one cover, with no black interstitial or slide. */
-.editor-entrance.is-onboarding-handoff { z-index: 100; }
+/* The blank editor and its tools appear immediately under the incoming
+   color. Only the media canvas waits for decoding, then fades into view. */
+.editor-entrance.is-onboarding-handoff { z-index: 29; }
 .top-status-pill {
   position: fixed;
   z-index: 70;
@@ -3342,6 +3342,8 @@ html[data-in-app-browser="instagram"] .composer-dock {
   --dock-visible-height: 94px;
   --dock-browser-extension: 0px;
   --dock-controls-lower: 0px;
+  /* Instagram must never inherit Safari keyboard-pan compensation. */
+  translate: none !important;
   --instagram-dock-height: var(--dock-visible-height);
   --instagram-dock-visible: calc(var(--instagram-dock-height) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)));
 }
@@ -3349,7 +3351,7 @@ html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):n
   top: calc(var(--instagram-dock-viewport-height, 100svh) - var(--instagram-dock-visible)) !important;
   bottom: auto !important;
   height: calc(var(--instagram-dock-visible) + var(--dock-bleed)) !important;
-  min-height: 0;
+  min-height: 0 !important;
   align-items: center !important;
   padding-top: 0;
   padding-bottom: var(--dock-bleed) !important;
@@ -5699,3 +5701,9 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
     --dock-padding-left: max(20px, env(safe-area-inset-left));
   }
 }
+
+.media-import-art { position: relative; width: min(52vw, 210px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 22px; box-shadow: 0 10px 40px #0003; }
+
+/* The Instagram tray already extends below its fixed edge. Safari-only
+   backing would resize independently as Instagram changes its viewport. */
+html[data-in-app-browser="instagram"] .landing-browser-bottom { display: none; }
