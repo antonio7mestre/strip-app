@@ -3332,20 +3332,23 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
-/* Instagram has no Safari toolbar to compensate for. Freeze its resting
-   viewport and safe inset, and give every compact tray the landing height. */
+/* Instagram uses a compact, edge-to-edge pill. Its resting screen anchor
+   stays fixed, with no Safari bleed or extra outer safe-area padding. */
 html[data-in-app-browser="instagram"] {
-  --dock-visible-height: 94px;
+  --dock-visible-height: 80px;
   --sticker-picker-viewport-height: calc(var(--instagram-dock-viewport-height, 100svh) * .78);
 }
 html[data-in-app-browser="instagram"] .composer-dock {
-  --dock-visible-height: 94px;
+  --dock-visible-height: 80px;
   --dock-browser-extension: 0px;
+  --dock-bleed: 0px;
   --dock-controls-lower: 0px;
   /* Instagram must never inherit Safari keyboard-pan compensation. */
   translate: none !important;
   --instagram-dock-height: var(--dock-visible-height);
-  --instagram-dock-visible: calc(var(--instagram-dock-height) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)));
+  --instagram-dock-visible: var(--instagram-dock-height);
+  border-radius: calc(var(--dock-visible-height) / 2);
+  corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
   top: calc(var(--instagram-dock-viewport-height, 100svh) - var(--instagram-dock-visible)) !important;
@@ -3354,8 +3357,17 @@ html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):n
   min-height: 0 !important;
   align-items: center !important;
   padding-top: 0;
+  margin: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: none;
   padding-bottom: var(--dock-bleed) !important;
   backface-visibility: hidden;
+}
+/* Two-line actions are centered as a group without growing for browser UI. */
+html[data-in-app-browser="instagram"] .composer-dock:is(.landing-start-dock, .auth-action-dock, .share-dock) {
+  --dock-visible-height: 96px;
 }
 html[data-in-app-browser="instagram"] .main-composer-dock {
   --instagram-dock-height: max(var(--dock-visible-height), var(--sticker-dock-visible-height));
@@ -3363,7 +3375,7 @@ html[data-in-app-browser="instagram"] .main-composer-dock {
 html[data-in-app-browser="instagram"] .main-composer-dock.is-sticker-picker-open:not(.is-sticker-picker-source) {
   align-items: flex-start !important;
   padding-top: 12px;
-  padding-bottom: calc(var(--dock-bleed) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom))) !important;
+  padding-bottom: 16px !important;
 }
 html[data-in-app-browser="instagram"] .composer-dock .dock-controls-outgoing {
   top: calc(var(--instagram-dock-visible) / 2);
@@ -3373,24 +3385,24 @@ html[data-in-app-browser="instagram"] .selector-scroll.is-gradient-mode {
   height: var(--instagram-dock-visible);
 }
 
-/* Keep adjacent hints and actions the same distance above the taller tray.
+/* Keep adjacent hints and actions above the compact pill.
    The full poster grid shares its stable viewport instead of following chrome. */
 html[data-in-app-browser="instagram"] :is(.share-mode, .share-shell) {
   height: var(--instagram-dock-viewport-height, 100svh);
 }
 html[data-in-app-browser="instagram"] .share-shell {
-  padding-bottom: calc(var(--dock-visible-height) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)) + 20px);
+  padding-bottom: 116px;
 }
 html[data-in-app-browser="instagram"] .share-link-anchor { translate: none; }
 html[data-in-app-browser="instagram"] .cover-instruction {
-  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)) + 20px);
+  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + 20px);
 }
 html[data-in-app-browser="instagram"] .library-add-button,
 html[data-in-app-browser="instagram"] .app-shell:not(.reader-mode) > .notice {
-  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)) + 18px);
+  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + 18px);
 }
 html[data-in-app-browser="instagram"] .profile-save-notice.notice {
-  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)) + 8px);
+  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + 8px);
 }
 
 /* The expanded picker owns scrolling, without moving the editor's scroll anchor. */

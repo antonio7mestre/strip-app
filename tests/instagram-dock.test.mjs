@@ -51,6 +51,6 @@ test('flow navigation retains the anchor, compact trays share height, motion cop
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
   assert.match(page, /useLayoutEffect\(installInstagramDockViewport, \[\]\)/);
-  assert.match(css, /html\[data-in-app-browser="instagram"\] \.composer-dock \{\s*--dock-visible-height: 94px;/);
+  assert.match(css, /html\[data-in-app-browser="instagram"\] \.composer-dock \{\s*--dock-visible-height: 80px;/);
   assert.match(css, /:not\(\.preview-motion-dock\):not\(\.strip-entrance-dock\):not\(\.story-share-document-dock\):not\(\.auth-dock-frozen\)/);
 });
