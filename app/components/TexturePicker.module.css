@@ -38,3 +38,8 @@
 @keyframes texture-loading { to { rotate: 360deg; } }
 .error { margin: 0; padding: 0 20px; font: 14px/1.4 Arial, sans-serif; }
 .error:empty { display: none; }
+/* Expanded texture choices use the same resting screen edge as compact tools. */
+:global(html[data-in-app-browser="instagram"]) .tray {
+  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh));
+  padding-bottom: calc(16px + var(--instagram-dock-safe-bottom, env(safe-area-inset-bottom)));
+}
