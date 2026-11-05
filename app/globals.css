@@ -43,13 +43,6 @@
   --height-crop-motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-html[data-in-app-browser="instagram"] {
-  /* Instagram exposes less tray below the controls. Finish the corner nearer
-     the edge so it joins the straight side before the viewport clips it.
-     Keep the shared token so inner surfaces and moving tray copies match. */
-  --iphone-panel-radius: clamp(32px, 9vw, 40px);
-}
-
 * {
   box-sizing: border-box;
   -ms-overflow-style: none;
