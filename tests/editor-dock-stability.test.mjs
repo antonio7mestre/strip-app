@@ -36,6 +36,6 @@ test("browser chrome cancels instantly between bottom, height and padding at eve
 
 test("keyboard compensation and the existing source/pack sizing remain unchanged", () => {
   assert.match(css, /translate: 0 var\(--keyboard-dock-pan, 0px\)/);
-  assert.match(editor, /"min\(78dvh, 720px\)"\s*:\s*"80px"/);
+  assert.match(editor, /"min\(var\(--sticker-picker-viewport-height, 78dvh\), 720px\)"\s*:\s*"80px"/);
   assert.match(editor, /: "var\(--dock-visible-height\)"/);
 });

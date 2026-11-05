@@ -3560,7 +3560,7 @@ export default function Home() {
 
   useLayoutEffect(installKeyboardDockPosition, []);
 
-  useLayoutEffect(installInstagramDockViewport, [view]);
+  useLayoutEffect(installInstagramDockViewport, []);
 
   useLayoutEffect(() => {
     if (view !== "title-setup") return;
@@ -8493,7 +8493,7 @@ export default function Home() {
         style={{
           "--sticker-dock-visible-height": stickerPickerOpen
             ? stickerPickerView !== "source"
-              ? "min(78dvh, 720px)"
+              ? "min(var(--sticker-picker-viewport-height, 78dvh), 720px)"
               : "80px"
             : "var(--dock-visible-height)",
           height:

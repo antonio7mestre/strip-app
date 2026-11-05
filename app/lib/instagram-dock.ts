@@ -1,14 +1,21 @@
-/** Instagram resizes its webview while scrolling. Use one resting viewport for
- * editor/home tools, not a new bottom anchor on each scroll/chrome frame.
- * Tool expansion still uses its existing animated height. No scroll listener,
- * scroll lock, safe-area paint, or changes to Safari/landing/reader behavior. */
+/** Keep Instagram trays at one resting screen position across flow steps.
+ * Browser chrome, keyboard and scrolling cannot resize this geometry. Only
+ * a width change (rotation or split view) establishes a new resting viewport. */
 export function installInstagramDockViewport() {
   const root = document.documentElement;
   if (root.dataset.inAppBrowser !== "instagram") return;
-  const property = "--instagram-dock-viewport-height";
-  const previous = root.style.getPropertyValue(property);
+  const properties = ["--instagram-dock-viewport-height", "--instagram-dock-safe-bottom"];
+  const previous = properties.map(name => root.style.getPropertyValue(name));
   let width = window.innerWidth;
-  const capture = () => root.style.setProperty(property, `${window.innerHeight}px`);
+  const capture = () => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;height:env(safe-area-inset-bottom);width:0";
+    root.appendChild(probe);
+    const safeBottom = probe.getBoundingClientRect().height;
+    probe.remove();
+    root.style.setProperty(properties[0], `${window.innerHeight}px`);
+    root.style.setProperty(properties[1], `${safeBottom}px`);
+  };
   const resize = () => {
     if (window.innerWidth === width) return;
     width = window.innerWidth;
@@ -18,7 +25,9 @@ export function installInstagramDockViewport() {
   window.addEventListener("resize", resize);
   return () => {
     window.removeEventListener("resize", resize);
-    if (previous) root.style.setProperty(property, previous);
-    else root.style.removeProperty(property);
+    properties.forEach((name, index) => {
+      if (previous[index]) root.style.setProperty(name, previous[index]);
+      else root.style.removeProperty(name);
+    });
   };
 }
