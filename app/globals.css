@@ -396,6 +396,10 @@ html.is-releasing-leading-image-scroll .app-shell.editor-mode {
   opacity: 1;
 }
 
+/* The editor's real canvas supplies its top color, including a new text-first
+   Strip from onboarding. A fixed solid panel here masks scrolling content and
+   prevents the browser's normal translucent edge from showing through. */
+.editor-mode > .top-safe-area-anchor,
 .has-leading-image .top-safe-area-anchor {
   display: none;
 }
