@@ -1520,11 +1520,11 @@ function TextStyleSelector({
           </button>
         ) : null}
         {gradientMode !== tool && tool === "background" && allowTransparentBackground ? (
-          <button type="button" className={`selector-option color-selector-option color-swatch-option ${transparentBackground ? "is-selected" : ""}`}
+          <button type="button" className={`selector-option color-selector-option no-background-option ${transparentBackground ? "is-selected" : ""}`}
             data-picker-option style={swatchStyle("#FFFFFF")} aria-label="No sticker background"
             aria-pressed={transparentBackground} tabIndex={visible ? 0 : -1}
             onClick={() => { setPageColorMode(null); onChange({ backgroundColor: undefined }); }}>
-            {transparentBackground ? <Check className="swatch-check" aria-hidden="true" /> : <Slash aria-hidden="true" />}
+            <Slash aria-hidden="true" />
           </button>
         ) : null}
         {gradientMode !== tool && tool === "background"

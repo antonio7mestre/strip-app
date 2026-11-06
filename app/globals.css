@@ -5409,6 +5409,11 @@ html[data-in-app-browser="instagram"] .story-share-save-beacon {
   box-shadow: none;
 }
 
+.color-selector-option.no-background-option {
+  border-color: #000000;
+  box-shadow: none;
+}
+
 .gradient-trigger,
 .page-color-trigger {
   border-color: transparent;
