@@ -3342,7 +3342,7 @@ html[data-in-app-browser="instagram"] {
   --instagram-control-font-size: 16px;
   --instagram-tools-left-inset: clamp(0px, calc(100vw - 328px), 8px);
   --dock-visible-height: 88px;
-  --instagram-dock-edge: 0px;
+  --instagram-dock-edge: 2px;
   --sticker-picker-viewport-height: 78svh;
 }
 html[data-in-app-browser="instagram"] .composer-dock {
