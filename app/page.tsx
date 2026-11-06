@@ -127,7 +127,6 @@ import {
 } from "@/app/lib/leading-media-top";
 import { installKeyboardDockPosition } from "@/app/lib/keyboard-dock";
 import { installPublishKeyboardDock } from "@/app/lib/publish-keyboard-dock";
-import { installInstagramDockViewport } from "@/app/lib/instagram-dock";
 import { clampEditorScrollAfterDelete } from "@/app/lib/editor-delete-scroll";
 import { installFooterSafeAreaColor } from "@/app/lib/footer-safe-area";
 import { useLeadingMediaAppearance } from "@/app/components/useLeadingMediaColor";
@@ -3562,8 +3561,6 @@ export default function Home() {
   [authCanvasVisible, authFlowStep === "landing"]);
 
   useLayoutEffect(installKeyboardDockPosition, []);
-
-  useLayoutEffect(installInstagramDockViewport, []);
 
   useLayoutEffect(() => {
     if (view !== "title-setup") return;

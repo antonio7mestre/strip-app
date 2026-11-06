@@ -1,7 +1,5 @@
 "use client";
 
-import { DockViewport } from "./DockViewport";
-
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Check, LoaderCircle, Slash } from "lucide-react";
@@ -73,7 +71,7 @@ export function TexturePicker({ open, selected, onSelect, onClose, onDone }: {
   };
 
   if (typeof document === "undefined" || !present) return null;
-  return createPortal(<DockViewport layer={90}><section ref={tray} role="dialog" aria-modal="true" aria-hidden={!open}
+  return createPortal(<section ref={tray} role="dialog" aria-modal="true" aria-hidden={!open}
     className={`${styles.tray} ${shown ? styles.shown : ""}`}
     aria-labelledby="texture-picker-title" onClick={event => event.stopPropagation()}>
     <header className={`${stickerStyles.packHeader} ${styles.header}`}>
@@ -96,5 +94,5 @@ export function TexturePicker({ open, selected, onSelect, onClose, onDone }: {
       </button>)}
     </div>
     <p className={styles.error} role="status">{error}</p>
-  </section></DockViewport>, document.body);
+  </section>, document.body);
 }

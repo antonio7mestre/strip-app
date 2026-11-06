@@ -3335,37 +3335,12 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
-.dock-viewport { display: contents; }
-/* Anchor the transparent layer to Instagram's actual visible bottom. Its
-   visual viewport can pan independently of the layout viewport on a swipe.
-   Only this container's edge changes; pill dimensions and Safari stay separate. */
-html[data-in-app-browser="instagram"] .dock-viewport {
-  display: block;
-  position: fixed;
-  z-index: var(--dock-viewport-layer, 30);
-  top: 0;
-  bottom: auto;
-  left: 0;
-  width: 100%;
-  height: var(--instagram-dock-viewport-bottom, var(--instagram-dock-viewport-height, 100svh));
-  transform: translateZ(0);
-  translate: none;
-  transition: none;
-  animation: none;
-  pointer-events: none;
-}
-html[data-in-app-browser="instagram"] .dock-viewport:has(> .selector-dock) { --dock-viewport-layer: 35; }
-html[data-in-app-browser="instagram"] .dock-viewport:has(> :is(.auth-action-dock, .shape-selector-dock)) { --dock-viewport-layer: 40; }
-html[data-in-app-browser="instagram"] .dock-viewport:has(> .app-navigation-dock) { --dock-viewport-layer: 42; }
-html[data-in-app-browser="instagram"] .dock-viewport > .composer-dock { position: absolute; }
-html[data-in-app-browser="instagram"] .dock-viewport > .composer-dock:not(.selector-dock):not(.is-shifted) { pointer-events: auto; }
-
 /* Leave a small responsive inset for the host screen corner mask. Keep
    the pill on the same bottom edge and preserve the controls' inner position. */
 html[data-in-app-browser="instagram"] {
   --dock-visible-height: 80px;
   --instagram-dock-edge: clamp(10px, 3vw, 14px);
-  --sticker-picker-viewport-height: calc(var(--instagram-dock-viewport-height, 100svh) * .78);
+  --sticker-picker-viewport-height: 78svh;
 }
 html[data-in-app-browser="instagram"] .composer-dock {
   --dock-visible-height: 80px;
@@ -3381,11 +3356,12 @@ html[data-in-app-browser="instagram"] .composer-dock {
   corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
-  /* Independent pill geometry, with no Safari extensions or safe-area tail. */
+  /* A plain fixed pill, with no viewport tracking or bottom padding. */
+  position: fixed;
   padding-inline: var(--dock-padding-left) var(--dock-padding-right);
   top: auto !important;
   bottom: 0 !important;
-  height: calc(var(--instagram-dock-visible) + var(--dock-bleed)) !important;
+  height: var(--instagram-dock-visible) !important;
   min-height: 0 !important;
   align-items: center !important;
   padding-top: 0;
@@ -3394,7 +3370,7 @@ html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):n
   right: var(--instagram-dock-edge);
   width: calc(100% - 2 * var(--instagram-dock-edge));
   max-width: none;
-  padding-bottom: var(--dock-bleed) !important;
+  padding-bottom: 0 !important;
   backface-visibility: hidden;
 }
 /* Two-line actions are centered as a group without growing for browser UI. */
@@ -3420,7 +3396,7 @@ html[data-in-app-browser="instagram"] .selector-scroll.is-gradient-mode {
 /* Keep adjacent hints and actions above the compact pill.
    The full poster grid shares its stable viewport instead of following chrome. */
 html[data-in-app-browser="instagram"] :is(.share-mode, .share-shell) {
-  height: var(--instagram-dock-viewport-height, 100svh);
+  height: 100svh;
 }
 html[data-in-app-browser="instagram"] .share-shell {
   padding-bottom: 116px;
@@ -5218,7 +5194,7 @@ html:has(.story-share-boundary) body {
   pointer-events: auto;
 }
 
-.editor-mode > .dock-viewport > .selector-dock {
+.editor-mode > .selector-dock {
   transform: none;
   border-color: transparent;
   background: transparent;
@@ -5226,12 +5202,12 @@ html:has(.story-share-boundary) body {
   transition: opacity 140ms ease;
 }
 
-.editor-mode > .dock-viewport > .selector-dock > :is(.selector-scroll, .selector-leading) {
+.editor-mode > .selector-dock > :is(.selector-scroll, .selector-leading) {
   transform: translateY(4px);
   transition: transform 140ms ease;
 }
 
-.editor-mode > .dock-viewport > .selector-dock.is-visible > :is(.selector-scroll, .selector-leading) {
+.editor-mode > .selector-dock.is-visible > :is(.selector-scroll, .selector-leading) {
   transform: none;
 }
 

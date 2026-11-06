@@ -8,7 +8,7 @@ export function installPublishKeyboardDock(dock: HTMLElement | null, input: HTML
   const canvasHeight = canvas?.style.getPropertyValue("height") ?? "";
   const root = document.documentElement;
   root.classList.add("publish-title-active");
-  // Instagram already has an independent, captured viewport container.
+  // Instagram uses a plain fixed pill.
   // Keep the form lock but never install Safari's dock pinning or listeners.
   if (root.dataset?.inAppBrowser === "instagram") {
     return () => root.classList.remove("publish-title-active");
