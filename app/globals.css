@@ -3416,6 +3416,10 @@ html[data-in-app-browser="instagram"] .composer-dock .dock-controls-outgoing {
 html[data-in-app-browser="instagram"] .selector-scroll.is-gradient-mode {
   height: var(--instagram-dock-visible);
 }
+/* The rainbow fills the tray through its lower-left edge in Instagram. */
+html[data-in-app-browser="instagram"] .composer-dock:is(.is-gradient-picker, :has(.profile-tools.is-gradient-picker)) {
+  border-bottom-left-radius: 0;
+}
 
 /* Keep adjacent hints and actions above the compact pill.
    The full poster grid shares its stable viewport instead of following chrome. */

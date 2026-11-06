@@ -5,6 +5,7 @@ import { getReaderPreviewSrc, getReaderUpgradeSrc } from "@/app/lib/reader-image
 import { createReaderMediaQueue } from "@/app/lib/reader-media-queue";
 import { readerMediaPriority, readerVideoProximity } from "@/app/lib/reader-viewport";
 import { readerImageBacking } from "@/app/lib/reader-image-paint";
+import { BlockMediaPlaceholder } from "./BlockMediaPlaceholder";
 
 type Queue = ReturnType<typeof createReaderMediaQueue>;
 const ReaderMediaContext = createContext<{ upgrades: Queue; frames: Queue; revealed: boolean; restored: boolean; required: string[]; originals: boolean } | null>(null);
@@ -27,8 +28,9 @@ export function ReaderMediaProvider({ revealed, required, children, restored = f
 
 /** One stable image element: replace decoded preview pixels only after a full
  * image has decoded offscreen. Blob URLs avoid a second network request. */
-export function ReaderImage({ src = "", srcSet, sizes, onLoad, onError, onSettled, style, blockId = "", ...props }:
-  Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & { src?: string; blockId?: string; onSettled?: (loaded: boolean) => void }) {
+export function ReaderImage({ src = "", srcSet, sizes, onLoad, onError, onSettled, style, blockId = "", reveal = false, previewSrc, placeholderColor, ...props }:
+  Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> & { src?: string; blockId?: string; onSettled?: (loaded: boolean) => void;
+    reveal?: boolean; previewSrc?: string; placeholderColor?: string }) {
   const scope = useContext(ReaderMediaContext);
   const reader = scope?.restored ? null : scope;
   const element = useRef<HTMLImageElement>(null);
@@ -44,6 +46,10 @@ export function ReaderImage({ src = "", srcSet, sizes, onLoad, onError, onSettle
   const [full, setFull] = useState<string | null>(null);
   const [ratio, setRatio] = useState<string>();
   const [backing, setBacking] = useState<string>();
+  const [painted, setPainted] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const revealFrame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(revealFrame.current), []);
   const retainedImages = useRef<HTMLImageElement[]>([]);
   const retainedUrls = useRef<string[]>([]);
   useEffect(() => () => {
@@ -90,18 +96,31 @@ export function ReaderImage({ src = "", srcSet, sizes, onLoad, onError, onSettle
     // blob belongs to the mounted image, not to an individual queue attempt.
     return () => { alive = false; cancel(); };
   }, [reader?.upgrades, reader?.originals, progressive, fallback, src]);
-  return <img {...props} ref={element} src={attached ? full ?? (fallback ? src : preview) : undefined}
+  return <>
+    {reveal ? <BlockMediaPlaceholder ready={painted} failed={failed} color={placeholderColor}
+      previewSrc={previewSrc ?? getReaderPreviewSrc(src)} /> : null}
+    <img {...props} ref={element} src={attached ? full ?? (fallback ? src : preview) : undefined}
     srcSet={attached && !full && (!progressive || fallback) ? srcSet : undefined} sizes={attached && !full && (!progressive || fallback) ? sizes : undefined}
     fetchPriority={required ? "high" : "low"}
     loading="eager" decoding="sync"
     data-reader-quality={!attached ? "pending" : progressive && !full && !fallback ? "preview" : "full"}
     style={{ ...style, ...(ratio && progressive ? { aspectRatio: ratio } : {}),
+      ...(reveal ? { position: "relative", opacity: painted ? 1 : 0, transition: "opacity 420ms cubic-bezier(.2,.7,.2,1)" } : {}),
       ...(backing ? { backgroundImage: `url("${backing}")`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat" } : {}) }}
     onLoad={event => {
       const image = event.currentTarget;
       if (!ratio && image.naturalWidth && image.naturalHeight) setRatio(`${image.naturalWidth} / ${image.naturalHeight}`);
       if (!backing && !reader?.originals && image.closest(".image-block")) setBacking(readerImageBacking(image));
-      void image.decode().then(() => onSettled?.(true), () => onSettled?.(false));
+      void image.decode().catch(() => {}).then(() => {
+        if (element.current !== image || !image.naturalWidth) return;
+        onSettled?.(true);
+        // Commit the placeholder first, even for a warm browser cache. Once
+        // painted, quality upgrades and scrolling never hide this node again.
+        cancelAnimationFrame(revealFrame.current);
+        revealFrame.current = requestAnimationFrame(() => {
+          revealFrame.current = requestAnimationFrame(() => { setPainted(true); setFailed(false); });
+        });
+      });
       onLoad?.(event);
     }}
     onError={event => {
@@ -109,7 +128,9 @@ export function ReaderImage({ src = "", srcSet, sizes, onLoad, onError, onSettle
       if (progressive && !fallback && !full) { setFallback(true); return; }
       onError?.(event);
       onSettled?.(false);
-    }} />;
+      setFailed(true);
+    }} />
+  </>;
 }
 
 /** First-frame preparation is limited to two decoders. Muted preparation stops

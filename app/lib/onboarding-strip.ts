@@ -88,7 +88,7 @@ export function buildFirstStrip(input: FirstStripInput, backgroundColor: string,
   const flow = [
     ...(message ? [text] : []),
     ...input.media.map(media => ({ id: media.id, type: media.type, src: media.src, alt: media.alt,
-      height: input.width * media.height / media.width, ...(media.type === "video" ? { audioEnabled: true } : {}) })),
+      height: input.width * media.height / media.width, mediaWidth: media.width, mediaHeight: media.height, previewSrc: media.previewSrc, ...(media.type === "video" ? { audioEnabled: true } : {}) })),
   ];
   let y = 0;
   const seams: number[] = [];

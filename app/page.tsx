@@ -58,7 +58,6 @@ import {
   type StripEndingStyle,
 } from "@/app/lib/strip-ending";
 import { StripEndingSheet } from "@/app/components/StripEndingSheet";
-import { StripEntrance } from "@/app/components/StripEntrance";
 import { ReaderImage, ReaderMediaProvider, useReaderVideo } from "@/app/components/ReaderMedia";
 import { useReaderViewport } from "@/app/components/useReaderViewport";
 import { PreviewDock } from "@/app/components/PreviewDock";
@@ -69,6 +68,7 @@ import { retainAuthBrowserTheme } from "@/app/lib/auth-browser-theme";
 import { prepareLandingArt } from "@/app/lib/landing-art";
 import { StickerPicker } from "@/app/components/StickerPicker";
 import { TexturePicker } from "@/app/components/TexturePicker";
+import { BlockMediaPlaceholder } from "@/app/components/BlockMediaPlaceholder";
 import { TextBlockTexture } from "@/app/components/TextBlockTexture";
 import { textTexture, textBackgroundChange, textureCoverRect, textureControlsGeometry } from "@/app/lib/text-textures";
 import { TextStickerVisual } from "@/app/components/TextStickerVisual";
@@ -76,6 +76,7 @@ import { TextStickerEditor } from "@/app/components/TextStickerEditor";
 import { EMPTY_TEXT_STICKER_SRC, normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { installPageColorDrag, pageColorPickerCenter } from "@/app/lib/page-color-picker";
 import { samplePageColorAtPoint as sampleVisiblePageColor } from "@/app/lib/page-color-sampler";
+import { observeVideoTrayColor } from "@/app/lib/video-tray-color";
 import { initialPackStickerWidth, packStickerForSource, type StickerAsset } from "@/app/lib/sticker-pack";
 import { StickerImage } from "@/app/components/StickerImage";
 import { normalizeShapeColor, renderShapeSticker, SHAPE_STICKER_DEFAULT_COLOR, type ShapeSticker } from "@/app/lib/shape-stickers";
@@ -83,10 +84,10 @@ import { captureStickerPlacement, type StickerPlacement } from "@/app/lib/sticke
 import { prepareStickerUploads } from "@/app/lib/sticker-upload";
 import { createDraftSaveQueue, DraftSaveError } from "@/app/lib/draft-save";
 import { createOnboardingHistory, type CreationStep, type OnboardingStep } from "@/app/lib/onboarding-history";
+import { mediaPreview } from "@/app/lib/media-palette";
 import { prepareMediaFiles, mediaImportInsertionIndex, type MediaSize } from "@/app/lib/media-import";
 import { createMediaImportFeedback, type MediaImportFeedback } from "@/app/lib/media-import-feedback";
 import { revealImportedMedia } from "@/app/lib/media-import-reveal";
-import { EditorEntrance } from "@/app/components/EditorEntrance";
 import { TopStatusPill } from "@/app/components/TopStatusPill";
 import { AnimatedEllipsis } from "@/app/components/AnimatedEllipsis";
 import { StackPickerArrows } from "@/app/components/StackPickerArrows";
@@ -119,7 +120,7 @@ import { CopyStripLinkButton } from "@/app/components/CopyStripLinkButton";
 import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareControls } from "@/app/components/StoryShareControls";
 import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
-import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
+import { COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
 import { capturePublishReturnMedia } from "@/app/lib/publish-return-layout";
 import { installPreviewNoticeDismiss } from "@/app/lib/preview-notice";
@@ -172,6 +173,9 @@ type ImageBlock = {
   src: string;
   alt: string;
   height?: number;
+  mediaWidth?: number;
+  mediaHeight?: number;
+  previewSrc?: string;
   cropTop?: number;
   cropBottom?: number;
 };
@@ -182,6 +186,9 @@ type VideoBlock = {
   src: string;
   alt: string;
   height?: number;
+  mediaWidth?: number;
+  mediaHeight?: number;
+  previewSrc?: string;
   cropTop?: number;
   cropBottom?: number;
   audioEnabled?: boolean;
@@ -1723,6 +1730,8 @@ function StripVideoBlock({
   loadSettled,
   reservedHeight,
   intrinsicSize,
+  placeholderColor,
+  onDimensions,
   entering = false,
   importPrepared = false,
   importReady = false,
@@ -1749,6 +1758,8 @@ function StripVideoBlock({
   loadSettled: boolean;
   reservedHeight?: number;
   intrinsicSize?: MediaSize;
+  placeholderColor?: string;
+  onDimensions?: (id: string, width: number, height: number, previewSrc?: string) => void;
   entering?: boolean;
   importPrepared?: boolean;
   importReady?: boolean;
@@ -1764,6 +1775,20 @@ function StripVideoBlock({
   const cropViewportHeight = cropEditing ? cropSourceHeight : croppedHeight;
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerVideo = useReaderVideo(videoRef, block.src, block.id);
+  const [painted, setPainted] = useState(false);
+  const [decoded, setDecoded] = useState(false);
+  useEffect(() => {
+    if (!decoded || painted) return;
+    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => setPainted(true)); });
+    return () => cancelAnimationFrame(frame);
+  }, [decoded, painted]);
+  const onFirstFrameColorRef = useRef(onFirstFrameColor);
+  onFirstFrameColorRef.current = onFirstFrameColor;
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !shouldLoad) return;
+    return observeVideoTrayColor(video, sampleVideoBottomColor, color => onFirstFrameColorRef.current?.(color));
+  }, [block.src, shouldLoad]);
   const tapGestureRef = useRef<{
     pointerId: number;
     x: number;
@@ -1816,9 +1841,6 @@ function StripVideoBlock({
       }`}
       data-block-id={block.id}
       aria-busy={!loadSettled}
-      style={{
-        ...(!loadSettled && croppedHeight === undefined && (reservedHeight || readerVideo.active) ? { minHeight: reservedHeight ?? 480 } : {}),
-      } as CSSProperties}
       onPointerDown={(event) => {
         tapGestureRef.current = {
           pointerId: event.pointerId,
@@ -1855,12 +1877,14 @@ function StripVideoBlock({
       >
         <div
           className="block-crop-content"
-          style={
-            !cropEditing && cropTop
-              ? { transform: `translateY(${-cropTop}px)` }
-              : undefined
-          }
+          style={{
+            ...(!cropEditing && cropTop ? { transform: `translateY(${-cropTop}px)` } : {}),
+            ...(intrinsicSize ? { aspectRatio: `${intrinsicSize.width} / ${intrinsicSize.height}` }
+              : !isLoaded ? { minHeight: reservedHeight ?? 480 } : {}),
+          }}
         >
+          <BlockMediaPlaceholder ready={painted} failed={loadSettled && !isLoaded}
+            previewSrc={block.previewSrc} color={placeholderColor} />
           <video
             ref={videoRef}
             width={intrinsicSize?.width}
@@ -1877,17 +1901,25 @@ function StripVideoBlock({
             preload={readerVideo.active ? readerVideo.preload : shouldLoad ? "auto" : "none"}
             draggable={false}
             style={{
-              display: loadSettled && !isLoaded ? "none" : undefined,
-              visibility: isLoaded ? "visible" : "hidden",
+              display: loadSettled && !isLoaded && !painted ? "none" : undefined,
+              position: "relative",
+              opacity: painted ? 1 : 0,
+              transition: "opacity 420ms cubic-bezier(.2,.7,.2,1)",
               aspectRatio: intrinsicSize ? `auto ${intrinsicSize.width} / ${intrinsicSize.height}` : undefined,
             }}
             onLoadedData={(event) => {
+              const video = event.currentTarget;
+              setDecoded(true);
               onLoadSettled(true);
-              const sampledColor = sampleVideoBottomColor(event.currentTarget);
-              if (sampledColor) onFirstFrameColor?.(sampledColor);
-              reportAudioPresence(event.currentTarget);
+              onDimensions?.(block.id, video.videoWidth, video.videoHeight,
+                block.previewSrc ?? mediaPreview(video, video.videoWidth, video.videoHeight).previewSrc);
+              reportAudioPresence(video);
             }}
-            onLoadedMetadata={(event) => reportAudioPresence(event.currentTarget)}
+            onLoadedMetadata={(event) => {
+              const video = event.currentTarget;
+              onDimensions?.(block.id, video.videoWidth, video.videoHeight);
+              reportAudioPresence(video);
+            }}
             onCanPlay={(event) => reportAudioPresence(event.currentTarget)}
             onTimeUpdate={(event) => reportAudioPresence(event.currentTarget)}
             onError={() => onLoadSettled(false)}
@@ -2815,12 +2847,6 @@ export default function Home() {
   const [mediaBatchRevealPrepared, setMediaBatchRevealPrepared] = useState(false);
   const [mediaBatchRevealStarted, setMediaBatchRevealStarted] = useState(false);
   const mediaImportRequestRef = useRef<AbortController | null>(null);
-  const [publishedCoverSettledKey, setPublishedCoverSettledKey] = useState<
-    string | null
-  >(null);
-  const [publishedLoaderDismissedKey, setPublishedLoaderDismissedKey] = useState<
-    string | null
-  >(null);
   const [audibleVideoId, setAudibleVideoId] = useState<string | null>(null);
   const [publishedStrips, setPublishedStrips] = useState<PublishedStripSummary[]>([]);
   const [draftStrips, setDraftStrips] = useState<DraftStripSummary[]>([]);
@@ -3081,17 +3107,7 @@ export default function Home() {
     }
     setMediaLoadStatus({});
   }, [mediaLoadKey]);
-  const editorEntrance = useEditorEntrance(blocks, mediaLoadStatus, visibleProfile.font, stripProfile.loading, stripCanvasRef);
-  const editorRequiredKey = editorEntrance.requiredIds.join("|");
-  useEffect(() => {
-    if (editorEntrance.phase !== "loading" || !editorRequiredKey) return;
-    const timer = window.setTimeout(() => setMediaLoadStatus(current => {
-      const next = { ...current };
-      editorRequiredKey.split("|").forEach(id => { if (next[id] === undefined) next[id] = "error"; });
-      return next;
-    }), PUBLISHED_MEDIA_LOAD_TIMEOUT_MS);
-    return () => window.clearTimeout(timer);
-  }, [editorEntrance.request, editorEntrance.phase, editorRequiredKey]);
+  const editorEntrance = useEditorEntrance(blocks, mediaLoadStatus, stripCanvasRef);
   const imagesAreLoading = mediaImportProgress !== null || mediaBatchRevealIds.length > 0;
   const editorTargetIsLoading = (target: EventTarget | null) => {
     if (imagesAreLoading || mediaImportRequestRef.current) return true;
@@ -3190,8 +3206,7 @@ export default function Home() {
       : view === "publish-setup" ||
     view === "title-setup"
       ? DEFAULT_BACKGROUND
-      // The loader covers the canvas, but Safari also reads the root and theme
-      // color. Keep those black until the same commit starts revealing content.
+      // During the metadata request retain the onboarding handoff color.
       : view === "edit" && editorEntrance.phase === "loading"
       ? editorEntrance.handoffColor ?? DEFAULT_BACKGROUND
       : firstVisibleBlock?.type === "text" && !leadingTexture
@@ -3209,36 +3224,13 @@ export default function Home() {
         )
       : [];
   const publishedViewport = useReaderViewport(view === "published" ? openedPublishedStrip?.id ?? "" : "",
-    publishedAllAssetIds.join("|"), stripCanvasRef, mediaLoadStatus,
-    Boolean(openedPublishedStrip && publishedLoaderDismissedKey === openedPublishedStrip.id));
+    publishedAllAssetIds.join("|"), stripCanvasRef, mediaLoadStatus, false, true, false);
   const publishedAssetIds = publishedViewport.ids;
-  const publishedAssetKey = publishedAssetIds.join("|");
-  const publishedContentReady = publishedViewport.measured && publishedAssetIds.every(
-    (blockId) => mediaLoadStatus[blockId] !== undefined,
-  );
-  const publishedStripLoadKey =
-    view === "published" && openedPublishedStrip
-      ? openedPublishedStrip.id
-      : "";
-  const publishedCoverReady =
-    openedPublishedStrip?.cover.kind !== "image" ||
-    publishedCoverSettledKey === publishedStripLoadKey;
-  const directPublishedEntry = Boolean(initialPublishedId && publishedStripLoadKey === initialPublishedId && !openingCover);
-  const publishedAssetsReady = publishedContentReady && (directPublishedEntry || publishedCoverReady);
-  const publishedEdgeReady = !usesNativeMediaTop || leadingMediaAppearance.ready ||
-    (firstVisibleBlock && mediaLoadStatus[firstVisibleBlock.id] === "error");
-  const publishedContentCanReveal =
-    publishedAssetsReady && (!directPublishedEntry || publishedEdgeReady);
+  const publishedStripLoadKey = view === "published" ? openedPublishedStrip?.id ?? "" : "";
+  // Metadata establishes the entire layout. Each block reveals independently.
+  const publishedContentCanReveal = Boolean(openedPublishedStrip);
   const initialReaderPending = Boolean(initialPublishedId && !initialReaderReleased &&
-    (!initialRouteReady || (view === "published" && !publishedContentCanReveal)));
-  const publishedLoaderPhase = publishedContentCanReveal
-    ? "revealing"
-    : "loading";
-  const publishedLoaderIsVisible =
-    !directPublishedEntry &&
-    publishedStripLoadKey !== "" &&
-    (!publishedContentCanReveal ||
-      publishedLoaderDismissedKey !== publishedStripLoadKey);
+    (!initialRouteReady || (view === "published" && !openedPublishedStrip)));
 
   const prepareInlinePreviewLayout = () => {
     previewLayoutRef.current = preparePreviewLayout(
@@ -3292,48 +3284,6 @@ export default function Home() {
   }, [homeIsVisible]);
 
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const isWaitingForPublishedContent =
-      view === "published" &&
-      openedPublishedStrip !== null &&
-      (publishedLoaderIsVisible || initialReaderPending);
-    root.classList.toggle(
-      "published-content-loading",
-      isWaitingForPublishedContent,
-    );
-    if (!isWaitingForPublishedContent) {
-      return () => root.classList.remove("published-content-loading");
-    }
-
-    const timeout = !publishedAssetsReady
-      ? window.setTimeout(() => {
-          setMediaLoadStatus((current) => {
-            const next = { ...current };
-            publishedAssetKey.split("|").filter(Boolean).forEach((blockId) => {
-              if (next[blockId] === undefined) next[blockId] = "error";
-            });
-            return next;
-          });
-          setPublishedCoverSettledKey(publishedStripLoadKey);
-        }, PUBLISHED_MEDIA_LOAD_TIMEOUT_MS)
-      : null;
-
-    return () => {
-      if (timeout !== null) {
-        window.clearTimeout(timeout);
-      }
-      root.classList.remove("published-content-loading");
-    };
-  }, [
-    openedPublishedStrip,
-    publishedAssetKey,
-    publishedAssetsReady,
-    publishedLoaderIsVisible,
-    initialReaderPending,
-    publishedStripLoadKey,
-    view,
-  ]);
 
   useEffect(() => {
     if (view === "edit") return;
@@ -3507,21 +3457,11 @@ export default function Home() {
 
   useLayoutEffect(() => {
     if (!initialPublishedId || initialReaderReleased || initialReaderPending) return;
-    // Paint the decoded layout beneath the opaque cover before revealing it.
-    // Release the page and safe-area colors in the same frame. The loader's
-    // spinner stays mounted and fades with that same cover.
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        const root = document.documentElement;
-        document.getElementById("strip-theme-color")?.setAttribute("content", topSafeAreaColor);
-        root.removeAttribute("data-reader-entry-pending");
-        setInitialReaderReleased(true);
-        if (directPublishedEntry) setPublishedLoaderDismissedKey(publishedStripLoadKey);
-      });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [initialPublishedId, initialReaderReleased, initialReaderPending, topSafeAreaColor,
-    view, directPublishedEntry, publishedStripLoadKey]);
+    const root = document.documentElement;
+    document.getElementById("strip-theme-color")?.setAttribute("content", topSafeAreaColor);
+    root.removeAttribute("data-reader-entry-pending");
+    setInitialReaderReleased(true);
+  }, [initialPublishedId, initialReaderReleased, initialReaderPending, topSafeAreaColor]);
 
   useLayoutEffect(() => {
     if (!homeIsVisible) return;
@@ -4097,6 +4037,11 @@ export default function Home() {
     const controller = new AbortController();
     mediaImportRequestRef.current = controller;
     const insertionAfterId = selectedBlockId;
+    setSelectedBlockId(null);
+    setEditingTextBlockId(null);
+    setActiveTextTool(null);
+    setHeightCropSession(null);
+    setStickerPickerOpen(false);
     const feedback = createMediaImportFeedback({
       signal: controller.signal,
       onProgress: progress => {
@@ -4122,6 +4067,7 @@ export default function Home() {
         sizes[id] = { width: item.width, height: item.height };
         return { id, type: item.type, src: item.src, alt: item.alt,
           height: Math.max(1, canvasWidth * item.height / item.width),
+          mediaWidth: item.width, mediaHeight: item.height, previewSrc: item.previewSrc,
           ...(item.type === "video" ? { audioEnabled: true } : {}) };
       });
       // Decode the whole mounted batch without changing the visible canvas.
@@ -4147,7 +4093,7 @@ export default function Home() {
         onPrepare: () => {
           if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
           flushSync(() => {
-            setSelectedBlockId(mediaBlocks[0].id);
+            setSelectedBlockId(null);
             setMediaBatchRevealPrepared(true);
           });
         },
@@ -4215,7 +4161,7 @@ export default function Home() {
         width: textSticker ? 72 : initialPackStickerWidth(placement.width, packStickerForSource(src)),
       },
     ]);
-    setSelectedBlockId(id);
+    setSelectedBlockId(textSticker ? id : null);
     if (textSticker) {
       setNewTextStickerId(id);
       setTypingTextStickerId(id);
@@ -5605,6 +5551,8 @@ export default function Home() {
     setSelectedBlockId(null);
     setEditingTextBlockId(null);
     setActiveTextTool(null);
+    setTypingTextStickerId(null);
+    setNewTextStickerId(null);
     setHeightCropSession(null);
     setStickerPickerOpen(false);
     setInlinePreview(false);
@@ -5781,28 +5729,22 @@ export default function Home() {
       setOpeningStripId(strip.id);
       setOpeningCover({ strip, origin, dock, background: visibleProfile.background, ink: profileTextColor(visibleProfile), font: visibleProfile.font });
       setOpenedPublishedStrip(null);
-      setPublishedCoverSettledKey(null);
-      setPublishedLoaderDismissedKey(null);
       setMediaLoadStatus({});
     });
     const timeout = window.setTimeout(() => controller.abort(), PUBLISHED_MEDIA_LOAD_TIMEOUT_MS);
     try {
-      // Fetch while the existing home cover moves. Keep the same overlay mounted
-      // when the reader appears underneath it, rather than navigating away.
-      const [data] = await Promise.all([
-        fetch(`/api/strips/${encodeURIComponent(strip.id)}`, { cache: "no-store", signal: controller.signal })
-          .then(async response => {
-            if (!response.ok) throw new Error("Published Strip request failed");
-            return await response.json() as { strip: PublishedStripDetail };
-          }),
-        new Promise<void>(resolve => window.setTimeout(resolve, COVER_MOVE_MS + 40)),
-      ]);
+      const response = await fetch(`/api/strips/${encodeURIComponent(strip.id)}`, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error("Published Strip request failed");
+      const data = await response.json() as { strip: PublishedStripDetail };
       if (controller.signal.aborted || openingCoverRequestRef.current !== controller) return;
       setViewedStrips(current => [{ ...strip, viewedAt: Date.now() }, ...current.filter(item => item.id !== strip.id)]);
       flushSync(() => {
         setOpenedPublishedStrip(data.strip);
         setView("published");
+        setOpeningCover(null);
+        setOpeningStripId(null);
       });
+      pageTransitionInFlightRef.current = false;
     } catch {
       if (openingCoverRequestRef.current !== controller) return;
       setOpeningCover(null);
@@ -5907,8 +5849,6 @@ export default function Home() {
               setPublicProfile(null);
               setOpenedPublishedStrip(previous.strip);
               setMediaLoadStatus(previous.media);
-              setPublishedCoverSettledKey(previous.strip.id);
-              setPublishedLoaderDismissedKey(previous.strip.id);
               setView("published");
             });
             scrollPageTo({ top: 0, left: 0, behavior: "instant" });
@@ -5937,8 +5877,6 @@ export default function Home() {
             if (destination.pathname !== window.location.pathname) {
               window.history.replaceState({}, "", `${destination.pathname}${window.location.search}${window.location.hash}`);
             }
-            setPublishedCoverSettledKey(null);
-            setPublishedLoaderDismissedKey(null);
             setAuthenticationRequired(false);
             setOpenedPublishedStrip(data.strip);
             setView("published");
@@ -6551,6 +6489,13 @@ export default function Home() {
     );
   };
 
+  const recordMediaDimensions = (blockId: string, width: number, height: number, previewSrc?: string) => {
+    if (!(width > 0 && height > 0)) return;
+    setBlocks(current => current.map(block => block.id === blockId && (block.type === "image" || block.type === "video")
+      && (block.mediaWidth !== width || block.mediaHeight !== height || (!block.previewSrc && previewSrc))
+      ? { ...block, mediaWidth: width, mediaHeight: height, previewSrc: block.previewSrc ?? previewSrc } : block));
+  };
+
   const recordBlockHeight = (blockId: string, height: number) => {
     setBlocks((current) => {
       let changed = false;
@@ -6872,14 +6817,16 @@ export default function Home() {
         className={`strip-canvas ${isEditing && mediaBatchRevealIds.length ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""}`}
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
-        {(sourceBlocks.length === 0 || (!mediaBatchRevealPrepared && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing ? (
+        {(sourceBlocks.length === 0 || (!mediaBatchRevealPrepared && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing && !editorEntrance.active ? (
           <div className="empty-strip">
             <EmptyStripState kind="editor" />
           </div>
         ) : null}
 
         {sourceBlocks.map((block, index) => {
-        const intrinsicSize = importedMediaSizes[block.id] ?? publishFlowMediaSizesRef.current[block.id];
+        const intrinsicSize = importedMediaSizes[block.id] ?? publishFlowMediaSizesRef.current[block.id]
+          ?? ((block.type === "image" || block.type === "video") && block.mediaWidth && block.mediaHeight
+            ? { width: block.mediaWidth, height: block.mediaHeight } : undefined);
         const heightCrop =
           block.type === "image" || block.type === "video"
             ? resolveBlockHeightCrop(block, isEditing ? heightCropSession : null)
@@ -6938,7 +6885,7 @@ export default function Home() {
             >
               {isEditing ? renderBlockControls(block, index) : null}
               <div className="block-crop-viewport">
-                {textTexture(block.backgroundTexture) ? <TextBlockTexture id={block.backgroundTexture!}
+                {textTexture(block.backgroundTexture) ? <TextBlockTexture id={block.backgroundTexture!} color={backgroundColor}
                   controlsVisible={isEditing && selectedBlockId === block.id}
                   onReady={(status, image) => {
                     setMediaLoadStatus(current => current[block.id] === status ? current : { ...current, [block.id]: status });
@@ -7029,9 +6976,6 @@ export default function Home() {
               data-block-id={block.id}
               key={block.id}
               aria-busy={mediaLoadStatus[block.id] === undefined}
-              style={{
-                ...(mediaLoadStatus[block.id] === undefined && heightCrop?.height === undefined ? { minHeight: block.height ?? (view === "edit" ? 480 : undefined) } : {}),
-              } as CSSProperties}
               onPointerDown={(event) => {
                 if (heightCropSession?.blockId === block.id) return;
                 beginBlockTapGesture(event, block.id);
@@ -7059,15 +7003,18 @@ export default function Home() {
               >
                 <div
                   className="block-crop-content"
-                  style={
-                    !heightCrop?.isEditing && heightCrop?.top
-                      ? { transform: `translateY(${-heightCrop.top}px)` }
-                      : undefined
-                  }
+                  style={{
+                    ...(!heightCrop?.isEditing && heightCrop?.top ? { transform: `translateY(${-heightCrop.top}px)` } : {}),
+                    ...(intrinsicSize ? { aspectRatio: `${intrinsicSize.width} / ${intrinsicSize.height}` }
+                      : mediaLoadStatus[block.id] !== "loaded" ? { minHeight: block.height ?? 480 } : {}),
+                  }}
                 >
                   {/* All three views keep the same decoded display resource.
                       The authored source remains untouched in the saved block. */}
                   <ReaderImage
+                    reveal
+                    placeholderColor={view === "published" ? openedPublishedStrip?.profileBackground : visibleProfile.background}
+                    previewSrc={block.previewSrc}
                     blockId={block.id}
                     width={intrinsicSize?.width}
                     height={intrinsicSize?.height}
@@ -7090,6 +7037,7 @@ export default function Home() {
                     }
                     onLoad={(event) => {
                       const image = event.currentTarget;
+                      if (isEditing) recordMediaDimensions(block.id, image.naturalWidth, image.naturalHeight);
                       void image
                         .decode()
                         .catch(() => {})
@@ -7249,6 +7197,8 @@ export default function Home() {
             loadSettled={mediaLoadStatus[block.id] !== undefined}
             reservedHeight={block.height}
             intrinsicSize={intrinsicSize}
+            placeholderColor={view === "published" ? openedPublishedStrip?.profileBackground : visibleProfile.background}
+            onDimensions={isEditing ? recordMediaDimensions : undefined}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
             importPrepared={mediaBatchRevealPrepared}
             importReady={mediaBatchRevealStarted}
@@ -7388,33 +7338,7 @@ export default function Home() {
   } ${dockTransitionStarted ? "is-transitioning" : ""}`;
 
 
-  const entranceStrip = openingCover?.strip ?? openedPublishedStrip;
-  // Local-only design preview, never stored on the Strip.
-  const longLoaderTitlePreview = process.env.NODE_ENV === "development" && typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).get("loader-title-preview") === "long";
-  const coverEntranceLayer = entranceStrip && (openingCover || publishedLoaderIsVisible) && typeof document !== "undefined"
-    ? createPortal(
-      <StripEntrance key={entranceStrip.id}
-        cover={entranceStrip.cover}
-        title={longLoaderTitlePreview ? "The kind of weekend you wish could last a little longer" : entranceStrip.title}
-        origin={openingCover?.origin}
-        dock={openingCover?.dock}
-        backgroundColor={openingCover?.background ?? openedPublishedStrip?.profileBackground}
-        inkColor={openingCover?.ink ?? openedPublishedStrip?.profileTextColor}
-        profileFont={openingCover?.font ?? openedPublishedStrip?.profileFont}
-        requestPending={view !== "published"}
-        settledAssets={publishedAssetIds.filter(id => mediaLoadStatus[id] !== undefined).length +
-          (entranceStrip.cover.kind === "image" && publishedCoverReady ? 1 : 0)}
-        totalAssets={publishedAssetIds.length + (entranceStrip.cover.kind === "image" ? 1 : 0)}
-        revealing={!longLoaderTitlePreview && view === "published" && publishedLoaderPhase === "revealing"}
-        onCoverSettled={() => setPublishedCoverSettledKey(entranceStrip.id)}
-        onExitComplete={() => {
-          setPublishedLoaderDismissedKey(entranceStrip.id);
-          setOpeningCover(null);
-          setOpeningStripId(null);
-          pageTransitionInFlightRef.current = false;
-        }}
-      />, document.body, "strip-cover-entrance") : null;
+  const coverEntranceLayer = null;
 
   if (needsAuthOnboarding) return <>
     {needsAuthBackground ? <OnboardingBackground color={authBackground}
@@ -7442,6 +7366,7 @@ export default function Home() {
     <ProfileReload {...reloadProfileProps} />
   </>;
   if (!initialRouteReady && !authCanvasVisible && !(view === "edit" && editorEntrance.active)) {
+    if (initialPublishedId) return <main className="app-shell reader-mode published-mode is-strip-reader" aria-busy="true" />;
     return renderProfileReload();
   }
   if (profilePageIsLoading) return renderProfileReload();
@@ -8467,7 +8392,7 @@ export default function Home() {
           event.stopPropagation();
           if (!event.repeat) showEditorLoadingNotice(editorEntrance.active ? "Strip is loading" : "Images loading");
         }}
-        className={`app-shell editor-mode ${editorEntrance.active ? `is-editor-loading${editorEntrance.phase === "revealing" ? " is-editor-revealing" : ""}` : ""} ${inlinePreview ? "is-inline-preview is-strip-reader" : ""} ${
+        className={`app-shell editor-mode ${inlinePreview ? "is-inline-preview is-strip-reader" : ""} ${
           selectedBlockIndex >= 0 ? "has-block-toolbar" : ""
         } ${editingTextBlockId ? "is-typing" : ""} ${
           hasLeadingImage ? "has-leading-image" : ""
@@ -8496,7 +8421,7 @@ export default function Home() {
         }}
       >
         <ReaderMediaProvider key={currentDraftId ?? "editor"}
-          revealed={editorEntrance.phase !== "loading"}
+          revealed
           required={[...editorEntrance.requiredIds, ...Object.keys(importedMediaSizes)]}>
           {renderStrip(!inlinePreview)}
         </ReaderMediaProvider>
@@ -8504,11 +8429,7 @@ export default function Home() {
 
       </div>
 
-      {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} percent={editorEntrance.percent}
-        handoffColor={editorEntrance.handoffColor}
-        onCountComplete={() => editorEntrance.completeCount(editorEntrance.request!)}
-        onExitComplete={() => editorEntrance.completeReveal(editorEntrance.request!)}
-        revealing={editorEntrance.phase === "revealing"} /> : null}
+
 
       {!inlinePreview && !heightCropSession && selectedBlock?.type === "text" ? (
         <TextStyleSelector

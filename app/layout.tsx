@@ -5,7 +5,6 @@ import "./globals.css";
 import "./wide-layout.css";
 import { DesktopPresentation } from "./components/DesktopPresentation";
 import { PageDimmer } from "./components/PageDimmer";
-import { ReaderEntryCover } from "./components/ReaderEntryCover";
 import { PROFILE_RELOAD_SCRIPT } from "./lib/profile-reload";
 import { READER_CREATE_PAINT_SCRIPT } from "./lib/reader-create-entry";
 import { IN_APP_BROWSER_SCRIPT, isInstagramInAppBrowser } from "./lib/in-app-browser";
@@ -106,7 +105,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: READER_CREATE_PAINT_SCRIPT }} />
       </head>
       <body>
-        {initialReader ? <ReaderEntryCover /> : null}
         <div className="landing-browser-bottom" aria-hidden="true" /><DesktopPresentation /><PageDimmer /><InitialProfileChromeProvider value={profileChrome}>{children}</InitialProfileChromeProvider>
       </body>
     </html>

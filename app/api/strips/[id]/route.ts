@@ -1,3 +1,4 @@
+import { mediaLayoutMetadata } from "@/app/lib/media-layout";
 import { env } from "cloudflare:workers";
 import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
 import { normalizeStickerOrigin, type StickerOrigin } from "@/app/lib/sticker-origin";
@@ -29,6 +30,9 @@ type StoredBlock =
   | {
       id: string;
       type: "image" | "video";
+      mediaWidth?: number;
+      mediaHeight?: number;
+      previewSrc?: string;
       objectKey: string;
       alt: string;
       height?: number;
@@ -134,6 +138,7 @@ export async function GET(
       type: block.type,
       src: publishedMediaPath(id, block.id, row.published_at),
       alt: block.alt ?? "",
+      ...mediaLayoutMetadata(block),
       ...("height" in block && typeof block.height === "number"
         ? { height: block.height }
         : {}),

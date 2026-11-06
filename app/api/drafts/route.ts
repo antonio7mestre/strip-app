@@ -1,3 +1,4 @@
+import { mediaLayoutMetadata } from "@/app/lib/media-layout";
 import { env } from "cloudflare:workers";
 import { normalizeTextTexture } from "@/app/lib/text-textures";
 import { normalizeTextSticker, type TextSticker } from "@/app/lib/text-sticker";
@@ -34,6 +35,9 @@ type DraftBlock =
   | {
       id: string;
       type: "image" | "video";
+      mediaWidth?: number;
+      mediaHeight?: number;
+      previewSrc?: string;
       src: string;
       alt: string;
       height?: number;
@@ -61,6 +65,9 @@ type StoredDraftBlock =
   | {
       id: string;
       type: "image" | "video";
+      mediaWidth?: number;
+      mediaHeight?: number;
+      previewSrc?: string;
       objectKey: string;
       alt: string;
       height?: number;
@@ -249,6 +256,7 @@ function prepareDraftBlocks(
         id: block.id,
         type: block.type,
         objectKey,
+        ...mediaLayoutMetadata(block),
         alt: String(block.alt ?? "").slice(0, 160),
         ...(finiteNumber(block.height, 0) > 0
           ? { height: Math.min(20_000, finiteNumber(block.height, 0)) }
