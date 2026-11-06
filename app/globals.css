@@ -3394,8 +3394,15 @@ html[data-in-app-browser="instagram"] .main-composer-dock.is-sticker-picker-open
   padding-top: 12px;
   padding-bottom: 16px !important;
 }
+/* Lift the complete content group without changing tray size or anchoring. */
+html[data-in-app-browser="instagram"] .composer-dock > :is(
+  .dock-controls-current, .story-share-dock-content, .profile-tools:not(.is-gradient-picker)
+) {
+  position: relative;
+  top: -4px;
+}
 html[data-in-app-browser="instagram"] .composer-dock .dock-controls-outgoing {
-  top: calc(var(--instagram-dock-visible) / 2);
+  top: calc(var(--instagram-dock-visible) / 2 - 4px);
   translate: 0 -50%;
 }
 html[data-in-app-browser="instagram"] .selector-scroll.is-gradient-mode {
