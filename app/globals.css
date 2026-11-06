@@ -3979,6 +3979,15 @@ html:has(.story-share-boundary) body {
   gap: 20px;
 }
 
+/* Instagram's native share sheet sits higher than Safari's. Lift both cues
+   together while keeping the upper icons clear of the host header. */
+html[data-in-app-browser="instagram"] .story-share-hint {
+  top: calc(var(--story-share-content-top, 0px) + max(env(safe-area-inset-top) + 24px, 30svh - 94px));
+}
+html[data-in-app-browser="instagram"] .story-share-save-beacon {
+  bottom: 136px;
+}
+
 .story-share-option { display: grid; justify-items: center; gap: 12px; }
 .story-share-hint p { margin: 0; white-space: nowrap; }
 .story-share-or { opacity: 0.65; font-weight: 400; transform: translateY(-17px); }
