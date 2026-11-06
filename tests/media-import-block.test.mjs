@@ -33,7 +33,7 @@ test("the popup fades out over the ready batch without changing canvas geometry"
   assert.match(html, /media-import-popup is-revealing/);
   const css = read("app/globals.css"), page = read("app/page.tsx");
   assert.match(css, /\.confirmation-backdrop\.media-import-popup\.is-revealing \{ opacity: 0; \}/);
-  assert.match(css, /transition: opacity 200ms ease-out/);
+  assert.match(css, /transition: opacity var\(--media-import-duration\) var\(--media-import-easing\)/);
   assert.match(css, /\.confirmation-backdrop \{[^}]*position: fixed;[^}]*place-items: center;/);
   assert.match(css, /\.confirmation-card \{[^}]*width: min\(100%, 360px\);[^}]*border-radius: 22px;/);
   assert.match(page, /createPortal\(\s*<MediaImportPopup/);

@@ -11,7 +11,7 @@ const code = ts.transpileModule(read("app/lib/media-import-reveal.ts"), {
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function harness({ reduced = false } = {}) {
   const exports = {}, timers = new Map(), frames = new Map(), controller = new AbortController();
-  let id = 0, reveals = 0;
+  let id = 0, reveals = 0, prepares = 0, positions = 0;
   runInNewContext(code, { exports, DOMException,
     setTimeout: (callback, duration) => { timers.set(++id, { callback, duration }); return id; },
     clearTimeout: key => timers.delete(key),
@@ -45,7 +45,8 @@ function harness({ reduced = false } = {}) {
     assert.ok(timer, `missing ${duration}ms timer`); timers.delete(key); timer.callback(); await tick();
   }
   const start = (ids, target = canvas) => exports.revealImportedMedia(target, ids, {
-    signal: controller.signal, onReveal: () => { reveals++; },
+    signal: controller.signal, onPrepare: () => { prepares++; },
+    onPosition: () => { positions++; }, onReveal: () => { reveals++; },
   });
   const animate = blockId => {
     let finish;
@@ -58,7 +59,7 @@ function harness({ reduced = false } = {}) {
     return finish;
   };
   const existing = (blockId, before, after) => blocks.push({ dataset: { blockId },
-    getBoundingClientRect: () => ({ height: 100, top: reveals ? after : before }),
+    getBoundingClientRect: () => ({ height: 100, top: prepares ? after : before }),
     animate: (keyframes, options) => {
       let finish;
       const motion = { keyframes, options, cancelled: false,
@@ -67,20 +68,23 @@ function harness({ reduced = false } = {}) {
       return moves.at(-1);
     },
   });
-  return { ...exports, controller, timers, frames, image, video, frame, timer, start, animate, existing, moves, reveals: () => reveals };
+  return { ...exports, controller, timers, frames, image, video, frame, timer, start, animate, existing, moves, prepares: () => prepares, positions: () => positions, reveals: () => reveals };
 }
 
-test("actual mounted photos decode, paint twice, then reveal as one 440ms batch", async () => {
+test("actual mounted photos decode, paint twice, then reveal as one 480ms batch", async () => {
   const h = harness(), first = h.image("first"), second = h.image("second"), other = h.image("unrelated");
   const pending = h.start(["first", "second"]);
   assert.equal(first.count(), 1); assert.equal(second.count(), 1); assert.equal(other.count(), 0);
   first.resolve(); await tick(); assert.equal(h.frames.size, 0);
   second.resolve(); await tick();
   assert.equal(h.timers.size, 0);
+  assert.equal(h.prepares(), 1, "the final media geometry is committed before the paint frames");
+  assert.equal(h.positions(), 1, "the media is brought onscreen while the loader is still visible");
+  assert.equal(h.reveals(), 0);
   await h.frame(); assert.equal(h.reveals(), 0);
   await h.frame(); assert.equal(h.reveals(), 1);
   assert.equal(h.timers.size, 1);
-  await h.timer(440); await pending;
+  await h.timer(480); await pending;
   assert.equal(h.timers.size, 0); assert.equal(h.frames.size, 0);
 });
 
@@ -90,7 +94,7 @@ test("a rejected image decode does not strand a batch, while video waits for its
   image.reject(new Error("decode failed")); await tick();
   assert.equal(h.frames.size, 0);
   video.emit("loadeddata"); await tick(); assert.equal(video.events.size, 0);
-  await h.frame(); await h.frame(); await h.timer(440); await pending;
+  await h.frame(); await h.frame(); await h.timer(480); await pending;
   assert.equal(h.reveals(), 1);
 });
 
@@ -99,7 +103,7 @@ test("stalled mounted media has a bounded timeout and no late duplicate reveal",
   const pending = h.start(["photo"]);
   await h.timer(2000); await h.frame(); await h.frame();
   image.resolve(); await tick(); assert.equal(h.reveals(), 1);
-  await h.timer(440); await pending; assert.equal(h.timers.size, 0);
+  await h.timer(480); await pending; assert.equal(h.timers.size, 0);
 });
 
 test("cancelling during decode, paint, or fade removes every timer and frame", async () => {
@@ -119,13 +123,13 @@ test("cancelling during decode, paint, or fade removes every timer and frame", a
 test("the same bounded reveal runs when the device requests reduced motion", async () => {
   const h = harness({ reduced: true }); h.video("ready", 2);
   const pending = h.start(["ready"]); await tick();
-  await h.frame(); await h.frame(); await h.timer(440); await pending;
+  await h.frame(); await h.frame(); await h.timer(480); await pending;
   assert.equal(h.reveals(), 1); assert.equal(h.timers.size, 0);
 });
 
 test("missing canvas does not strand a completed import", async () => {
   const h = harness(); const pending = h.start(["removed"], null); await tick();
-  await h.frame(); await h.frame(); await h.timer(440); await pending;
+  await h.frame(); await h.frame(); await h.timer(480); await pending;
   assert.equal(h.reveals(), 1);
 });
 
@@ -136,7 +140,7 @@ test("grow and shrink handoffs wait for the actual CSS finish rather than a shor
   image.resolve(); await tick(); await h.frame(); await h.frame();
   assert.equal(h.reveals(), 1);
   assert.equal(settled, false);
-  assert.deepEqual([...h.timers.values()].map(timer => timer.duration), [680], "only the bounded safety fallback runs while CSS is animating");
+  assert.deepEqual([...h.timers.values()].map(timer => timer.duration), [720], "only the bounded safety fallback runs while CSS is animating");
   finish(); await pending;
   assert.equal(settled, true); assert.equal(h.timers.size, 0);
 });
@@ -149,21 +153,21 @@ test("a stalled animation remains bounded and cancellation clears its fallback",
     if (abort) {
       const rejected = assert.rejects(pending, error => error.name === "AbortError");
       h.controller.abort(); await rejected;
-    } else { await h.timer(680); await pending; }
+    } else { await h.timer(720); await pending; }
     assert.equal(h.timers.size, 0); assert.equal(h.frames.size, 0);
   }
 });
 
 test("waiting photos stay hidden until the whole batch can fade in with its selection", () => {
   const css = read("app/globals.css"), page = read("app/page.tsx");
-  assert.ok(css.includes(".editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }"));
+  assert.ok(css.includes(".editor-mode .strip-block.is-import-revealing:not(.is-import-prepared) { display: none; }"));
   assert.ok(css.includes(".editor-mode .strip-block.is-import-ready { animation: media-import-in"));
   assert.ok(page.includes("importReady={mediaBatchRevealStarted}"));
-  assert.ok(page.includes('mediaHandoff={mediaBatchRevealStarted && mediaBatchRevealIds[0] === block.id ? "fade" : undefined}'));
+  assert.ok(page.includes('mediaHandoff={mediaBatchRevealPrepared && mediaBatchRevealIds[0] === block.id ? "fade" : undefined}'));
   assert.ok(page.includes("const [mediaHandoffEntrance] = useState(mediaHandoff)"));
   assert.doesNotMatch(page, /is-import-first|--media-import-height|importFirst/);
   assert.doesNotMatch(css, /media-import-first-size|media-import-follow|media-import-surface/);
-  assert.equal(harness().MEDIA_IMPORT_REVEAL_MS, 440);
+  assert.equal(harness().MEDIA_IMPORT_REVEAL_MS, 480);
   assert.ok(css.includes(".editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }"));
   assert.ok(css.includes(".block-controls-reveal.is-media-handoff:not(.is-closing) button { animation: none; }"));
 });
@@ -176,7 +180,7 @@ test("existing content keeps its pre-import position and translates once without
   assert.equal(h.moves.length, 1);
   assert.equal(h.moves[0].keyframes[0].translate, "0 -660px");
   assert.equal(h.moves[0].keyframes[1].translate, "0 0");
-  assert.equal(h.moves[0].options.duration, 440);
+  assert.equal(h.moves[0].options.duration, 480);
   h.moves[0].finish(); await pending;
   assert.equal(h.moves[0].cancelled, true);
   assert.equal(h.timers.size, 0);
@@ -192,4 +196,18 @@ test("existing-content motion runs and cancels cleanly regardless of the device 
     h.controller.abort(); await rejected; assert.equal(h.moves[0].cancelled, true);
     assert.equal(h.timers.size, 0);
   }
+});
+
+
+test("the loader remains mounted until every imported media fade finishes", async () => {
+  const h = harness(), first = h.image("first"), last = h.image("last");
+  const finishFirst = h.animate("first"), finishLast = h.animate("last");
+  let settled = false;
+  const pending = h.start(["first", "last"]).then(() => { settled = true; });
+  first.resolve(); last.resolve(); await tick(); await h.frame(); await h.frame();
+  finishFirst(); await tick();
+  assert.equal(settled, false, "one completed photo must not remove the remaining fades");
+  finishLast(); await pending;
+  assert.equal(settled, true);
+  assert.equal(h.timers.size, 0);
 });

@@ -1,12 +1,14 @@
-export const MEDIA_IMPORT_REVEAL_MS = 440;
+export const MEDIA_IMPORT_REVEAL_MS = 480;
 const MOUNTED_MEDIA_TIMEOUT_MS = 2_000;
 
 /** Keep the upload feedback until the actual mounted media is decoded.
  * An offscreen predecode alone does not guarantee a new Safari image is ready. */
 export async function revealImportedMedia(canvas: HTMLElement | null, ids: readonly string[], {
   signal,
+  onPrepare,
+  onPosition,
   onReveal,
-}: { signal: AbortSignal; onReveal: () => void }) {
+}: { signal: AbortSignal; onPrepare: () => void; onPosition?: () => void; onReveal: () => void }) {
   const cleanups = new Set<() => void>();
   const cancelled = () => new DOMException("Import cancelled", "AbortError");
   const wait = (start: (resolve: () => void) => () => void) => new Promise<void>((resolve, reject) => {
@@ -47,16 +49,15 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
       void Promise.all(ready).then(done);
       return () => { clearTimeout(timer); removers.forEach(remove => remove()); };
     });
-    // Paint the unchanged canvas before the decoded batch is revealed.
-    await frame();
-    await frame();
     if (signal.aborted) throw cancelled();
     const positions = mounted.filter(block => !selected.has(block.dataset.blockId ?? ""))
       .flatMap(block => {
         const bounds = block.getBoundingClientRect?.();
         return bounds?.height ? [{ block, top: bounds.top }] : [];
       });
-    onReveal();
+    // Give the decoded batch its final geometry while it is still transparent
+    // and the loading surface is present. Reveal must not also mount/layout it.
+    onPrepare();
     // The final layout is committed once. Existing content moves from its
     // previous position using translation, without reflowing every frame.
     const moves = positions.flatMap(({ block, top }) => {
@@ -67,9 +68,16 @@ export async function revealImportedMedia(canvas: HTMLElement | null, ids: reado
       cleanups.add(() => animation.cancel());
       return [animation];
     });
+    // Position the imported media before its fade, never after the user has
+    // already missed that fade offscreen. Allow WebKit to paint the zero state.
+    onPosition?.();
+    await frame();
+    await frame();
+    if (signal.aborted) throw cancelled();
+    onReveal();
     // CSS begins on its own paint clock, which may lag the commit on a busy
     // phone. Keep the handoff until the real grow/shrink and pixel fade finish.
-    const animations = (blocks[0]?.getAnimations?.({ subtree: true }) ?? []).filter(animation =>
+    const animations = blocks.flatMap(block => block.getAnimations?.({ subtree: true }) ?? []).filter(animation =>
       "animationName" in animation && typeof animation.animationName === "string" &&
       animation.animationName.startsWith("media-import-")).concat(moves);
     await wait(done => {

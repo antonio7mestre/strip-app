@@ -1724,6 +1724,7 @@ function StripVideoBlock({
   reservedHeight,
   intrinsicSize,
   entering = false,
+  importPrepared = false,
   importReady = false,
   onLoadSettled,
   onHeight,
@@ -1749,6 +1750,7 @@ function StripVideoBlock({
   reservedHeight?: number;
   intrinsicSize?: MediaSize;
   entering?: boolean;
+  importPrepared?: boolean;
   importReady?: boolean;
   onLoadSettled: (loaded: boolean) => void;
   onHeight?: (blockId: string, height: number) => void;
@@ -1807,7 +1809,7 @@ function StripVideoBlock({
 
   return (
     <figure
-      className={`strip-block video-block ${entering ? `is-import-revealing${importReady ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
+      className={`strip-block video-block ${entering ? `is-import-revealing${importPrepared ? " is-import-prepared" : ""}${importReady ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
         isEditing && isSelected ? "is-selected" : ""
       } ${croppedHeight !== undefined ? "is-height-cropped" : ""} ${
         heightCropHandles ? "is-height-cropping" : ""
@@ -2810,6 +2812,7 @@ export default function Home() {
   const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportFeedback & { afterId: string | null }) | null>(null);
   const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
+  const [mediaBatchRevealPrepared, setMediaBatchRevealPrepared] = useState(false);
   const [mediaBatchRevealStarted, setMediaBatchRevealStarted] = useState(false);
   const mediaImportRequestRef = useRef<AbortController | null>(null);
   const [publishedCoverSettledKey, setPublishedCoverSettledKey] = useState<
@@ -4130,24 +4133,29 @@ export default function Home() {
           return next;
         });
         setMediaBatchRevealIds(mediaBlocks.map(block => block.id));
+        setMediaBatchRevealPrepared(false);
         setMediaBatchRevealStarted(false);
         setEditingTextBlockId(null);
         setActiveTextTool(null);
       });
       await revealImportedMedia(stripCanvasRef.current, mediaBlocks.map(block => block.id), {
         signal: controller.signal,
-        onReveal: () => {
+        onPrepare: () => {
           if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
           flushSync(() => {
             setSelectedBlockId(mediaBlocks[0].id);
-            setMediaBatchRevealStarted(true);
+            setMediaBatchRevealPrepared(true);
           });
+        },
+        onPosition: () => {
+          if (!suppressSelectedBlockAutoFocusRef.current) focusSelectedBlockWithToolbar(mediaBlocks[0].id, "instant");
+        },
+        onReveal: () => {
+          if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
+          flushSync(() => setMediaBatchRevealStarted(true));
         },
       });
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
-      // Selection and its attached controls travel with the first photo. Only
-      // scroll it into view after the geometry has settled.
-      if (!suppressSelectedBlockAutoFocusRef.current) focusSelectedBlockWithToolbar(mediaBlocks[0].id);
       if (failed > 0) setNotice("Some files couldn’t be added. The rest are ready.");
     } catch {
       if (!controller.signal.aborted && mediaImportRequestRef.current === controller) {
@@ -4159,6 +4167,7 @@ export default function Home() {
         mediaImportRequestRef.current = null;
         setMediaImportProgress(null);
         setMediaBatchRevealIds([]);
+        setMediaBatchRevealPrepared(false);
         setMediaBatchRevealStarted(false);
       }
     }
@@ -6817,7 +6826,7 @@ export default function Home() {
         stickerRotation={block.type === "sticker" ? block.rotation ?? 0 : undefined}
         showTopEdge={!(block.type === "text" && index === firstFlowBlockIndex)}
         closing={heightCropSession?.blockId === block.id}
-        mediaHandoff={mediaBatchRevealStarted && mediaBatchRevealIds[0] === block.id ? "fade" : undefined}
+        mediaHandoff={mediaBatchRevealPrepared && mediaBatchRevealIds[0] === block.id ? "fade" : undefined}
       />
     );
   };
@@ -6859,7 +6868,7 @@ export default function Home() {
         className={`strip-canvas ${isEditing && mediaBatchRevealIds.length ? "is-media-handoff" : ""} ${showsEndingCard ? "has-ending-card" : ""}`}
         style={canvasMinHeight ? { minHeight: canvasMinHeight } : undefined}
       >
-        {(sourceBlocks.length === 0 || (!mediaBatchRevealStarted && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing ? (
+        {(sourceBlocks.length === 0 || (!mediaBatchRevealPrepared && mediaBatchRevealIds.length > 0 && sourceBlocks.every(block => mediaBatchRevealIds.includes(block.id)))) && isEditing ? (
           <div className="empty-strip">
             <EmptyStripState kind="editor" />
           </div>
@@ -7008,7 +7017,7 @@ export default function Home() {
             : heightCrop?.height;
           return (
             <figure
-              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealStarted ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
+              className={`strip-block image-block ${isEditing && mediaBatchRevealIds.includes(block.id) ? `is-import-revealing${mediaBatchRevealPrepared ? " is-import-prepared" : ""}${mediaBatchRevealStarted ? " is-import-ready" : ""}` : ""} ${isEditing ? "is-editing" : ""} ${
                 isEditing && selectedBlockId === block.id ? "is-selected" : ""
               } ${heightCrop?.isActive ? "is-height-cropped" : ""} ${
                 heightCrop?.isEditing ? "is-height-cropping" : ""
@@ -7237,6 +7246,7 @@ export default function Home() {
             reservedHeight={block.height}
             intrinsicSize={intrinsicSize}
             entering={isEditing && mediaBatchRevealIds.includes(block.id)}
+            importPrepared={mediaBatchRevealPrepared}
             importReady={mediaBatchRevealStarted}
             cropTop={heightCrop?.top}
             cropSourceHeight={heightCrop?.sourceHeight}

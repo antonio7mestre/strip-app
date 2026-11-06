@@ -2606,9 +2606,9 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-scrol
     var(--height-crop-motion-easing);
 }
 
-/* Decode the real media with no layout footprint, then fade in the ready batch. */
-.editor-mode {
-  --media-import-duration: 440ms;
+/* One clock for the decoded batch, loading popup, and page dimmer. */
+:root {
+  --media-import-duration: 480ms;
   --media-import-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -2688,8 +2688,9 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-scrol
 }
 @keyframes editor-loading-pulse { from { opacity: .25; } to { opacity: 1; } }
 .editor-mode .strip-canvas.is-media-handoff { overflow-anchor: none; }
-.editor-mode .strip-block.is-import-revealing:not(.is-import-ready) { display: none; }
-.editor-mode .strip-block.is-import-ready { animation: media-import-in var(--media-import-duration) var(--media-import-easing); }
+.editor-mode .strip-block.is-import-revealing:not(.is-import-prepared) { display: none; }
+.editor-mode .strip-block.is-import-prepared:not(.is-import-ready) { opacity: 0; pointer-events: none; }
+.editor-mode .strip-block.is-import-ready { animation: media-import-in var(--media-import-duration) var(--media-import-easing) both; }
 .block-controls-reveal.is-media-handoff:not(.is-closing) {
   animation: none;
   will-change: transform, opacity;
@@ -2703,7 +2704,7 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-scrol
   pointer-events: none;
   opacity: 1;
   animation: media-import-in 160ms ease-out;
-  transition: opacity 200ms ease-out;
+  transition: opacity var(--media-import-duration) var(--media-import-easing);
 }
 .confirmation-backdrop.media-import-popup.is-revealing { opacity: 0; }
 .media-import-progress { display: flex; flex-direction: column; gap: 18px; margin-top: 20px; }
@@ -3100,6 +3101,7 @@ html:has(.published-mode.has-leading-text):has(.cover-entrance[data-ink-phase="f
 :root { --page-dim-opacity: 0; --page-dim-duration: 380ms; }
 html:has(.text-sticker-editor-layer:not(.is-closing)):not(:has(.confirmation-backdrop)) { --page-dim-opacity: 1; }
 html:has(.confirmation-backdrop) { --page-dim-opacity: 1; }
+html:has(.media-import-popup) { --page-dim-duration: var(--media-import-duration); }
 html:has(.media-import-popup.is-revealing):not(:has(.confirmation-backdrop:not(.media-import-popup))) { --page-dim-opacity: 0; }
 html.page-color-picking { --page-dim-opacity: 0; }
 .page-dimmer {
