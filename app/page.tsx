@@ -4543,6 +4543,10 @@ export default function Home() {
   );
 
   const captureDockTransition = () => {
+    // Keep Instagram's controls live through navigation. Its independently
+    // scrolling editor must not wait on a cloned, non-interactive button row
+    // or a pair of animation frames before Next/Back can be used again.
+    if (document.documentElement.dataset.inAppBrowser === "instagram") return null;
     const currentControls = document.querySelector<HTMLElement>(
       ".composer-dock .dock-controls-current",
     );
@@ -4585,12 +4589,13 @@ export default function Home() {
 
   const changeViewWithDockTransition = (nextView: View) => {
     const dockSnapshot = captureDockTransition();
+    cancelDockTransitionSchedule();
     flushSync(() => {
       setDockTransition(dockSnapshot);
       setDockTransitionStarted(false);
       setView(nextView);
     });
-    scheduleDockTransitionEnd();
+    if (dockSnapshot) scheduleDockTransitionEnd();
   };
 
   const setViewInstantly = (
@@ -4599,13 +4604,13 @@ export default function Home() {
     animateDock = true,
   ) => {
     const dockSnapshot = animateDock ? captureDockTransition() : null;
-    if (!animateDock) cancelDockTransitionSchedule();
+    if (!dockSnapshot) cancelDockTransitionSchedule();
     flushSync(() => {
       setDockTransition(dockSnapshot);
       setDockTransitionStarted(false);
       setView(nextView);
     });
-    if (animateDock) scheduleDockTransitionEnd();
+    if (dockSnapshot) scheduleDockTransitionEnd();
     const scrollEnd = Math.max(
       0,
       pageScrollHeight() - pageViewportHeight(),
@@ -4653,13 +4658,13 @@ export default function Home() {
     const root = document.documentElement;
     const updateView = () => {
       const dockSnapshot = animateDock ? captureDockTransition() : null;
-      if (!animateDock) cancelDockTransitionSchedule();
+      if (!dockSnapshot) cancelDockTransitionSchedule();
       flushSync(() => {
         setDockTransition(dockSnapshot);
         setDockTransitionStarted(false);
         setView(nextView);
       });
-      if (animateDock) scheduleDockTransitionEnd();
+      if (dockSnapshot) scheduleDockTransitionEnd();
       const top =
         nextScroll === "end"
           ? Math.max(0, pageScrollHeight() - pageViewportHeight())
@@ -4695,14 +4700,14 @@ export default function Home() {
     root.style.setProperty("--page-transition-duration", `${duration}ms`);
     root.classList.add("strip-page-transitioning");
     const dockSnapshot = animateDock ? captureDockTransition() : null;
-    if (!animateDock) cancelDockTransitionSchedule();
+    if (!dockSnapshot) cancelDockTransitionSchedule();
     flushSync(() => {
       setLegacyPageTransition(snapshot);
       setDockTransition(dockSnapshot);
       setDockTransitionStarted(false);
       setView(nextView);
     });
-    if (animateDock) scheduleDockTransitionEnd();
+    if (dockSnapshot) scheduleDockTransitionEnd();
     const top =
       nextScroll === "end"
         ? Math.max(0, pageScrollHeight() - pageViewportHeight())

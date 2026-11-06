@@ -5743,22 +5743,30 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
    backing would resize independently as Instagram changes its viewport. */
 html[data-in-app-browser="instagram"] .landing-browser-bottom { display: none; }
 
-/* The Instagram editor has one stationary shell. Only the artwork scrolls;
-   the pill is a sibling, outside that scrolling surface. Safari keeps its
-   existing document scroll and browser-toolbar geometry. */
+/* Instagram keeps one stationary viewport throughout editing and publishing.
+   Next/Back must not switch WebKit between document and inner scrolling.
+   Only the artwork scrolls; the pill stays outside that scrolling surface.
+   Safari keeps its existing document scroll and browser-toolbar geometry. */
 .editor-scroll-surface { display: contents; }
-html[data-in-app-browser="instagram"]:has(.editor-scroll-surface),
-html[data-in-app-browser="instagram"]:has(.editor-scroll-surface) body {
+html[data-in-app-browser="instagram"]:has(.app-shell:is(.editor-mode, .publish-setup-mode, .title-setup-mode, .share-mode)),
+html[data-in-app-browser="instagram"]:has(.app-shell:is(.editor-mode, .publish-setup-mode, .title-setup-mode, .share-mode)) body {
   height: 100%;
   min-height: 0;
   overflow: hidden;
 }
-html[data-in-app-browser="instagram"] .app-shell.editor-mode {
+html[data-in-app-browser="instagram"] .app-shell:is(.editor-mode, .publish-setup-mode, .title-setup-mode, .share-mode) {
   position: absolute;
   inset: 0;
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+html[data-in-app-browser="instagram"].publish-title-active body {
+  /* The root is already stationary. Avoid a second fixed-body scroll lock. */
+  position: static;
+}
+html[data-in-app-browser="instagram"] :is(.publish-setup-shell, .title-setup-shell, .share-shell) {
+  height: 100%;
 }
 html[data-in-app-browser="instagram"] .editor-scroll-surface {
   display: block;
@@ -5770,7 +5778,7 @@ html[data-in-app-browser="instagram"] .editor-scroll-surface {
   overflow-anchor: none;
   touch-action: pan-y;
 }
-html[data-in-app-browser="instagram"] .editor-mode .composer-dock:not(.preview-motion-dock) {
+html[data-in-app-browser="instagram"] .app-shell:is(.editor-mode, .publish-setup-mode, .title-setup-mode, .share-mode) .composer-dock:not(.preview-motion-dock):not(.story-share-document-dock) {
   position: absolute !important;
 }
 
