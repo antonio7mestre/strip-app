@@ -3272,38 +3272,41 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   initial-value: 64px;
 }
 
-.composer-dock {
-  /* Keep the current dock painted behind the native keyboard. Compensate
-     Safari's viewport pan instantly, separately from normal tool transitions. */
+:where(html:not([data-in-app-browser="instagram"])) .composer-dock {
+  /* Safari owns browser extension and keyboard pan. Instagram never uses
+     this positioning model, including on its first scroll or return to top. */
   --dock-browser-extension: max(0px, calc(100lvh - 100dvh));
+  position: fixed;
+  right: 0;
+  bottom: calc(-1 * var(--dock-bleed) - var(--dock-browser-extension));
+  left: 0;
+  min-height: calc(
+    var(--dock-visible-height) + var(--dock-bleed) + var(--dock-surface-extra) + env(safe-area-inset-bottom) +
+      var(--dock-browser-extension)
+  );
+  padding: calc(12px + var(--dock-controls-lower, 0px)) var(--dock-padding-right)
+    calc(
+      var(--dock-bleed) + var(--dock-bottom-gap) + env(safe-area-inset-bottom) + var(--dock-browser-extension) - var(--dock-controls-lower, 0px)
+    ) var(--dock-padding-left);
+  translate: 0 var(--keyboard-dock-pan, 0px);
+}
+
+.composer-dock {
   --dock-padding-left: max(12px, env(safe-area-inset-left));
   --dock-padding-right: max(12px, env(safe-area-inset-right));
   /* The landing CTA, editor tools and publish pairs share one inner edge.
      Combined with the 12px outer padding, this gives 34px on phones. */
   --dock-controls-inset: 22px;
   --dock-controls-width: min(calc(100% - 2 * var(--dock-controls-inset)), 536px);
-  position: fixed;
   z-index: 30;
-  right: 0;
-  bottom: calc(-1 * var(--dock-bleed) - var(--dock-browser-extension));
-  left: 0;
   display: flex;
   width: 100%;
   max-width: none;
-  min-height: calc(
-    var(--dock-visible-height) + var(--dock-bleed) + var(--dock-surface-extra) + env(safe-area-inset-bottom) +
-      var(--dock-browser-extension)
-  );
   align-items: center;
   justify-content: center;
   gap: 4px;
   overflow: hidden;
-  padding: calc(12px + var(--dock-controls-lower, 0px)) var(--dock-padding-right)
-    calc(
-      var(--dock-bleed) + var(--dock-bottom-gap) + env(safe-area-inset-bottom) + var(--dock-browser-extension) - var(--dock-controls-lower, 0px)
-    ) var(--dock-padding-left);
   transform: none;
-  translate: 0 var(--keyboard-dock-pan, 0px);
   border: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--iphone-panel-radius) var(--iphone-panel-radius) 0 0;
@@ -3335,7 +3338,9 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
 .dock-viewport { display: contents; }
 /* A small fixed bottom layer can follow WebKit's transient scroll offset.
    Anchor a transparent viewport at the top instead, then lay out the pill
-   inside it. The containing layer has no document scroll height or hit area. */
+   inside a captured pixel height. A percentage still follows the WebView
+   resize on its first down/up swipe. This layer never follows scroll, dynamic
+   viewport units or Safari's toolbar extension. */
 html[data-in-app-browser="instagram"] .dock-viewport {
   display: block;
   position: fixed;
@@ -3344,8 +3349,11 @@ html[data-in-app-browser="instagram"] .dock-viewport {
   bottom: auto;
   left: 0;
   width: 100%;
-  height: 100%;
+  height: var(--instagram-dock-viewport-height, 100svh);
   transform: translateZ(0);
+  translate: none;
+  transition: none;
+  animation: none;
   pointer-events: none;
 }
 html[data-in-app-browser="instagram"] .dock-viewport:has(> .selector-dock) { --dock-viewport-layer: 35; }
@@ -3375,7 +3383,8 @@ html[data-in-app-browser="instagram"] .composer-dock {
   corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
-  /* Resolve the bottom inside the stable viewport layer. */
+  /* Independent pill geometry, with no Safari extensions or safe-area tail. */
+  padding-inline: var(--dock-padding-left) var(--dock-padding-right);
   top: auto !important;
   bottom: 0 !important;
   height: calc(var(--instagram-dock-visible) + var(--dock-bleed)) !important;

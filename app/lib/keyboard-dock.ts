@@ -5,6 +5,7 @@ export function installKeyboardDockPosition() {
   const viewport = window.visualViewport;
   if (!viewport) return;
   const root = document.documentElement;
+  if (root.dataset?.inAppBrowser === "instagram") return;
   let textSession = false;
   let focusFrame = 0;
   let previous = "";
