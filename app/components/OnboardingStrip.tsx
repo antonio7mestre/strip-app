@@ -14,6 +14,8 @@ import { normalizedFontSize } from "@/app/lib/font-sizing";
 import shared from "./OnboardingBackground.module.css";
 import styles from "./OnboardingStrip.module.css";
 
+const ONBOARDING_STICKERS = STICKER_PACK.filter(sticker => sticker.category !== "scrap");
+
 const textStyle: CSSProperties = {
   fontFamily: PROFILE_FONT_CATALOG.find(font => font.id === "sans")?.family,
   fontSize: normalizedFontSize("sans", FIRST_STRIP_FONT_SIZE),
@@ -46,7 +48,7 @@ export function OnboardingStrip({ active, color, step, onStepChange, onBack, onC
   const busy = Boolean(progress) || saving;
   const ink = profileInk(color);
   const palette = useMemo(() => media.flatMap(item => item.palette ? [item.palette] : []), [media]);
-  const assets = useMemo(() => Array.from({ length: cycles }, (_, cycle) => colorMatchedStickers(STICKER_PACK, identity.seed + cycle, palette)).flat(), [cycles, identity.seed, palette]);
+  const assets = useMemo(() => Array.from({ length: cycles }, (_, cycle) => colorMatchedStickers(ONBOARDING_STICKERS, identity.seed + cycle, palette)).flat(), [cycles, identity.seed, palette]);
   const masonry = useMemo(() => stickerMasonry(assets, viewport.width), [assets, viewport.width]);
   const visible = masonry.items.filter(item => item.top + item.height >= viewport.top - 500 && item.top <= viewport.top + viewport.height + 500);
 
