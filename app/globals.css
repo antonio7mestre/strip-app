@@ -3376,6 +3376,11 @@ html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):n
   padding-bottom: 0 !important;
   backface-visibility: hidden;
 }
+/* Publishing keeps the rounded upper edge and meets the screen at the bottom. */
+html[data-in-app-browser="instagram"] .composer-dock.publish-flow-dock {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
 /* Two-line actions are centered as a group without growing for browser UI. */
 html[data-in-app-browser="instagram"] .composer-dock:is(.landing-start-dock, .auth-action-dock, .share-dock) {
   --dock-visible-height: 96px;
