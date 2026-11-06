@@ -23,7 +23,7 @@ function harness({supported=true}={}){
   share:()=>{events.push("share");return share.promise;},
  };
  runInNewContext(compiled,{
-  exports,storyShareInFlightRef:gate,storyShareAttemptRef:attempt,posters:{remember:()=>events.push("remember")},
+  exports,navigator:browser,window:{matchMedia:()=>({matches:false})},storyShareInFlightRef:gate,storyShareAttemptRef:attempt,posters:{remember:()=>events.push("remember")},
   openedPublishedStrip:{id:"test"},storyAssetFile:assetFile,storyAssetLoading:false,
   publicStripUrl:()=>"https://example.com/test",getStoryShareConfirmation,
   beginStoryShare:(data,url,callbacks)=>beginStoryShare(data,url,callbacks,browser),
@@ -88,7 +88,7 @@ test("the existing Copy link button owns a persistent activated state instead of
 
 test("Copy link stays above the tray without an overlaid image-save confirmation",()=>{
  const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
- const anchor=source.slice(source.indexOf('<div className="share-link-anchor">'),source.indexOf('<footer className="composer-dock share-dock'));
+ const anchor=source.slice(source.indexOf('<div className="share-link-anchor">'),source.indexOf('<DockFooter className="composer-dock share-dock'));
  assert.match(anchor,/<CopyStripLinkButton copied=\{storyShareConfirmation\?\.copied\}/);
  assert.doesNotMatch(anchor,/<StoryShareConfirmation/);
  assert.doesNotMatch(anchor,/createPortal/);
@@ -141,9 +141,9 @@ test("only a completed current file expands the tray, with the copy button above
  assert.match(source,/const storyInstagramReady = Boolean\(!storyShareSheetOpen && !storyAssetLoading && storyAssetFile && storyInstagramFile === storyAssetFile\)/);
  assert.match(source,/data-story-ready=\{storyInstagramReady\}/);
  assert.match(source,/setStoryShareConfirmation\(null\);\s*setStoryInstagramFile\(null\);\s*setNotice\(""/);
- const footer=source.slice(source.indexOf('<footer className="composer-dock share-dock'),source.indexOf('<StoryShareBackdrop open='));
+ const footer=source.slice(source.indexOf('<DockFooter className="composer-dock share-dock'),source.indexOf('<StoryShareBackdrop open='));
  assert.match(footer,/<StoryShareControls/);
- const above=source.slice(source.indexOf('<div className="poster-picker-meta">'),source.indexOf('<footer className="composer-dock share-dock'));
+ const above=source.slice(source.indexOf('<div className="poster-picker-meta">'),source.indexOf('<DockFooter className="composer-dock share-dock'));
  assert.match(above,/<CopyStripLinkButton/);
  assert.doesNotMatch(above,/<StoryShareConfirmation/);
  assert.doesNotMatch(above,/InstagramStoryAction|StoryShareControls/);

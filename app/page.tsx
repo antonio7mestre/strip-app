@@ -27,7 +27,6 @@ import {
   Eye,
   GripHorizontal,
   ImagePlus,
-  Link2,
   LogOut,
   Minus,
   Palette,
@@ -115,8 +114,9 @@ import { useStoryPosters } from "@/app/components/useStoryPosters";
 import { TitleKeyboardPublish } from "@/app/components/TitleKeyboardPublish";
 import { StoryShareBackdrop } from "@/app/components/StoryShareBackdrop";
 import { CopyStripLinkButton } from "@/app/components/CopyStripLinkButton";
+import { StoryShareSaveIcon } from "@/app/components/StoryShareSaveIcon";
 import { StoryShareControls } from "@/app/components/StoryShareControls";
-import { shareStoryLink, type StoryShareConfirmationData } from "@/app/lib/story-share";
+import { beginStoryShare, getStoryShareConfirmation, type StoryShareConfirmationData } from "@/app/lib/story-share";
 import { COVER_MOVE_MS, COVER_DOCK_DROP_MS, captureCoverDock, captureCoverOrigin, type CoverOrigin, type CoverDockOrigin } from "@/app/lib/cover-entrance";
 import { preparePreviewLayout, type PreviewLayoutTransition } from "@/app/lib/preview-layout";
 import { capturePublishReturnMedia } from "@/app/lib/publish-return-layout";
@@ -6421,26 +6421,45 @@ export default function Home() {
     link.remove();
   };
 
-  const saveStoryPoster = () => {
-    if (!storyAssetFile || !openedPublishedStrip) return;
-    downloadStoryAsset();
-    posters.remember(storyAssetFile);
-    if (!window.matchMedia("(min-width: 900px)").matches) setStoryInstagramFile(storyAssetFile);
-    void copyPublishedStripLink();
-  };
-
-  const shareStoryLinkFromPoster = async () => {
+  const shareStoryToInstagram = async () => {
     if (storyShareInFlightRef.current || !openedPublishedStrip) return;
+    if (!storyAssetFile) {
+      setNotice(storyAssetLoading ? "Finishing your share image…" : "Try again.");
+      return;
+    }
+    const shareData: ShareData = { files: [storyAssetFile] };
+    const desktopShare = window.matchMedia("(min-width: 900px)").matches;
     const attempt = ++storyShareAttemptRef.current;
     storyShareInFlightRef.current = true;
+    setStoryShareConfirmation(null);
+    setStoryInstagramFile(null);
     setNotice("");
     try {
-      flushSync(() => setStoryShareSheetOpen(true));
-      const result = await shareStoryLink(publicStripUrl(openedPublishedStrip));
-      if (storyShareAttemptRef.current === attempt && result === "copied")
-        setStoryShareConfirmation({ image: null, copied: true });
+      const { copied, finished } = beginStoryShare(shareData, publicStripUrl(openedPublishedStrip), {
+        open: () => flushSync(() => {
+          setNotice("");
+          setStoryShareSheetOpen(true);
+        }),
+        close: () => {
+          if (storyShareAttemptRef.current === attempt) setStoryShareSheetOpen(false);
+        },
+        download: () => {
+          if (storyShareAttemptRef.current === attempt) downloadStoryAsset();
+        },
+      }, desktopShare ? { clipboard: navigator.clipboard } : navigator);
+      const result = await finished;
+      if (result !== "cancelled") posters.remember(storyAssetFile);
+      if (storyShareAttemptRef.current === attempt) {
+        if (result !== "cancelled" && !desktopShare) setStoryInstagramFile(storyAssetFile);
+        setStoryShareConfirmation(getStoryShareConfirmation(result, null));
+      }
+      // A slow clipboard permission response must not leave the backdrop stuck.
+      void copied.then(success => {
+        if (storyShareAttemptRef.current !== attempt) return;
+        setStoryShareConfirmation(getStoryShareConfirmation(result, success));
+      });
     } catch {
-      if (storyShareAttemptRef.current === attempt) setNotice("Couldn’t share this link. Try Copy link.");
+      if (storyShareAttemptRef.current === attempt) setNotice("Couldn’t share this poster. Try again.");
     } finally {
       if (storyShareAttemptRef.current === attempt) {
         storyShareInFlightRef.current = false;
@@ -7812,6 +7831,7 @@ export default function Home() {
     const storyInstagramReady = Boolean(!storyShareSheetOpen && !storyAssetLoading && storyAssetFile && storyInstagramFile === storyAssetFile);
     return (
       <>
+        <link rel="preload" as="image" href="/apple-messages.jpg" />
         {legacyTransitionLayer}
         {desktopBackControl}
         <main className="app-shell share-mode" inert={storyShareSheetOpen} data-story-ready={storyInstagramReady}>
@@ -7833,12 +7853,7 @@ export default function Home() {
             <div className="poster-picker-meta">
               {posters.error ? <button type="button" className="poster-retry" onClick={posters.retry}>{posters.error}</button> : null}
               <div className="share-link-anchor">
-                <div className="poster-link-actions">
                 <CopyStripLinkButton copied={storyShareConfirmation?.copied} onCopy={() => void copyPublishedStripLink()} />
-                <button className="share-link-button" type="button" onClick={() => void shareStoryLinkFromPoster()}>
-                  <Share aria-hidden="true" /><span>Share link</span>
-                </button>
-                </div>
               </div>
             </div>
           </section>
@@ -7846,10 +7861,10 @@ export default function Home() {
           <DockFooter className="composer-dock share-dock publish-flow-dock">
             <StoryShareControls
               instagramReady={storyInstagramReady}
-              shareLabel={storyAssetLoading ? <>Preparing<AnimatedEllipsis /></> : "Save image"}
+              shareLabel={storyAssetLoading ? <>Preparing<AnimatedEllipsis /></> : "Share"}
               disabled={storyAssetLoading || !storyAssetFile || storyShareSheetOpen}
               onBack={() => void returnToLibrary()}
-              onShare={saveStoryPoster}
+              onShare={() => void shareStoryToInstagram()}
             />
           </DockFooter>
           {notice ? <div className="notice">{notice}</div> : null}
@@ -7858,8 +7873,14 @@ export default function Home() {
           <StoryShareBackdrop open={storyShareSheetOpen}>
             <div className="story-share-hint">
               <div className="story-share-option">
-                <Link2 aria-hidden="true" />
-                <p>Share your Strip link</p>
+                <StoryShareSaveIcon />
+                <p>Save to post</p>
+              </div>
+              <span className="story-share-or">or</span>
+              <div className="story-share-option">
+                {/* Official Apple Messages artwork: apps.apple.com/app/id1146560473. */}
+                <img className="story-share-messages-icon" src="/apple-messages.jpg" width="56" height="56" alt="" />
+                <p>Send to friends</p>
               </div>
             </div>
           </StoryShareBackdrop>,

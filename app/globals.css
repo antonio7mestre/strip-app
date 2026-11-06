@@ -4117,7 +4117,6 @@ html:has(.story-share-boundary) body {
   translate: 0 calc(-1 * var(--story-share-instruction-space));
 }
 .poster-picker-meta .share-link-button { min-height: 36px; margin-top: 3px; font-size: 11px; }
-.poster-link-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .poster-retry { border: 0; background: none; color: #fff; text-decoration: underline; font: inherit; font-size: 12px; }
 
 .cover-picker {
