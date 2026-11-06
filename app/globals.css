@@ -3335,11 +3335,11 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
-/* Leave a small responsive inset for the host screen corner mask. Keep
-   the pill on the same bottom edge and preserve the controls' inner position. */
+/* Instagram reaches the screen edges. The native screen mask supplies the
+   lower corner curve, without an extra inset or any change in dock height. */
 html[data-in-app-browser="instagram"] {
   --dock-visible-height: 80px;
-  --instagram-dock-edge: clamp(6px, 2vw, 10px);
+  --instagram-dock-edge: 0px;
   --sticker-picker-viewport-height: 78svh;
 }
 html[data-in-app-browser="instagram"] .composer-dock {
@@ -3352,12 +3352,10 @@ html[data-in-app-browser="instagram"] .composer-dock {
   translate: none !important;
   --instagram-dock-height: var(--dock-visible-height);
   --instagram-dock-visible: var(--instagram-dock-height);
-  /* Fuller lower corners stay inside the phone's rounded screen mask while
-     the narrower side inset widens the pill. Keep its existing height. */
+  /* Round the exposed upper edge; the physical display rounds the lower edge. */
   border-radius:
-    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 64px 64px /
-    calc(var(--dock-visible-height) * .4) calc(var(--dock-visible-height) * .4)
-    calc(var(--dock-visible-height) * .6) calc(var(--dock-visible-height) * .6);
+    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 0 0 /
+    calc(var(--dock-visible-height) * .4) calc(var(--dock-visible-height) * .4) 0 0;
   corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
@@ -5759,4 +5757,25 @@ html[data-in-app-browser="instagram"] .editor-scroll-surface {
 }
 html[data-in-app-browser="instagram"] .editor-mode .composer-dock:not(.preview-motion-dock) {
   position: absolute !important;
+}
+
+
+/* The outside upper corner echoes the surrounding Instagram tray.
+   Inside-facing ends retain the normal capsule curve. */
+html[data-in-app-browser="instagram"] .composer-dock :is(
+  .publish-strip-button,
+  .publish-flow-button:not(.publish-flow-back-button),
+  .profile-save-button,
+  .height-crop-confirm,
+  .auth-action-button
+) {
+  border-top-right-radius: 12px 16px;
+}
+html[data-in-app-browser="instagram"] .composer-dock :is(
+  .publish-flow-back-button,
+  .height-crop-cancel,
+  .auth-action-button
+),
+html[data-in-app-browser="instagram"] .composer-dock .story-share-controls[data-instagram-ready="true"] .instagram-story-button {
+  border-top-left-radius: 12px 16px;
 }
