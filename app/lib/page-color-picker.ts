@@ -1,3 +1,4 @@
+import { pageScrollTop, scrollPageTo } from "./editor-scroll";
 /** Use the visible screen, not the position of a tray that may be animating. */
 export function pageColorPickerCenter(viewport: {
   innerWidth: number;
@@ -41,7 +42,7 @@ export function installPageColorDrag({ onSample, onDraggingChange }: {
     own(event);
     pointerId = event.pointerId;
     indicator = handle;
-    scrollAnchor = { x: window.scrollX, y: window.scrollY };
+    scrollAnchor = { x: window.scrollX, y: pageScrollTop() };
     root.classList.add("page-color-dragging");
     handle.setPointerCapture(pointerId);
     onDraggingChange(true);
@@ -69,8 +70,8 @@ export function installPageColorDrag({ onSample, onDraggingChange }: {
   // Hold the document's existing position only for the active drag, without
   // swapping its scrolling surface or disabling off-handle page scrolling.
   const holdScroll = () => {
-    if (scrollAnchor && (window.scrollX !== scrollAnchor.x || window.scrollY !== scrollAnchor.y)) {
-      window.scrollTo({ left: scrollAnchor.x, top: scrollAnchor.y, behavior: "instant" });
+    if (scrollAnchor && (window.scrollX !== scrollAnchor.x || pageScrollTop() !== scrollAnchor.y)) {
+      scrollPageTo({ left: scrollAnchor.x, top: scrollAnchor.y, behavior: "instant" });
     }
   };
   const wheel = (event: WheelEvent) => {

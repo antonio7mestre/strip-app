@@ -162,13 +162,13 @@ export function useReaderVideo(videoRef: RefObject<HTMLVideoElement | null>, src
     const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
     const resize = new ResizeObserver(schedule);
     resize.observe(video);
-    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
     window.addEventListener("resize", schedule);
     window.visualViewport?.addEventListener("resize", schedule);
     measure();
     return () => {
       cancelAnimationFrame(frame); resize.disconnect();
-      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
     };

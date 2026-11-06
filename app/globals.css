@@ -2470,7 +2470,7 @@ html[data-in-app-browser="instagram"] .is-strip-reader .editor-canvas {
   --published-footer-backing-height: calc(24px + var(--published-footer-content-height, 0px) + 44px);
 }
 
-html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-canvas {
+html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-scroll-surface > .editor-canvas {
   /* The outgoing toolbar's temporary clearance continues the incoming footer.
      The content canvas remains black, and cleanup restores the reader backing. */
   background: var(--strip-footer-background);
@@ -2616,15 +2616,15 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-canva
    loader. One eased fade reveals content and the under-glass edge together.
    Fading both layers multiplies their opacity and makes the middle rush in.
    The dock stays outside the fade. */
-.editor-mode > .editor-canvas {
+.editor-mode > .editor-scroll-surface > .editor-canvas {
   opacity: 1;
 }
-.editor-mode.is-editor-loading > .editor-canvas {
+.editor-mode.is-editor-loading > .editor-scroll-surface > .editor-canvas {
   pointer-events: none;
   /* The opaque entrance covers already-painted media, as in the reader.
      Hiding the whole canvas defers WebKit rasterization until reveal. */
 }
-.editor-mode.is-editor-revealing > .editor-canvas {
+.editor-mode.is-editor-revealing > .editor-scroll-surface > .editor-canvas {
   opacity: 1;
 }
 .editor-entrance {
@@ -5695,14 +5695,14 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
 
   /* Move the complete canvas, including its stickers, as one document box.
      Saved sticker coordinates must never include the device's safe area. */
-  .editor-mode.has-leading-image > .editor-canvas,
+  .editor-mode.has-leading-image > .editor-scroll-surface > .editor-canvas,
   .is-strip-reader.has-leading-image > .published-strip {
     padding-top: env(safe-area-inset-top);
     background: var(--top-safe-area-color);
   }
 
   /* Keep the native top backing and the footer's document backing independent. */
-  .is-strip-reader.has-leading-image > .editor-canvas,
+  .is-strip-reader.has-leading-image > .editor-scroll-surface > .editor-canvas,
   .is-strip-reader.has-leading-image > .published-strip {
     background: linear-gradient(to bottom,
       var(--top-safe-area-color) 0 calc(100% - var(--published-footer-backing-height, 1px)),
@@ -5724,3 +5724,34 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
 /* The Instagram tray already extends below its fixed edge. Safari-only
    backing would resize independently as Instagram changes its viewport. */
 html[data-in-app-browser="instagram"] .landing-browser-bottom { display: none; }
+
+/* The Instagram editor has one stationary shell. Only the artwork scrolls;
+   the pill is a sibling, outside that scrolling surface. Safari keeps its
+   existing document scroll and browser-toolbar geometry. */
+.editor-scroll-surface { display: contents; }
+html[data-in-app-browser="instagram"]:has(.editor-scroll-surface),
+html[data-in-app-browser="instagram"]:has(.editor-scroll-surface) body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+html[data-in-app-browser="instagram"] .app-shell.editor-mode {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+html[data-in-app-browser="instagram"] .editor-scroll-surface {
+  display: block;
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  overflow-anchor: none;
+  touch-action: pan-y;
+}
+html[data-in-app-browser="instagram"] .editor-mode .composer-dock:not(.preview-motion-dock) {
+  position: absolute !important;
+}

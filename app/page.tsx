@@ -1,5 +1,7 @@
 "use client";
 
+import { pageScrollTop, pageScrollHeight, pageViewportHeight, scrollPageTo, scrollPageBy, restorePageScrollTop } from "./lib/editor-scroll";
+
 import { DockFooter } from "@/app/components/DockViewport";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -781,7 +783,7 @@ function keepFocusedTextBlockVisible(behavior: ScrollBehavior = "smooth") {
   const availableBottom = viewport.offsetTop + viewport.height - 16;
   const overflow = visibleSelectionBottom - availableBottom;
   if (overflow > 0) {
-    window.scrollBy({ top: overflow + 12, left: 0, behavior });
+    scrollPageBy({ top: overflow + 12, left: 0, behavior });
   }
 }
 
@@ -871,8 +873,8 @@ function focusSelectedBlockWithToolbar(
       : toolbarBottom - availableBottom;
 
   if (Math.abs(scrollDelta) < 1) return;
-  window.scrollTo({
-    top: Math.max(0, window.scrollY + scrollDelta),
+  scrollPageTo({
+    top: Math.max(0, pageScrollTop() + scrollDelta),
     left: 0,
     behavior,
   });
@@ -2317,7 +2319,7 @@ function StripStickerBlock({
           canvasHeight:
             transform?.canvasHeight ??
             drag?.canvasHeight ??
-            Math.max(window.innerHeight, document.documentElement.scrollHeight),
+            Math.max(window.innerHeight, pageScrollHeight()),
         };
         activePointersRef.current.clear();
         dragRef.current = null;
@@ -3347,11 +3349,11 @@ export default function Home() {
   useEffect(() => {
     if (!inlinePreview) return;
     const rememberPreviewScroll = () => {
-      inlinePreviewScrollRef.current = window.scrollY;
+      inlinePreviewScrollRef.current = pageScrollTop();
     };
     rememberPreviewScroll();
-    window.addEventListener("scroll", rememberPreviewScroll, { passive: true });
-    return () => window.removeEventListener("scroll", rememberPreviewScroll);
+    window.addEventListener("scroll", rememberPreviewScroll, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", rememberPreviewScroll, true);
   }, [inlinePreview]);
 
   const pageZoomLocked = shouldLockPageZoom({
@@ -3410,7 +3412,7 @@ export default function Home() {
       }
       const target = inlinePreviewScrollRef.current ?? inlinePreviewExitLockRef.current?.scrollTop;
       if (target !== undefined && target !== null) {
-        window.scrollTo({ top: target, left: 0, behavior: "auto" });
+        scrollPageTo({ top: target, left: 0, behavior: "auto" });
       }
     }
 
@@ -3426,8 +3428,8 @@ export default function Home() {
   useLayoutEffect(() => {
     if (view !== "published" || !publishedStripLoadKey) return;
     const top = leadingImageInsetRef.current;
-    if (Math.abs(window.scrollY - top) < 0.5 && Math.abs(window.scrollX) < 0.5) return;
-    window.scrollTo({ top, left: 0, behavior: "instant" });
+    if (Math.abs(pageScrollTop() - top) < 0.5 && Math.abs(window.scrollX) < 0.5) return;
+    scrollPageTo({ top, left: 0, behavior: "instant" });
   }, [view, publishedStripLoadKey]);
 
   // Measure after the leading inset is updated, so text-first readers include
@@ -3629,8 +3631,8 @@ export default function Home() {
       keyboardReturnTimer = window.setTimeout(() => {
         keyboardReturnTimer = null;
         keyboardReturnInProgress = true;
-        window.scrollTo({
-          top: scrollTopBeforeKeyboard ?? window.scrollY,
+        scrollPageTo({
+          top: scrollTopBeforeKeyboard ?? pageScrollTop(),
           left: 0,
           behavior: "smooth",
         });
@@ -3687,7 +3689,7 @@ export default function Home() {
         textSessionAnchorQueued = false;
         textSessionAnchored = false;
         if (scrollTopBeforeKeyboard === null) {
-          scrollTopBeforeKeyboard = window.scrollY;
+          scrollTopBeforeKeyboard = pageScrollTop();
         }
       }
       window.requestAnimationFrame(updateKeyboardInset);
@@ -4314,7 +4316,7 @@ export default function Home() {
 
     const root = document.documentElement;
     const body = document.body;
-    const scrollTop = window.scrollY;
+    const scrollTop = pageScrollTop();
     const leadingInsetBeforeReorder = leadingImageInsetRef.current;
     if (!blockReorderOverflowAnchorRef.current) {
       blockReorderOverflowAnchorRef.current = {
@@ -4360,9 +4362,7 @@ export default function Home() {
         leadingInsetBeforeReorder,
         leadingImageInsetRef.current,
       );
-      window.scrollTo({ top, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = top;
-      document.body.scrollTop = top;
+      restorePageScrollTop(top, 0);
     };
 
     restoreViewport();
@@ -4608,12 +4608,10 @@ export default function Home() {
     if (animateDock) scheduleDockTransitionEnd();
     const scrollEnd = Math.max(
       0,
-      document.documentElement.scrollHeight - window.innerHeight,
+      pageScrollHeight() - pageViewportHeight(),
     );
     const top = Math.max(0, Math.min(requestedScrollTop, scrollEnd));
-    window.scrollTo({ top, behavior: "auto" });
-    document.documentElement.scrollTop = top;
-    document.body.scrollTop = top;
+    restorePageScrollTop(top);
   };
 
   const showEditorDockEntry = () => {
@@ -4643,7 +4641,7 @@ export default function Home() {
     });
     document.querySelector<HTMLElement>(".profile-scroll-shell > .profile-scroll-viewport")
       ?.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    scrollPageTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   const transitionToView = async (
@@ -4664,11 +4662,9 @@ export default function Home() {
       if (animateDock) scheduleDockTransitionEnd();
       const top =
         nextScroll === "end"
-          ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+          ? Math.max(0, pageScrollHeight() - pageViewportHeight())
           : 0;
-      window.scrollTo({ top, behavior: "auto" });
-      document.documentElement.scrollTop = top;
-      document.body.scrollTop = top;
+      restorePageScrollTop(top);
     };
 
     const currentShell = document.querySelector<HTMLElement>(".app-shell");
@@ -4692,7 +4688,7 @@ export default function Home() {
     const snapshot: LegacyPageTransitionSnapshot = {
       id: makeId(),
       markup: outgoingShell.outerHTML,
-      scrollTop: window.scrollY,
+      scrollTop: pageScrollTop(),
       minHeight: currentShell.scrollHeight,
       direction,
     };
@@ -4709,11 +4705,9 @@ export default function Home() {
     if (animateDock) scheduleDockTransitionEnd();
     const top =
       nextScroll === "end"
-        ? Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+        ? Math.max(0, pageScrollHeight() - pageViewportHeight())
         : 0;
-    window.scrollTo({ top, behavior: "auto" });
-    document.documentElement.scrollTop = top;
-    document.body.scrollTop = top;
+    restorePageScrollTop(top);
     try {
       await new Promise<void>((resolve) => window.setTimeout(resolve, duration));
     } finally {
@@ -4849,11 +4843,11 @@ export default function Home() {
     if (!inlinePreview) return;
 
     const rememberPreviewScroll = () => {
-      inlinePreviewScrollRef.current = window.scrollY;
+      inlinePreviewScrollRef.current = pageScrollTop();
     };
 
-    window.addEventListener("scroll", rememberPreviewScroll, { passive: true });
-    return () => window.removeEventListener("scroll", rememberPreviewScroll);
+    window.addEventListener("scroll", rememberPreviewScroll, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", rememberPreviewScroll, true);
   }, [inlinePreview]);
 
   const toggleInlinePreview = () => {
@@ -4863,7 +4857,7 @@ export default function Home() {
     }
     if (!inlinePreview) setNotice("");
 
-    inlinePreviewScrollRef.current = window.scrollY;
+    inlinePreviewScrollRef.current = pageScrollTop();
     const consumesPreviewHistory =
       inlinePreview && inlinePreviewHistoryEntryRef.current;
     if (!inlinePreview) {
@@ -4899,7 +4893,7 @@ export default function Home() {
     const restoreScroll = () => {
       const scrollTop = inlinePreviewScrollRef.current;
       if (scrollTop === null) return;
-      window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+      scrollPageTo({ top: scrollTop, left: 0, behavior: "auto" });
     };
 
     restoreScroll();
@@ -4915,9 +4909,7 @@ export default function Home() {
   }, [inlinePreview]);
 
   const restoreInlinePreviewExitScroll = (scrollTop: number) => {
-    window.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
-    document.documentElement.scrollTop = scrollTop;
-    document.body.scrollTop = scrollTop;
+    restorePageScrollTop(scrollTop, 0);
   };
 
   const releaseInlinePreviewExitLock = () => {
@@ -5001,7 +4993,7 @@ export default function Home() {
 
   const exitInlinePreviewAndSelect = (blockId: string) => {
     if (!inlinePreview) return;
-    inlinePreviewScrollRef.current = window.scrollY;
+    inlinePreviewScrollRef.current = pageScrollTop();
     inlinePreviewSelectionRef.current = blockId;
     suppressSelectedBlockAutoFocusRef.current = true;
     beginInlinePreviewExitLock(inlinePreviewScrollRef.current);
@@ -5033,7 +5025,7 @@ export default function Home() {
     pageTransitionInFlightRef.current = true;
 
     // Capture before replacing the editor, not after its media nodes unmount.
-    publishFlowStartScrollRef.current = window.scrollY;
+    publishFlowStartScrollRef.current = pageScrollTop();
     publishFlowMediaSizesRef.current = capturePublishReturnMedia(stripCanvasRef.current);
     const availableCovers = coverChoices
       .filter((choice) => choice.kind === "image" || choice.kind === "color")
@@ -5400,7 +5392,7 @@ export default function Home() {
       setAuthStep("landing");
       initialRouteHandledRef.current = false;
       setInitialRouteReady(true);
-      window.scrollTo({ top: 0, behavior: "instant" });
+      scrollPageTo({ top: 0, behavior: "instant" });
     });
     // Persistence begins after the editor is already on screen. The local
     // decoded originals remain its sources throughout the background save.
@@ -5869,7 +5861,7 @@ export default function Home() {
         if (route.kind === "edit" && onboardingEditorHandoffRef.current === route.id) {
           onboardingEditorHandoffRef.current = null;
           setView("edit");
-          window.scrollTo({ top: 0, behavior: "instant" });
+          scrollPageTo({ top: 0, behavior: "instant" });
           return;
         }
         const workspaceUrl = workspaceRedirect(window.location, authStatus === "signed-in" ? authUser?.username : null);
@@ -5901,7 +5893,7 @@ export default function Home() {
               setPublishedLoaderDismissedKey(previous.strip.id);
               setView("published");
             });
-            window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+            scrollPageTo({ top: 0, left: 0, behavior: "instant" });
             return;
           }
           try {
@@ -5932,7 +5924,7 @@ export default function Home() {
             setAuthenticationRequired(false);
             setOpenedPublishedStrip(data.strip);
             setView("published");
-            window.scrollTo({ top: 0, behavior: "auto" });
+            scrollPageTo({ top: 0, behavior: "auto" });
           } catch {
             if (!routeIsCurrent()) return;
             setBrowserPath("/", true);
@@ -5950,13 +5942,13 @@ export default function Home() {
             setAuthenticationRequired(false);
             setView("library");
             setOpenedPublishedStrip(null);
-            window.scrollTo({ top: 0, behavior: "auto" });
+            scrollPageTo({ top: 0, behavior: "auto" });
             return;
           }
           setAuthenticationRequired(false);
           setView("library");
           setOpenedPublishedStrip(null);
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
           const placeholder: PublicProfileState = {
             username: route.username, profile: DEFAULT_PROFILE, strips: [], status: "loading",
           };
@@ -5985,32 +5977,32 @@ export default function Home() {
           setAuthenticationRequired(true);
           setView("library");
           setOpenedPublishedStrip(null);
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
           return;
         }
         setAuthenticationRequired(false);
         if (route.kind === "library") {
           setView("library");
           setOpenedPublishedStrip(null);
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
           return;
         }
         if (route.kind === "drafts") {
           setView("drafts");
           setOpenedPublishedStrip(null);
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
           return;
         }
         if (route.kind === "history") {
           setView("history");
           setOpenedPublishedStrip(null);
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
           return;
         }
         if (route.kind === "settings") {
           setView("settings");
           setOpenedPublishedStrip(null);
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
           return;
         }
         if (route.kind === "edit") {
@@ -6046,7 +6038,7 @@ export default function Home() {
             setActiveTextTool(null);
             setOpenedPublishedStrip(null);
             editorEntrance.resolve(editorRequest);
-            window.scrollTo({ top: 0, behavior: "auto" });
+            scrollPageTo({ top: 0, behavior: "auto" });
           } catch {
             if (routeIsCurrent()) {
               editorEntrance.cancel();
@@ -6067,7 +6059,7 @@ export default function Home() {
           if (!routeIsCurrent()) return;
           setOpenedPublishedStrip(data.strip);
           setView("share");
-          window.scrollTo({ top: 0, behavior: "auto" });
+          scrollPageTo({ top: 0, behavior: "auto" });
         } catch {
           if (!routeIsCurrent()) return;
           setBrowserPath("/", true);
@@ -6084,7 +6076,7 @@ export default function Home() {
         inlinePreviewHistoryEntryRef.current = false;
         const selectedPreviewBlockId = inlinePreviewSelectionRef.current;
         inlinePreviewSelectionRef.current = null;
-        const scrollTop = inlinePreviewScrollRef.current ?? window.scrollY;
+        const scrollTop = inlinePreviewScrollRef.current ?? pageScrollTop();
         inlinePreviewBasePathRef.current ??= window.location.pathname;
         if (selectedPreviewBlockId) {
           suppressSelectedBlockAutoFocusRef.current = true;
@@ -6116,7 +6108,7 @@ export default function Home() {
         history.scrollRestoration = "manual";
         inlinePreviewHistoryEntryRef.current = true;
         inlinePreviewBasePathRef.current = window.location.pathname;
-        inlinePreviewScrollRef.current = window.scrollY;
+        inlinePreviewScrollRef.current = pageScrollTop();
         prepareInlinePreviewLayout();
         flushSync(() => {
           setActiveTextTool(null);
@@ -6336,7 +6328,7 @@ export default function Home() {
     }
     setArrivingFromReader(true);
     beginNewStrip();
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    scrollPageTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   const editPublishedStripFromReader = async () => {
@@ -8467,6 +8459,7 @@ export default function Home() {
         style={{ backgroundColor: topSafeAreaColor }}
         aria-hidden="true"
       />
+      <div className="editor-scroll-surface">
       <div
         className={`editor-canvas ${legacyPageEnterClass}`}
         inert={editorEntrance.active}
@@ -8488,6 +8481,8 @@ export default function Home() {
           required={[...editorEntrance.requiredIds, ...Object.keys(importedMediaSizes)]}>
           {renderStrip(!inlinePreview)}
         </ReaderMediaProvider>
+      </div>
+
       </div>
 
       {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} percent={editorEntrance.percent}

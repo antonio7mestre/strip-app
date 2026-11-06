@@ -50,7 +50,7 @@ export function installEmptyStateGuide(origin: HTMLElement, arrow: HTMLElement, 
   resize?.observe(origin);
   resize?.observe(target);
   window.addEventListener("resize", sync);
-  window.addEventListener("scroll", sync, { passive: true });
+  window.addEventListener("scroll", sync, { passive: true, capture: true });
   const profileScroller = origin.closest(".profile-scroll-viewport");
   profileScroller?.addEventListener("scroll", sync, { passive: true });
   window.visualViewport?.addEventListener("resize", sync);
@@ -60,7 +60,7 @@ export function installEmptyStateGuide(origin: HTMLElement, arrow: HTMLElement, 
   return () => {
     resize?.disconnect();
     window.removeEventListener("resize", sync);
-    window.removeEventListener("scroll", sync);
+    window.removeEventListener("scroll", sync, true);
     profileScroller?.removeEventListener("scroll", sync);
     window.visualViewport?.removeEventListener("resize", sync);
     window.visualViewport?.removeEventListener("scroll", sync);

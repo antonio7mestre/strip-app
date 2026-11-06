@@ -1,3 +1,4 @@
+import { pageScrollTop } from "./editor-scroll";
 type VerticalBounds = { top: number; bottom: number };
 
 const COLOR_FADE_MS = 260;
@@ -133,9 +134,9 @@ export function installFooterSafeAreaColor({
     // Retain Saturday's gentle approach fade only while the footer is offscreen.
     // Once any footer is painted, finish its color in this event. A fast jump or
     // reversal must never leave the first color in a pending frame at the bottom.
-    setActive(next, next ? bounds.top <= painted.bottom : window.scrollY <= 0);
+    setActive(next, next ? bounds.top <= painted.bottom : pageScrollTop() <= 0);
   };
-  window.addEventListener("scroll", sync, { passive: true });
+  window.addEventListener("scroll", sync, { passive: true, capture: true });
   window.addEventListener("resize", sync, { passive: true });
   window.addEventListener("pageshow", sync);
   viewport?.addEventListener("scroll", sync, { passive: true });
@@ -153,7 +154,7 @@ export function installFooterSafeAreaColor({
 
   return () => {
     disposed = true;
-    window.removeEventListener("scroll", sync);
+    window.removeEventListener("scroll", sync, true);
     window.removeEventListener("resize", sync);
     window.removeEventListener("pageshow", sync);
     viewport?.removeEventListener("scroll", sync);

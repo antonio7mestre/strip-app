@@ -1,3 +1,4 @@
+import { pageScrollTop, scrollPageTo, pageViewportHeight } from "./editor-scroll";
 import { STRIP_FOOTER_BACKGROUND } from "./strip-ending";
 import { easePreviewHandoff } from "./preview-motion";
 
@@ -56,19 +57,19 @@ export function preparePreviewLayout(
   onBottomScroll?: (scrollTop: number) => void,
 ): PreviewLayoutTransition | null {
   let outgoingHeight = canvas?.getBoundingClientRect().height ?? 0;
-  const outgoingTop = canvas ? canvas.getBoundingClientRect().top + window.scrollY : 0;
-  let outgoingScroll = window.scrollY;
+  const outgoingTop = canvas ? canvas.getBoundingClientRect().top + pageScrollTop() : 0;
+  let outgoingScroll = pageScrollTop();
   let followBottom = outgoingHeight > 0 &&
-    outgoingTop + outgoingHeight - outgoingScroll - window.innerHeight <= 2;
+    outgoingTop + outgoingHeight - outgoingScroll - pageViewportHeight() <= 2;
   const anchor = canvas?.querySelector<HTMLElement>(".strip-block:not(.sticker-block)");
-  const outgoingOrigin = anchor ? anchor.getBoundingClientRect().top + window.scrollY : null;
+  const outgoingOrigin = anchor ? anchor.getBoundingClientRect().top + pageScrollTop() : null;
   const root = document.documentElement;
   // Away from the ending the toolbar still slides fully away as before.
   // At the ending, reserve one shared paint owner while the dock crossfades
   // between editor and reader without moving its visible edge.
   const keepBottomWhite = canvas && outgoingHeight > 0 && window.innerWidth < 900 && (
     root.matches(".preview-bottom-canvas-active, .preview-bottom-handoff-active") ||
-    outgoingTop + outgoingHeight - window.scrollY <= window.innerHeight + 64
+    outgoingTop + outgoingHeight - pageScrollTop() <= pageViewportHeight() + 64
   );
   // Acquire before releasing an interrupted transition: no intermediate tint.
   const releaseBottomPaint = keepBottomWhite ? retainPreviewBottomPaint() : () => {};
@@ -84,7 +85,7 @@ export function preparePreviewLayout(
   root.classList.add("inline-preview-layout-moving");
   const stopFollowing = () => {
     followBottom = false;
-    onBottomScroll?.(window.scrollY);
+    onBottomScroll?.(pageScrollTop());
   };
   for (const event of ["touchstart", "pointerdown", "wheel"]) {
     window.addEventListener(event, stopFollowing, { passive: true });
@@ -119,9 +120,9 @@ export function preparePreviewLayout(
       // Measure the actual flow origin after the reader's safe-area styles
       // apply. Safari can report a real safe inset or use the fallback, so an
       // inset-only estimate misses part of the shift on some devices.
-      const delta = anchor.getBoundingClientRect().top + window.scrollY - outgoingOrigin;
+      const delta = anchor.getBoundingClientRect().top + pageScrollTop() - outgoingOrigin;
       outgoingScroll = Math.max(0, outgoingScroll + delta);
-      const wrapperShift = canvas.getBoundingClientRect().top + window.scrollY - outgoingTop;
+      const wrapperShift = canvas.getBoundingClientRect().top + pageScrollTop() - outgoingTop;
       outgoingHeight = Math.max(0, outgoingHeight + delta - wrapperShift);
       canvas.style.minHeight = `${outgoingHeight}px`;
       syncBoundary();
@@ -136,9 +137,9 @@ export function preparePreviewLayout(
       const ending = preview ? canvas.querySelector<HTMLElement>(".strip-ending-card") : null;
       const stripBounds = strip.getBoundingClientRect();
       const canvasBounds = canvas.getBoundingClientRect();
-      const naturalHeight = Math.max(preview ? 0 : window.innerHeight,
+      const naturalHeight = Math.max(preview ? 0 : pageViewportHeight(),
         stripBounds.bottom - canvasBounds.top + (ending?.getBoundingClientRect().height ?? 0));
-      const destinationBottom = canvasBounds.top + window.scrollY + naturalHeight;
+      const destinationBottom = canvasBounds.top + pageScrollTop() + naturalHeight;
       const reserve = Math.max(0, outgoingHeight - naturalHeight);
       // Keep the footer surface and the last block's corner fill opaque. Only
       // the incoming controls fade, so there is never a translucent edge seam.
@@ -152,12 +153,12 @@ export function preparePreviewLayout(
         if (controls) controls.style.opacity = String(eased);
         syncBoundary();
         if (followBottom) {
-          const destinationScroll = Math.max(0, destinationBottom - window.innerHeight);
+          const destinationScroll = Math.max(0, destinationBottom - pageViewportHeight());
           const scrollTop = outgoingScroll + (destinationScroll - outgoingScroll) * eased;
           // Keep history restoration on the same moving anchor. The returned
           // dock can otherwise preserve the old, taller preview scroll range.
           onBottomScroll?.(scrollTop);
-          window.scrollTo({ top: scrollTop, left: 0, behavior: "instant" });
+          scrollPageTo({ top: scrollTop, left: 0, behavior: "instant" });
         }
       };
       paint(0);

@@ -1,3 +1,4 @@
+import { pageScrollTop, scrollPageTo } from "./editor-scroll";
 /** Place a newly opened Strip once, then leave scrolling and refresh native. */
 export function installLeadingMediaTop({
   inset,
@@ -28,9 +29,9 @@ export function installLeadingMediaTop({
   };
   const placeAtAnchor = () => {
     // A negative offset belongs to the browser's live overscroll, never to us.
-    if (!resetScroll || userHasControl || window.scrollY < 0) return;
-    if (Math.abs(window.scrollY - inset) > 0.5) {
-      window.scrollTo({ top: inset, left: 0, behavior: "auto" });
+    if (!resetScroll || userHasControl || pageScrollTop() < 0) return;
+    if (Math.abs(pageScrollTop() - inset) > 0.5) {
+      scrollPageTo({ top: inset, left: 0, behavior: "auto" });
     }
   };
   if (resetScroll || ownsReloadScroll) {

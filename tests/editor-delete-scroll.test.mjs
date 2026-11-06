@@ -21,3 +21,18 @@ test('deleting the final block returns to zero while an in-range deletion keeps 
   clampEditorScrollAfterDelete(null);
   assert.deepEqual(moves, []);
 });
+
+
+test('Instagram clamps its content after deletion without moving the stationary page', () => {
+  const moves = [];
+  const surface = {
+    scrollTop: 1600, clientHeight: 800, scrollHeight: 2400,
+    getBoundingClientRect: () => ({ top: 0 }),
+    querySelector: () => ({ getBoundingClientRect: () => ({ bottom: -200 }) }),
+    scrollTo: value => moves.push(value),
+  };
+  globalThis.document = { documentElement: { dataset: { inAppBrowser: 'instagram' } }, querySelector: () => surface };
+  globalThis.window = { scrollTo: () => assert.fail('must not move the root') };
+  clampEditorScrollAfterDelete({});
+  assert.deepEqual(moves, [{ top: 600, behavior: 'instant' }]);
+});

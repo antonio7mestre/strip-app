@@ -1,7 +1,8 @@
+import { pageScrollTop } from "./editor-scroll";
 /** Dismiss on scroll intent, including at an edge where the page cannot move. */
 export function installPreviewNoticeDismiss(onDismiss: () => void, pill?: HTMLElement | null) {
   const startX = window.scrollX;
-  const startY = window.scrollY;
+  const startY = pageScrollTop();
   let dismissed = false;
   let finished = false;
   let exit: Animation | undefined;
@@ -37,12 +38,12 @@ export function installPreviewNoticeDismiss(onDismiss: () => void, pill?: HTMLEl
   const scroll = () => {
     // Preview restores its current position on entry. A no-op scroll event
     // from that restoration is not a reason to hide the new hint.
-    if (window.scrollX !== startX || window.scrollY !== startY) dismiss();
+    if (window.scrollX !== startX || pageScrollTop() !== startY) dismiss();
   };
   const wheel = (event: WheelEvent) => {
     if (event.deltaX || event.deltaY) dismiss();
   };
-  window.addEventListener("scroll", scroll, { passive: true });
+  window.addEventListener("scroll", scroll, { passive: true, capture: true });
   window.addEventListener("wheel", wheel, { passive: true });
   window.addEventListener("touchmove", dismiss, { passive: true });
   pill?.addEventListener("animationend", automaticEnd);
@@ -50,7 +51,7 @@ export function installPreviewNoticeDismiss(onDismiss: () => void, pill?: HTMLEl
     finished = true;
     if (exit) { exit.onfinish = null; exit.cancel(); }
     pill?.removeEventListener("animationend", automaticEnd);
-    window.removeEventListener("scroll", scroll);
+    window.removeEventListener("scroll", scroll, true);
     window.removeEventListener("wheel", wheel);
     window.removeEventListener("touchmove", dismiss);
   };

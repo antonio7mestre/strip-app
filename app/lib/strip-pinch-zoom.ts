@@ -202,7 +202,7 @@ export function installStripPinchZoom() {
   document.addEventListener("visibilitychange", visibility);
   window.addEventListener("blur", interrupt);
   window.addEventListener("resize", interrupt);
-  window.addEventListener("scroll", scroll, { passive: true });
+  window.addEventListener("scroll", scroll, { passive: true, capture: true });
   return () => {
     interrupt();
     root.classList.remove("page-zoom-spring");
@@ -218,6 +218,6 @@ export function installStripPinchZoom() {
     document.removeEventListener("visibilitychange", visibility);
     window.removeEventListener("blur", interrupt);
     window.removeEventListener("resize", interrupt);
-    window.removeEventListener("scroll", scroll);
+    window.removeEventListener("scroll", scroll, true);
   };
 }
