@@ -5,7 +5,7 @@ import { intersectsReaderViewport } from "@/app/lib/reader-viewport";
 /** Re-measure after every decode before allowing reveal. This also discovers
  * additional first-screen blocks when a legacy image has no saved dimensions. */
 export function useReaderViewport(key: string, assetKey: string, canvas: RefObject<HTMLElement | null>,
-  status: Record<string, "loaded" | "error">, locked: boolean, layoutReady = true) {
+  status: Record<string, "loaded" | "error">, locked: boolean, layoutReady = true, waitForAllFonts = true) {
   const [measurement, setMeasurement] = useState<{ key: string; assetKey: string; ids: string[]; status: typeof status; fontsReady: boolean; complete: boolean }>(
     { key: "", assetKey: "", ids: [], status: {}, fontsReady: false, complete: false });
   // Freeze only after a post-decode geometry measurement. Background downloads
@@ -29,7 +29,7 @@ export function useReaderViewport(key: string, assetKey: string, canvas: RefObje
           return intersectsReaderViewport({ top: rect.top, bottom, left: rect.left, right: rect.right }, bounds);
         })
         .map(node => node.dataset.blockId!);
-      const fontsReady = layoutReady && document.fonts.status !== "loading";
+      const fontsReady = layoutReady && (!waitForAllFonts || document.fonts.status !== "loading");
       const complete = fontsReady && ids.every(id => status[id] !== undefined);
       setMeasurement(current => current.key === key && current.assetKey === assetKey && current.status === status && current.fontsReady === fontsReady &&
         current.ids.join("|") === ids.join("|") ? current : { key, assetKey, ids, status, fontsReady, complete });
@@ -49,7 +49,7 @@ export function useReaderViewport(key: string, assetKey: string, canvas: RefObje
       document.fonts.removeEventListener("loadingdone", measure);
       document.fonts.removeEventListener("loadingerror", measure);
     };
-  }, [key, assetKey, canvas, status, locked, complete, layoutReady]);
+  }, [key, assetKey, canvas, status, locked, complete, layoutReady, waitForAllFonts]);
   return { ids: measurement.key === key ? measurement.ids : [],
     measured: locked || complete || Boolean(key && measurement.key === key && measurement.status === status && measurement.fontsReady) };
 }

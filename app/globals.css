@@ -2644,7 +2644,7 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-scrol
 .editor-entrance.is-revealing { opacity: 0; }
 /* The blank editor and its tools appear immediately under the incoming
    color. Only the media canvas waits for decoding, then fades into view. */
-.editor-entrance.is-onboarding-handoff { z-index: 29; }
+.editor-entrance.is-onboarding-handoff { z-index: 29; --media-import-duration: 240ms; }
 .top-status-pill {
   position: fixed;
   z-index: 70;
@@ -2666,6 +2666,10 @@ html.inline-preview-layout-moving .editor-mode.is-inline-preview > .editor-scrol
   pointer-events: none;
 }
 .top-status-pill.is-loading { width: 264px; }
+.editor-entrance .top-status-pill {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
 .top-status-copy { display: flex; align-items: baseline; gap: 4px; text-align: left; line-height: 1.2; white-space: nowrap; }
 .top-status-copy strong,
 .top-status-label,

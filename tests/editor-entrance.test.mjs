@@ -29,7 +29,7 @@ test("brand-new strips skip the content loader and open an empty editor directly
 
 // Minimal deterministic hook runner: real effects, cleanup and state, with a
 // controllable font promise and clock so no timing assertion sleeps or flakes.
-function harness({ reduced = false, keyboard = false, autoCount = true, requiredIds } = {}) {
+function harness({ reduced = false, keyboard = false, autoCount = true, requiredIds, documentFontsLoading = false } = {}) {
   const cells = [], effects = [], timers = new Map(), fontLoads = [];
   const viewportListeners = new Set();
   const viewport = { height: keyboard ? 420 : 800,
@@ -66,8 +66,8 @@ function harness({ reduced = false, keyboard = false, autoCount = true, required
     exports, require: name => name === "react" ? react : name === "@/app/lib/profile" ? profile
       : name === "@/app/lib/strip-entrance" ? stripEntrance
       : name === "@/app/lib/text-textures" ? textures
-      : name === "./useReaderViewport" ? { useReaderViewport: (key, assetKey, canvas, status, locked, layoutReady) => ({
-        ids: key ? requiredIds ?? assetKey.split('|').filter(Boolean) : [], measured: Boolean(key && layoutReady),
+      : name === "./useReaderViewport" ? { useReaderViewport: (key, assetKey, canvas, status, locked, layoutReady, waitForAllFonts = true) => ({
+        ids: key ? requiredIds ?? assetKey.split('|').filter(Boolean) : [], measured: Boolean(key && layoutReady && (!waitForAllFonts || !documentFontsLoading)),
       }) } : require(name),
     performance: { now: () => now },
     document: { fonts: { load: font => new Promise(resolve => fontLoads.push({ font, resolve })) } },
@@ -214,6 +214,20 @@ test("a missing keyboard resize cannot strand onboarding and a later regular ent
   assert.equal(h.value.handoffColor, undefined);
 });
 
+test("onboarding reveals after two paint frames without a minimum wait or unrelated profile fonts", async () => {
+  const h = harness({ keyboard: true, autoCount: false, documentFontsLoading: true });
+  const request = h.value.start({ handoffColor: '#CB8DFF' }); h.render();
+  h.value.resolve(request);
+  h.render([[{ id: 'words', type: 'text', fontStyle: 'sans' }, { id: 'photo', type: 'image' }],
+    { photo: 'loaded' }, 'shrikhand', true]);
+  assert.equal(h.fontLoads.length, 1, 'only the Strip text font is required, even while the profile is loading');
+  assert.equal(h.fontLoads[0].font, `${profile.profileFontWeight('sans') ?? 400} 24px ${profile.profileFontInfo('sans').family}`);
+  await h.fontsReady();
+  h.advance(31); assert.equal(h.value.phase, 'loading', 'decoded content gets its own paint');
+  h.advance(1); assert.equal(h.value.phase, 'revealing', 'no 280ms minimum on onboarding');
+  h.finishReveal(); assert.equal(h.value.active, false);
+});
+
 test("first-Strip handoff opens immediately and fades the editor over the same colored surface", () => {
   const finish = page.slice(page.indexOf('const finishFirstStripOnboarding'), page.indexOf('const returnBackgroundToUsername'));
   assert.doesNotMatch(finish, /await beforeReveal|await.*save|new Image/);
@@ -221,7 +235,7 @@ test("first-Strip handoff opens immediately and fades the editor over the same c
   assert.match(finish, /editorEntrance.start\(\{ handoffColor: authBackground \}\)/);
   assert.match(finish, /editorEntrance.resolve\(entranceRequest\)/);
   assert.match(page, /editorEntrance.handoffColor \?\? DEFAULT_BACKGROUND/);
-  assert.match(css, /\.editor-entrance.is-onboarding-handoff \{ z-index: 29; \}/);
+  assert.match(css, /\.editor-entrance.is-onboarding-handoff \{ z-index: 29; --media-import-duration: 240ms; \}/);
   const onboardingCss = readFileSync(new URL('../app/components/OnboardingStrip.module.css', import.meta.url), 'utf8');
   assert.match(onboardingCss, /transition: opacity 180ms ease/);
   assert.match(onboardingCss, /\.leaving > \.footer \{ opacity: 0; pointer-events: none/);
@@ -250,6 +264,7 @@ test("Preview uses a light top status pill separate from bottom errors", () => {
   assert.match(css, /\.top-status-pill\s*\{[^}]*top: calc\(env\(safe-area-inset-top, 0px\) \+ 6px\)/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*background: #ffffff/);
   assert.match(css, /\.top-status-pill\s*\{[^}]*pointer-events: none/);
+  assert.match(css, /\.editor-entrance \.top-status-pill\s*\{[^}]*top: 50%;[^}]*transform: translate\(-50%, -50%\)/);
   assert.match(page, /notice === PREVIEW_MODE_NOTICE \? <TopStatusPill/);
 });
 

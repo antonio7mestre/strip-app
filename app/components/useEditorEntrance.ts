@@ -38,42 +38,47 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
   const request = entrance?.request;
   const dataReady = entrance?.dataReady ?? false;
   const handoffColor = entrance?.handoffColor;
-  const fontKey = [...new Set([font, ...blocks.filter(block => block.type === "text").map(block => block.fontStyle ?? "sans")])].sort().join("|");
+  const isOnboarding = Boolean(handoffColor);
+  // The first Strip uses its own text fonts, already shown in onboarding.
+  // An unrelated profile fetch or profile typeface must not hold this handoff.
+  const profileReady = isOnboarding || !profileLoading;
+  const fontKey = [...new Set([...(isOnboarding ? [] : [font]), ...blocks.filter(block => block.type === "text").map(block => block.fontStyle ?? "sans")])].sort().join("|");
 
   useEffect(() => {
-    if (!request || !dataReady || profileLoading) return;
+    if (!request || !dataReady || !profileReady) return;
     let cancelled = false;
     setFontsReady(false);
-    void Promise.all(fontKey.split("|").map(id => {
+    void Promise.all(fontKey.split("|").filter(Boolean).map(id => {
       const face = profileFontInfo(id);
       return document.fonts.load(`${profileFontWeight(id) ?? 400} 24px ${face.family}`).catch(() => []);
     })).then(() => { if (!cancelled) setFontsReady(true); });
     return () => { cancelled = true; };
-  }, [request, dataReady, fontKey, profileLoading]);
+  }, [request, dataReady, fontKey, profileReady]);
 
   // Use the reader's real first-screen geometry, including floating stickers.
   // Recheck after decoding/fonts: old drafts may not have saved media heights.
   const viewport = useReaderViewport(dataReady ? `editor:${request}` : "",
     blocks.filter(block => block.type !== "text" || textTexture(block.backgroundTexture)).map(block => block.id).join("|"),
-    canvas, media, entrance?.phase === "revealing", fontsReady && !profileLoading);
+    canvas, media, entrance?.phase === "revealing", fontsReady && profileReady, !isOnboarding);
   const assets = viewport.ids;
   const assetsSettled = viewport.measured && assets.every(id => media[id] !== undefined);
   const percent = dataReady ? Math.min(viewport.measured ? 100 : 99,
-    entranceLoadPercent(1 + (fontsReady && !profileLoading ? 1 : 0)
+    entranceLoadPercent(1 + (fontsReady && profileReady ? 1 : 0)
       + assets.filter(id => media[id] !== undefined).length, assets.length + 2)) : 0;
   useEffect(() => {
-    if (!entrance || !entrance.counted || entrance.phase !== "loading" || !dataReady || !fontsReady || profileLoading || !assetsSettled) return;
+    if (!entrance || !entrance.counted || entrance.phase !== "loading" || !dataReady || !fontsReady || !profileReady || !assetsSettled) return;
     let frame = 0;
-    // Give a cached load a single intentional entrance, not a one-frame flash.
+    // Regular loads retain their intentional entrance. Onboarding is already
+    // visible, so begin its handoff as soon as the first screen is painted.
     const timer = window.setTimeout(() => {
       // Give the final decoded layout its own paint beneath the opaque cover.
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => setEntrance(current => current && current.request === request
           ? { ...current, phase: "revealing" } : current));
       });
-    }, Math.max(0, EDITOR_ENTRANCE_MIN_MS - (performance.now() - entrance.startedAt)));
+    }, isOnboarding ? 0 : Math.max(0, EDITOR_ENTRANCE_MIN_MS - (performance.now() - entrance.startedAt)));
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); };
-  }, [entrance, request, dataReady, fontsReady, profileLoading, assetsSettled]);
+  }, [entrance, request, dataReady, fontsReady, profileReady, assetsSettled, isOnboarding]);
 
   return { active: entrance !== null, phase: entrance?.phase, handoffColor, request, percent,
     requiredIds: viewport.ids, completeCount, completeReveal, start, resolve, cancel, isCurrent };

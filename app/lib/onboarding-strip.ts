@@ -83,23 +83,21 @@ export function buildFirstStrip(input: FirstStripInput, backgroundColor: string,
   const message = input.message.trim();
   if (input.media.length + input.stickers.length + (message ? 1 : 0) > FIRST_STRIP_BLOCK_LIMIT) throw new Error("This Strip is full. Remove an item to continue.");
   const random = seededRandom(input.seed);
-  const textIndex = message ? 1 + Math.floor(random() * input.media.length) : -1;
   const text = { id: `${input.id}-words`, type: "text" as const, content: message, backgroundColor, textColor,
     fontStyle: "sans" as const, fontSize: FIRST_STRIP_FONT_SIZE, textAlign: "left" as const, height: input.textHeight };
-  const flow = input.media.flatMap((media, index) => {
-    const block = { id: media.id, type: media.type, src: media.src, alt: media.alt,
-      height: input.width * media.height / media.width, ...(media.type === "video" ? { audioEnabled: true } : {}) };
-    return index === textIndex ? [text, block] : [block];
-  });
-  if (textIndex === input.media.length) flow.push(text);
+  const flow = [
+    ...(message ? [text] : []),
+    ...input.media.map(media => ({ id: media.id, type: media.type, src: media.src, alt: media.alt,
+      height: input.width * media.height / media.width, ...(media.type === "video" ? { audioEnabled: true } : {}) })),
+  ];
   let y = 0;
   const seams: number[] = [];
   flow.forEach((block, index) => {
     y += block.height;
     if (index < flow.length - 1 && block.type !== "text" && flow[index + 1].type !== "text") seams.push(y);
   });
-  // A one-photo Strip (or two photos separated by words) still gets stickers on media.
-  if (!seams.length) seams.push(input.width * input.media[0].height / input.media[0].width * 0.75);
+  // A one-photo Strip still gets stickers on media, below the opening text.
+  if (!seams.length) seams.push((message ? text.height : 0) + input.width * input.media[0].height / input.media[0].width * 0.75);
   const shuffledSeams = [...seams];
   for (let i = shuffledSeams.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));

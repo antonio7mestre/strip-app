@@ -42,12 +42,26 @@ export function OnboardingStrip({ active, color, step, onStepChange, onBack, onC
   const measurement = useRef<HTMLParagraphElement>(null);
   const controller = useRef<AbortController | null>(null);
   const ownedBlobs = useRef(new Set<string>());
+  const warmedStickers = useRef(new Map<string, HTMLImageElement>());
   const busy = Boolean(progress) || saving;
   const ink = profileInk(color);
   const palette = useMemo(() => media.flatMap(item => item.palette ? [item.palette] : []), [media]);
   const assets = useMemo(() => Array.from({ length: cycles }, (_, cycle) => colorMatchedStickers(STICKER_PACK, identity.seed + cycle, palette)).flat(), [cycles, identity.seed, palette]);
   const masonry = useMemo(() => stickerMasonry(assets, viewport.width), [assets, viewport.width]);
   const visible = masonry.items.filter(item => item.top + item.height >= viewport.top - 500 && item.top <= viewport.top + viewport.height + 500);
+
+  useEffect(() => {
+    // The picker shows small thumbnails. Prepare the selected originals while
+    // the user writes, instead of starting those downloads after Continue.
+    selected.forEach(id => {
+      const asset = STICKER_PACK.find(sticker => sticker.id === id);
+      if (!asset || warmedStickers.current.has(id)) return;
+      const image = new Image();
+      image.src = asset.src;
+      warmedStickers.current.set(id, image);
+      void image.decode().catch(() => {});
+    });
+  }, [selected]);
 
   useLayoutEffect(() => {
     if (!active) return;
