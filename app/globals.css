@@ -3653,6 +3653,10 @@ html[data-reader-create-entry] .route-loading-mode { visibility: hidden; }
   letter-spacing: 0;
 }
 
+html:not([data-in-app-browser="instagram"]) .main-composer-dock .publish-strip-button {
+  min-width: clamp(64px, calc(100vw - 256px), 96px);
+}
+
 .main-composer-dock .height-crop-dock-controls {
   animation: height-crop-handles-reveal 180ms ease-out both;
 }
