@@ -47,7 +47,7 @@ export function StoryShareControls({
         </div>
       </div>
       <div className="story-share-instructions" aria-hidden={!instagramReady}>
-        <p>Select your saved poster and paste your link sticker.</p>
+        <p>Select saved poster and paste link sticker</p>
       </div>
     </div>
   );
