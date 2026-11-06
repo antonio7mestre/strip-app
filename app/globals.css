@@ -5268,6 +5268,14 @@ html[data-in-app-browser="instagram"] .story-share-save-beacon {
   clip-path: inset(0 round 24px);
 }
 
+/* Leave paint clearance around the 44px web and 48px Instagram circles.
+   Keep the same occupied row height and centerline inside every parent tray. */
+.selector-scroll:not(.is-gradient-mode):has(.color-selector-option) {
+  height: 56px;
+  margin-block: -4px;
+  padding-block: 4px;
+}
+
 .selector-leading {
   display: flex;
   flex: 0 0 auto;

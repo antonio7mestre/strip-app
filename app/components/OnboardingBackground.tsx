@@ -22,7 +22,7 @@ export function OnboardingBackground({ color, onChange, onContinue, onBack, pend
   useLayoutEffect(() => {
     const element = space.current;
     if (!element) return;
-    const measure = () => setGrid(onboardingGrid(element.clientWidth, element.clientHeight));
+    const measure = () => setGrid(onboardingGrid(element.clientWidth, Math.max(0, element.clientHeight - 8)));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);

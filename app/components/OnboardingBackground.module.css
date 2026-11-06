@@ -36,7 +36,7 @@
 .heading { flex: none; max-width: 420px; width: 100%; margin: 0 auto 24px; padding-top: clamp(24px, 5vh, 46px); }
 .heading h1 { color: inherit; }
 .heading p { margin-top: 11px; color: inherit; }
-.space { flex: 1; min-height: 0; width: 100%; max-width: 384px; margin: 0 auto; overflow: hidden; }
+.space { flex: 1; min-height: 0; width: 100%; max-width: 384px; margin: 0 auto; padding-block: 4px; overflow: hidden; }
 .grid { display: grid; grid-template-columns: repeat(4, var(--swatch-size)); gap: 16px; justify-content: space-between; }
 .swatch {
   display: grid;
