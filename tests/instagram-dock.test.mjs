@@ -6,11 +6,14 @@ import { installKeyboardDockPosition } from '../app/lib/keyboard-dock.ts';
 import { installPublishKeyboardDock } from '../app/lib/publish-keyboard-dock.ts';
 
 function surface(instagram = true) {
-  const events = new Map(), properties = new Map();
+  const events = new Map(), viewportEvents = new Map(), properties = new Map();
   let safeBottom = 34, probes = 0;
   globalThis.window = { innerHeight: 800, innerWidth: 390,
     addEventListener: (name, fn) => events.set(name, fn),
     removeEventListener: name => events.delete(name) };
+  window.visualViewport = { height: 800, offsetTop: 0, scale: 1,
+    addEventListener: (name, fn) => viewportEvents.set(name, fn),
+    removeEventListener: name => viewportEvents.delete(name) };
   globalThis.document = {
     createElement: () => ({ style: {}, getBoundingClientRect: () => ({ height: safeBottom }), remove: () => probes-- }),
     documentElement: { dataset: { inAppBrowser: instagram ? 'instagram' : undefined },
@@ -20,24 +23,34 @@ function surface(instagram = true) {
         removeProperty: name => properties.delete(name),
       } },
   };
-  return { properties, events, get probes() { return probes; },
+  return { properties, events, viewportEvents, get probes() { return probes; },
     resize(height, safe, width = 390) {
-      window.innerHeight = height; window.innerWidth = width; safeBottom = safe; events.get('resize')?.();
+      window.innerHeight = height; window.visualViewport.height = height; window.innerWidth = width; safeBottom = safe; events.get('resize')?.();
     } };
 }
 
-test('Instagram keeps viewport and inset fixed through chrome and keyboard changes', () => {
+test('Instagram keeps the pill at the visible bottom when scrolling changes WebView geometry', () => {
   const s = surface(), cleanup = installInstagramDockViewport();
-  const anchor = () => [...s.properties.values()];
-  assert.deepEqual(anchor(), ['800px', '34px']);
-  for (const [height, inset] of [[860, 0], [740, 21], [430, 0], [800, 34]]) {
-    s.resize(height, inset); assert.deepEqual(anchor(), ['800px', '34px']);
+  const bottom = () => Number.parseFloat(s.properties.get('--instagram-dock-viewport-bottom'));
+  assert.equal(bottom(), 800);
+  for (const [height, offset] of [[800, 24], [800, 0], [824, 0], [800, 24], [800, 0]]) {
+    window.visualViewport.height = height;
+    window.visualViewport.offsetTop = offset;
+    s.viewportEvents.get('scroll')?.();
+    assert.equal(bottom() - offset, height, 'no gap below the pill when direction reverses');
+    assert.equal(s.properties.get('--instagram-dock-viewport-height'), '800px', 'tray sizing stays stable');
   }
-  assert.equal(s.events.has('scroll'), false);
-  assert.equal(s.probes, 0);
-  s.resize(780, 0, 391); assert.deepEqual(anchor(), ['800px', '34px'], 'minor WebView width jitter is not rotation');
-  s.resize(390, 21, 800); assert.deepEqual(anchor(), ['390px', '21px']);
-  cleanup(); assert.equal(s.events.size + s.properties.size, 0);
+  s.resize(860, 0); assert.equal(bottom(), 860);
+  s.resize(740, 21); assert.equal(bottom(), 740);
+  // A keyboard or pinch must not pull the tray away from its resting edge.
+  s.resize(430, 0); assert.equal(bottom(), 740);
+  window.visualViewport.scale = 2;
+  s.resize(600, 0); assert.equal(bottom(), 740);
+  window.visualViewport.scale = 1;
+  s.resize(800, 34); assert.equal(bottom(), 800);
+  s.resize(390, 21, 800); assert.equal(bottom(), 390);
+  assert.equal(s.properties.get('--instagram-dock-viewport-height'), '390px');
+  cleanup(); assert.equal(s.events.size + s.viewportEvents.size + s.properties.size, 0);
 });
 
 test('cleanup restores previous values and Safari never gets an Instagram anchor', () => {
@@ -72,10 +85,10 @@ test('Instagram never installs Safari pan listeners or title dock mutations', ()
   cleanup(); assert.equal(classes.size, 0);
 });
 
-test('the Instagram container consumes its captured height instead of a resizing percentage', () => {
+test('the Instagram container uses the visible bottom without changing pill dimensions', () => {
   const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
   const layer = css.match(/html\[data-in-app-browser="instagram"\] \.dock-viewport \{([^}]+)\}/)[1];
-  assert.match(layer, /height: var\(--instagram-dock-viewport-height, 100svh\)/);
+  assert.match(layer, /height: var\(--instagram-dock-viewport-bottom, var\(--instagram-dock-viewport-height, 100svh\)\)/);
   assert.doesNotMatch(layer, /height: 100%|100dvh|100lvh/);
   assert.match(css, /:where\(html:not\(\[data-in-app-browser="instagram"\]\)\) \.composer-dock \{[^}]*--dock-browser-extension: max/);
 });

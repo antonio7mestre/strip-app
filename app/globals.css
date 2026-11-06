@@ -3336,11 +3336,9 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
 }
 
 .dock-viewport { display: contents; }
-/* A small fixed bottom layer can follow WebKit's transient scroll offset.
-   Anchor a transparent viewport at the top instead, then lay out the pill
-   inside a captured pixel height. A percentage still follows the WebView
-   resize on its first down/up swipe. This layer never follows scroll, dynamic
-   viewport units or Safari's toolbar extension. */
+/* Anchor the transparent layer to Instagram's actual visible bottom. Its
+   visual viewport can pan independently of the layout viewport on a swipe.
+   Only this container's edge changes; pill dimensions and Safari stay separate. */
 html[data-in-app-browser="instagram"] .dock-viewport {
   display: block;
   position: fixed;
@@ -3349,7 +3347,7 @@ html[data-in-app-browser="instagram"] .dock-viewport {
   bottom: auto;
   left: 0;
   width: 100%;
-  height: var(--instagram-dock-viewport-height, 100svh);
+  height: var(--instagram-dock-viewport-bottom, var(--instagram-dock-viewport-height, 100svh));
   transform: translateZ(0);
   translate: none;
   transition: none;
