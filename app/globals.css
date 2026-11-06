@@ -3335,11 +3335,11 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
-/* Instagram reaches the screen edges. The native screen mask supplies the
-   lower corner curve, without an extra inset or any change in dock height. */
+/* Keep the entire Instagram curve inside the native screen mask, with only
+   a minimal side inset and no change to the stationary dock height. */
 html[data-in-app-browser="instagram"] {
   --dock-visible-height: 80px;
-  --instagram-dock-edge: 0px;
+  --instagram-dock-edge: 3px;
   --sticker-picker-viewport-height: 78svh;
 }
 html[data-in-app-browser="instagram"] .composer-dock {
@@ -3347,15 +3347,16 @@ html[data-in-app-browser="instagram"] .composer-dock {
   --dock-browser-extension: 0px;
   --dock-bleed: 0px;
   --dock-controls-lower: 0px;
-  --dock-controls-inset: max(8px, calc(22px - var(--instagram-dock-edge)));
+  --dock-controls-inset: 4px;
   /* Instagram must never inherit Safari keyboard-pan compensation. */
   translate: none !important;
   --instagram-dock-height: var(--dock-visible-height);
   --instagram-dock-visible: var(--instagram-dock-height);
-  /* Round the exposed upper edge; the physical display rounds the lower edge. */
+  /* Draw the complete lower curve instead of letting the screen cut it off. */
   border-radius:
-    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 0 0 /
-    calc(var(--dock-visible-height) * .4) calc(var(--dock-visible-height) * .4) 0 0;
+    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 64px 64px /
+    calc(var(--dock-visible-height) * .4) calc(var(--dock-visible-height) * .4)
+    calc(var(--dock-visible-height) * .6) calc(var(--dock-visible-height) * .6);
   corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
@@ -5769,8 +5770,15 @@ html[data-in-app-browser="instagram"] .editor-mode .composer-dock:not(.preview-m
 }
 
 
-/* The outside upper corner echoes the surrounding Instagram tray.
-   Inside-facing ends retain the normal capsule curve. */
+/* Explicit 24px inner caps prevent CSS from shrinking the outer corner
+   against a 999px capsule radius. Outer curves follow the 16px tray inset. */
+html[data-in-app-browser="instagram"] .composer-dock :is(
+  .publish-strip-button, .publish-flow-button, .profile-save-button,
+  .height-crop-action, .auth-action-button
+) {
+  border-radius: 24px;
+  corner-shape: round;
+}
 html[data-in-app-browser="instagram"] .composer-dock :is(
   .publish-strip-button,
   .publish-flow-button:not(.publish-flow-back-button),
@@ -5778,7 +5786,8 @@ html[data-in-app-browser="instagram"] .composer-dock :is(
   .height-crop-confirm,
   .auth-action-button
 ) {
-  border-top-right-radius: 12px 16px;
+  border-top-right-radius: 24px 16px;
+  border-bottom-right-radius: 48px 32px;
 }
 html[data-in-app-browser="instagram"] .composer-dock :is(
   .publish-flow-back-button,
@@ -5786,5 +5795,9 @@ html[data-in-app-browser="instagram"] .composer-dock :is(
   .auth-action-button
 ),
 html[data-in-app-browser="instagram"] .composer-dock .story-share-controls[data-instagram-ready="true"] .instagram-story-button {
-  border-top-left-radius: 12px 16px;
+  border-top-left-radius: 24px 16px;
+  border-bottom-left-radius: 48px 32px;
+}
+html[data-in-app-browser="instagram"] .main-composer-dock .publish-strip-button {
+  min-width: 80px;
 }
