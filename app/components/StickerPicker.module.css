@@ -32,7 +32,7 @@
 .sourceChoices .sourceChoice svg { width: 23px; height: 23px; }
 .sourceBackChoice { display: grid; width: 24px; min-width: 0; place-items: center; padding: 0; border: 0; border-radius: 0; background: transparent; color: #090909; }
 .sourceBackChoice svg { width: 20px; height: 20px; }
-.sourceChoice { display: flex; height: 64px; min-width: 0; align-items: center; justify-content: center; gap: 9px; padding: 10px; border: 0; border-radius: 16px; background: #f0f0ed; color: #090909; font-size: 14px; font-weight: 650; line-height: 1.15; text-align: left; transition: transform 150ms cubic-bezier(.2,.8,.2,1), background-color 150ms ease; }
+.sourceChoice { display: flex; width: 64px; height: 64px; min-width: 0; justify-self: center; align-items: center; justify-content: center; gap: 9px; padding: 10px; border: 0; border-radius: 50%; corner-shape: round; background: #f0f0ed; color: #090909; font-size: 14px; font-weight: 650; line-height: 1.15; text-align: left; transition: transform 150ms cubic-bezier(.2,.8,.2,1), background-color 150ms ease; }
 .sourceChoice svg { width: 2.3em; height: 2.3em; flex: none; }
 .sourceChoice:active { transform: scale(.965); }
 .categories { display: flex; flex-wrap: nowrap; flex: none; gap: 5px; padding: 8px 0 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -82,7 +82,7 @@
   padding-left: var(--instagram-tools-left-inset);
 }
 :global(html[data-in-app-browser="instagram"]) .sourceChoices .sourceChoice {
-  height: var(--instagram-control-size);
+  height: 64px;
   padding: 2px;
   gap: 2px;
   font-size: var(--instagram-control-font-size);
