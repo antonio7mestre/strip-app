@@ -3379,8 +3379,9 @@ html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):n
   padding-bottom: 0 !important;
   backface-visibility: hidden;
 }
-/* Publishing keeps the rounded upper edge and meets the screen at the bottom. */
-html[data-in-app-browser="instagram"] .composer-dock.publish-flow-dock {
+/* Editor and publishing keep the rounded upper edge with a flat bottom. */
+html[data-in-app-browser="instagram"] .composer-dock.publish-flow-dock,
+html[data-in-app-browser="instagram"] .editor-mode .main-composer-dock {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
