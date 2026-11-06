@@ -3335,11 +3335,10 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
-/* Keep the entire Instagram curve inside the native screen mask, with only
-   a minimal side inset and no change to the stationary dock height. */
+/* Instagram fills the screen width without changing the stationary dock height. */
 html[data-in-app-browser="instagram"] {
   --dock-visible-height: 80px;
-  --instagram-dock-edge: 3px;
+  --instagram-dock-edge: 0px;
   --sticker-picker-viewport-height: 78svh;
 }
 html[data-in-app-browser="instagram"] .composer-dock {
@@ -3354,7 +3353,7 @@ html[data-in-app-browser="instagram"] .composer-dock {
   --instagram-dock-visible: var(--instagram-dock-height);
   /* Draw the complete lower curve instead of letting the screen cut it off. */
   border-radius:
-    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 64px 64px /
+    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 56px 56px /
     calc(var(--dock-visible-height) * .4) calc(var(--dock-visible-height) * .4)
     calc(var(--dock-visible-height) * .6) calc(var(--dock-visible-height) * .6);
   corner-shape: round;
@@ -5786,8 +5785,8 @@ html[data-in-app-browser="instagram"] .composer-dock :is(
   .height-crop-confirm,
   .auth-action-button
 ) {
-  border-top-right-radius: 24px 16px;
-  border-bottom-right-radius: 48px 32px;
+  border-top-right-radius: 24px 20px;
+  border-bottom-right-radius: 40px 28px;
 }
 html[data-in-app-browser="instagram"] .composer-dock :is(
   .publish-flow-back-button,
@@ -5795,9 +5794,9 @@ html[data-in-app-browser="instagram"] .composer-dock :is(
   .auth-action-button
 ),
 html[data-in-app-browser="instagram"] .composer-dock .story-share-controls[data-instagram-ready="true"] .instagram-story-button {
-  border-top-left-radius: 24px 16px;
-  border-bottom-left-radius: 48px 32px;
+  border-top-left-radius: 24px 20px;
+  border-bottom-left-radius: 40px 28px;
 }
 html[data-in-app-browser="instagram"] .main-composer-dock .publish-strip-button {
-  min-width: 80px;
+  min-width: clamp(80px, 24.5vw, 96px);
 }
