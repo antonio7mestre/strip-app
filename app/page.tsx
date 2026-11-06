@@ -1,5 +1,7 @@
 "use client";
 
+import { DockFooter } from "@/app/components/DockViewport";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import type {
@@ -1408,7 +1410,7 @@ function TextStyleSelector({
 
   return (
     <>
-      <footer
+      <DockFooter
       className={`composer-dock selector-dock ${
         gradientMode === tool ? "is-gradient-picker" : ""
       } ${visible ? "is-visible" : ""}`}
@@ -1644,7 +1646,7 @@ function TextStyleSelector({
           <Check className="dock-glyph" aria-hidden="true" />
         </button>
       </div>
-      </footer>
+      </DockFooter>
       {allowTextures ? <TexturePicker open={visible && tool === "background" && textureOpen}
         selected={block.backgroundTexture} onSelect={backgroundTexture => onChange({ backgroundTexture })}
         onClose={() => setTextureOpen(false)} onDone={finishStyleSelection} /> : null}
@@ -7841,7 +7843,7 @@ export default function Home() {
             </div>
           </section>
 
-          <footer className="composer-dock share-dock publish-flow-dock">
+          <DockFooter className="composer-dock share-dock publish-flow-dock">
             <StoryShareControls
               instagramReady={storyInstagramReady}
               shareLabel={storyAssetLoading ? <>Preparing<AnimatedEllipsis /></> : "Save image"}
@@ -7849,7 +7851,7 @@ export default function Home() {
               onBack={() => void returnToLibrary()}
               onShare={saveStoryPoster}
             />
-          </footer>
+          </DockFooter>
           {notice ? <div className="notice">{notice}</div> : null}
         </main>
         {typeof document !== "undefined" ? createPortal(
@@ -7907,7 +7909,7 @@ export default function Home() {
         </section>
         {notice ? <div className="notice">{notice}</div> : null}
         {/* Keep the form and its covered tools in the same opaque canvas. */}
-        <footer
+        <DockFooter
           key="persistent-composer-dock"
           className="composer-dock title-setup-dock publish-flow-dock"
         >
@@ -7931,7 +7933,7 @@ export default function Home() {
               {publishing ? <span>Publishing<AnimatedEllipsis /></span> : "Publish"}
             </button>
           </div>
-        </footer>
+        </DockFooter>
         </main>
       </>
     );
@@ -8247,7 +8249,7 @@ export default function Home() {
           aria-label="Choose a cover image"
         />
 
-        <footer
+        <DockFooter
           key="persistent-composer-dock"
           className={`composer-dock publish-setup-dock publish-flow-dock ${
             coverColorPickerOpen ? "is-shifted" : ""
@@ -8273,7 +8275,7 @@ export default function Home() {
               Next
             </button>
           </div>
-        </footer>
+        </DockFooter>
         <TextStyleSelector
           block={{
             id: "cover-color-picker",
@@ -8490,7 +8492,7 @@ export default function Home() {
       ) : null}
 
       <PreviewDock preview={inlinePreview} enter={arrivingFromReader}>
-      <footer
+      <DockFooter
         key="persistent-composer-dock"
         inert={activeTextTool !== null}
         aria-hidden={activeTextTool !== null || undefined}
@@ -8625,7 +8627,7 @@ export default function Home() {
           </HapticActionButton>
         </div>
         )}
-      </footer>
+      </DockFooter>
       </PreviewDock>
       {pendingDeleteBlock ? (
         <DeleteConfirmationModal

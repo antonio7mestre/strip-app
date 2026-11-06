@@ -40,6 +40,8 @@
 .error:empty { display: none; }
 /* Expanded texture choices use the same resting screen edge as compact tools. */
 :global(html[data-in-app-browser="instagram"]) .tray {
+  position: absolute;
+  pointer-events: auto;
   left: var(--instagram-dock-edge);
   right: var(--instagram-dock-edge);
   width: calc(100% - 2 * var(--instagram-dock-edge));

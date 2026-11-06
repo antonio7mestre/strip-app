@@ -1,5 +1,7 @@
 "use client";
 
+import { DockFooter } from "@/app/components/DockViewport";
+
 import { useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { HapticStartButton } from "./HapticStartButton";
@@ -14,10 +16,10 @@ export function LandingStartDock({ onStart }: { onStart: () => void }) {
     if (!dock.current) return;
     return enterLandingDock(dock.current, () => flushSync(() => setSettled(true)));
   }, []);
-  return <footer ref={dock} className="composer-dock auth-action-dock landing-start-dock" data-entering={!settled || undefined}>
+  return <DockFooter ref={dock} className="composer-dock auth-action-dock landing-start-dock" data-entering={!settled || undefined}>
     <div className="dock-controls dock-controls-current auth-action-controls">
       <HapticStartButton onStart={onStart} cueReady={settled} />
       <p className="auth-action-terms">By continuing, you agree to our Terms &amp; Privacy Policy.</p>
     </div>
-  </footer>;
+  </DockFooter>;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { DockFooter } from "@/app/components/DockViewport";
+
 import { useLayoutEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { PROFILE_PATHS, readProfileReload, readProfilePresentation, readProfileLayout, saveProfileBackground, saveProfileLayout, saveProfilePresentation, type ProfileLayout } from "@/app/lib/profile-reload";
@@ -75,9 +77,9 @@ export function ProfileReload({ controller, owner, profile, username, publicView
     </div>
     </div>
     {showTools && view !== "settings" && !hideAdd ? <button key="profile-add" className="library-add-button" type="button" aria-label="Create a new Strip" disabled={!onNew} onClick={onNew}><Plus aria-hidden="true" /></button> : null}
-    {showTools && !hideTools ? <footer key="persistent-composer-dock" className={`composer-dock app-navigation-dock ${dockClassName}`}>
+    {showTools && !hideTools ? <DockFooter key="persistent-composer-dock" className={`composer-dock app-navigation-dock ${dockClassName}`}>
       {navigation ?? <ProfileNavigation view={view} onNavigate={onNavigate} />}
-    </footer> : null}
+    </DockFooter> : null}
   </main>;
 }
 

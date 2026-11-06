@@ -1,5 +1,7 @@
 "use client";
 
+import { DockFooter } from "@/app/components/DockViewport";
+
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Check, ChevronLeft, ImagePlus, Palette, Pipette, Sticker, Type, X } from "lucide-react";
@@ -320,7 +322,7 @@ function StickerPickerDialog({
         )}
       </section>
       {view === "pack" && category === "shapes" && typeof document !== "undefined" ? createPortal(
-        <footer ref={paletteRef} className={`composer-dock selector-dock shape-selector-dock ${shapeWheelOpen ? "is-gradient-picker" : ""} ${shapePaletteOpen ? "is-visible" : ""}`}
+        <DockFooter ref={paletteRef} className={`composer-dock selector-dock shape-selector-dock ${shapeWheelOpen ? "is-gradient-picker" : ""} ${shapePaletteOpen ? "is-visible" : ""}`}
           aria-label="Shape color selector" aria-hidden={!shapePaletteOpen} inert={!shapePaletteOpen}>
           <div ref={paletteScrollRef} className={`selector-scroll ${shapeWheelOpen ? "is-gradient-mode" : ""}`}
             onClickCapture={scrollPickerOnSelect} role="group" aria-label="Shape color choices">
@@ -363,7 +365,7 @@ function StickerPickerDialog({
                 <Check className="dock-glyph" aria-hidden="true" />
               </button>
           </div>
-        </footer>, document.body) : null}
+        </DockFooter>, document.body) : null}
       {pageSamplerActive && samplePoint && typeof document !== "undefined" ? createPortal(
         <button type="button" className={`page-color-picker-indicator ${sampleDragging ? "is-dragging" : ""}`}
           aria-label="Drag to sample a shape color"
