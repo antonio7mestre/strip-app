@@ -3386,6 +3386,7 @@ html[data-in-app-browser="instagram"] .composer-dock:is(.landing-start-dock, .au
   --dock-visible-height: 96px;
 }
 html[data-in-app-browser="instagram"] .main-composer-dock {
+  --dock-visible-height: 88px;
   --instagram-dock-height: max(var(--dock-visible-height), var(--sticker-dock-visible-height));
 }
 html[data-in-app-browser="instagram"] .main-composer-dock.is-sticker-picker-open:not(.is-sticker-picker-source) {
@@ -5804,4 +5805,14 @@ html[data-in-app-browser="instagram"] .composer-dock .story-share-controls[data-
 }
 html[data-in-app-browser="instagram"] .main-composer-dock .publish-strip-button {
   min-width: clamp(80px, 24.5vw, 96px);
+  font-size: 16px;
+}
+html[data-in-app-browser="instagram"] .main-composer-dock .dock-controls:has(> .dock-tool-button) {
+  /* Add breathing room before T without moving the row's right edge.
+     Leave enough room for all controls on the narrowest iPhone screens. */
+  padding-left: clamp(0px, calc(100vw - 328px), 8px);
+}
+html[data-in-app-browser="instagram"] .main-composer-dock .dock-controls .dock-glyph {
+  width: 24px;
+  height: 24px;
 }
