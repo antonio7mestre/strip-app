@@ -2804,7 +2804,6 @@ export default function Home() {
     Record<string, "loaded" | "error">
   >({});
   const [mediaImportProgress, setMediaImportProgress] = useState<(MediaImportFeedback & { afterId: string | null }) | null>(null);
-  const [mediaImportPreview, setMediaImportPreview] = useState<{ src: string; previewSrc?: string; type: "image" | "video" } | null>(null);
   const [importedMediaSizes, setImportedMediaSizes] = useState<Record<string, MediaSize>>({});
   const [mediaBatchRevealIds, setMediaBatchRevealIds] = useState<string[]>([]);
   const [mediaBatchRevealStarted, setMediaBatchRevealStarted] = useState(false);
@@ -4088,7 +4087,6 @@ export default function Home() {
     if (files.length === 0 || mediaImportRequestRef.current || pageTransitionInFlightRef.current) return;
     const controller = new AbortController();
     mediaImportRequestRef.current = controller;
-    setMediaImportPreview(null);
     const insertionAfterId = selectedBlockId;
     const feedback = createMediaImportFeedback({
       signal: controller.signal,
@@ -4100,8 +4098,7 @@ export default function Home() {
     try {
       const { media, failed } = await prepareMediaFiles(files, {
         signal: controller.signal,
-        onProgress: feedback.report, previews: true,
-        onPrepared: item => setMediaImportPreview(item),
+        onProgress: feedback.report,
       });
       await feedback.finish();
       if (controller.signal.aborted || mediaImportRequestRef.current !== controller) return;
@@ -4159,7 +4156,6 @@ export default function Home() {
       if (mediaImportRequestRef.current === controller) {
         mediaImportRequestRef.current = null;
         setMediaImportProgress(null);
-        setMediaImportPreview(null);
         setMediaBatchRevealIds([]);
         setMediaBatchRevealStarted(false);
       }
@@ -8418,7 +8414,7 @@ export default function Home() {
       {legacyTransitionLayer}
       {desktopBackControl}
       {!inlinePreview && mediaImportProgress?.visible && typeof document !== "undefined" ? createPortal(
-        <MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} preview={mediaImportPreview} color={visibleProfile.background} />,
+        <MediaImportPopup progress={mediaImportProgress} revealing={mediaBatchRevealStarted} />,
         document.body,
       ) : null}
       <main

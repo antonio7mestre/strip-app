@@ -5718,8 +5718,6 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
   }
 }
 
-.media-import-art { position: relative; width: min(52vw, 210px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 22px; box-shadow: 0 10px 40px #0003; }
-
 /* The Instagram tray already extends below its fixed edge. Safari-only
    backing would resize independently as Instagram changes its viewport. */
 html[data-in-app-browser="instagram"] .landing-browser-bottom { display: none; }
