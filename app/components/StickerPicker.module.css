@@ -75,3 +75,35 @@
 @keyframes stickerPickZoom { 55% { transform: scale(1.12); } to { transform: scale(.9); opacity: .7; } }
 
 @media (max-width: 360px) { .masonry { columns: 2; } }
+
+/* Match the main editor tools inside Instagram, including the compact source row. */
+:global(html[data-in-app-browser="instagram"]) .sourceTray {
+  top: -4px;
+  padding-left: var(--instagram-tools-left-inset);
+}
+:global(html[data-in-app-browser="instagram"]) .sourceChoices .sourceChoice {
+  height: var(--instagram-control-size);
+  padding: 2px;
+  gap: 2px;
+  font-size: var(--instagram-control-font-size);
+  line-height: 18px;
+}
+:global(html[data-in-app-browser="instagram"]) .sourceChoices svg {
+  width: var(--instagram-icon-size);
+  height: var(--instagram-icon-size);
+}
+:global(html[data-in-app-browser="instagram"]) .packTray .header,
+:global(html[data-in-app-browser="instagram"]) .packHeader {
+  grid-template-columns: var(--instagram-control-size) 1fr var(--instagram-control-size);
+  min-height: var(--instagram-control-size);
+}
+:global(html[data-in-app-browser="instagram"]) .packTray .iconButton,
+:global(html[data-in-app-browser="instagram"]) .packIconButton {
+  width: var(--instagram-control-size);
+  height: var(--instagram-control-size);
+}
+:global(html[data-in-app-browser="instagram"]) .packTray .iconButton svg,
+:global(html[data-in-app-browser="instagram"]) .packIconButton svg {
+  width: var(--instagram-icon-size);
+  height: var(--instagram-icon-size);
+}
