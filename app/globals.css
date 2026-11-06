@@ -5394,6 +5394,7 @@ html[data-in-app-browser="instagram"] .story-share-save-beacon {
 .font-size-stepper svg {
   width: 15px;
   height: 15px;
+  scale: 0.8;
 }
 
 .font-size-stepper output {
