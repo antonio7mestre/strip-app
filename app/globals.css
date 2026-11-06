@@ -5454,8 +5454,9 @@ html[data-in-app-browser="instagram"] .story-share-save-beacon {
   overflow: hidden;
   margin: 0;
   padding: 0;
-  border-radius: var(--iphone-panel-radius) 0 0 0;
-  corner-shape: var(--iphone-panel-corner-shape);
+  /* The dock clips the rainbow to its own outline, including Instagram's
+     shorter elliptical corners. A second inner arc leaves a white crescent. */
+  border-radius: 0;
 }
 
 .selector-dock.is-gradient-picker .selector-leading {
@@ -5525,8 +5526,7 @@ html.page-color-picking :is(.selector-dock, .profile-editor-dock) {
   height: 100%;
   flex: 1 1 auto;
   overflow: hidden;
-  border-radius: var(--iphone-panel-radius) 0 0 0;
-  corner-shape: var(--iphone-panel-corner-shape);
+  border-radius: 0;
   background:
     linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent 54%, rgba(255, 255, 255, 0.92)),
     linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);

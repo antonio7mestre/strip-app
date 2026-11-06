@@ -32,10 +32,11 @@ test("home, edit, publish and transition trays cannot override the shared curve"
   }
 });
 
-test("rainbow surfaces match their tray corner without a mismatched inner arc", () => {
+test("rainbow surfaces use the outer tray's clip without a second mismatched arc", () => {
+  assert.match(rule('.composer-dock'), /overflow: hidden/);
   for (const selector of [".selector-scroll.is-gradient-mode", ".full-gradient-picker"]) {
-    assert.match(rule(selector), /border-radius: var\(--iphone-panel-radius\) 0 0 0/);
-    assert.match(rule(selector), /corner-shape: var\(--iphone-panel-corner-shape\)/);
+    assert.match(rule(selector), /border-radius: 0/);
+    assert.doesNotMatch(rule(selector), /corner-shape:/);
   }
 });
 
