@@ -1,5 +1,5 @@
 export const COVER_MOVE_MS = 620;
-export const COVER_FADE_MS = 650;
+export const COVER_FADE_MS = 480;
 export const COVER_DOCK_DROP_MS = 420;
 export const COVER_APPEAR_MS = 180;
 export type CoverOrigin = { left: number; top: number; width: number; height: number;
@@ -161,18 +161,39 @@ export function fadeInCover(cover: HTMLElement, onComplete: () => void, labels: 
   return () => { disposed = true; cancelAnimationFrame(frame); };
 }
 
-/** Keep the existing 650ms crossfade and expose its phase for Safari edge tint. */
+/** Fade on the compositor after a painted frame, matching uploaded media.
+ * Keep the cover mounted until the actual animation finishes. */
 export function fadeCoverEntrance(host: HTMLElement, onComplete: () => void) {
   let frame = 0, started: number | null = null, disposed = false;
-  host.dataset.inkPhase = "fading";
+  let animation: Animation | null = null;
+  const finish = () => {
+    if (disposed) return;
+    host.style.opacity = "0";
+    onComplete();
+  };
   const tick = (now: number) => {
     if (disposed) return;
     started ??= now;
     const t = Math.max(0, Math.min(1, (now - started) / COVER_FADE_MS));
     host.style.opacity = String(1 - t * t * (3 - 2 * t));
     if (t < 1) frame = requestAnimationFrame(tick);
-    else onComplete();
+    else finish();
   };
-  frame = requestAnimationFrame(tick);
-  return () => { disposed = true; cancelAnimationFrame(frame); };
+  frame = requestAnimationFrame(() => {
+    frame = requestAnimationFrame(() => {
+      if (disposed) return;
+      host.dataset.inkPhase = "fading";
+      if (host.animate) {
+        animation = host.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: COVER_FADE_MS, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "both",
+        });
+        animation.onfinish = finish;
+      } else frame = requestAnimationFrame(tick);
+    });
+  });
+  return () => {
+    disposed = true;
+    cancelAnimationFrame(frame);
+    if (animation) { animation.onfinish = null; animation.cancel(); }
+  };
 }

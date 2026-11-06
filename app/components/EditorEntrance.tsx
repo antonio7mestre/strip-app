@@ -5,10 +5,10 @@ import { startEntranceCounter } from "@/app/lib/strip-entrance";
 import { installScribbleSurface } from "@/app/lib/scribble-entrance";
 import { TopStatusPill } from "./TopStatusPill";
 
-export function EditorEntrance({ revealing, percent = 0, onCountComplete, handoffColor }: {
+export function EditorEntrance({ revealing, percent = 0, onCountComplete, onExitComplete, handoffColor }: {
   revealing: boolean;
   handoffColor?: string;
-  percent?: number; onCountComplete?: () => void;
+  percent?: number; onCountComplete?: () => void; onExitComplete?: () => void;
 }) {
   const [displayPercent, setDisplayPercent] = useState(0);
   const [stalled, setStalled] = useState(false);
@@ -38,7 +38,10 @@ export function EditorEntrance({ revealing, percent = 0, onCountComplete, handof
     if (displayPercent === 100 && !completedRef.current) { completedRef.current = true; onCountComplete?.(); }
   }, [displayPercent, onCountComplete]);
   return <section ref={surfaceRef} className={`editor-entrance${handoffColor ? " is-onboarding-handoff" : ""}${revealing ? " is-revealing" : ""}`}
-    style={handoffColor ? { backgroundColor: handoffColor } : undefined}>
+    style={handoffColor ? { backgroundColor: handoffColor } : undefined}
+    onTransitionEnd={event => {
+      if (revealing && event.target === event.currentTarget && event.propertyName === "opacity") onExitComplete?.();
+    }}>
     <TopStatusPill progress={displayPercent}
       waiting={!revealing && displayPercent < 100 && (displayPercent === 0 || stalled)} />
   </section>;

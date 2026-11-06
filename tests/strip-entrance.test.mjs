@@ -283,7 +283,7 @@ test("text-first reader reveals the real edge underneath its opaque cover surfac
   assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) body\s*\{\s*background: var\(--cover-entrance-background, #000\) !important;/);
   assert.match(css, /html:has\(\.cover-entrance:not\(\[data-ink-phase="fading"\]\)\) \.published-mode\.has-leading-text > \.top-safe-area-anchor\s*\{\s*display: none;/);
   assert.doesNotMatch(css, /html:has\(\.published-mode\.has-leading-text \.strip-entrance\) body/);
-  assert.match(css, /html:has\(\.published-mode\.has-leading-text\):has\(\.cover-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color 650ms ease-in-out;/);
+  assert.match(css, /html:has\(\.published-mode\.has-leading-text\):has\(\.cover-entrance\[data-ink-phase="fading"\]\) body\s*\{\s*background-image: none !important;\s*transition: background-color var\(--media-import-duration\) var\(--media-import-easing\);/);
   assert.match(css, /padding-top: calc\(var\(--leading-image-inset\) \+ env\(safe-area-inset-top\)\)/);
   assert.match(page, /hasLeadingImage \|\| \(hasLeadingText &&\s*\(view === "published" \|\| view === "preview" \|\| \(view === "edit" && inlinePreview\)\)\)/);
   const anchorEffect = page.slice(page.indexOf("const calculateLeadingImageOffset"), page.indexOf("const calculateLeadingImageOffset") + 2500);

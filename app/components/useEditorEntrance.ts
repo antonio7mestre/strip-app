@@ -6,7 +6,7 @@ import { entranceLoadPercent } from "@/app/lib/strip-entrance";
 import { useReaderViewport } from "./useReaderViewport";
 import { textTexture } from "@/app/lib/text-textures";
 
-export const EDITOR_ENTRANCE_FADE_MS = 600;
+export const EDITOR_ENTRANCE_FADE_MS = 480;
 export const EDITOR_ENTRANCE_MIN_MS = 280;
 type LoadableBlock = { id: string; type: string; fontStyle?: ProfileFont; backgroundTexture?: string };
 type Entrance = { request: number; startedAt: number; dataReady: boolean; counted: boolean; phase: "loading" | "revealing"; handoffColor?: string };
@@ -31,6 +31,9 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
   const isCurrent = useCallback((request: number) => requestRef.current === request, []);
   const completeCount = useCallback((request: number) => {
     setEntrance(current => current?.request === request && !current.counted ? { ...current, counted: true } : current);
+  }, []);
+  const completeReveal = useCallback((request: number) => {
+    setEntrance(current => current?.request === request && current.phase === "revealing" ? null : current);
   }, []);
   const request = entrance?.request;
   const dataReady = entrance?.dataReady ?? false;
@@ -63,19 +66,15 @@ export function useEditorEntrance(blocks: LoadableBlock[], media: Record<string,
     let frame = 0;
     // Give a cached load a single intentional entrance, not a one-frame flash.
     const timer = window.setTimeout(() => {
-      frame = requestAnimationFrame(() => setEntrance(current => current && current.request === request
-        ? { ...current, phase: "revealing" } : current));
+      // Give the final decoded layout its own paint beneath the opaque cover.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => setEntrance(current => current && current.request === request
+          ? { ...current, phase: "revealing" } : current));
+      });
     }, Math.max(0, EDITOR_ENTRANCE_MIN_MS - (performance.now() - entrance.startedAt)));
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); };
   }, [entrance, request, dataReady, fontsReady, profileLoading, assetsSettled]);
 
-  useEffect(() => {
-    if (entrance?.phase !== "revealing") return;
-    const timer = window.setTimeout(() => setEntrance(current => current?.request === request ? null : current),
-      EDITOR_ENTRANCE_FADE_MS);
-    return () => clearTimeout(timer);
-  }, [entrance?.phase, request]);
-
   return { active: entrance !== null, phase: entrance?.phase, handoffColor, request, percent,
-    requiredIds: viewport.ids, completeCount, start, resolve, cancel, isCurrent };
+    requiredIds: viewport.ids, completeCount, completeReveal, start, resolve, cancel, isCurrent };
 }

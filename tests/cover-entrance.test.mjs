@@ -174,17 +174,19 @@ test("failed covers recover and late decoding cannot mutate an exited loader", a
   assert.equal(ready, 0); assert.equal(errors, 1);
 });
 
-test("the final crossfade keeps its previous timing, is monotonic, and cleans up", () => {
-  assert.equal(COVER_MOVE_MS, 620); assert.equal(COVER_FADE_MS, 650);
+test("the final crossfade waits for paint, is monotonic, and cleans up", () => {
+  assert.equal(COVER_MOVE_MS, 620); assert.equal(COVER_FADE_MS, 480);
   let pending, done = 0;
   globalThis.requestAnimationFrame = callback => { pending = callback; return 7; };
   globalThis.cancelAnimationFrame = () => { pending = null; };
   const host = { dataset: {}, style: { opacity: "1" } };
   const cancel = fadeCoverEntrance(host, () => done++);
   try {
+    pending(68); assert.equal(host.dataset.inkPhase, undefined);
+    pending(84); assert.equal(host.style.opacity, "1");
     pending(100); assert.equal(host.style.opacity, "1");
-    pending(425); assert.equal(Number(host.style.opacity), 0.5);
-    pending(750); assert.equal(host.style.opacity, "0"); assert.equal(done, 1);
+    pending(340); assert.equal(Number(host.style.opacity), 0.5);
+    pending(580); assert.equal(host.style.opacity, "0"); assert.equal(done, 1);
     assert.equal(host.dataset.inkPhase, "fading");
     cancel(); assert.equal(pending, null);
   } finally { cancel(); delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
@@ -282,4 +284,25 @@ test("one document-painted dock edge crosses the whole glass, not just the visua
     dispose(); late(started + 1000); assert.equal(dock.style.top, before); assert.equal(cancelled, 1);
     assert.equal(done, 1);
   } finally { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+});
+
+
+test("the cover uses a compositor fade and dismisses only on actual completion", () => {
+  let pending, done = 0, cancelled = false, options;
+  const animation = { onfinish: null, cancel() { cancelled = true; } };
+  globalThis.requestAnimationFrame = callback => { pending = callback; return 7; };
+  globalThis.cancelAnimationFrame = () => { pending = null; };
+  const host = { dataset: {}, style: { opacity: "1" }, animate(frames, timing) {
+    assert.deepEqual(frames, [{ opacity: 1 }, { opacity: 0 }]);
+    options = timing; return animation;
+  } };
+  const cancel = fadeCoverEntrance(host, () => done++);
+  try {
+    pending(0); assert.equal(options, undefined);
+    pending(16); assert.equal(options.duration, 480);
+    assert.equal(options.easing, "cubic-bezier(0.4, 0, 0.2, 1)");
+    assert.equal(done, 0);
+    animation.onfinish(); assert.equal(done, 1);
+    cancel(); assert.equal(cancelled, true); assert.equal(animation.onfinish, null);
+  } finally { cancel(); delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
 });

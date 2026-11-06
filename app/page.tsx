@@ -3507,15 +3507,19 @@ export default function Home() {
 
   useLayoutEffect(() => {
     if (!initialPublishedId || initialReaderReleased || initialReaderPending) return;
-    // One layout commit starts the fade across the decoded screen and edges.
-    // The entrance temporarily owns browser sampling, restoring the final
-    // theme hint only after the shared document-painted fade completes.
-    const root = document.documentElement;
-    const theme = document.getElementById("strip-theme-color");
-    theme?.setAttribute("content", topSafeAreaColor);
-    root.removeAttribute("data-reader-entry-pending");
-    setInitialReaderReleased(true);
-    if (directPublishedEntry) setPublishedLoaderDismissedKey(publishedStripLoadKey);
+    // Paint the decoded layout beneath the opaque cover before revealing it.
+    // Release the page and safe-area colors in the same frame. The loader's
+    // spinner stays mounted and fades with that same cover.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        const root = document.documentElement;
+        document.getElementById("strip-theme-color")?.setAttribute("content", topSafeAreaColor);
+        root.removeAttribute("data-reader-entry-pending");
+        setInitialReaderReleased(true);
+        if (directPublishedEntry) setPublishedLoaderDismissedKey(publishedStripLoadKey);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [initialPublishedId, initialReaderReleased, initialReaderPending, topSafeAreaColor,
     view, directPublishedEntry, publishedStripLoadKey]);
 
@@ -8503,6 +8507,7 @@ export default function Home() {
       {editorEntrance.active ? <EditorEntrance key={editorEntrance.request} percent={editorEntrance.percent}
         handoffColor={editorEntrance.handoffColor}
         onCountComplete={() => editorEntrance.completeCount(editorEntrance.request!)}
+        onExitComplete={() => editorEntrance.completeReveal(editorEntrance.request!)}
         revealing={editorEntrance.phase === "revealing"} /> : null}
 
       {!inlinePreview && !heightCropSession && selectedBlock?.type === "text" ? (
