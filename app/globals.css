@@ -3332,10 +3332,11 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
   outline-color: #000000;
 }
 
-/* Instagram uses a compact, edge-to-edge pill. Its resting screen anchor
-   stays fixed, with no Safari bleed or extra outer safe-area padding. */
+/* Leave a small responsive inset for the host screen corner mask. Keep
+   the pill on the same bottom edge and preserve the controls' inner position. */
 html[data-in-app-browser="instagram"] {
   --dock-visible-height: 80px;
+  --instagram-dock-edge: clamp(10px, 3vw, 14px);
   --sticker-picker-viewport-height: calc(var(--instagram-dock-viewport-height, 100svh) * .78);
 }
 html[data-in-app-browser="instagram"] .composer-dock {
@@ -3343,6 +3344,7 @@ html[data-in-app-browser="instagram"] .composer-dock {
   --dock-browser-extension: 0px;
   --dock-bleed: 0px;
   --dock-controls-lower: 0px;
+  --dock-controls-inset: max(8px, calc(22px - var(--instagram-dock-edge)));
   /* Instagram must never inherit Safari keyboard-pan compensation. */
   translate: none !important;
   --instagram-dock-height: var(--dock-visible-height);
@@ -3351,16 +3353,18 @@ html[data-in-app-browser="instagram"] .composer-dock {
   corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
-  top: calc(var(--instagram-dock-viewport-height, 100svh) - var(--instagram-dock-visible)) !important;
-  bottom: auto !important;
+  /* Follow the real WebView bottom, never a saved top coordinate. Instagram
+     can resize its header while scrolling without moving this screen edge. */
+  top: auto !important;
+  bottom: 0 !important;
   height: calc(var(--instagram-dock-visible) + var(--dock-bleed)) !important;
   min-height: 0 !important;
   align-items: center !important;
   padding-top: 0;
   margin: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
+  left: var(--instagram-dock-edge);
+  right: var(--instagram-dock-edge);
+  width: calc(100% - 2 * var(--instagram-dock-edge));
   max-width: none;
   padding-bottom: var(--dock-bleed) !important;
   backface-visibility: hidden;
@@ -3395,14 +3399,14 @@ html[data-in-app-browser="instagram"] .share-shell {
 }
 html[data-in-app-browser="instagram"] .share-link-anchor { translate: none; }
 html[data-in-app-browser="instagram"] .cover-instruction {
-  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + 20px);
+  bottom: calc(var(--dock-visible-height) + 20px);
 }
 html[data-in-app-browser="instagram"] .library-add-button,
 html[data-in-app-browser="instagram"] .app-shell:not(.reader-mode) > .notice {
-  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + 18px);
+  bottom: calc(var(--dock-visible-height) + 18px);
 }
 html[data-in-app-browser="instagram"] .profile-save-notice.notice {
-  bottom: calc(100% - var(--instagram-dock-viewport-height, 100svh) + var(--dock-visible-height) + 8px);
+  bottom: calc(var(--dock-visible-height) + 8px);
 }
 
 /* The expanded picker owns scrolling, without moving the editor's scroll anchor. */
