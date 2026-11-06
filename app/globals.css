@@ -3339,7 +3339,7 @@ html.page-color-picking .text-sticker-editor-layer { visibility: hidden; }
    the pill on the same bottom edge and preserve the controls' inner position. */
 html[data-in-app-browser="instagram"] {
   --dock-visible-height: 80px;
-  --instagram-dock-edge: clamp(10px, 3vw, 14px);
+  --instagram-dock-edge: clamp(6px, 2vw, 10px);
   --sticker-picker-viewport-height: 78svh;
 }
 html[data-in-app-browser="instagram"] .composer-dock {
@@ -3352,7 +3352,12 @@ html[data-in-app-browser="instagram"] .composer-dock {
   translate: none !important;
   --instagram-dock-height: var(--dock-visible-height);
   --instagram-dock-visible: var(--instagram-dock-height);
-  border-radius: calc(var(--dock-visible-height) / 2);
+  /* Fuller lower corners stay inside the phone's rounded screen mask while
+     the narrower side inset widens the pill. Keep its existing height. */
+  border-radius:
+    calc(var(--dock-visible-height) / 2) calc(var(--dock-visible-height) / 2) 64px 64px /
+    calc(var(--dock-visible-height) * .4) calc(var(--dock-visible-height) * .4)
+    calc(var(--dock-visible-height) * .6) calc(var(--dock-visible-height) * .6);
   corner-shape: round;
 }
 html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):not(.strip-entrance-dock):not(.story-share-document-dock):not(.auth-dock-frozen) {
@@ -3366,9 +3371,9 @@ html[data-in-app-browser="instagram"] .composer-dock:not(.preview-motion-dock):n
   align-items: center !important;
   padding-top: 0;
   margin: 0;
-  left: var(--instagram-dock-edge);
-  right: var(--instagram-dock-edge);
-  width: calc(100% - 2 * var(--instagram-dock-edge));
+  left: max(var(--instagram-dock-edge), env(safe-area-inset-left));
+  right: max(var(--instagram-dock-edge), env(safe-area-inset-right));
+  width: auto;
   max-width: none;
   padding-bottom: 0 !important;
   backface-visibility: hidden;
